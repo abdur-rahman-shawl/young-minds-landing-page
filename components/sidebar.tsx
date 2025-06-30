@@ -23,7 +23,7 @@ export function Sidebar() {
           </p>
           <div className="w-56 h-64 rounded-b-full overflow-hidden shadow-lg">
             <Image
-              src="/placeholder.svg?height=250&width=220"
+              src="https://images.pexels.com/photos/718978/pexels-photo-718978.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
               alt="Study abroad counseling"
               width={220}
               height={250}

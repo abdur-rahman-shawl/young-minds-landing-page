@@ -4,17 +4,17 @@ const stats = [
   {
     number: "10000+",
     label: "professionals",
-    image: "/placeholder.svg?height=200&width=175",
+    image: "https://img.freepik.com/free-photo/close-up-confident-corporate-woman-professional-entrepreneur-smiling-cross-arms-chest-smiling-enthusiastic-standing-white-background_1258-85600.jpg",
   },
   {
     number: "1053+",
     label: "eXperts & Mentors",
-    image: "/placeholder.svg?height=200&width=175",
+    image: "https://img.freepik.com/premium-photo/black-man-portrait-headset-office-call-center-contact-us-customer-service-with-sales-agent-happy-microphone-workplace-communication-lead-generation-technical-support_590464-476940.jpg",
   },
   {
     number: "2500+",
     label: "Success stories",
-    image: "/placeholder.svg?height=200&width=175",
+    image: "https://media.istockphoto.com/id/2042526830/photo/successful-businesswoman-using-laptop-working-in-office-business-technology-corporate-concept.jpg?s=170667a&w=0&k=20&c=jY1UqV0LY_6WO2dUefgek0CaE7l1QEOeGlMtPPb5O5o=",
   },
 ]
 

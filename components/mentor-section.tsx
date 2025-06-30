@@ -8,22 +8,22 @@ const mentors = [
   {
     name: "Mark Zuckerberg",
     title: "Meta",
-    image: "/placeholder.svg?height=150&width=150",
+    image: "https://cdn.britannica.com/99/236599-050-1199AD2C/Mark-Zuckerberg-2019.jpg",
   },
   {
     name: "Bill Gates",
     title: "Microsoft",
-    image: "/placeholder.svg?height=150&width=150",
+    image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQAZVtiDW6ZhvvWgq5SYoD8X2c2LtS5nycvLA&s",
   },
   {
     name: "Jeff Bezos",
     title: "Amazon",
-    image: "/placeholder.svg?height=150&width=150",
+    image: "https://hips.hearstapps.com/hmg-prod/images/jeff-bezos-attends-the-lord-of-the-rings-the-rings-of-power-news-photo-1684851576.jpg?crop=1.00xw:0.862xh;0,0.0207xh&resize=1200:*",
   },
   {
     name: "Elon Musk",
     title: "Tesla, SpaceX",
-    image: "/placeholder.svg?height=150&width=150",
+    image: "https://upload.wikimedia.org/wikipedia/commons/f/f4/USAFA_Hosts_Elon_Musk_%28Image_1_of_17%29_%28cropped%29.jpg",
   },
 ]
 

@@ -100,7 +100,7 @@ export function HeroSection() {
         <div className="lg:w-2/5 flex justify-center lg:justify-end">
           <div className="relative w-80 h-80 lg:w-96 lg:h-96">
             <Image
-              src="/placeholder.svg?height=400&width=400"
+              src="https://img.freepik.com/free-photo/smiley-man-working-laptop-from-home_23-2148306647.jpg"
               alt="Person working on a laptop"
               fill
               className="object-cover rounded-t-full"
