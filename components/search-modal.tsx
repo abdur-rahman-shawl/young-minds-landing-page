@@ -10,6 +10,7 @@ import { ArrowRight, Star, MapPin, Clock, Users } from "lucide-react"
 interface SearchModalProps {
   isOpen: boolean
   onClose: () => void
+  onMentorSelect?: (mentorId: number) => void
 }
 
 interface Mentor {
@@ -27,7 +28,7 @@ interface Mentor {
   responseTime: string
 }
 
-export function SearchModal({ isOpen, onClose }: SearchModalProps) {
+export function SearchModal({ isOpen, onClose, onMentorSelect }: SearchModalProps) {
   const [inputValue, setInputValue] = useState("")
   const [isFocused, setIsFocused] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
@@ -324,6 +325,10 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
               <Card 
                 key={mentor.id}
                 className="p-6 bg-white dark:bg-gray-900 border border-gray-200/50 dark:border-gray-800/50 rounded-2xl hover:shadow-lg transition-shadow duration-150 cursor-pointer"
+                onClick={() => {
+                  onMentorSelect?.(mentor.id)
+                  onClose()
+                }}
               >
                 <div className="flex items-start space-x-4">
                   {/* Avatar */}

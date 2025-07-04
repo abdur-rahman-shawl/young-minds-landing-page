@@ -27,6 +27,7 @@ import { Sessions } from "@/components/dashboard/sessions"
 export default function Page() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [activeSection, setActiveSection] = useState("dashboard")
+  const [selectedMentor, setSelectedMentor] = useState<number | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -36,17 +37,28 @@ export default function Page() {
     const loggedIn = localStorage.getItem("isLoggedIn") === "true"
     setIsLoggedIn(loggedIn)
 
-    // Get section from URL on page load
+    // Get section and mentor from URL on page load
     if (loggedIn) {
       const sectionFromUrl = searchParams.get("section") || "dashboard"
+      const mentorFromUrl = searchParams.get("mentor")
       setActiveSection(sectionFromUrl)
+      setSelectedMentor(mentorFromUrl ? parseInt(mentorFromUrl) : null)
     }
   }, [searchParams])
 
   const handleSectionChange = (section: string) => {
     setActiveSection(section)
+    setSelectedMentor(null)
     // Update URL without page refresh
     const newUrl = `/?section=${section}`
+    router.push(newUrl, { scroll: false })
+  }
+
+  const handleMentorSelect = (mentorId: number) => {
+    setActiveSection("explore")
+    setSelectedMentor(mentorId)
+    // Update URL without page refresh
+    const newUrl = `/?section=explore&mentor=${mentorId}`
     router.push(newUrl, { scroll: false })
   }
 
@@ -63,7 +75,7 @@ export default function Page() {
       case "dashboard":
         return <Dashboard />
       case "explore":
-        return <ExploreMentors />
+        return <ExploreMentors selectedMentor={selectedMentor} />
       case "saved":
         return <SavedItems />
       case "mentors":
@@ -103,6 +115,7 @@ export default function Page() {
           <SearchModal 
             isOpen={isSearchOpen} 
             onClose={handleSearchClose} 
+            onMentorSelect={handleMentorSelect}
           />
         </div>
       </SidebarProvider>

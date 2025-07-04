@@ -1,10 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Star, MapPin, Clock, Search, Filter, TrendingUp, Award, Zap } from "lucide-react"
+import { MentorProfile } from "./mentor-profile"
 
 interface Mentor {
   id: number
@@ -136,11 +138,14 @@ const trendingMentors: Mentor[] = [
   }
 ]
 
-function MentorCard({ mentor, size = "normal" }: { mentor: Mentor, size?: "normal" | "large" }) {
+function MentorCard({ mentor, size = "normal", onSelect }: { mentor: Mentor, size?: "normal" | "large", onSelect?: (mentorId: number) => void }) {
   const isLarge = size === "large"
   
   return (
-    <Card className={`${isLarge ? 'p-8' : 'p-6'} bg-white dark:bg-gray-900 border border-gray-200/50 dark:border-gray-800/50 rounded-2xl hover:shadow-xl transition-all duration-200 cursor-pointer group relative overflow-hidden`}>
+    <Card 
+      className={`${isLarge ? 'p-8' : 'p-6'} bg-white dark:bg-gray-900 border border-gray-200/50 dark:border-gray-800/50 rounded-2xl hover:shadow-xl transition-all duration-200 cursor-pointer group relative overflow-hidden`}
+      onClick={() => onSelect?.(mentor.id)}
+    >
       {/* Featured/Trending Badge */}
       {mentor.featured && (
         <div className="absolute top-4 right-4 z-10">
@@ -250,7 +255,21 @@ function CategoryCard({ category }: { category: typeof categories[0] }) {
   )
 }
 
-export function ExploreMentors() {
+export function ExploreMentors({ selectedMentor: initialSelectedMentor }: { selectedMentor?: number | null }) {
+  const [selectedMentor, setSelectedMentor] = useState<number | null>(initialSelectedMentor || null)
+
+  const handleMentorSelect = (mentorId: number) => {
+    setSelectedMentor(mentorId)
+  }
+
+  const handleBackToExplore = () => {
+    setSelectedMentor(null)
+  }
+
+  if (selectedMentor) {
+    return <MentorProfile mentorId={selectedMentor} onBack={handleBackToExplore} />
+  }
+
   return (
     <div className="space-y-8 p-6">
       {/* Header with Search */}
@@ -290,7 +309,7 @@ export function ExploreMentors() {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {featuredMentors.map((mentor) => (
-            <MentorCard key={mentor.id} mentor={mentor} />
+            <MentorCard key={mentor.id} mentor={mentor} onSelect={handleMentorSelect} />
           ))}
         </div>
       </section>
@@ -315,7 +334,7 @@ export function ExploreMentors() {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {trendingMentors.map((mentor) => (
-            <MentorCard key={mentor.id} mentor={mentor} />
+            <MentorCard key={mentor.id} mentor={mentor} onSelect={handleMentorSelect} />
           ))}
         </div>
       </section>
