@@ -36,16 +36,16 @@ const services = [
 
 export function ServicesGrid() {
   return (
-    <section className="py-16">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <section className="py-20">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10">
         {services.map((service, index) => (
-          <Card key={index} className={`p-6 hover:shadow-lg transition-shadow cursor-pointer ${service.color}`}>
-            <div className="flex items-start justify-between mb-4">
-              <span className="text-2xl font-bold text-gray-400">{service.id}</span>
-              <ArrowRight className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+          <Card key={index} className={`p-8 hover:shadow-lg transition-shadow cursor-pointer ${service.color}`}>
+            <div className="flex items-start justify-between mb-6">
+              <span className="text-3xl font-bold text-gray-400">{service.id}</span>
+              <ArrowRight className="w-6 h-6 text-gray-600 dark:text-gray-300" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{service.title}</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300">{service.subtitle}</p>
+            <h3 className="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white mb-3">{service.title}</h3>
+            <p className="text-gray-600 dark:text-gray-300">{service.subtitle}</p>
           </Card>
         ))}
       </div>

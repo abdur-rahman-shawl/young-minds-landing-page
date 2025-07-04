@@ -28,15 +28,15 @@ export default function Page() {
       <main className="flex">
         {/* Left Sidebar - User Dashboard (only show when logged in) */}
         {isLoggedIn && (
-          <div className="hidden lg:block lg:w-80 xl:w-96">
+          <div className="hidden lg:block lg:w-80 xl:w-96 flex-shrink-0">
             <UserSidebar />
           </div>
         )}
 
         {/* Main Content */}
-        <div className="flex-1 max-w-4xl mx-auto">
+        <div className="flex-1 min-w-0 max-w-6xl mx-auto">
           <HeroSection />
-          <div className="px-4 sm:px-6">
+          <div className="px-6 sm:px-8 lg:px-12 xl:px-16">
             <StatsSection />
             <MentorSection />
             <VideoCallSection />
@@ -48,7 +48,7 @@ export default function Page() {
         </div>
 
         {/* Right Sidebar */}
-        <div className="hidden xl:block xl:w-80">
+        <div className="hidden xl:block xl:w-80 flex-shrink-0">
           <RightSidebar />
         </div>
       </main>
