@@ -18,6 +18,7 @@ import { SearchModal } from "@/components/search-modal"
 
 // Dashboard components
 import { Dashboard } from "@/components/dashboard/dashboard"
+import { ExploreMentors } from "@/components/dashboard/explore"
 import { SavedItems } from "@/components/dashboard/saved-items"
 import { Mentors } from "@/components/dashboard/mentors"
 import { Messages } from "@/components/dashboard/messages"
@@ -61,6 +62,8 @@ export default function Page() {
     switch (activeSection) {
       case "dashboard":
         return <Dashboard />
+      case "explore":
+        return <ExploreMentors />
       case "saved":
         return <SavedItems />
       case "mentors":

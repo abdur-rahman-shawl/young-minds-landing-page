@@ -39,7 +39,7 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
         <div className="flex items-center space-x-4">
           <Button variant="ghost" size="sm" className="gap-2" onClick={onSearchClick}>
             <Search className="w-4 h-4" />
-            Search
+            Find Your Mentor with AI
           </Button>
           <Button variant="ghost" size="icon">
             <Bell className="w-4 h-4" />
