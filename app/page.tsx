@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Header } from "@/components/header"
 import { UserSidebar } from "@/components/user-sidebar"
@@ -24,7 +24,7 @@ import { Mentors } from "@/components/dashboard/mentors"
 import { Messages } from "@/components/dashboard/messages"
 import { Sessions } from "@/components/dashboard/sessions"
 
-export default function Page() {
+function PageContent() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [activeSection, setActiveSection] = useState("dashboard")
   const [selectedMentor, setSelectedMentor] = useState<number | null>(null)
@@ -146,5 +146,13 @@ export default function Page() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <PageContent />
+    </Suspense>
   )
 }
