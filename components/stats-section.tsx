@@ -20,21 +20,21 @@ const stats = [
 
 export function StatsSection() {
   return (
-    <section className="py-16">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+    <section className="py-20">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16 text-center">
         {stats.map((stat, index) => (
           <div key={index} className="flex flex-col items-center">
-            <div className="w-44 h-48 rounded-b-full overflow-hidden mb-4 shadow-lg">
+            <div className="w-48 lg:w-52 h-52 lg:h-56 rounded-b-full overflow-hidden mb-6 shadow-lg">
               <Image
                 src={stat.image || "/placeholder.svg"}
                 alt={stat.label}
-                width={175}
-                height={200}
+                width={200}
+                height={220}
                 className="w-full h-full object-cover"
               />
             </div>
-            <p className="text-xl font-semibold text-gray-900 dark:text-white mb-1">{stat.number}</p>
-            <p className="text-gray-600 dark:text-gray-300 capitalize">{stat.label}</p>
+            <p className="text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white mb-2">{stat.number}</p>
+            <p className="text-gray-600 dark:text-gray-300 text-lg capitalize">{stat.label}</p>
           </div>
         ))}
       </div>
