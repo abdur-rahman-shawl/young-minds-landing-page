@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { useRouter } from "next/navigation"
 import { Search, Bell, Settings } from "lucide-react"
+import { useState, useEffect } from "react"
 
 interface HeaderProps {
   isLoggedIn: boolean
@@ -14,6 +15,16 @@ interface HeaderProps {
 
 export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps) {
   const router = useRouter()
+  const [isScrolled, setIsScrolled] = useState(false)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const handleAuthClick = () => {
     if (isLoggedIn) {
@@ -25,21 +36,37 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
     }
   }
 
+  const handleLogoClick = () => {
+    router.push("/")
+  }
+
+  const headerClasses = `fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+    isScrolled 
+      ? 'bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-sm' 
+      : 'bg-white dark:bg-gray-900'
+  } border-b border-gray-200 dark:border-gray-800`
+
   if (isLoggedIn) {
     // Dashboard Header
     return (
-      <header className="h-16 w-full flex items-center justify-between px-6 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+      <header className={`${headerClasses} h-16 flex items-center justify-between px-6`}>
         <div className="flex items-center gap-4">
           <SidebarTrigger />
-          <div className="text-lg font-bold">
+          <div 
+            className="text-lg font-bold cursor-pointer transition-colors"
+            onClick={handleLogoClick}
+          >
             Young<span className="text-blue-500">Minds</span>
           </div>
         </div>
         
         <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="sm" className="gap-2" onClick={onSearchClick}>
-            <Search className="w-4 h-4" />
-            Find Your Mentor with AI
+          <Button
+            variant="outline"
+            className="font-semibold border-blue-500 text-blue-600 hover:bg-blue-50"
+            onClick={() => router.push('/mentor-signup')}
+          >
+            Become a Mentor
           </Button>
           <Button variant="ghost" size="icon">
             <Bell className="w-4 h-4" />
@@ -58,9 +85,12 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
 
   // Landing Page Header
   return (
-    <header className="h-24 w-full flex items-center justify-between px-6 sm:px-8 lg:px-12 xl:px-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <header className={`${headerClasses} h-24 flex items-center justify-between px-6 sm:px-8 lg:px-12 xl:px-16`}>
       <div className="flex items-center space-x-8">
-        <div className="text-xl lg:text-2xl font-bold cursor-pointer" onClick={() => router.push("/")}>
+        <div 
+          className="text-xl lg:text-2xl font-bold cursor-pointer hover:text-blue-500 transition-colors" 
+          onClick={handleLogoClick}
+        >
           Young<span className="text-blue-500">Minds</span>
         </div>
         <nav className="hidden md:flex space-x-8">
@@ -85,6 +115,13 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
         </nav>
       </div>
       <div className="flex items-center space-x-4">
+        <Button
+          variant="outline"
+          className="font-semibold border-blue-500 text-blue-600 hover:bg-blue-50"
+          onClick={() => router.push('/mentor-signup')}
+        >
+          Become a Mentor
+        </Button>
         <ThemeToggle />
         <Button variant="ghost" className="hidden sm:inline-flex h-10 px-6" onClick={handleAuthClick}>
           Sign Up

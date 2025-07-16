@@ -14,7 +14,7 @@ import { CaseStudySection } from "@/components/case-study-section"
 import { ServicesGrid } from "@/components/services-grid"
 import { RightSidebar } from "@/components/right-sidebar"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
-import { SearchModal } from "@/components/search-modal"
+
 
 // Dashboard components
 import { Dashboard } from "@/components/dashboard/dashboard"
@@ -28,7 +28,6 @@ function PageContent() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [activeSection, setActiveSection] = useState("dashboard")
   const [selectedMentor, setSelectedMentor] = useState<number | null>(null)
-  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -39,7 +38,7 @@ function PageContent() {
 
     // Get section and mentor from URL on page load
     if (loggedIn) {
-      const sectionFromUrl = searchParams.get("section") || "dashboard"
+      const sectionFromUrl = searchParams.get("section") || "home"
       const mentorFromUrl = searchParams.get("mentor")
       setActiveSection(sectionFromUrl)
       setSelectedMentor(mentorFromUrl ? parseInt(mentorFromUrl) : null)
@@ -62,14 +61,6 @@ function PageContent() {
     router.push(newUrl, { scroll: false })
   }
 
-  const handleSearchClick = () => {
-    setIsSearchOpen(true)
-  }
-
-  const handleSearchClose = () => {
-    setIsSearchOpen(false)
-  }
-
   const renderDashboardContent = () => {
     switch (activeSection) {
       case "dashboard":
@@ -89,6 +80,29 @@ function PageContent() {
     }
   }
 
+  const renderLoggedInContent = () => {
+    if (activeSection === "home") {
+      // Show landing page content
+      return (
+        <div className="flex-1 min-w-0 max-w-6xl mx-auto">
+          <HeroSection />
+          <div className="px-6 sm:px-8 lg:px-12 xl:px-16">
+            <StatsSection />
+            <MentorSection />
+            <VideoCallSection />
+            <ChatSection />
+            <CollabExpertsSection />
+            <CaseStudySection />
+            <ServicesGrid />
+          </div>
+        </div>
+      )
+    } else {
+      // Show dashboard content for other sections
+      return renderDashboardContent()
+    }
+  }
+
   if (isLoggedIn) {
     return (
       <SidebarProvider>
@@ -104,19 +118,11 @@ function PageContent() {
             <Header 
               isLoggedIn={isLoggedIn} 
               setIsLoggedIn={setIsLoggedIn}
-              onSearchClick={handleSearchClick}
             />
-            <main className="flex-1">
-              {renderDashboardContent()}
+            <main className="flex-1 pt-16">
+              {renderLoggedInContent()}
             </main>
           </SidebarInset>
-          
-          {/* Search Modal */}
-          <SearchModal 
-            isOpen={isSearchOpen} 
-            onClose={handleSearchClose} 
-            onMentorSelect={handleMentorSelect}
-          />
         </div>
       </SidebarProvider>
     )
@@ -125,7 +131,7 @@ function PageContent() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
-      <main className="flex">
+      <main className="flex pt-24">
         {/* Main Content */}
         <div className="flex-1 min-w-0 max-w-6xl mx-auto">
           <HeroSection />

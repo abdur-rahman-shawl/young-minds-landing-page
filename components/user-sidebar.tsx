@@ -11,7 +11,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Eye, Users, Video, Bookmark, Users2, Mail, Calendar, LayoutDashboard } from "lucide-react"
+import { Eye, Users, Video, Bookmark, Users2, Mail, Calendar, LayoutDashboard, Home } from "lucide-react"
 
 interface UserSidebarProps {
   activeSection: string
@@ -20,6 +20,11 @@ interface UserSidebarProps {
 
 export function UserSidebar({ activeSection, onSectionChange }: UserSidebarProps) {
   const menuItems = [
+    {
+      title: "Home",
+      icon: Home,
+      key: "home"
+    },
     {
       title: "Dashboard",
       icon: LayoutDashboard,
@@ -53,7 +58,7 @@ export function UserSidebar({ activeSection, onSectionChange }: UserSidebarProps
   ]
 
   return (
-    <Sidebar className="bg-white dark:bg-gray-900 border-r border-gray-200/50 dark:border-gray-800/50 backdrop-blur-sm">
+    <Sidebar className="bg-white dark:bg-gray-900 border-r border-gray-200/50 dark:border-gray-800/50 backdrop-blur-sm mt-16">
       {/* User Profile Header */}
       <SidebarHeader className="p-4 bg-gradient-to-b from-gray-50/50 to-transparent dark:from-gray-800/30 dark:to-transparent">
         <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200/50 dark:border-gray-800/50">
