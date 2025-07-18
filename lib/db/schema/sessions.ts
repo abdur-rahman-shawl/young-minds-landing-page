@@ -1,0 +1,54 @@
+import { pgTable, text, timestamp, boolean, uuid, decimal, integer } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
+import { users } from './users';
+
+export const sessions = pgTable('sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  mentorId: uuid('mentor_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  menteeId: uuid('mentee_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Session details
+  title: text('title').notNull(),
+  description: text('description'),
+  status: text('status').notNull().default('scheduled'), // 'scheduled', 'in_progress', 'completed', 'cancelled'
+  
+  // Timing
+  scheduledAt: timestamp('scheduled_at').notNull(),
+  startedAt: timestamp('started_at'),
+  endedAt: timestamp('ended_at'),
+  duration: integer('duration_minutes').default(60), // Expected duration in minutes
+  
+  // Meeting details
+  meetingUrl: text('meeting_url'), // Zoom/Google Meet link
+  meetingType: text('meeting_type').default('video'), // 'video', 'audio', 'in_person', 'chat'
+  location: text('location'), // For in-person meetings
+  
+  // Pricing
+  rate: decimal('rate', { precision: 10, scale: 2 }),
+  currency: text('currency').default('USD'),
+  
+  // Session notes and feedback
+  mentorNotes: text('mentor_notes'),
+  menteeNotes: text('mentee_notes'),
+  mentorRating: integer('mentor_rating'), // 1-5 rating from mentee
+  menteeRating: integer('mentee_rating'), // 1-5 rating from mentor
+  
+  // Timestamps
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Relations
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  mentor: one(users, {
+    fields: [sessions.mentorId],
+    references: [users.id],
+  }),
+  mentee: one(users, {
+    fields: [sessions.menteeId],
+    references: [users.id],
+  }),
+}));
+
+export type Session = typeof sessions.$inferSelect;
+export type NewSession = typeof sessions.$inferInsert; 

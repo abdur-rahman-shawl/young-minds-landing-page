@@ -1,191 +1,251 @@
-import { Card } from "@/components/ui/card"
+"use client"
+
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Calendar, 
-  MessageCircle, 
-  Users, 
-  BookOpen, 
-  TrendingUp, 
-  Clock,
-  Video,
-  Star
-} from "lucide-react"
+import { CalendarDays, MessageSquare, BookOpen, TrendingUp, Clock, Users } from "lucide-react"
+import { useMentors } from "@/lib/hooks/use-mentors"
+import { useSessions } from "@/lib/hooks/use-sessions"
+import { useSession } from "@/lib/auth-client"
 
-export function Dashboard() {
-  const recentActivity = [
-    {
-      type: "session",
-      title: "React Performance session with Sarah Johnson",
-      time: "2 hours ago",
-      icon: Video
-    },
-    {
-      type: "message",
-      title: "New message from Michael Chen",
-      time: "4 hours ago",
-      icon: MessageCircle
-    },
-    {
-      type: "saved",
-      title: "Saved 'Career Growth in Tech Industry'",
-      time: "1 day ago",
-      icon: BookOpen
-    }
-  ]
+interface DashboardProps {
+  onMentorSelect: (mentorId: number) => void
+}
 
-  const upcomingSessions = [
-    {
-      mentor: "Sarah Johnson",
-      topic: "System Design Deep Dive",
-      time: "Today, 2:00 PM",
-      avatar: "/placeholder.svg?height=32&width=32"
-    },
-    {
-      mentor: "Michael Chen",
-      topic: "Product Strategy Review",
-      time: "Tomorrow, 10:00 AM",
-      avatar: "/placeholder.svg?height=32&width=32"
-    }
-  ]
+export function Dashboard({ onMentorSelect }: DashboardProps) {
+  const { data: session } = useSession()
+  const { mentors, loading: mentorsLoading } = useMentors()
+  const { sessions, loading: sessionsLoading } = useSessions('upcoming')
+  
+  // Get top mentors (first 3 for quick access)
+  const topMentors = mentors.slice(0, 3)
+  
+  // Get upcoming sessions (first 3)
+  const upcomingSessions = sessions.slice(0, 3)
 
   const stats = [
     {
-      label: "Sessions This Month",
-      value: "12",
-      change: "+3 from last month",
-      trend: "up",
-      icon: Calendar
+      title: "Sessions Booked",
+      value: sessions.length.toString(),
+      description: "+2 from last month",
+      icon: CalendarDays,
+      trend: "up"
     },
     {
-      label: "Messages",
-      value: "24",
-      change: "+8 this week",
-      trend: "up",
-      icon: MessageCircle
+      title: "Hours Learned",
+      value: (sessions.length * 1.5).toFixed(1), // Assuming 1.5 hours avg per session
+      description: "+5.2 hours this week",
+      icon: Clock,
+      trend: "up"
     },
     {
-      label: "Mentors Connected",
+      title: "Mentors Connected",
       value: "8",
-      change: "+2 new connections",
-      trend: "up",
-      icon: Users
+      description: "2 new connections",
+      icon: Users,
+      trend: "up"
     },
     {
-      label: "Items Saved",
-      value: "47",
-      change: "+12 this week",
-      trend: "up",
-      icon: BookOpen
+      title: "Skills Progress",
+      value: "76%",
+      description: "+12% this month",
+      icon: TrendingUp,
+      trend: "up"
     }
   ]
 
   return (
-    <div className="p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Welcome Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Welcome back, John! 👋
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            Here's what's happening with your mentoring journey today.
-          </p>
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Welcome back{session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}! 👋</h1>
+          <p className="text-gray-600 mt-1">Continue your learning journey with expert mentors</p>
         </div>
+        <Button onClick={() => onMentorSelect(0)}>
+          Find New Mentors
+        </Button>
+      </div>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => (
-            <Card key={index} className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <stat.icon className="w-5 h-5 text-blue-600" />
-                <TrendingUp className="w-4 h-4 text-green-600" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {stat.value}
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {stat.label}
-                </p>
-                <p className="text-xs text-green-600">
-                  {stat.change}
-                </p>
-              </div>
-            </Card>
-          ))}
-        </div>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat, index) => (
+          <Card key={index}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+              <stat.icon className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stat.value}</div>
+              <p className="text-xs text-muted-foreground">{stat.description}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Upcoming Sessions */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Upcoming Sessions
-              </h3>
-              <Button variant="outline" size="sm">
-                View All
-              </Button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Upcoming Sessions */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Upcoming Sessions</CardTitle>
+              <CardDescription>Your scheduled mentoring sessions</CardDescription>
             </div>
-            <div className="space-y-4">
-              {upcomingSessions.map((session, index) => (
-                <div key={index} className="flex items-center gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={session.avatar} alt={session.mentor} />
-                    <AvatarFallback>{session.mentor.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900 dark:text-white">
-                      {session.topic}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      with {session.mentor}
-                    </p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <Clock className="w-3 h-3 text-gray-400" />
-                      <span className="text-xs text-gray-500">{session.time}</span>
+            <Button variant="outline" size="sm">View All</Button>
+          </CardHeader>
+          <CardContent>
+            {sessionsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="h-16 bg-gray-200 rounded"></div>
+                  </div>
+                ))}
+              </div>
+            ) : upcomingSessions.length > 0 ? (
+              <div className="space-y-3">
+                {upcomingSessions.map((session) => (
+                  <div key={session.id} className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback>
+                        {session.mentorName?.split(' ').map(n => n[0]).join('') || 'M'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{session.mentorName}</p>
+                      <p className="text-sm text-gray-600">{session.mentorTitle}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">
+                        {new Date(session.scheduledAt).toLocaleDateString()}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        {new Date(session.scheduledAt).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </p>
                     </div>
                   </div>
-                  <Button size="sm" className="gap-2">
-                    <Video className="w-4 h-4" />
-                    Join
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <CalendarDays className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600 mb-4">No upcoming sessions</p>
+                <Button size="sm" onClick={() => onMentorSelect(0)}>
+                  Book a Session
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-          {/* Recent Activity */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Recent Activity
-              </h3>
-              <Button variant="outline" size="sm">
-                View All
-              </Button>
+        {/* Recommended Mentors */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Recommended Mentors</CardTitle>
+              <CardDescription>Top mentors based on your interests</CardDescription>
             </div>
-            <div className="space-y-4">
-              {recentActivity.map((activity, index) => (
-                <div key={index} className="flex items-start gap-4">
-                  <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
-                    <activity.icon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <Button variant="outline" size="sm" onClick={() => onMentorSelect(0)}>
+              Explore All
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {mentorsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="h-16 bg-gray-200 rounded"></div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {activity.title}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {activity.time}
-                    </p>
+                ))}
+              </div>
+            ) : topMentors.length > 0 ? (
+              <div className="space-y-3">
+                {topMentors.map((mentor) => (
+                  <div 
+                    key={mentor.id} 
+                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
+                    onClick={() => onMentorSelect(parseInt(mentor.id))}
+                  >
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={mentor.image || undefined} alt={mentor.name} />
+                      <AvatarFallback>
+                        {mentor.name?.split(' ').map(n => n[0]).join('') || 'M'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{mentor.name}</p>
+                      <p className="text-sm text-gray-600 truncate">
+                        {mentor.title} at {mentor.company}
+                      </p>
+                      {mentor.expertise && (
+                        <div className="flex gap-1 mt-1">
+                          {mentor.expertise.split(',').slice(0, 2).map((skill, index) => (
+                            <Badge key={index} variant="secondary" className="text-xs">
+                              {skill.trim()}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {mentor.hourlyRate && (
+                      <div className="text-right">
+                        <p className="text-sm font-medium">${mentor.hourlyRate}/hr</p>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <Users className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600 mb-4">No mentors available</p>
+                <Button size="sm" onClick={() => onMentorSelect(0)}>
+                  Browse Mentors
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Common tasks to accelerate your learning</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Button 
+              variant="outline" 
+              className="h-24 flex flex-col items-center justify-center gap-2"
+              onClick={() => onMentorSelect(0)}
+            >
+              <Users className="h-6 w-6" />
+              <span>Find Mentors</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-24 flex flex-col items-center justify-center gap-2"
+            >
+              <MessageSquare className="h-6 w-6" />
+              <span>Send Message</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-24 flex flex-col items-center justify-center gap-2"
+            >
+              <BookOpen className="h-6 w-6" />
+              <span>Learning Resources</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 } 

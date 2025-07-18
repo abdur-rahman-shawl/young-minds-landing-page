@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from '@/lib/auth-client';
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ArrowLeft } from "lucide-react";
@@ -50,11 +51,12 @@ function MentorSignupHeader() {
 }
 
 export default function MentorSignup() {
-  const [submitted, setSubmitted] = useState(false);
+  const router = useRouter();
+  const { data: session } = useSession();
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const router = useRouter();
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -63,26 +65,86 @@ export default function MentorSignup() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!photo) {
       setPhotoError('Photo is required.');
       return;
     }
+
+    if (!session?.user?.id) {
+      alert('Please log in to submit your application');
+      return;
+    }
+
     setSubmitted(true);
+
+    try {
+      const formData = new FormData(e.target as HTMLFormElement);
+      
+      // Create mentor profile data
+      const mentorData = {
+        userId: session.user.id,
+        title: formData.get('currentTitle'),
+        company: formData.get('company'),
+        industry: formData.get('industry'),
+        expertise: formData.get('expertiseAreas'),
+        experience: parseInt(formData.get('experienceYears') as string),
+        hourlyRate: formData.get('hourlyRate') || '50.00',
+        currency: 'USD',
+        headline: `${formData.get('currentTitle')} at ${formData.get('company')}`,
+        about: `Experienced ${formData.get('currentTitle')} with ${formData.get('experienceYears')} years in ${formData.get('industry')}. Specializing in ${formData.get('expertiseAreas')}.`,
+        linkedinUrl: formData.get('linkedinUrl') || '',
+        githubUrl: formData.get('githubUrl') || '',
+        websiteUrl: formData.get('websiteUrl') || '',
+        isAvailable: true
+      };
+
+      console.log('🚀 Submitting mentor data:', mentorData);
+
+      // Submit mentor application
+      const response = await fetch('/api/mentors/apply', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(mentorData)
+      });
+
+      console.log('📡 API Response status:', response.status);
+      
+      const result = await response.json();
+      console.log('📋 API Response data:', result);
+
+      if (!result.success) {
+        console.error('❌ API Error:', result.error);
+        alert('Failed to submit application: ' + result.error);
+        setSubmitted(false);
+        return;
+      }
+
+      console.log('✅ Mentor application submitted successfully!');
+      // Success - profile created and mentor role assigned
+      
+    } catch (error) {
+      console.error('❌ Network/JS Error submitting mentor application:', error);
+      alert('Failed to submit application. Please check console for details.');
+      setSubmitted(false);
+    }
   };
 
   if (submitted) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-10 max-w-md w-full flex flex-col items-center">
-          <h2 className="text-2xl font-bold text-blue-600 mb-4 text-center">Your profile is sent for verification</h2>
-          <p className="text-gray-700 dark:text-gray-200 text-lg text-center mb-6">You will receive an update in the next 24 hours.</p>
+          <h2 className="text-2xl font-bold text-blue-600 mb-4 text-center">Application Submitted!</h2>
+          <p className="text-gray-700 dark:text-gray-200 text-lg text-center mb-6">Your mentor profile is under review. You'll receive an update within 24 hours.</p>
           <button
             className="mt-2 px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/dashboard')}
           >
-            Back to Home
+            Go to Dashboard
           </button>
         </div>
       </div>

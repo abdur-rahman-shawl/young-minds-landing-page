@@ -6,6 +6,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { useRouter } from "next/navigation"
 import { Search, Bell, Settings } from "lucide-react"
 import { useState, useEffect } from "react"
+import { signOut } from "@/lib/auth-client"
 
 interface HeaderProps {
   isLoggedIn: boolean
@@ -26,11 +27,24 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const handleAuthClick = () => {
+  const handleAuthClick = async () => {
     if (isLoggedIn) {
-      localStorage.removeItem("isLoggedIn")
-      localStorage.removeItem("userEmail")
+      try {
+        // Use BetterAuth signOut
+        await signOut({
+          fetchOptions: {
+            onSuccess: () => {
+              setIsLoggedIn(false)
+              router.push("/")
+            },
+          },
+        })
+      } catch (error) {
+        console.error("Logout error:", error)
+        // Fallback: just update state and redirect
       setIsLoggedIn(false)
+        router.push("/")
+      }
     } else {
       router.push("/auth")
     }
@@ -67,6 +81,9 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
             onClick={() => router.push('/mentor-signup')}
           >
             Become a Mentor
+          </Button>
+          <Button variant="ghost" size="icon" onClick={onSearchClick}>
+            <Search className="w-4 h-4" />
           </Button>
           <Button variant="ghost" size="icon">
             <Bell className="w-4 h-4" />
