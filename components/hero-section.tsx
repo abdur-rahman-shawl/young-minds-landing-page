@@ -124,6 +124,17 @@ export function HeroSection() {
     }
   ]
 
+  const SYSTEM_PROMPT = `
+You are MentorAI, an AI Mentor Finder Assistant. Your role is to help users find the most suitable professional mentors for their career or learning needs. 
+
+- Greet the user and ask clarifying questions to understand their background, goals, and what kind of mentorship they are seeking.
+- Your primary intent is to gather enough information to recommend a few renowned professionals as potential mentors, tailored to the user's needs.
+- When the user types "show me mentors", respond with a message indicating you are matching them to suitable mentors, and then the UI will display the matched mentors below.
+- Do not entertain or respond to any chat that is not related to mentor finding, career guidance, or professional growth. Politely redirect the conversation if the user goes off-topic.
+- Be concise, friendly, and professional. Do not fabricate mentor names; the actual mentor list will be shown by the app.
+- Never answer questions unrelated to mentorship or career guidance.
+`;
+
   // Premium typewriter effect
   useEffect(() => {
     if (isFocused || inputValue || isChatExpanded) return // Don't animate when focused, typing, or chat is expanded
@@ -181,14 +192,22 @@ export function HeroSection() {
     try {
       const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || ""
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
-      // Prepare chat history for Gemini
-      const history = messages
-        .filter(m => m.type === 'user' || m.type === 'ai')
-        .map(m => ({ role: m.type === 'user' ? 'user' : 'model', parts: m.content }))
-      history.push({ role: 'user', parts: userMessage })
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
+      // Prepare chat history for Gemini, with system prompt
+      const history = [
+        { role: 'user', parts: [{ text: SYSTEM_PROMPT }] },
+        ...messages
+          .filter(m => m.type === 'user' || m.type === 'ai')
+          .map(m => ({ role: m.type === 'user' ? 'user' : 'model', parts: [{ text: m.content }] })),
+        { role: 'user', parts: [{ text: userMessage }] }
+      ]
       const chat = model.startChat({ history })
       const result = await chat.sendMessage(userMessage)
+      // Debug: print the raw result and response
+      console.log('Gemini raw result:', result)
+      if (result && result.response) {
+        console.log('Gemini response object:', result.response)
+      }
       const response = await result.response
       const text = response.text()
       // Simulate typing effect for realism
@@ -203,8 +222,24 @@ export function HeroSection() {
         timestamp: new Date()
       }
       setMessages(prev => [...prev, aiMessage])
+      // Only show mentors if user typed exactly 'show me mentors'
+      if (userMessage.trim().toLowerCase() === 'show me mentors') {
+        setTimeout(() => {
+          setMessages(prev => [
+            ...prev,
+            {
+              id: Date.now().toString() + '-followup',
+              type: 'ai',
+              content: 'Here are some mentors matched to your needs. You can review their profiles below.',
+              timestamp: new Date()
+            }
+          ])
+          setShowMentors(true)
+        }, 800)
+      }
     } catch (err) {
       setCurrentAiMessage("")
+      console.error('Gemini error:', err)
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         type: 'ai',
@@ -214,10 +249,6 @@ export function HeroSection() {
     } finally {
       setIsAiTyping(false)
       setCurrentAiMessage("")
-      // After third message, search for mentors
-      if (messages.length + 1 >= 3) {
-        await searchMentors()
-      }
     }
   }
 
@@ -309,18 +340,6 @@ export function HeroSection() {
       }
       // Scroll to mentors section
       mentorsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      // AI follow-up message
-      setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now().toString() + '-followup',
-            type: 'ai',
-            content: 'Want to find more mentors? Just ask another question!',
-            timestamp: new Date()
-          }
-        ])
-      }, 800)
     }
   }, [showMentors])
 
