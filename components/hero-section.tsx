@@ -6,6 +6,7 @@ import { ArrowRight, Send, Bot, User, Sparkles, Search, Calendar, Star, MapPin }
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
+import { GoogleGenerativeAI } from "@google/generative-ai"
 
 interface Message {
   id: string
@@ -58,14 +59,6 @@ export function HeroSection() {
     "How can I break into the tech industry without a CS degree?",
     "What skills are most valuable for remote work opportunities?",
     "Which coding bootcamp would be best for career switching?"
-  ]
-
-  const aiResponses = [
-    "Based on your interest in Hotel Management in Australia, I'd recommend considering Griffith University, Blue Mountains International Hotel Management School, or William Blue College. These institutions are known for their strong industry connections and practical training programs. Would you like me to elaborate on any specific aspect?",
-    "For MBA programs in Canada, the top choices include Rotman School of Management (University of Toronto), Ivey Business School (Western University), and Schulich School of Business (York University). Each has unique strengths - Rotman is known for finance, Ivey for case-based learning, and Schulich for international business. What's your primary career goal?",
-    "Transitioning from engineering to product management is quite common and your technical background is actually a strong advantage. Focus on developing skills in user research, data analysis, and stakeholder management. Consider taking courses in product management fundamentals and start building a portfolio of side projects. Would you like specific recommendations for courses or certifications?",
-    "AI career prospects are excellent across multiple domains. You could specialize in machine learning engineering, data science, AI research, or AI product management. The field is growing rapidly with opportunities in tech companies, healthcare, finance, and more. What specific area of AI interests you most?",
-    "This depends on your career goals and financial situation. A master's degree can provide deeper knowledge and better job prospects, while immediate work experience offers practical skills and income. Consider your long-term career path and whether the specific master's program aligns with your goals. What field are you considering for your master's?"
   ]
 
   const mentors: Mentor[] = [
@@ -181,37 +174,50 @@ export function HeroSection() {
     setShowMentors(true)
   }
 
+  // Replace simulateAiResponse with Gemini integration
   const simulateAiResponse = async (userMessage: string) => {
     setIsAiTyping(true)
     setCurrentAiMessage("")
-    
-    // Show thinking animation for 2-3 seconds
-    await new Promise(resolve => setTimeout(resolve, 2500))
-    
-    // Get a random AI response
-    const response = aiResponses[Math.floor(Math.random() * aiResponses.length)]
-    
-    // Simulate typing effect (faster)
-    for (let i = 0; i < response.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 10 + Math.random() * 15))
-      setCurrentAiMessage(response.slice(0, i + 1))
-    }
-    
-    // Add the complete message
-    const aiMessage: Message = {
-      id: Date.now().toString(),
-      type: 'ai',
-      content: response,
-      timestamp: new Date()
-    }
-    
-    setMessages(prev => [...prev, aiMessage])
-    setIsAiTyping(false)
-    setCurrentAiMessage("")
-    
-    // After third message, search for mentors
-    if (messages.length + 1 >= 3) {
-      await searchMentors()
+    try {
+      const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || ""
+      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
+      // Prepare chat history for Gemini
+      const history = messages
+        .filter(m => m.type === 'user' || m.type === 'ai')
+        .map(m => ({ role: m.type === 'user' ? 'user' : 'model', parts: m.content }))
+      history.push({ role: 'user', parts: userMessage })
+      const chat = model.startChat({ history })
+      const result = await chat.sendMessage(userMessage)
+      const response = await result.response
+      const text = response.text()
+      // Simulate typing effect for realism
+      for (let i = 0; i < text.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 10 + Math.random() * 15))
+        setCurrentAiMessage(text.slice(0, i + 1))
+      }
+      const aiMessage: Message = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: text,
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, aiMessage])
+    } catch (err) {
+      setCurrentAiMessage("")
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: 'Sorry, I could not get a response from Gemini right now.',
+        timestamp: new Date()
+      }])
+    } finally {
+      setIsAiTyping(false)
+      setCurrentAiMessage("")
+      // After third message, search for mentors
+      if (messages.length + 1 >= 3) {
+        await searchMentors()
+      }
     }
   }
 

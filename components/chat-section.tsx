@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Send } from "lucide-react"
 import Image from "next/image"
+import { useState, useRef } from "react"
 
 export function ChatSection() {
   return (
