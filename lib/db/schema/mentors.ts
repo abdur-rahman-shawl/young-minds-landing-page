@@ -35,6 +35,13 @@ export const mentors = pgTable('mentors', {
   githubUrl: text('github_url'),
   websiteUrl: text('website_url'),
   
+  // New registration fields
+  fullName: text('full_name'),
+  email: text('email'),
+  phone: text('phone'),
+  city: text('city'),
+  country: text('country'),
+  
   // Verification and status
   verificationStatus: verificationStatusEnum('verification_status').default('YET_TO_APPLY').notNull(),
   verificationNotes: text('verification_notes'), // Admin notes for rejected/reverification requests

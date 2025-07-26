@@ -25,7 +25,12 @@ export async function POST(request: NextRequest) {
       linkedinUrl, 
       githubUrl, 
       websiteUrl, 
-      isAvailable 
+      isAvailable,
+      fullName,
+      email,
+      phone,
+      city,
+      country
     } = body;
 
     console.log('👤 Extracted userId:', userId);
@@ -94,7 +99,12 @@ export async function POST(request: NextRequest) {
       githubUrl: githubUrl || null,
       websiteUrl: websiteUrl || null,
       verificationStatus: 'IN_PROGRESS' as const,
-      isAvailable: isAvailable !== false
+      isAvailable: isAvailable !== false,
+      fullName: fullName || null,
+      email: email || null,
+      phone: phone || null,
+      city: city || null,
+      country: country || null
     };
     
     console.log('📝 Step 3: Creating mentor profile with data:', JSON.stringify(mentorProfileData, null, 2));
