@@ -10,8 +10,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
-import { useSession } from "@/lib/auth-client";
-import { useUserRoles } from "@/hooks/use-user-roles";
+import { useAuth } from "@/contexts/auth-context";
 import { LayoutDashboard, Users, GraduationCap, Settings } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -20,8 +19,7 @@ interface AdminSidebarProps {
 }
 
 export function AdminSidebar({ active, onChange }: AdminSidebarProps) {
-  const { data: session } = useSession();
-  const { primaryRole, isLoading } = useUserRoles();
+  const { session, primaryRole, isLoading } = useAuth();
 
   const items = [
     { key: "dashboard", title: "Overview", icon: LayoutDashboard },

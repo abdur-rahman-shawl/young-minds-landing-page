@@ -12,8 +12,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { Eye, Users, Video, Bookmark, Users2, Mail, Calendar, LayoutDashboard, Home, User } from "lucide-react"
-import { useSession } from "@/lib/auth-client"
-import { useUserRoles } from "@/hooks/use-user-roles"
+import { useAuth } from "@/contexts/auth-context"
 
 interface UserSidebarProps {
   activeSection: string
@@ -21,8 +20,7 @@ interface UserSidebarProps {
 }
 
 export function UserSidebar({ activeSection, onSectionChange }: UserSidebarProps) {
-  const { data: session } = useSession()
-  const { primaryRole, isLoading: rolesLoading } = useUserRoles()
+  const { session, primaryRole, isLoading } = useAuth()
   
   const menuItems = [
     {
@@ -89,7 +87,7 @@ export function UserSidebar({ activeSection, onSectionChange }: UserSidebarProps
                  {session?.user?.name || 'User'}
                </h3>
                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                 {rolesLoading ? 'Loading...' : (primaryRole?.displayName || 'User')}
+                 {isLoading ? 'Loading...' : (primaryRole?.displayName || 'User')}
                </p>
              </div>
 

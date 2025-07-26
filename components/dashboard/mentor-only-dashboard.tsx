@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -38,29 +38,7 @@ interface MentorProfile {
 }
 
 export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
-  const [mentorProfile, setMentorProfile] = useState<MentorProfile | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchMentorProfile = async () => {
-      try {
-        const response = await fetch(`/api/mentors?userId=${user.id}`)
-        const result = await response.json()
-        
-        if (result.success && result.data.length > 0) {
-          setMentorProfile(result.data[0])
-        }
-      } catch (error) {
-        console.error('Error fetching mentor profile:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (user?.id) {
-      fetchMentorProfile()
-    }
-  }, [user?.id])
+  const { mentorProfile, isLoading } = useAuth()
 
   const getVerificationStatusInfo = (status: string) => {
     switch (status) {

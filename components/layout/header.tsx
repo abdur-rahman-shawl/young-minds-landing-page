@@ -1,14 +1,14 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { ThemeToggle } from "@/components/providers/theme-toggle"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { useRouter } from "next/navigation"
 import { Search, Bell, Settings } from "lucide-react"
 import { useState, useEffect } from "react"
 import { signOut } from "@/lib/auth-client"
-import { SignInPopup } from "@/components/sign-in-popup"
-import { useUserRoles } from "@/hooks/use-user-roles"
+import { SignInPopup } from "@/components/auth/sign-in-popup"
+import { useAuth } from "@/contexts/auth-context"
 
 interface HeaderProps {
   isLoggedIn: boolean
@@ -18,7 +18,7 @@ interface HeaderProps {
 
 export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps) {
   const router = useRouter()
-  const { roles } = useUserRoles()
+  const { roles } = useAuth()
   const [isScrolled, setIsScrolled] = useState(false)
   const [showSignInPopup, setShowSignInPopup] = useState(false)
   

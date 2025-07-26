@@ -10,8 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useSession } from "@/lib/auth-client"
-import { useUserRoles } from "@/hooks/use-user-roles"
+import { useAuth } from "@/contexts/auth-context"
 import { uploadProfilePicture, uploadResume } from "@/lib/storage"
 import { 
   Edit3, 
@@ -39,8 +38,7 @@ import {
 } from "lucide-react"
 
 export function MentorProfileEdit() {
-  const { data: session } = useSession()
-  const { mentorProfile, refresh: refreshUserRoles } = useUserRoles()
+  const { session, mentorProfile, refreshUserData } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isUploadingResume, setIsUploadingResume] = useState(false)
@@ -145,7 +143,7 @@ export function MentorProfileEdit() {
       setTimeout(() => setSuccess(null), 3000)
       
       // Refresh user roles to update all components with new image
-      refreshUserRoles()
+      refreshUserData()
       
     } catch (error) {
       setError('Failed to upload image')
@@ -205,7 +203,7 @@ export function MentorProfileEdit() {
       setTimeout(() => setSuccess(null), 3000)
       
       // Refresh user roles to update all components
-      refreshUserRoles()
+      refreshUserData()
       
     } catch (error) {
       setError('Failed to upload resume')
@@ -244,7 +242,7 @@ export function MentorProfileEdit() {
         setTimeout(() => setSuccess(null), 3000)
         
         // Refresh user roles to update all components
-        refreshUserRoles()
+        refreshUserData()
       } else {
         setError(result.error || 'Failed to update profile')
       }

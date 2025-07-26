@@ -2,19 +2,19 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useSession } from "@/lib/auth-client"
-import { Header } from "@/components/header"
-import { UserSidebar } from "@/components/user-sidebar"
-import { MentorSidebar } from "@/components/mentor-sidebar"
-import { HeroSection } from "@/components/hero-section"
-import { StatsSection } from "@/components/stats-section"
-import { MentorSection } from "@/components/mentor-section"
-import { VideoCallSection } from "@/components/video-call-section"
-import { ChatSection } from "@/components/chat-section"
-import { CollabExpertsSection } from "@/components/collab-experts-section"
-import { CaseStudySection } from "@/components/case-study-section"
-import { ServicesGrid } from "@/components/services-grid"
-import { RightSidebar } from "@/components/right-sidebar"
+import { useAuth } from "@/contexts/auth-context"
+import { Header } from "@/components/layout/header"
+import { UserSidebar } from "@/components/sidebars/user-sidebar"
+import { MentorSidebar } from "@/components/sidebars/mentor-sidebar"
+import { HeroSection } from "@/components/landing/hero-section"
+import { StatsSection } from "@/components/landing/stats-section"
+import { MentorSection } from "@/components/landing/mentor-section"
+import { VideoCallSection } from "@/components/landing/video-call-section"
+import { ChatSection } from "@/components/landing/chat-section"
+import { CollabExpertsSection } from "@/components/landing/collab-experts-section"
+import { CaseStudySection } from "@/components/landing/case-study-section"
+import { ServicesGrid } from "@/components/landing/services-grid"
+import { RightSidebar } from "@/components/layout/right-sidebar"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 
 
@@ -29,52 +29,44 @@ import { Messages } from "@/components/dashboard/messages"
 import { Sessions } from "@/components/dashboard/sessions"
 import { Profile } from "@/components/dashboard/profile"
 import { MentorProfileEdit } from "@/components/dashboard/mentor-profile-edit"
-import { useUserRoles } from "@/hooks/use-user-roles"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertTriangle, CheckCircle } from "lucide-react"
 import { AdminDashboard } from "@/components/dashboard/admin-dashboard"
-import { AdminSidebar } from "@/components/admin-sidebar"
+import { AdminSidebar } from "@/components/sidebars/admin-sidebar"
 import { AdminMentors } from "@/components/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/dashboard/admin-overview"
+import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 
 function PageContent() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [activeSection, setActiveSection] = useState("dashboard")
   const [selectedMentor, setSelectedMentor] = useState<number | null>(null)
-  const [isSessionLoaded, setIsSessionLoaded] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { data: session, isPending } = useSession()
-  const { roles, isMentorWithIncompleteProfile } = useUserRoles()
+  const { 
+    session, 
+    isAuthenticated, 
+    isLoading,
+    roles, 
+    isAdmin,
+    isMentor,
+    isMentee,
+    isMentorWithIncompleteProfile 
+  } = useAuth()
 
   useEffect(() => {
-    // Wait for session to be fully loaded
-    if (!isPending) {
-      const sessionIsLoggedIn = Boolean(session?.user)
-      setIsLoggedIn(sessionIsLoggedIn)
-      setIsSessionLoaded(true)
-
     // Get section and mentor from URL on page load
-      if (sessionIsLoggedIn) {
-        const sectionFromUrl = searchParams.get("section") || "dashboard"
+    if (isAuthenticated && !isLoading) {
+      const sectionFromUrl = searchParams.get("section") || "dashboard"
       const mentorFromUrl = searchParams.get("mentor")
       setActiveSection(sectionFromUrl)
       setSelectedMentor(mentorFromUrl ? parseInt(mentorFromUrl) : null)
     }
-    }
-  }, [searchParams, session, isPending])
+  }, [searchParams, isAuthenticated, isLoading])
 
-  // Show loading state while session is being checked
-  if (isPending || !isSessionLoaded) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
+  // Show loading state while authentication is being checked
+  if (isLoading) {
+    return <AuthLoadingSkeleton />;
   }
 
   const handleSectionChange = (section: string) => {
@@ -94,10 +86,6 @@ function PageContent() {
   }
 
   const renderDashboardContent = () => {
-    const isAdmin = roles.some(r=>r.name==='admin');
-    const isMentor = roles.some(role => role.name === 'mentor');
-    const isMentee = roles.some(role => role.name === 'mentee');
-
     // Admin dashboard
     if(isAdmin){
       switch(activeSection){
@@ -172,14 +160,14 @@ function PageContent() {
     }
   }
 
-  if (isLoggedIn) {
+  if (isAuthenticated) {
     return (
       <SidebarProvider>
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex w-full">
           {/* Conditional Sidebar based on user role */}
-          {roles.some(r=>r.name==='admin') ? (
+          {isAdmin ? (
             <AdminSidebar active={activeSection} onChange={handleSectionChange} />
-          ) : roles.some(role => role.name === 'mentor') ? (
+          ) : isMentor ? (
             <MentorSidebar 
               activeSection={activeSection} 
               onSectionChange={handleSectionChange} 
@@ -194,8 +182,8 @@ function PageContent() {
           {/* Main Content Area */}
           <SidebarInset className="flex-1">
             <Header 
-              isLoggedIn={isLoggedIn} 
-              setIsLoggedIn={setIsLoggedIn}
+              isLoggedIn={isAuthenticated} 
+              setIsLoggedIn={() => {}} // This will be handled by AuthContext
             />
             <main className="flex-1 pt-24 px-6 pb-6">
               {/* Incomplete Profile Alert */}
@@ -223,7 +211,7 @@ function PageContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
+      <Header isLoggedIn={isAuthenticated} setIsLoggedIn={() => {}} />
       <main className="flex pt-24">
         {/* Main Content */}
         <div className="flex-1 min-w-0 max-w-6xl mx-auto">

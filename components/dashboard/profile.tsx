@@ -9,8 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { useSession } from "@/lib/auth-client"
-import { useUserRoles } from "@/hooks/use-user-roles"
+import { useAuth } from "@/contexts/auth-context"
 import { uploadProfilePicture } from "@/lib/storage"
 import { 
   Mail, 
@@ -31,8 +30,7 @@ import {
 } from "lucide-react"
 
 export function Profile() {
-  const { data: session } = useSession()
-  const { roles, mentorProfile } = useUserRoles()
+  const { session, roles, mentorProfile } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)

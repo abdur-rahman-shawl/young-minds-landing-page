@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Header } from "@/components/header";
-import { UserSidebar } from "@/components/user-sidebar";
-import { RightSidebar } from "@/components/right-sidebar";
+import { Header } from "@/components/layout/header";
+import { UserSidebar } from "@/components/sidebars/user-sidebar";
+import { RightSidebar } from "@/components/layout/right-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 
 // Dashboard components

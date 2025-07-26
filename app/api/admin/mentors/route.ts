@@ -2,9 +2,34 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { mentors, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { auth } from '@/lib/auth';
+import { getUserWithRoles } from '@/lib/db/user-helpers';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Verify authentication
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Verify admin role
+    const userWithRoles = await getUserWithRoles(session.user.id);
+    const isAdmin = userWithRoles?.roles?.some((role: any) => role.name === 'admin');
+
+    if (!isAdmin) {
+      return NextResponse.json(
+        { success: false, error: 'Admin access required' },
+        { status: 403 }
+      );
+    }
+
     const list = await db
       .select({
         id: mentors.id,
@@ -27,6 +52,29 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   try {
+    // Verify authentication
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Verify admin role
+    const userWithRoles = await getUserWithRoles(session.user.id);
+    const isAdmin = userWithRoles?.roles?.some((role: any) => role.name === 'admin');
+
+    if (!isAdmin) {
+      return NextResponse.json(
+        { success: false, error: 'Admin access required' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { mentorId, status } = body;
     if (!mentorId || !status) {
