@@ -41,6 +41,8 @@ export const mentors = pgTable('mentors', {
   phone: text('phone'),
   city: text('city'),
   country: text('country'),
+  profileImageUrl: text('profile_image_url'), // URL to uploaded profile picture
+  resumeUrl: text('resume_url'), // URL to uploaded resume
   
   // Verification and status
   verificationStatus: verificationStatusEnum('verification_status').default('YET_TO_APPLY').notNull(),

@@ -8,6 +8,7 @@ import { Search, Bell, Settings } from "lucide-react"
 import { useState, useEffect } from "react"
 import { signOut } from "@/lib/auth-client"
 import { SignInPopup } from "@/components/sign-in-popup"
+import { useUserRoles } from "@/hooks/use-user-roles"
 
 interface HeaderProps {
   isLoggedIn: boolean
@@ -17,8 +18,12 @@ interface HeaderProps {
 
 export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps) {
   const router = useRouter()
+  const { roles } = useUserRoles()
   const [isScrolled, setIsScrolled] = useState(false)
   const [showSignInPopup, setShowSignInPopup] = useState(false)
+  
+  // Check if user is already a mentor
+  const isMentor = roles.some(role => role.name === 'mentor')
 
   useEffect(() => {
     const handleScroll = () => {
@@ -78,13 +83,15 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
           </div>
           
           <div className="flex items-center space-x-4">
-            <Button
-              variant="outline"
-              className="font-semibold border-green-500 text-green-600 hover:bg-green-50"
-              onClick={() => router.push('/become-expert')}
-            >
-              Become an Expert
-            </Button>
+            {!isMentor && (
+              <Button
+                variant="outline"
+                className="font-semibold border-green-500 text-green-600 hover:bg-green-50"
+                onClick={() => router.push('/become-expert')}
+              >
+                Become an Expert
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={onSearchClick}>
               <Search className="w-4 h-4" />
             </Button>

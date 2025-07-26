@@ -36,6 +36,20 @@
       "when": 1753511870788,
       "tag": "0004_aspiring_whizzer",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1753528662721,
+      "tag": "0005_broken_red_shift",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1753535610732,
+      "tag": "0006_jittery_taskmaster",
+      "breakpoints": true
     }
   ]
 }

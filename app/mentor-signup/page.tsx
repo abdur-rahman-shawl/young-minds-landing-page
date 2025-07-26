@@ -55,6 +55,8 @@ export default function MentorSignup() {
   const { data: session } = useSession();
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState('');
+  const [resume, setResume] = useState<File | null>(null);
+  const [resumeError, setResumeError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -65,10 +67,37 @@ export default function MentorSignup() {
     }
   };
 
+  const handleResumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      const allowedExtensions = ['pdf', 'doc', 'docx'];
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      
+      if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension || '')) {
+        setResumeError('Please upload a PDF, DOC, or DOCX file');
+        return;
+      }
+      
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        setResumeError('Resume file size must be less than 10MB');
+        return;
+      }
+      
+      setResume(file);
+      setResumeError('');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!photo) {
       setPhotoError('Photo is required.');
+      return;
+    }
+
+    if (!resume) {
+      setResumeError('Resume is required.');
       return;
     }
 
@@ -82,34 +111,23 @@ export default function MentorSignup() {
     try {
       const formData = new FormData(e.target as HTMLFormElement);
       
-      // Create mentor profile data
-      const mentorData = {
-        userId: session.user.id,
-        title: formData.get('currentTitle'),
-        company: formData.get('company'),
-        industry: formData.get('industry'),
-        expertise: formData.get('expertiseAreas'),
-        experience: parseInt(formData.get('experienceYears') as string),
-        hourlyRate: formData.get('hourlyRate') || '50.00',
-        currency: 'USD',
-        headline: `${formData.get('currentTitle')} at ${formData.get('company')}`,
-        about: `Experienced ${formData.get('currentTitle')} with ${formData.get('experienceYears')} years in ${formData.get('industry')}. Specializing in ${formData.get('expertiseAreas')}.`,
-        linkedinUrl: formData.get('linkedinUrl') || '',
-        githubUrl: formData.get('githubUrl') || '',
-        websiteUrl: formData.get('websiteUrl') || '',
-        isAvailable: true
-      };
+      // Add additional data to FormData
+      formData.append('userId', session.user.id);
+      formData.append('profilePicture', photo);
+      formData.append('resume', resume);
+      formData.append('currency', 'USD');
+      formData.append('hourlyRate', formData.get('hourlyRate') as string || '50.00');
+      formData.append('headline', `${formData.get('currentTitle')} at ${formData.get('company')}`);
+      formData.append('about', `Experienced ${formData.get('currentTitle')} with ${formData.get('experienceYears')} years in ${formData.get('industry')}. Specializing in ${formData.get('expertiseAreas')}.`);
+      formData.append('isAvailable', 'true');
 
-      console.log('🚀 Submitting mentor data:', mentorData);
+      console.log('🚀 Submitting mentor application with files');
 
       // Submit mentor application
       const response = await fetch('/api/mentors/apply', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         credentials: 'include',
-        body: JSON.stringify(mentorData)
+        body: formData
       });
 
       console.log('📡 API Response status:', response.status);
@@ -187,6 +205,20 @@ export default function MentorSignup() {
                   className="block w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 />
                 {photoError && <p className="text-red-500 text-xs mt-1">{photoError}</p>}
+              </div>
+              <div className="form-group">
+                <label htmlFor="resume" className="block font-semibold mb-2 text-gray-700 dark:text-gray-200">Resume <span className="text-red-500">*</span></label>
+                <input
+                  type="file"
+                  id="resume"
+                  name="resume"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  required
+                  onChange={handleResumeChange}
+                  className="block w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                {resumeError && <p className="text-red-500 text-xs mt-1">{resumeError}</p>}
+                <p className="text-gray-500 text-xs mt-1">Upload your resume in PDF, DOC, or DOCX format (max 10MB)</p>
               </div>
               <div className="form-group">
                 <label htmlFor="fullName" className="block font-semibold mb-2 text-gray-700 dark:text-gray-200">Full Name <span className="text-red-500">*</span></label>

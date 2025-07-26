@@ -28,7 +28,10 @@ import { Mentors } from "@/components/dashboard/mentors"
 import { Messages } from "@/components/dashboard/messages"
 import { Sessions } from "@/components/dashboard/sessions"
 import { Profile } from "@/components/dashboard/profile"
+import { MentorProfileEdit } from "@/components/dashboard/mentor-profile-edit"
 import { useUserRoles } from "@/hooks/use-user-roles"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertTriangle, CheckCircle } from "lucide-react"
 import { AdminDashboard } from "@/components/dashboard/admin-dashboard"
 import { AdminSidebar } from "@/components/admin-sidebar"
 import { AdminMentors } from "@/components/dashboard/admin-mentors"
@@ -43,7 +46,7 @@ function PageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session, isPending } = useSession()
-  const { roles } = useUserRoles()
+  const { roles, isMentorWithIncompleteProfile } = useUserRoles()
 
   useEffect(() => {
     // Wait for session to be fully loaded
@@ -91,11 +94,11 @@ function PageContent() {
   }
 
   const renderDashboardContent = () => {
-    // Check if user is mentor-only (has mentor role but not mentee role)
-    const isMentorOnly = roles.some(role => role.name === 'mentor') && 
-                          !roles.some(role => role.name === 'mentee')
-
     const isAdmin = roles.some(r=>r.name==='admin');
+    const isMentor = roles.some(role => role.name === 'mentor');
+    const isMentee = roles.some(role => role.name === 'mentee');
+
+    // Admin dashboard
     if(isAdmin){
       switch(activeSection){
         case 'mentors': return <AdminMentors />;
@@ -104,8 +107,26 @@ function PageContent() {
       }
     }
 
-    if (isMentorOnly) {
-      return <MentorOnlyDashboard user={session?.user} />
+    // Mentor dashboard (regardless of whether they also have mentee role)
+    if (isMentor) {
+      switch (activeSection) {
+        case "dashboard":
+          return <MentorOnlyDashboard user={session?.user} />
+        case "explore":
+          return <ExploreMentors onMentorSelect={handleMentorSelect} />
+        case "saved":
+          return <SavedItems onMentorSelect={handleMentorSelect} />
+        case "mentors":
+          return <Mentors onMentorSelect={handleMentorSelect} />
+        case "messages":
+          return <Messages />
+        case "sessions":
+          return <Sessions />
+        case "profile":
+          return isMentor ? <MentorProfileEdit /> : <Profile />
+        default:
+          return <MentorOnlyDashboard user={session?.user} />
+      }
     }
 
     switch (activeSection) {
@@ -158,7 +179,7 @@ function PageContent() {
           {/* Conditional Sidebar based on user role */}
           {roles.some(r=>r.name==='admin') ? (
             <AdminSidebar active={activeSection} onChange={handleSectionChange} />
-          ) : roles.some(role => role.name === 'mentor') && !roles.some(role => role.name === 'mentee') ? (
+          ) : roles.some(role => role.name === 'mentor') ? (
             <MentorSidebar 
               activeSection={activeSection} 
               onSectionChange={handleSectionChange} 
@@ -177,6 +198,21 @@ function PageContent() {
               setIsLoggedIn={setIsLoggedIn}
             />
             <main className="flex-1 pt-24 px-6 pb-6">
+              {/* Incomplete Profile Alert */}
+              {isMentorWithIncompleteProfile && (
+                <Alert className="mb-6 border-amber-200 bg-amber-50">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800">
+                    <strong>Complete your mentor profile!</strong> Your application is in progress. 
+                    <button 
+                      onClick={() => router.push('/auth/mentor-verification')}
+                      className="ml-2 underline hover:no-underline"
+                    >
+                      Complete now →
+                    </button>
+                  </AlertDescription>
+                </Alert>
+              )}
               {renderLoggedInContent()}
             </main>
           </SidebarInset>

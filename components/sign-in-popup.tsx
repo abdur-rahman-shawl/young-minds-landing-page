@@ -31,7 +31,8 @@ export function SignInPopup({ isOpen, onClose }: SignInPopupProps) {
     try {
       await signIn.social({
         provider: "google",
-        callbackURL: "/dashboard"
+        callbackURL: "/dashboard",
+        prompt: "select_account" // Forces account selection
       })
     } catch (error) {
       console.error("Sign in error:", error)

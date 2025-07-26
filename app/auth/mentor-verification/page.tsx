@@ -71,6 +71,12 @@ export default function MentorVerificationPage() {
         </Card>
 
         <div className="text-center space-y-4">
+          <Link href="/?section=profile">
+            <Button className="w-full">
+              Complete Profile
+            </Button>
+          </Link>
+          
           <Link href="/">
             <Button variant="outline" className="w-full">
               Return to Homepage

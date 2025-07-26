@@ -10,6 +10,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useSession } from "@/lib/auth-client"
+import { useUserRoles } from "@/hooks/use-user-roles"
+import { uploadProfilePicture } from "@/lib/storage"
 import { 
   Mail, 
   Edit3, 
@@ -30,12 +32,19 @@ import {
 
 export function Profile() {
   const { data: session } = useSession()
+  const { roles, mentorProfile } = useUserRoles()
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [profileData, setProfileData] = useState({
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
+  
+  const isMentor = roles.some(role => role.name === 'mentor')
+  
+  // Different state structures for mentor vs mentee
+  const [menteeData, setMenteeData] = useState({
     currentRole: '',
     currentCompany: '',
     education: '',
@@ -45,6 +54,26 @@ export function Profile() {
     interests: '',
     learningStyle: '',
     preferredMeetingFrequency: ''
+  })
+  
+  const [mentorData, setMentorData] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    title: '',
+    company: '',
+    city: '',
+    country: '',
+    industry: '',
+    expertise: '',
+    experience: '',
+    about: '',
+    linkedinUrl: '',
+    githubUrl: '',
+    websiteUrl: '',
+    hourlyRate: '',
+    availability: '',
+    profileImageUrl: ''
   })
 
   const userName = session?.user?.name || 'User'
@@ -62,19 +91,46 @@ export function Profile() {
       const response = await fetch(`/api/user/profile?userId=${session.user.id}`)
       const result = await response.json()
 
-      if (result.success && result.data.menteeProfile) {
-        const profile = result.data.menteeProfile
-        setProfileData({
-          currentRole: profile.currentRole || '',
-          currentCompany: profile.currentCompany || '',
-          education: profile.education || '',
-          careerGoals: profile.careerGoals || '',
-          currentSkills: profile.currentSkills || '',
-          skillsToLearn: profile.skillsToLearn || '',
-          interests: profile.interests || '',
-          learningStyle: profile.learningStyle || '',
-          preferredMeetingFrequency: profile.preferredMeetingFrequency || ''
-        })
+      if (result.success) {
+        // Load mentee data if exists
+        if (result.data.menteeProfile) {
+          const profile = result.data.menteeProfile
+          setMenteeData({
+            currentRole: profile.currentRole || '',
+            currentCompany: profile.currentCompany || '',
+            education: profile.education || '',
+            careerGoals: profile.careerGoals || '',
+            currentSkills: profile.currentSkills || '',
+            skillsToLearn: profile.skillsToLearn || '',
+            interests: profile.interests || '',
+            learningStyle: profile.learningStyle || '',
+            preferredMeetingFrequency: profile.preferredMeetingFrequency || ''
+          })
+        }
+
+        // Load mentor data if exists
+        if (result.data.mentorProfile) {
+          const profile = result.data.mentorProfile
+          setMentorData({
+            fullName: profile.fullName || '',
+            email: profile.email || '',
+            phone: profile.phone || '',
+            title: profile.title || '',
+            company: profile.company || '',
+            city: profile.city || '',
+            country: profile.country || '',
+            industry: profile.industry || '',
+            expertise: profile.expertise || '',
+            experience: profile.experience?.toString() || '',
+            about: profile.about || '',
+            linkedinUrl: profile.linkedinUrl || '',
+            githubUrl: profile.githubUrl || '',
+            websiteUrl: profile.websiteUrl || '',
+            hourlyRate: profile.hourlyRate || '',
+            availability: profile.availability || '',
+            profileImageUrl: profile.profileImageUrl || ''
+          })
+        }
       }
     } catch (err) {
       setError('Failed to load profile data')

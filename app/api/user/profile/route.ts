@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { users, mentees, userRoles, roles } from '@/lib/db/schema';
+import { users, mentees, mentors, userRoles, roles } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
 
@@ -38,6 +38,42 @@ export async function GET(request: NextRequest) {
       menteeProfile = mentee || null;
     }
 
+    // Get mentor profile if exists
+    let mentorProfile = null;
+    if (userWithRoles.roles.some(role => role.name === 'mentor')) {
+      const [mentor] = await db
+        .select({
+          id: mentors.id,
+          verificationStatus: mentors.verificationStatus,
+          fullName: mentors.fullName,
+          email: mentors.email,
+          phone: mentors.phone,
+          title: mentors.title,
+          company: mentors.company,
+          city: mentors.city,
+          country: mentors.country,
+          industry: mentors.industry,
+          expertise: mentors.expertise,
+          experience: mentors.experience,
+          about: mentors.about,
+          linkedinUrl: mentors.linkedinUrl,
+          githubUrl: mentors.githubUrl,
+          websiteUrl: mentors.websiteUrl,
+          hourlyRate: mentors.hourlyRate,
+          currency: mentors.currency,
+          availability: mentors.availability,
+          headline: mentors.headline,
+          maxMentees: mentors.maxMentees,
+          profileImageUrl: mentors.profileImageUrl,
+          resumeUrl: mentors.resumeUrl
+        })
+        .from(mentors)
+        .where(eq(mentors.userId, userId))
+        .limit(1);
+      
+      mentorProfile = mentor || null;
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -47,7 +83,8 @@ export async function GET(request: NextRequest) {
         image: userWithRoles.image,
         isActive: userWithRoles.isActive,
         roles: userWithRoles.roles,
-        menteeProfile
+        menteeProfile,
+        mentorProfile
       }
     });
 

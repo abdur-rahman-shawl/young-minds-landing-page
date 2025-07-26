@@ -29,6 +29,7 @@ export default function BecomeExpertPage() {
     about: string;
     linkedinUrl: string;
     profilePicture: File | null;
+    resume: File | null;
     termsAccepted: boolean;
     availability: string;
   }>({
@@ -45,6 +46,7 @@ export default function BecomeExpertPage() {
     about: "",
     linkedinUrl: "",
     profilePicture: null,
+    resume: null,
     termsAccepted: false,
     availability: "",
   })
@@ -91,6 +93,11 @@ export default function BecomeExpertPage() {
         setIsLoading(false)
         return
       }
+      if (!mentorFormData.resume) {
+        alert('Resume is required.')
+        setIsLoading(false)
+        return
+      }
       const formData = new FormData();
       formData.append('userId', session.user.id);
       formData.append('fullName', mentorFormData.fullName);
@@ -105,7 +112,9 @@ export default function BecomeExpertPage() {
       formData.append('experience', mentorFormData.experience);
       formData.append('about', mentorFormData.about);
       formData.append('linkedinUrl', mentorFormData.linkedinUrl);
+      formData.append('availability', mentorFormData.availability);
       formData.append('profilePicture', mentorFormData.profilePicture);
+      formData.append('resume', mentorFormData.resume);
       // Add other fields as needed
       const res = await fetch('/api/mentors/apply', {
         method: 'POST',
@@ -209,6 +218,17 @@ export default function BecomeExpertPage() {
                       required
                     />
                   </div>
+                </div>
+                <div>
+                  <Label htmlFor="resume">Resume <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="resume"
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={e => setMentorFormData(prev => ({ ...prev, resume: e.target.files?.[0] || null }))}
+                    required
+                  />
+                  <span className="text-xs text-gray-500">Upload your resume in PDF, DOC, or DOCX format (max 10MB)</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>

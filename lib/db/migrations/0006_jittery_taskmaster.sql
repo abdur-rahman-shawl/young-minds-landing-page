@@ -1,0 +1,1 @@
+ALTER TABLE "mentors" ADD COLUMN "resume_url" text;
