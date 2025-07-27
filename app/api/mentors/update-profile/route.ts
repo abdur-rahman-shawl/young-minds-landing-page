@@ -124,6 +124,16 @@ export async function POST(request: NextRequest) {
       console.log('📄 No resume file provided for update');
     }
 
+    // If profileImageUrl is provided in JSON and no new profilePicture file uploaded, use it
+    if (!profilePicture && updateData.profileImageUrl) {
+      newProfileImageUrl = updateData.profileImageUrl as string
+    }
+
+    // If resumeUrl is provided in JSON and no resume file uploaded, use it
+    if (!resume && updateData.resumeUrl) {
+      newResumeUrl = updateData.resumeUrl as string
+    }
+
     // Prepare update data
     const mentorUpdateData = {
       fullName: updateData.fullName || null,

@@ -71,12 +71,16 @@ export function MentorProfileEdit() {
     resumeUrl: ''
   })
 
-  // Load mentor profile data
+  // Load mentor profile data only when not editing to avoid losing unsaved form state
   useEffect(() => {
-    console.log('🔍 mentorProfile changed:', mentorProfile);
-    if (mentorProfile) {
-      console.log('📋 Loading mentor data:', JSON.stringify(mentorProfile, null, 2));
-      setMentorData({
+    if (!mentorProfile) return;
+
+    // Prevent overwriting unsaved changes while the user is actively editing
+    if (isEditing) return;
+
+    console.log('📋 Syncing mentor data from profile', mentorProfile);
+
+    setMentorData({
         fullName: mentorProfile.fullName || session?.user?.name || '',
         email: mentorProfile.email || session?.user?.email || '',
         phone: mentorProfile.phone || '',
@@ -99,11 +103,10 @@ export function MentorProfileEdit() {
         profileImageUrl: mentorProfile.profileImageUrl || '',
         resumeUrl: mentorProfile.resumeUrl || ''
       })
-      
-      // Show image after profile loads
-      setTimeout(() => setShowImage(true), 100)
-    }
-  }, [mentorProfile])
+
+    // Show image after profile loads
+    setTimeout(() => setShowImage(true), 100)
+  }, [mentorProfile, isEditing])
 
   const handleImageUpload = async (file: File) => {
     if (!session?.user?.id) return
@@ -142,8 +145,10 @@ export function MentorProfileEdit() {
       setSuccess('Profile image uploaded and saved successfully!')
       setTimeout(() => setSuccess(null), 3000)
       
-      // Refresh user roles to update all components with new image
-      refreshUserData()
+      // Refresh cached user data so other components get the new image. Avoid doing this while editing to prevent form resets.
+      if (!isEditing) {
+        refreshUserData()
+      }
       
     } catch (error) {
       setError('Failed to upload image')

@@ -2,6 +2,8 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
 import {
   Sidebar,
   SidebarContent,
@@ -20,9 +22,8 @@ import {
   BarChart3, 
   Settings, 
   Star, 
-  User, 
-  Video,
-  Eye
+  User,
+  BookOpen
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -71,6 +72,11 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
       key: "analytics"
     },
     {
+      title: "My Content",
+      icon: BookOpen,
+      key: "content"
+    },
+    {
       title: "Profile",
       icon: User,
       key: "profile"
@@ -85,59 +91,45 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
   return (
     <Sidebar className="bg-white dark:bg-gray-900 border-r border-gray-200/50 dark:border-gray-800/50 backdrop-blur-sm mt-16">
       {/* Header with User Profile */}
-      <SidebarHeader className="p-6 bg-white dark:bg-gray-900 border-b border-gray-200/60 dark:border-gray-800/60">
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm ring-1 ring-gray-200/80 dark:ring-gray-700/40 border border-gray-100 dark:border-gray-700/50">
-          <div className="space-y-4">
-            {/* User Avatar and Info */}
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Avatar className="w-14 h-14 ring-2 ring-white dark:ring-gray-800 shadow-md">
-                  <AvatarImage src={mentorProfile?.profileImageUrl || session?.user?.image || undefined} />
-                  <AvatarFallback className="bg-gradient-to-br from-blue-400 to-blue-600 text-white font-medium text-sm">
-                    {mentorProfile?.fullName?.charAt(0) || session?.user?.name?.charAt(0) || 'M'}
-                  </AvatarFallback>
-                </Avatar>
-                {/* Online Status */}
-                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-900 shadow-sm"></div>
-              </div>
-              
-              {/* User Info */}
-              <div className="space-y-0.5">
-                <h3 className="font-semibold text-gray-900 dark:text-white text-base">
-                  {mentorProfile?.fullName || session?.user?.name || 'Mentor'}
-                </h3>
-                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                  {mentorProfile?.title || (isLoading ? 'Loading...' : (primaryRole?.displayName || 'Mentor'))}
-                </p>
-              </div>
-            </div>
+      <SidebarHeader className="p-6">
+        {/* Enlarged, centred profile card */}
+        <Card className="p-3 flex flex-col items-center gap-2 text-center">
+          {/* Avatar */}
+          <div className="relative">
+            <Avatar className="h-16 w-16">
+              <AvatarImage src={mentorProfile?.profileImageUrl || session?.user?.image || undefined} />
+              <AvatarFallback className="text-lg">
+                {mentorProfile?.fullName?.charAt(0) || session?.user?.name?.charAt(0) || 'M'}
+              </AvatarFallback>
+            </Avatar>
+            {/* Online indicator */}
+            <span className="absolute bottom-1 right-1 block h-3.5 w-3.5 rounded-full bg-green-500 ring-2 ring-white dark:ring-gray-900" />
+          </div>
 
-            {/* Stats */}
-            <div className="w-full space-y-2 pt-2 border-t border-gray-200/50 dark:border-gray-800/50">
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
-                  <Users className="w-3.5 h-3.5" />
-                  Active Mentees
-                </span>
-                <span className="font-semibold text-blue-500 dark:text-blue-400">5</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
-                  <Star className="w-3.5 h-3.5" />
-                  Rating
-                </span>
-                <span className="font-semibold text-blue-500 dark:text-blue-400">4.9</span>
-              </div>
-            </div>
+          {/* Name & role */}
+          <div className="space-y-0.5">
+            <h3 className="text-base font-medium leading-none">
+              {mentorProfile?.fullName || session?.user?.name || 'Mentor'}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {mentorProfile?.title || (isLoading ? 'Loading...' : (primaryRole?.displayName || 'Mentor'))}
+            </p>
+          </div>
 
-            {/* Growth Message */}
-            <div className="w-full pt-2 border-t border-gray-200/50 dark:border-gray-800/50">
-              <p className="text-xs text-gray-500 dark:text-gray-500 leading-tight">
-                Help mentees achieve their goals and grow
-              </p>
+          <Separator className="w-full" />
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 gap-6 w-full text-xs">
+            <div className="space-y-0.5">
+              <p className="text-lg font-semibold">5</p>
+              <span className="text-muted-foreground">Mentees</span>
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-lg font-semibold">4.9</p>
+              <span className="text-muted-foreground">Rating</span>
             </div>
           </div>
-        </div>
+        </Card>
       </SidebarHeader>
 
       {/* Navigation Menu */}
