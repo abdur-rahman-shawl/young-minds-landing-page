@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, Users, Calendar, MessageSquare, CheckCircle, AlertCircle } from "lucide-react";
+import { ErrorBoundary, AuthErrorBoundary } from "@/components/common/error-boundary";
 
 interface MentorDashboardProps {
   user: any;
@@ -24,6 +25,8 @@ export function MentorDashboard({ user }: MentorDashboardProps) {
 
   if (mentorStatus === "pending") {
     return (
+      <AuthErrorBoundary>
+      <ErrorBoundary>
       <div className="min-h-screen bg-gray-50">
         <SidebarProvider defaultOpen={false}>
           <div className="flex min-h-screen w-full">
@@ -93,11 +96,15 @@ export function MentorDashboard({ user }: MentorDashboardProps) {
           </div>
         </SidebarProvider>
       </div>
+      </ErrorBoundary>
+      </AuthErrorBoundary>
     );
   }
 
   // If approved, show full mentor dashboard
   return (
+    <AuthErrorBoundary>
+    <ErrorBoundary>
     <div className="min-h-screen bg-gray-50">
       <SidebarProvider defaultOpen={true}>
         <div className="flex min-h-screen w-full">
@@ -185,5 +192,7 @@ export function MentorDashboard({ user }: MentorDashboardProps) {
         </div>
       </SidebarProvider>
     </div>
+    </ErrorBoundary>
+    </AuthErrorBoundary>
   );
 } 

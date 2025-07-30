@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(curl:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "WebFetch(domain:www.kibo-ui.com)",
+      "WebFetch(domain:originui.com)"
     ],
     "deny": []
   }

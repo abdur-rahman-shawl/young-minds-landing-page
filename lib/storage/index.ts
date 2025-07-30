@@ -94,6 +94,56 @@ export const uploadResume = async (file: File, userId: string) => {
   }
 };
 
+// Upload content files (videos, documents, etc.) for mentor courses
+export const uploadContentFile = async (file: File, userId: string, type: string = 'content') => {
+  const timestamp = Date.now();
+  const fileExt = file.name.split('.').pop()?.toLowerCase();
+  const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const fileName = `${userId}-${timestamp}-${cleanName}`;
+  const path = `mentors/content/${type}/${fileName}`;
+
+  const allowedTypes = [
+    // Video types
+    'video/mp4', 'video/webm', 'video/quicktime', 'video/avi', 'video/x-msvideo',
+    // Document types
+    'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // Image types
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    // Text types
+    'text/plain',
+    // Extensions for fallback
+    'mp4', 'webm', 'mov', 'avi', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'txt'
+  ];
+
+  try {
+    // First try with proper content type
+    const result = await storage.upload(file, path, {
+      maxSize: 100 * 1024 * 1024, // 100MB for content files
+      allowedTypes,
+      public: true,
+    });
+    
+    return result;
+  } catch (error) {
+    console.log(`Content upload failed for ${file.name}, trying with octet-stream...`);
+    
+    // Fallback: try with octet-stream content type
+    try {
+      const result = await storage.upload(file, path, {
+        maxSize: 100 * 1024 * 1024,
+        public: true,
+        contentType: 'application/octet-stream',
+      });
+      
+      return result;
+    } catch (fallbackError) {
+      console.error('Content upload fallback also failed:', fallbackError);
+      throw error; // Throw original error
+    }
+  }
+};
+
 // Re-export types and providers for advanced usage
 export * from './types';
 export { SupabaseStorageProvider } from './providers/supabase';

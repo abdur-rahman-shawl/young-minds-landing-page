@@ -50,6 +50,20 @@
       "when": 1753535610732,
       "tag": "0006_jittery_taskmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1753636296977,
+      "tag": "0007_material_squadron_supreme",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1753834021143,
+      "tag": "0008_bouncy_stick",
+      "breakpoints": true
     }
   ]
 }

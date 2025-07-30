@@ -8,9 +8,9 @@ export * from './sessions';
 export * from './messages';
 export * from './mentoring-relationships';
 export * from './auth';
+export * from './mentor-content';
 
 // Note: Add more schema exports here as we create them
-// Example: export * from './courses';
 // Example: export * from './reviews';
 
 // Temporary empty export to prevent TypeScript errors
