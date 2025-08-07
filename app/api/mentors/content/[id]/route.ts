@@ -17,7 +17,9 @@ const updateContentSchema = z.object({
   mimeType: z.string().optional(),
   
   // For URL type
-  url: z.string().url().optional(),
+  url: z.string().refine((val) => !val || val === '' || /^https?:\/\/.+/.test(val), {
+    message: 'Invalid URL format'
+  }).optional(),
   urlTitle: z.string().optional(),
   urlDescription: z.string().optional(),
 });
@@ -144,7 +146,9 @@ export async function PUT(
     }
 
     const body = await request.json();
+    console.log('Update content request body:', body);
     const validatedData = updateContentSchema.parse(body);
+    console.log('Validated content data:', validatedData);
 
     const updatedContent = await db.update(mentorContent)
       .set({

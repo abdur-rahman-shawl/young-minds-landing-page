@@ -34,9 +34,26 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
   }, [searchParams]);
 
   const handleSectionChange = (section: string) => {
+    console.log('🚀 handleSectionChange called with:', section);
+    console.log('🚀 Current router:', router);
     setActiveSection(section);
     setSelectedMentor(null);
     
+    // Handle courses navigation
+    if (section === "courses") {
+      console.log('🚀 Navigating to /courses via router.push');
+      router.push("/courses");
+      return;
+    }
+    
+    // Handle my learning navigation
+    if (section === "my-courses") {
+      console.log('🚀 Navigating to /my-courses via router.push');
+      router.push("/my-courses");
+      return;
+    }
+    
+    console.log('🚀 Updating URL for section:', section);
     // Update URL without causing a full page reload
     const url = new URL(window.location.href);
     url.searchParams.set("section", section);

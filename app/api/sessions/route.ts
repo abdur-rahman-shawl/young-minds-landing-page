@@ -22,13 +22,14 @@ export async function GET(request: NextRequest) {
         id: sessions.id,
         mentorId: sessions.mentorId,
         menteeId: sessions.menteeId,
+        title: sessions.title,
+        description: sessions.description,
         scheduledAt: sessions.scheduledAt,
         duration: sessions.duration,
         status: sessions.status,
-        topic: sessions.topic,
-        notes: sessions.notes,
-        rating: sessions.rating,
-        feedback: sessions.feedback,
+        meetingType: sessions.meetingType,
+        mentorRating: sessions.mentorRating,
+        menteeRating: sessions.menteeRating,
         // Mentor info
         mentorName: users.name,
         mentorTitle: mentors.title,
@@ -83,7 +84,8 @@ export async function POST(request: NextRequest) {
       menteeId, 
       scheduledAt, 
       duration, 
-      topic,
+      title,
+      description,
       action 
     } = body;
 
@@ -99,13 +101,13 @@ export async function POST(request: NextRequest) {
       const [newSession] = await db
         .insert(sessions)
         .values({
-          id: crypto.randomUUID(),
           mentorId,
           menteeId,
+          title: title || 'Mentoring Session',
+          description: description || null,
           scheduledAt: new Date(scheduledAt),
           duration: duration || 60,
           status: 'scheduled',
-          topic: topic || null,
         })
         .returning();
 

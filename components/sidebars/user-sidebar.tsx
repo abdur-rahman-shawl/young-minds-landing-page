@@ -11,15 +11,16 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Eye, Users, Video, Bookmark, Users2, Mail, Calendar, LayoutDashboard, Home, User } from "lucide-react"
+import { Eye, Users, Video, Bookmark, Users2, Mail, Calendar, LayoutDashboard, Home, User, GraduationCap, BookOpen } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 
 interface UserSidebarProps {
   activeSection: string
   onSectionChange: (section: string) => void
+  userRole?: string
 }
 
-export function UserSidebar({ activeSection, onSectionChange }: UserSidebarProps) {
+export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSidebarProps) {
   const { session, primaryRole, isLoading } = useAuth()
   
   const menuItems = [
@@ -47,6 +48,16 @@ export function UserSidebar({ activeSection, onSectionChange }: UserSidebarProps
       title: "My Mentors",
       icon: Users2,
       key: "mentors"
+    },
+    {
+      title: "Courses",
+      icon: GraduationCap,
+      key: "courses"
+    },
+    {
+      title: "My Learning",
+      icon: BookOpen,
+      key: "my-courses"
     },
     {
       title: "Messages",
@@ -125,7 +136,10 @@ export function UserSidebar({ activeSection, onSectionChange }: UserSidebarProps
           {menuItems.map((item) => (
             <SidebarMenuItem key={item.key}>
               <SidebarMenuButton 
-                onClick={() => onSectionChange(item.key)}
+                onClick={() => {
+                  console.log('Sidebar clicked:', item.key, 'onSectionChange exists:', !!onSectionChange);
+                  onSectionChange(item.key);
+                }}
                 className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-150 ease-out ${
                   activeSection === item.key 
                     ? 'bg-blue-500 text-white shadow-sm ring-1 ring-blue-500/20' 

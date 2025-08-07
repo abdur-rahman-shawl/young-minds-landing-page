@@ -146,7 +146,11 @@ export function useUpdateContent() {
       
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to update content');
+        console.error('Update content error response:', error);
+        const errorMessage = error.details 
+          ? `Validation error: ${error.details.map((d: any) => d.message).join(', ')}`
+          : error.error || 'Failed to update content';
+        throw new Error(errorMessage);
       }
       
       return response.json();

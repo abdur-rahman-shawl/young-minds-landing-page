@@ -39,6 +39,8 @@ import { AdminMentors } from "@/components/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/dashboard/admin-overview"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
+import { Courses } from "@/components/dashboard/courses"
+import { MyLearning } from "@/components/dashboard/my-learning"
 
 function PageContent() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -72,9 +74,11 @@ function PageContent() {
   }
 
   const handleSectionChange = (section: string) => {
+    console.log('🌟 MAIN PAGE handleSectionChange called with:', section);
     setActiveSection(section)
     setSelectedMentor(null)
-    // Update URL without page refresh
+    
+    // Update URL without page refresh for all sections - everything stays inline now
     const newUrl = `/?section=${section}`
     router.push(newUrl, { scroll: false })
   }
@@ -108,6 +112,10 @@ function PageContent() {
           return <SavedItems onMentorSelect={handleMentorSelect} />
         case "mentors":
           return <Mentors onMentorSelect={handleMentorSelect} />
+        case "courses":
+          return <Courses />
+        case "my-courses":
+          return <MyLearning />
         case "messages":
           return <Messages />
         case "sessions":
@@ -130,6 +138,10 @@ function PageContent() {
         return <SavedItems onMentorSelect={handleMentorSelect} />
       case "mentors":
         return <Mentors onMentorSelect={handleMentorSelect} />
+      case "courses":
+        return <Courses />
+      case "my-courses":
+        return <MyLearning />
       case "messages":
         return <Messages />
       case "sessions":
