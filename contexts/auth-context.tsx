@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useCallback } from 'react';
+import React, { createContext, useContext, useCallback, useEffect } from 'react';
 import { useSessionWithRolesQuery, useSignOutMutation, useRefreshSessionMutation } from '@/hooks/queries/use-session-query';
 import { AuthErrorBoundary, useErrorHandler } from '@/components/common/error-boundary';
 
@@ -104,10 +104,23 @@ function AuthProviderInner({ children }: AuthProviderProps) {
     await refreshSessionMutation.mutateAsync();
   }, [refreshSessionMutation]);
 
-  // Sign out function using React Query
+  // Set or remove userId in localStorage on login/logout
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (session?.user?.id) {
+      localStorage.setItem('userId', session.user.id);
+    } else {
+      localStorage.removeItem('userId');
+    }
+  }, [session?.user?.id]);
+
+  // Patch sign out to also clear userId
   const handleSignOut = useCallback(async () => {
     try {
       await signOutMutation.mutateAsync();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('userId');
+      }
     } catch (err) {
       const error = err as Error;
       handleError(error, 'signOut');

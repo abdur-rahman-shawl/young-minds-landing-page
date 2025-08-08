@@ -11,6 +11,7 @@ export * from './auth';
 export * from './mentor-content';
 export * from './course-enrollment';
 export * from './learning-analytics';
+export * from './ai-chatbot-messages';
 
 // Note: Add more schema exports here as we create them
 // Example: export * from './reviews';
