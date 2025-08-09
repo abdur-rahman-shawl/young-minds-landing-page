@@ -3,17 +3,17 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/header";
-import { UserSidebar } from "@/components/sidebars/user-sidebar";
+import { UserSidebar } from "@/components/mentee/sidebars/user-sidebar";
 import { RightSidebar } from "@/components/layout/right-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 
 // Dashboard components
-import { Dashboard } from "@/components/dashboard/dashboard";
-import { ExploreMentors } from "@/components/dashboard/explore";
-import { SavedItems } from "@/components/dashboard/saved-items";
-import { Mentors } from "@/components/dashboard/mentors";
-import { Messages } from "@/components/dashboard/messages";
-import { Sessions } from "@/components/dashboard/sessions";
+import { Dashboard } from "@/components/shared/dashboard/dashboard";
+import { ExploreMentors } from "@/components/shared/dashboard/explore";
+import { SavedItems } from "@/components/mentee/dashboard/saved-items";
+import { Mentors } from "@/components/shared/dashboard/mentors";
+import { Messages } from "@/components/shared/dashboard/messages";
+import { Sessions } from "@/components/shared/dashboard/sessions";
 
 interface MenteeDashboardProps {
   user: any;
