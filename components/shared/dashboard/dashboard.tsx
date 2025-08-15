@@ -11,7 +11,7 @@ import { useSessions } from "@/lib/hooks/use-sessions"
 import { useSession } from "@/lib/auth-client"
 
 interface DashboardProps {
-  onMentorSelect: (mentorId: number) => void
+  onMentorSelect: (mentorId: string) => void
 }
 
 export function Dashboard({ onMentorSelect }: DashboardProps) {
@@ -169,7 +169,7 @@ export function Dashboard({ onMentorSelect }: DashboardProps) {
                   <div 
                     key={mentor.id} 
                     className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
-                    onClick={() => onMentorSelect(parseInt(mentor.id))}
+                    onClick={() => onMentorSelect(mentor.id)}
                   >
                     <Avatar className="h-10 w-10">
                       <AvatarImage src={mentor.image || undefined} alt={mentor.name} />

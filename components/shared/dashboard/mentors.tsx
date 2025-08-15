@@ -4,7 +4,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Video, MessageCircle, Star } from "lucide-react"
 
-export function Mentors() {
+interface MentorsProps {
+  onMentorSelect: (mentorId: string) => void
+}
+
+export function Mentors({ onMentorSelect }: MentorsProps) {
   const mentors = [
     {
       id: 1,

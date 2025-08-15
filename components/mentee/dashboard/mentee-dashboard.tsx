@@ -14,6 +14,7 @@ import { SavedItems } from "@/components/mentee/dashboard/saved-items";
 import { Mentors } from "@/components/shared/dashboard/mentors";
 import { Messages } from "@/components/shared/dashboard/messages";
 import { Sessions } from "@/components/shared/dashboard/sessions";
+import { MentorDetailView } from "@/components/mentee/mentor-detail-view";
 
 interface MenteeDashboardProps {
   user: any;
@@ -21,7 +22,7 @@ interface MenteeDashboardProps {
 
 export function MenteeDashboard({ user }: MenteeDashboardProps) {
   const [activeSection, setActiveSection] = useState("dashboard");
-  const [selectedMentor, setSelectedMentor] = useState<number | null>(null);
+  const [selectedMentor, setSelectedMentor] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -29,8 +30,25 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
     // Get section and mentor from URL on page load
     const sectionFromUrl = searchParams.get("section") || "dashboard";
     const mentorFromUrl = searchParams.get("mentor");
-    setActiveSection(sectionFromUrl);
-    setSelectedMentor(mentorFromUrl ? parseInt(mentorFromUrl) : null);
+    
+    console.log('🚀 useEffect triggered - URL params:', { sectionFromUrl, mentorFromUrl });
+    console.log('🚀 Current state before update:', { activeSection, selectedMentor });
+    
+    // If mentor ID is present but section is still "explore", automatically set to mentor-detail
+    if (mentorFromUrl && sectionFromUrl === "explore") {
+      console.log('🚀 Mentor ID found with explore section, auto-setting to mentor-detail');
+      setActiveSection("mentor-detail");
+      setSelectedMentor(mentorFromUrl);
+    } else {
+      // Normal URL sync
+      setActiveSection(sectionFromUrl);
+      setSelectedMentor(mentorFromUrl);
+    }
+    
+    console.log('🚀 useEffect completed - new state should be:', {
+      activeSection: mentorFromUrl && sectionFromUrl === "explore" ? "mentor-detail" : sectionFromUrl,
+      selectedMentor: mentorFromUrl
+    });
   }, [searchParams]);
 
   const handleSectionChange = (section: string) => {
@@ -61,18 +79,40 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
     window.history.pushState({}, "", url.toString());
   };
 
-  const handleMentorSelect = (mentorId: number) => {
-    setSelectedMentor(mentorId);
-    setActiveSection("mentor-profile");
+  const handleMentorSelect = (mentorId: string) => {
+    console.log('🚀 handleMentorSelect called with mentorId:', mentorId);
+    console.log('🚀 Current activeSection:', activeSection);
+    console.log('🚀 Current selectedMentor:', selectedMentor);
     
-    // Update URL
-    const url = new URL(window.location.href);
-    url.searchParams.set("section", "mentor-profile");
-    url.searchParams.set("mentor", mentorId.toString());
-    window.history.pushState({}, "", url.toString());
+    setSelectedMentor(mentorId);
+    setActiveSection("mentor-detail");
+    
+    console.log('🚀 Setting activeSection to: mentor-detail');
+    console.log('🚀 Setting selectedMentor to:', mentorId);
+    
+    // Update URL using Next.js router
+    const newUrl = `/?section=mentor-detail&mentor=${mentorId}`;
+    console.log('🚀 New URL will be:', newUrl);
+    
+    router.replace(newUrl, undefined, { shallow: true });
+    
+    console.log('🚀 URL updated using router.replace, navigation should happen now');
+  };
+
+  const handleBackToExplore = () => {
+    console.log('🚀 handleBackToExplore called');
+    setSelectedMentor(null);
+    setActiveSection("explore");
+    
+    // Update URL using Next.js router
+    const newUrl = `/?section=explore`;
+    console.log('🚀 Navigating back to:', newUrl);
+    router.replace(newUrl, undefined, { shallow: true });
   };
 
   const renderContent = () => {
+    console.log('🚀 renderContent called with activeSection:', activeSection, 'selectedMentor:', selectedMentor);
+    
     switch (activeSection) {
       case "dashboard":
         return <Dashboard onMentorSelect={handleMentorSelect} />;
@@ -86,6 +126,13 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
         return <Messages />;
       case "sessions":
         return <Sessions />;
+      case "mentor-detail":
+        return (
+          <MentorDetailView
+            mentorId={selectedMentor}
+            onBack={handleBackToExplore}
+          />
+        );
       default:
         return <Dashboard onMentorSelect={handleMentorSelect} />;
     }

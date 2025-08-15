@@ -10,7 +10,7 @@ import { Star, MapPin, Clock, Search, Filter } from "lucide-react"
 import { useMentors } from "@/lib/hooks/use-mentors"
 
 interface ExploreMentorsProps {
-  onMentorSelect: (mentorId: number) => void
+  onMentorSelect: (mentorId: string) => void
 }
 
 export function ExploreMentors({ onMentorSelect }: ExploreMentorsProps) {
@@ -157,28 +157,43 @@ export function ExploreMentors({ onMentorSelect }: ExploreMentorsProps) {
                   </div>
                 )}
 
-                {/* Rating and Price */}
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center gap-1">
-                    <div className="flex items-center">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star key={star} className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                      ))}
-                    </div>
-                    <span className="text-sm text-gray-600 ml-1">4.9</span>
-                  </div>
-                  {mentor.hourlyRate && (
+                {/* Price */}
+                {mentor.hourlyRate && (
+                  <div className="flex items-center justify-end pt-2">
                     <div className="text-right">
                       <p className="text-sm font-semibold">
                         ${mentor.hourlyRate}/{mentor.currency === 'USD' ? 'hr' : 'hour'}
                       </p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 <Button 
+                  type="button"
                   className="w-full" 
-                  onClick={() => onMentorSelect(parseInt(mentor.id))}
+                  onClick={(e) => {
+                    console.log('🚀 BUTTON CLICKED - Event object:', e);
+                    console.log('🚀 Event target:', e.target);
+                    console.log('🚀 Event current target:', e.currentTarget);
+                    
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.nativeEvent.preventDefault();
+                    e.nativeEvent.stopImmediatePropagation();
+                    
+                    console.log('🚀 View Profile clicked for mentor:', mentor.id);
+                    console.log('🚀 About to call onMentorSelect with:', mentor.id);
+                    console.log('🚀 onMentorSelect function:', onMentorSelect);
+                    
+                    try {
+                      onMentorSelect(mentor.id);
+                      console.log('🚀 onMentorSelect called successfully');
+                    } catch (error) {
+                      console.error('🚀 Error calling onMentorSelect:', error);
+                    }
+                    
+                    return false;
+                  }}
                 >
                   View Profile
                 </Button>

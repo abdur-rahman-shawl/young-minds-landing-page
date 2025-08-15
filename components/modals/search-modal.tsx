@@ -10,7 +10,7 @@ import { ArrowRight, Star, MapPin, Clock, Users } from "lucide-react"
 interface SearchModalProps {
   isOpen: boolean
   onClose: () => void
-  onMentorSelect?: (mentorId: number) => void
+  onMentorSelect?: (mentorId: string) => void
 }
 
 interface Mentor {

@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { useCreateCourse, useUploadFile, Course } from '@/hooks/queries/use-content-queries';
+import { safeJsonParse } from '@/lib/utils/safe-json';
 import { toast } from 'sonner';
 
 const createCourseSchema = z.object({
@@ -108,9 +109,9 @@ export function CreateCourseDialog({ contentId, existingCourse, open, onOpenChan
       price: existingCourse?.price || '',
       currency: existingCourse?.currency || 'USD',
       category: existingCourse?.category || '',
-      tags: existingCourse?.tags ? JSON.parse(existingCourse.tags) : [],
-      prerequisites: existingCourse?.prerequisites ? JSON.parse(existingCourse.prerequisites) : [],
-      learningOutcomes: existingCourse?.learningOutcomes ? JSON.parse(existingCourse.learningOutcomes) : [],
+      tags: existingCourse?.tags ? safeJsonParse(existingCourse.tags) : [],
+      prerequisites: existingCourse?.prerequisites ? safeJsonParse(existingCourse.prerequisites) : [],
+      learningOutcomes: existingCourse?.learningOutcomes ? safeJsonParse(existingCourse.learningOutcomes) : [],
       isPublic: true,
       allowComments: true,
       seoTitle: '',

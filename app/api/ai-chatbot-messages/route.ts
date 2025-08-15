@@ -30,6 +30,18 @@ export async function POST(request: NextRequest) {
     if (!chatSessionId || !senderType || !content) {
       return NextResponse.json({ success: false, error: 'chatSessionId, senderType, and content are required' }, { status: 400 });
     }
+
+    // Get client IP address
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const realIp = request.headers.get('x-real-ip');
+    const cfConnectingIp = request.headers.get('cf-connecting-ip');
+    let ipAddress = cfConnectingIp || forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown';
+    
+    // Normalize localhost addresses
+    if (ipAddress === '::1' || ipAddress === '127.0.0.1') {
+      ipAddress = 'localhost';
+    }
+
     const [newMessage] = await db
       .insert(aiChatbotMessages)
       .values({
@@ -38,6 +50,7 @@ export async function POST(request: NextRequest) {
         senderType,
         content: content.trim(),
         metadata: metadata || null,
+        ipAddress,
       })
       .returning();
     return NextResponse.json({ success: true, data: newMessage });

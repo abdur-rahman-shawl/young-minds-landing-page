@@ -2,7 +2,11 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Bookmark, ExternalLink, Trash2 } from "lucide-react"
 
-export function SavedItems() {
+interface SavedItemsProps {
+  onMentorSelect: (mentorId: string) => void
+}
+
+export function SavedItems({ onMentorSelect }: SavedItemsProps) {
   const savedItems = [
     {
       id: 1,

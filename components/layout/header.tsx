@@ -8,6 +8,7 @@ import { Search, Bell, Settings } from "lucide-react"
 import { useState, useEffect } from "react"
 import { signOut } from "@/lib/auth-client"
 import { SignInPopup } from "@/components/auth/sign-in-popup"
+import { NotificationBell } from "@/components/notifications/notification-bell"
 import { useAuth } from "@/contexts/auth-context"
 
 interface HeaderProps {
@@ -95,9 +96,7 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
             <Button variant="ghost" size="icon" onClick={onSearchClick}>
               <Search className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon">
-              <Bell className="w-4 h-4" />
-            </Button>
+            <NotificationBell />
             <Button variant="ghost" size="icon">
               <Settings className="w-4 h-4" />
             </Button>

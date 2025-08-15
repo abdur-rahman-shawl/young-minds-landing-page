@@ -23,7 +23,8 @@ import {
   Settings, 
   Star, 
   User,
-  BookOpen
+  BookOpen,
+  CalendarClock
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -50,6 +51,11 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
       title: "Schedule",
       icon: Calendar,
       key: "schedule"
+    },
+    {
+      title: "Availability",
+      icon: CalendarClock,
+      key: "availability"
     },
     {
       title: "Messages",

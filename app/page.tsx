@@ -28,9 +28,12 @@ import { SavedItems } from "@/components/mentee/dashboard/saved-items"
 import { Mentors } from "@/components/shared/dashboard/mentors"
 import { Messages } from "@/components/shared/dashboard/messages"
 import { Sessions } from "@/components/shared/dashboard/sessions"
-import { Profile } from "@/components/shared/dashboard/profile"
+import { MentorDetailView } from "@/components/mentee/mentor-detail-view"
+import { MenteeProfile } from "@/components/mentee/dashboard/mentee-profile"
 import { MentorProfileEdit } from "@/components/mentor/dashboard/mentor-profile-edit"
 import { MentorContent } from "@/components/mentor/content/content"
+import { MentorBookingsCalendar } from "@/components/booking/mentor-bookings-calendar"
+import { MentorAvailabilityManager } from "@/components/mentor/availability/mentor-availability-manager"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertTriangle, CheckCircle } from "lucide-react"
 import { AdminDashboard } from "@/components/admin/dashboard/admin-dashboard"
@@ -44,7 +47,7 @@ import { MyLearning } from "@/components/mentee/dashboard/my-learning"
 
 function PageContent() {
   const [activeSection, setActiveSection] = useState("dashboard")
-  const [selectedMentor, setSelectedMentor] = useState<number | null>(null)
+  const [selectedMentor, setSelectedMentor] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { 
@@ -64,7 +67,7 @@ function PageContent() {
       const sectionFromUrl = searchParams.get("section") || "dashboard"
       const mentorFromUrl = searchParams.get("mentor")
       setActiveSection(sectionFromUrl)
-      setSelectedMentor(mentorFromUrl ? parseInt(mentorFromUrl) : null)
+      setSelectedMentor(mentorFromUrl)
     }
   }, [searchParams, isAuthenticated, isLoading])
 
@@ -75,6 +78,7 @@ function PageContent() {
 
   const handleSectionChange = (section: string) => {
     console.log('🌟 MAIN PAGE handleSectionChange called with:', section);
+    
     setActiveSection(section)
     setSelectedMentor(null)
     
@@ -83,11 +87,13 @@ function PageContent() {
     router.push(newUrl, { scroll: false })
   }
 
-  const handleMentorSelect = (mentorId: number) => {
-    setActiveSection("explore")
+  const handleMentorSelect = (mentorId: string) => {
+    console.log('🚀 app/page.tsx handleMentorSelect called with:', mentorId)
+    setActiveSection("mentor-detail")
     setSelectedMentor(mentorId)
     // Update URL without page refresh
-    const newUrl = `/?section=explore&mentor=${mentorId}`
+    const newUrl = `/?section=mentor-detail&mentor=${mentorId}`
+    console.log('🚀 app/page.tsx setting URL to:', newUrl)
     router.push(newUrl, { scroll: false })
   }
 
@@ -106,6 +112,22 @@ function PageContent() {
       switch (activeSection) {
         case "dashboard":
           return <MentorOnlyDashboard user={session?.user} />
+        case "schedule":
+          return (
+            <div className="p-8">
+              <div className="max-w-7xl mx-auto">
+                <MentorBookingsCalendar />
+              </div>
+            </div>
+          )
+        case "availability":
+          return (
+            <div className="p-8">
+              <div className="max-w-6xl mx-auto">
+                <MentorAvailabilityManager />
+              </div>
+            </div>
+          )
         case "explore":
           return <ExploreMentors onMentorSelect={handleMentorSelect} />
         case "saved":
@@ -120,10 +142,21 @@ function PageContent() {
           return <Messages />
         case "sessions":
           return <Sessions />
+        case "mentor-detail":
+          return (
+            <MentorDetailView
+              mentorId={selectedMentor}
+              onBack={() => {
+                setActiveSection("explore")
+                setSelectedMentor(null)
+                router.push("/?section=explore", { scroll: false })
+              }}
+            />
+          )
         case "content":
           return <MentorContent />
         case "profile":
-          return isMentor ? <MentorProfileEdit /> : <Profile />
+          return isMentor ? <MentorProfileEdit /> : <MenteeProfile />
         default:
           return <MentorOnlyDashboard user={session?.user} />
       }
@@ -146,8 +179,19 @@ function PageContent() {
         return <Messages />
       case "sessions":
         return <Sessions />
+      case "mentor-detail":
+        return (
+          <MentorDetailView
+            mentorId={selectedMentor}
+            onBack={() => {
+              setActiveSection("explore")
+              setSelectedMentor(null)
+              router.push("/?section=explore", { scroll: false })
+            }}
+          />
+        )
       case "profile":
-        return <Profile />
+        return <MenteeProfile />
       default:
         return <Dashboard onMentorSelect={handleMentorSelect} />
     }

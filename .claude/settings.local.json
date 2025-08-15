@@ -4,8 +4,12 @@
       "Bash(curl:*)",
       "Bash(mv:*)",
       "WebFetch(domain:www.kibo-ui.com)",
-      "WebFetch(domain:originui.com)"
+      "WebFetch(domain:originui.com)",
+      "mcp__supabase__list_tables"
     ],
     "deny": []
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }

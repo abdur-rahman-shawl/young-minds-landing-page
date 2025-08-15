@@ -8,6 +8,7 @@ export const aiChatbotMessages = pgTable('ai_chatbot_messages', {
   senderType: text('sender_type').notNull(), // 'user' or 'ai'
   content: text('content').notNull(),
   metadata: json('metadata'),
+  ipAddress: text('ip_address'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

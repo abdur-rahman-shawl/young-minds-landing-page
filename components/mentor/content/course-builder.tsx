@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/accordion";
 import { useContent, MentorContent } from '@/hooks/queries/use-content-queries';
 import { useQueryClient } from '@tanstack/react-query';
+import { safeJsonParse } from '@/lib/utils/safe-json';
 import { CreateCourseDialog } from './create-course-dialog';
 import { CreateModuleDialog } from './create-module-dialog';
 import { CreateSectionDialog } from './create-section-dialog';
@@ -301,22 +302,22 @@ export const CourseBuilder = memo(({ content, onBack }: CourseBuilderProps) => {
                       </div>
                     </div>
                     
-                    {fullContent.course.tags && JSON.parse(fullContent.course.tags).length > 0 && (
+                    {fullContent.course.tags && safeJsonParse(fullContent.course.tags).length > 0 && (
                       <div>
                         <h4 className="font-medium mb-2">Tags</h4>
                         <div className="flex flex-wrap gap-2">
-                          {JSON.parse(fullContent.course.tags).map((tag: string, index: number) => (
+                          {safeJsonParse(fullContent.course.tags).map((tag: string, index: number) => (
                             <Badge key={index} variant="outline">{tag}</Badge>
                           ))}
                         </div>
                       </div>
                     )}
                     
-                    {fullContent.course.learningOutcomes && JSON.parse(fullContent.course.learningOutcomes).length > 0 && (
+                    {fullContent.course.learningOutcomes && safeJsonParse(fullContent.course.learningOutcomes).length > 0 && (
                       <div>
                         <h4 className="font-medium mb-2">Learning Outcomes</h4>
                         <ul className="list-disc list-inside space-y-1 text-sm">
-                          {JSON.parse(fullContent.course.learningOutcomes).map((outcome: string, index: number) => (
+                          {safeJsonParse(fullContent.course.learningOutcomes).map((outcome: string, index: number) => (
                             <li key={index}>{outcome}</li>
                           ))}
                         </ul>

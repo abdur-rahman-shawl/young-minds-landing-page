@@ -12,6 +12,8 @@ export * from './mentor-content';
 export * from './course-enrollment';
 export * from './learning-analytics';
 export * from './ai-chatbot-messages';
+export * from './notifications';
+export * from './mentor-availability';
 
 // Note: Add more schema exports here as we create them
 // Example: export * from './reviews';
