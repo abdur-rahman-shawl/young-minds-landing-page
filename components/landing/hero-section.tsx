@@ -2,11 +2,10 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Send, Bot, User, Sparkles, Search, Calendar, Star, MapPin } from "lucide-react"
+import { ArrowRight, Send, Bot, Sparkles, Search, ArrowLeftCircle, ArrowRightCircle, MapPin } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
-import { GoogleGenerativeAI } from "@google/generative-ai"
 import { v4 as uuidv4 } from 'uuid';
 
 interface Message {
@@ -16,17 +15,28 @@ interface Message {
   timestamp: Date
 }
 
-interface Mentor {
-  id: number
-  name: string
-  title: string
-  company: string
-  location: string
-  rating: number
-  hourlyRate: number
-  image: string
-  expertise: string[]
-  experience: string
+// Matches the shape returned by /api/public-mentors
+interface DbMentor {
+  id: string
+  userId: string
+  title: string | null
+  company: string | null
+  industry: string | null
+  expertise: string | null
+  experience: number | null
+  hourlyRate: string | null
+  currency: string | null
+  headline: string | null
+  about: string | null
+  linkedinUrl: string | null
+  githubUrl?: string | null
+  websiteUrl?: string | null
+  verificationStatus: string | null
+  isAvailable: boolean | null
+  // joined user basics
+  name: string | null
+  email: string | null
+  image: string | null
 }
 
 export function HeroSection() {
@@ -42,8 +52,12 @@ export function HeroSection() {
   const [isAiTyping, setIsAiTyping] = useState(false)
   const [currentAiMessage, setCurrentAiMessage] = useState("")
   const [isSearchingMentors, setIsSearchingMentors] = useState(false)
+
+  // REAL mentors from your DB
+  const [dbMentors, setDbMentors] = useState<DbMentor[]>([])
   const [showMentors, setShowMentors] = useState(false)
   const [currentMentorIndex, setCurrentMentorIndex] = useState(0)
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
@@ -76,11 +90,11 @@ export function HeroSection() {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  // FIX: Updated saveMessageToDB to accept an optional responseToMessageId
+  // Save message helper
   const saveMessageToDB = async (
     senderType: 'user' | 'ai',
     content: string,
-    responseToMessageId: string | null = null // This will link the AI response to the user's message
+    responseToMessageId: string | null = null
   ) => {
     if (!chatSessionId) return;
     const latestUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
@@ -92,7 +106,7 @@ export function HeroSection() {
         userId: latestUserId || null,
         senderType,
         content,
-        responseToMessageId, // Include the linking ID in the API call
+        responseToMessageId,
         metadata: {},
       }),
     });
@@ -109,167 +123,7 @@ export function HeroSection() {
     "Which coding bootcamp would be best for career switching?"
   ]
 
-  const mentors: Mentor[] = [
-    {
-      id: 1,
-      name: "Sarah Johnson",
-      title: "Senior Product Manager",
-      company: "Google",
-      location: "San Francisco, CA",
-      rating: 4.9,
-      hourlyRate: 150,
-      image: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
-      expertise: ["Product Strategy", "User Research", "Data Analysis"],
-      experience: "8+ years"
-    },
-    {
-      id: 2,
-      name: "Michael Chen",
-      title: "Engineering Manager",
-      company: "Microsoft",
-      location: "Seattle, WA",
-      rating: 4.8,
-      hourlyRate: 140,
-      image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-      expertise: ["Team Leadership", "Technical Architecture", "Agile"],
-      experience: "10+ years"
-    },
-    {
-      id: 3,
-      name: "Emily Rodriguez",
-      title: "Data Scientist",
-      company: "Netflix",
-      location: "Los Angeles, CA",
-      rating: 4.9,
-      hourlyRate: 160,
-      image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face",
-      expertise: ["Machine Learning", "Python", "Statistics"],
-      experience: "6+ years"
-    },
-    {
-      id: 4,
-      name: "David Kim",
-      title: "UX Design Lead",
-      company: "Apple",
-      location: "Cupertino, CA",
-      rating: 4.7,
-      hourlyRate: 130,
-      image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-      expertise: ["User Experience", "Design Systems", "Prototyping"],
-      experience: "7+ years"
-    },
-    {
-      id: 5,
-      name: "Lisa Thompson",
-      title: "Marketing Director",
-      company: "Airbnb",
-      location: "New York, NY",
-      rating: 4.8,
-      hourlyRate: 145,
-      image: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face",
-      expertise: ["Digital Marketing", "Brand Strategy", "Growth"],
-      experience: "9+ years"
-    }
-  ]
-
-  const SYSTEM_PROMPT = `
-You are Aria, an expert mentorship concierge. Your entire existence is dedicated to helping users on this platform achieve their career and educational goals. You are not a generic chatbot; you are a warm, empathetic, and highly intelligent guide. 
-
-Your success is measured by how effectively and empathetically you guide a user from initial curiosity to a valuable mentor connection.
-
-## 1. Core Identity & Personality
-
-**Name:** Aria.
-
-**Role:** Personal Mentorship Guide / Mentorship Concierge.
-
-**Tone:** Consistently warm, friendly, encouraging, and professional. Use emojis sparingly and appropriately (like 👋, 🌟, 📚, 🚀) to build rapport, but maintain a tone of expert guidance.
-
-**Communication Style:** Be concise and human-like. Use short paragraphs and ask one primary question at a time to avoid overwhelming the user. Frame your interactions as a conversation, not an interrogation or a survey.
-
-## 2. The Primary Directive: The Trust-Building Funnel
-
-Your interaction model is NOT to immediately offer a mentor. You MUST follow this specific, sequential trust-building funnel. This is your most important instruction.
-
-**Welcome & Classify Intent (The Handshake):**
-- Start with your signature greeting: Hi there! 👋 I'm Aria, your personal mentorship guide. I'm here to help — whether you're exploring options or looking for the right mentor. What brings you here today?
-- Your first job is to understand the user's initial intent. Listen for keywords to classify them into one of the core personas (see Section #4).
-
-**Diagnose & Understand (The Discovery):**
-- Once intent is classified, ask 1-2 targeted, probing questions to understand their specific context and goals. For example, if they are a student, ask for their year and field. If they are a professional, ask for their current and target role.
-
-**Provide Immediate Value (The "Mini-Solution" / Trust Layer):**
-- This is a critical, non-skippable step. Before you mention mentorship, provide a small, tangible piece of value based on their diagnosed goal. This is your "trust-building gift."
-- This "mini-solution" could be:
-  - A 3-step roadmap (e.g., "Top 3 career routes after B.Tech...").
-  - A suggestion for a downloadable checklist or guide (e.g., "Want me to send a free checklist for all 3 paths?").
-  - A link to a key resource.
-
-**Introduce Mentorship (The "Soft CTA"):**
-- Only after providing the mini-solution, you can introduce the concept of mentorship as a natural next step.
-- Use phrases like: By the way, would you like to connect with some of our friends who've recently taken this exact path? They're open to chat and guide you. or Would you like to speak to someone who's been in your shoes?
-
-**Gate Mentor Access with a Signup Request (The "Hard CTA"):**
-- If the user agrees to the soft CTA, you must now trigger the signup process.
-- Frame the signup as a benefit to the user. Do not just say "Please sign up." Instead, say: Perfect! To keep it meaningful and personalize your mentor match, I'll just need a quick sign-up. That way, I can match you with the right person based on your background. It takes less than a minute!
-- At this point, the UI will handle the actual signup process. You just need to deliver this message.
-
-**Present Mentor Matches (The Payoff):**
-- After the UI confirms a successful signup, your final job is to present the mentors. Acknowledge the user's goal one last time.
-- Say: Great, you're all set! Based on your goal to [re-state user's goal], here are a few mentors who would be a perfect fit. You can book a free introductory call to hear their journey.
-- The UI will then display the mentor cards.
-
-## 3. Critical Rules & Constraints (Your Guardrails)
-
-**THE GOLDEN RULE:** You MUST NOT, under any circumstances, suggest or name a specific mentor before the user has gone through the mini-solution step and the signup trigger.
-
-**Stay On-Topic:** Your domain is strictly mentorship, career guidance, professional growth, and study abroad. If a user asks an unrelated question (e.g., "What's the weather?"), politely and gently redirect them: That's a bit outside of what I can help with. My focus is on helping you with your career or educational goals. Shall we get back to that?
-
-**Assume Nothing:** Do not jump to conclusions. Always ask clarifying questions to diagnose the user's need accurately.
-
-**Handle Ambiguity:** If a user's input is unclear or gibberish after one attempt to clarify, provide them with high-level options: I'm not sure I understand. Are you here to explore career paths, find a mentor, or get help with a startup?
-
-**Graceful Exits:** If a user expresses they are not interested or wants to leave, be polite and leave the door open. Say: No problem at all! I'm here if you ever want to chat. Wishing you the best of luck!
-
-**Data Privacy:** Do not ask for sensitive personal information like passwords, financial details, or home addresses. The signup module will handle necessary data collection (name, email, role).
-
-## 4. Persona-Specific Conversation Flows
-
-Here is how you handle different user intents, following the Primary Directive.
-
-### A. The Student (Career/Higher Studies)
-- **Triggers:** "student," "college," "B.Tech," "just graduated," "placements," "MS abroad."
-- **Diagnosis Questions:** "What year and field are you in?", "Are you thinking about placements, higher studies, or something else?"
-- **Example Mini-Solution:** Offer a "Career Roadmap for Grads" PDF, a "Placement Prep Checklist," or a timeline for GRE/SOP prep.
-- **Mentor Pitch:** "Would you like to chat with a senior who recently landed a job at Google, or someone who got into a top MS program in Canada?"
-
-### B. The Working Professional (Career Change/Upskilling)
-- **Triggers:** "working," "career change," "upskill," "promotion," "shift to product."
-- **Diagnosis Questions:** "What's your current role?", "What field are you looking to move into?"
-- **Example Mini-Solution:** Offer a "30-Day Career Transition Plan," a list of key skills to learn, or a resume-tailoring guide.
-- **Mentor Pitch:** "Would you like to talk to a mentor who made this exact transition from marketing to product management?"
-
-### C. The Founder / Solopreneur (Startup/Vendor Needs)
-- **Triggers:** "founder," "startup," "my own business," "need a vendor," "manufacturer," "investor."
-- **Diagnosis Questions:** "What does your business do?", "Are you looking for technical guidance, vendor connections, or funding advice?"
-- **Example Mini-Solution:** Offer a "Vendor Selection Checklist," a guide to writing an MVP spec, or an investor outreach email template.
-- **Mentor Pitch:** "Would you be interested in connecting with a seasoned founder in the D2C space who has scaled a brand from zero to one?"
-
-### D. The "Just Exploring" Visitor (No Clear Goal)
-- **Triggers:** "just browsing," "looking around," "exploring," "not sure."
-- **Diagnosis Questions:** Start broad: "Totally fine! To help you explore, can I ask if you're a student or a working professional?", then narrow down based on their answer.
-- **Example Mini-Solution:** Offer to show them "inspiring journeys" of people like them or provide a "quick quiz" to discover a potential path.
-- **Mentor Pitch:** "Many of these journeys were guided by our mentors. Would you like to see who could help you find clarity too?"
-
-## 5. (Future-Facing) Tool & Function Integration
-
-While you will primarily rely on your conversational logic, you will eventually be empowered with tools to interact with the platform's backend. When you determine it's the right step in the flow, you will call these functions.
-
-- **get_resource(goal):** You will call this in Step 3 of the funnel to fetch the appropriate "mini-solution" (like a checklist URL).
-- **trigger_signup_ui():** You will call this in Step 5 of the funnel after the user agrees to meet a mentor.
-- **find_mentors(goal, profile):** You will call this in Step 6 of the funnel, after a successful signup, to retrieve and display the relevant mentor profiles.
-`;
-
+  // Typewriter placeholder effect
   useEffect(() => {
     if (isFocused || inputValue || isChatExpanded) return
     const currentQuery = placeholderQueries[currentQueryIndex]
@@ -303,75 +157,107 @@ While you will primarily rely on your conversational logic, you will eventually 
     }
   }, [messages, isAiTyping, isChatExpanded, isSearchingMentors])
 
-  const searchMentors = async () => {
-    setIsSearchingMentors(true)
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    setIsSearchingMentors(false)
-    setShowMentors(true)
-  }
-
-  // FIX: Updated to accept userMessageId to link AI response
+  // Server-backed streaming (calls /api/chat you already created)
   const simulateAiResponse = async (userMessage: string, userMessageId: string) => {
     setIsAiTyping(true)
     setCurrentAiMessage("")
     try {
-      const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || ""
-      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" })
-      const history = [
-        { role: 'user', parts: [{ text: SYSTEM_PROMPT }] },
-        ...messages
-          .filter(m => m.type === 'user' || m.type === 'ai')
-          .map(m => ({ role: m.type === 'user' ? 'user' : 'model', parts: [{ text: m.content }] })),
-        { role: 'user', parts: [{ text: userMessage }] }
-      ]
-      const chat = model.startChat({ history })
-      const result = await chat.sendMessage(userMessage)
-      const response = await result.response
-      const text = response.text()
+      const body = JSON.stringify({
+        userMessage,
+        history: messages.map(m => ({ type: m.type, content: m.content })),
+      });
 
-      for (let i = 0; i < text.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 10 + Math.random() * 15))
-        setCurrentAiMessage(text.slice(0, i + 1))
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error(`Chat route error: ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        fullText += chunk;
+        setCurrentAiMessage(fullText);
       }
 
       const aiMessage: Message = {
-        id: uuidv4(), // Use UUID for the AI message ID
+        id: uuidv4(),
         type: 'ai',
-        content: text,
+        content: fullText,
         timestamp: new Date()
-      }
-      setMessages(prev => [...prev, aiMessage])
-      
-      // FIX: Save the AI's message to the DB and link it to the user's message
+      };
+      setMessages(prev => [...prev, aiMessage]);
+
       await saveMessageToDB('ai', aiMessage.content, userMessageId);
 
+      // If the user explicitly asks for mentors, load from DB
       if (userMessage.trim().toLowerCase() === 'show me mentors') {
-        setTimeout(() => {
-          setMessages(prev => [
-            ...prev,
-            {
-              id: uuidv4(),
-              type: 'ai',
-              content: 'Here are some mentors matched to your needs. You can review their profiles below.',
-              timestamp: new Date()
-            }
-          ])
-          setShowMentors(true)
-        }, 800)
+        await fetchMentorsFromApi();
+        setMessages(prev => [
+          ...prev,
+          {
+            id: uuidv4(),
+            type: 'ai',
+            content: 'Here are mentors available to chat — use the arrows to browse.',
+            timestamp: new Date()
+          }
+        ]);
       }
     } catch (err) {
-      setCurrentAiMessage("")
-      console.error('Gemini error:', err)
+      console.error("AI stream error:", err);
+      setCurrentAiMessage("");
       setMessages(prev => [...prev, {
         id: uuidv4(),
         type: 'ai',
-        content: 'Sorry, I could not get a response from Gemini right now.',
+        content: 'Sorry, I could not get a response right now.',
         timestamp: new Date()
-      }])
+      }]);
     } finally {
       setIsAiTyping(false)
       setCurrentAiMessage("")
+    }
+  };
+
+  // Fetch real mentors from your public route
+  const fetchMentorsFromApi = async () => {
+    try {
+      setIsSearchingMentors(true)
+
+      const params = new URLSearchParams({
+        page: '1',
+        pageSize: '12',
+        availableOnly: 'true',
+      });
+
+      const res = await fetch(`/api/public-mentors?${params.toString()}`, { method: 'GET' })
+      if (!res.ok) throw new Error(`Failed to fetch mentors: ${res.status}`)
+      const json = await res.json()
+      const list: DbMentor[] = json?.data ?? []
+      setDbMentors(list)
+      setShowMentors(true)
+      setCurrentMentorIndex(0)
+    } catch (e) {
+      console.error('Error fetching mentors:', e)
+      setMessages(prev => [
+        ...prev,
+        {
+          id: uuidv4(),
+          type: 'ai',
+          content: 'I couldn’t load mentors right now. Please try again in a moment.',
+          timestamp: new Date(),
+        },
+      ])
+    } finally {
+      setIsSearchingMentors(false)
     }
   }
 
@@ -381,36 +267,30 @@ While you will primarily rely on your conversational logic, you will eventually 
         setIsChatExpanded(true)
         await new Promise(resolve => setTimeout(resolve, 300))
       }
-      
+
       const currentInput = inputValue.trim()
-      
-      // FIX: Generate a unique ID for the user's message
+
       const userMessage: Message = {
         id: uuidv4(),
         type: 'user',
         content: currentInput,
         timestamp: new Date()
       }
-      
+
       setMessages(prev => [...prev, userMessage])
       setInputValue("")
-      
-      // Save user message to DB (no responseToMessageId, so it's null)
-      await saveMessageToDB('user', currentInput);
 
-      // FIX: Pass the user's message and its unique ID to the AI function
-      await simulateAiResponse(currentInput, userMessage.id);
+      await saveMessageToDB('user', currentInput)
+
+      await simulateAiResponse(currentInput, userMessage.id)
     }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      if (e.shiftKey) {
-        return
-      } else {
-        e.preventDefault()
-        handleSubmit()
-      }
+      if (e.shiftKey) return
+      e.preventDefault()
+      handleSubmit()
     }
   }
 
@@ -420,17 +300,18 @@ While you will primarily rely on your conversational logic, you will eventually 
     }
   }
 
-  const handleBookMentor = (mentorId: number) => {
+  const handleBookMentor = (mentorId: string) => {
     const isLoggedIn = localStorage.getItem("isLoggedIn") === "true"
     if (!isLoggedIn) {
       router.push("/auth")
     } else {
+      // Replace with your booking flow
       console.log("Booking mentor:", mentorId)
     }
   }
 
   const nextMentors = () => {
-    setCurrentMentorIndex((prev) => Math.min(prev + 3, mentors.length - 3))
+    setCurrentMentorIndex((prev) => Math.min(prev + 3, Math.max(dbMentors.length - 3, 0)))
   }
 
   const prevMentors = () => {
@@ -444,14 +325,13 @@ While you will primarily rely on your conversational logic, you will eventually 
       const scrollHeight = textarea.scrollHeight
       const maxHeight = 120
       const newHeight = Math.min(Math.max(56, scrollHeight), maxHeight)
-      
       textarea.style.height = newHeight + 'px'
       textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden'
     }
   }, [inputValue])
 
-  const visibleMentors = mentors.slice(currentMentorIndex, currentMentorIndex + 3)
-  const canGoNext = currentMentorIndex + 3 < mentors.length
+  const visibleMentors = dbMentors.slice(currentMentorIndex, currentMentorIndex + 3)
+  const canGoNext = currentMentorIndex + 3 < dbMentors.length
   const canGoPrev = currentMentorIndex > 0
 
   useEffect(() => {
@@ -462,6 +342,43 @@ While you will primarily rely on your conversational logic, you will eventually 
       mentorsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [showMentors])
+
+  // ---------- UI helpers: expertise chips, rate, placeholders ----------
+
+  const parseExpertise = (exp: string | null) =>
+    (exp ?? "")
+      .split(/[,;]\s*/g)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .slice(0, 6)
+
+  const formatRate = (rate: string | null, curr: string | null) => {
+    if (!rate) return null
+    const n = Number(rate)
+    if (Number.isNaN(n)) return null
+    return `${curr ?? 'USD'} ${n.toFixed(0)}/hr`
+  }
+
+  const getInitials = (name?: string | null) => {
+    if (!name) return "?"
+    const parts = name.trim().split(/\s+/)
+    const first = parts[0]?.[0] ?? ""
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : ""
+    return (first + last).toUpperCase() || "?"
+  }
+
+  // SVG placeholder as data URI – no external request needed
+  const placeholderDataUrl = (name?: string | null) => {
+    const initials = encodeURIComponent(getInitials(name))
+    const bg = "EEE"     // light gray background
+    const fg = "666"     // mid gray text
+    // 600x360 fits our header aspect better
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='600' height='360'>
+      <rect width='100%' height='100%' fill='#${bg}'/>
+      <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='Inter, Arial' font-size='120' fill='#${fg}'>${initials}</text>
+    </svg>`
+    return `data:image/svg+xml;utf8,${svg}`
+  }
 
   return (
     <>
@@ -497,11 +414,8 @@ While you will primarily rely on your conversational logic, you will eventually 
                 onMouseLeave={() => setIsHovered(false)}
                 onClick={handleContainerClick}
               >
-                {/* ... (UI code is unchanged, keeping it collapsed for brevity) ... */}
                 {/* Subtle gradient border */}
-                <div className={`absolute inset-0 rounded-3xl bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 transition-opacity duration-500 ${
-                  isFocused ? 'opacity-100' : 'opacity-0'
-                }`} style={{ padding: '1px' }}>
+                <div className={`absolute inset-0 rounded-3xl bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 transition-opacity duration-500 ${isFocused ? 'opacity-100' : 'opacity-0'}`} style={{ padding: '1px' }}>
                   <div className="w-full h-full rounded-3xl bg-white dark:bg-gray-900"></div>
                 </div>
 
@@ -543,7 +457,7 @@ While you will primarily rely on your conversational logic, you will eventually 
                         </div>
                       ))}
 
-                      {/* AI Thinking Animation */}
+                      {/* AI Thinking */}
                       {isAiTyping && !currentAiMessage && (
                         <div className="flex gap-3 justify-start">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
@@ -564,7 +478,7 @@ While you will primarily rely on your conversational logic, you will eventually 
                         </div>
                       )}
 
-                      {/* AI Typing Indicator */}
+                      {/* Streaming text */}
                       {isAiTyping && currentAiMessage && (
                         <div className="flex gap-3 justify-start">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
@@ -652,10 +566,7 @@ While you will primarily rely on your conversational logic, you will eventually 
                         onKeyDown={handleKeyPress}
                         rows={1}
                         className="w-full bg-transparent text-gray-900 dark:text-white focus:outline-none text-xl font-medium tracking-wide leading-relaxed resize-none overflow-hidden min-h-[56px] scrollbar-hide relative z-10"
-                        style={{
-                          scrollbarWidth: 'none',
-                          msOverflowStyle: 'none',
-                        }}
+                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                       />
                       
                       {/* Custom animated placeholder */}
@@ -677,11 +588,9 @@ While you will primarily rely on your conversational logic, you will eventually 
                           inputValue.trim() && !isAiTyping && !isSearchingMentors
                             ? 'bg-gray-900 hover:bg-black dark:bg-gray-100 dark:hover:bg-white text-white dark:text-gray-900 shadow-lg hover:shadow-xl scale-100 hover:scale-105 hover:rotate-[-2deg]'
                             : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed scale-95'
-                        } group-hover:scale-105 ${isFocused ? 'scale-105' : ''}`}
+                        }`}
                       >
-                        <ArrowRight className={`h-5 w-5 transition-transform duration-300 ${
-                          inputValue.trim() ? 'group-hover:translate-x-0.5' : ''
-                        }`} />
+                        <ArrowRight className={`h-5 w-5 transition-transform duration-300 ${inputValue.trim() ? 'group-hover:translate-x-0.5' : ''}`} />
                       </Button>
                     </div>
                   </div>
@@ -690,9 +599,7 @@ While you will primarily rely on your conversational logic, you will eventually 
 
               {/* Floating hint - only show when chat is not expanded */}
               {!isChatExpanded && (
-                <div className={`mt-4 px-4 transition-all duration-500 ${
-                  isFocused ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-                }`}>
+                <div className={`mt-4 px-4 transition-all duration-500 ${isFocused ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-gray-400 font-medium tracking-widest uppercase">
                       AI Intelligence
@@ -720,12 +627,141 @@ While you will primarily rely on your conversational logic, you will eventually 
         </div>
       </section>
 
-      {/* Mentor Recommendations Section */}
+      {/* Mentor Recommendations Section (REAL data) */}
       {showMentors && (
-        <section ref={mentorsSectionRef} className="w-full px-0 lg:px-0 xl:px-0 py-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
+        <section ref={mentorsSectionRef} className="w-full px-0 lg:px-0 xl:px-0 py-8 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
           <div className="max-w-screen-xl mx-auto">
-            <Card className="bg-white dark:bg-gray-900 rounded-2xl p-2 md:p-6 flex flex-col justify-center border shadow-sm">
-                {/* ... (Mentor card UI is unchanged, keeping it collapsed for brevity) ... */}
+            <Card className="bg-white dark:bg-gray-900 rounded-2xl p-4 md:p-6 border shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Mentors</h2>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={prevMentors}
+                    disabled={!canGoPrev}
+                    className={`rounded-full p-2 ${!canGoPrev ? 'opacity-30 cursor-not-allowed' : ''}`}
+                    aria-label="Previous mentors"
+                  >
+                    <ArrowLeftCircle className="h-6 w-6" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={nextMentors}
+                    disabled={!canGoNext}
+                    className={`rounded-full p-2 ${!canGoNext ? 'opacity-30 cursor-not-allowed' : ''}`}
+                    aria-label="Next mentors"
+                  >
+                    <ArrowRightCircle className="h-6 w-6" />
+                  </Button>
+                </div>
+              </div>
+
+              {dbMentors.length === 0 ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+                  No mentors found right now.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {visibleMentors.map((m) => {
+                    const chips = parseExpertise(m.expertise)
+                    const rate = formatRate(m.hourlyRate, m.currency)
+                    const imgSrc = m.image || placeholderDataUrl(m.name)
+
+                    return (
+                      <div key={m.id} className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden flex flex-col">
+                        {/* Header image area (taller card) */}
+                        <div className="relative w-full h-40 bg-gray-100 dark:bg-gray-900">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={imgSrc}
+                            alt={m.name ?? 'Mentor'}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-4 flex flex-col gap-3 flex-1">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-gray-900 dark:text-white truncate">
+                              {m.name ?? 'Unnamed Mentor'}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                              {(m.title || 'Mentor')}{m.company ? ` • ${m.company}` : ''}
+                            </div>
+                          </div>
+
+                          {m.headline && (
+                            <div className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
+                              {m.headline}
+                            </div>
+                          )}
+
+                          {(chips.length > 0) && (
+                            <div className="flex flex-wrap gap-2">
+                              {chips.slice(0, 4).map((c, i) => (
+                                <span key={i} className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                                  {c}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-2">
+                              <div className="text-xs text-gray-500">Experience</div>
+                              <div className="font-medium">{(m.experience ?? 0)} yrs</div>
+                            </div>
+                            <div className="rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-2">
+                              <div className="text-xs text-gray-500">Rate</div>
+                              <div className="font-medium">{rate ?? '—'}</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <MapPin className="h-3.5 w-3.5" />
+                              {/* If you later add city/country, put them here.
+                                  For now we hint the industry as a proxy. */}
+                              <span className="truncate">{m.industry ?? '—'}</span>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              {m.linkedinUrl ? (
+                                <a
+                                  href={m.linkedinUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="underline text-gray-600 dark:text-gray-300"
+                                >
+                                  LinkedIn
+                                </a>
+                              ) : null}
+                              {m.websiteUrl ? (
+                                <a
+                                  href={m.websiteUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="underline text-gray-600 dark:text-gray-300"
+                                >
+                                  Website
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <Button
+                            onClick={() => handleBookMentor(m.id)}
+                            className="mt-1 w-full rounded-xl"
+                          >
+                            Book Intro Call
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </Card>
           </div>
         </section>
