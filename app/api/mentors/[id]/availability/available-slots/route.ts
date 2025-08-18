@@ -110,6 +110,16 @@ export async function GET(
       .select()
       .from(mentorWeeklyPatterns)
       .where(eq(mentorWeeklyPatterns.scheduleId, availabilitySchedule.id));
+    
+    // Calculate disabled days (days where isEnabled is false or not in patterns)
+    const enabledDaysSet = new Set(
+      weeklyPatterns
+        .filter(p => p.isEnabled && p.timeBlocks && (p.timeBlocks as any[]).length > 0)
+        .map(p => p.dayOfWeek)
+    );
+    
+    // Days 0-6 (Sunday-Saturday) that are disabled
+    const disabledDays = [0, 1, 2, 3, 4, 5, 6].filter(day => !enabledDaysSet.has(day));
 
     // Get exceptions for the date range
     const exceptions = await db
@@ -235,10 +245,10 @@ export async function GET(
                   
                   if (!hasConflict) {
                     availableSlots.push({
-                      startTime: slotStart,
-                      endTime: slotEnd,
+                      startTime: slotStart.toISOString(),
+                      endTime: slotEnd.toISOString(),
                       available: true
-                    });
+                    } as any);
                   }
                 }
                 
@@ -254,14 +264,15 @@ export async function GET(
       currentDate = addDays(currentDate, 1);
     }
 
-    // Sort slots by start time
-    availableSlots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+    // Sort slots by start time (convert ISO strings to Date for comparison)
+    availableSlots.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
     return NextResponse.json({
       success: true,
       slots: availableSlots,
       sessionDuration,
       timezone,
+      disabledDays,
       total: availableSlots.length
     });
 

@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isAfter, isBefore, addMinutes, isToday } from 'date-fns';
+import { Calendar, Clock, ChevronLeft, ChevronRight, XCircle } from 'lucide-react';
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isAfter, isBefore, addMinutes, isToday, getDay } from 'date-fns';
 
 interface TimeSlotSelectorProps {
   mentorId: string;
@@ -31,10 +31,17 @@ export function TimeSlotSelector({ mentorId, onTimeSelected }: TimeSlotSelectorP
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<Date>();
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [disabledDays, setDisabledDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [sessionDuration, setSessionDuration] = useState(60);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const cacheRef = useRef<Map<string, { data: AvailableSlot[], timestamp: number }>>(new Map());
+  const cacheRef = useRef<Map<string, { 
+    data: { 
+      slots: AvailableSlot[], 
+      disabledDays: number[] 
+    }, 
+    timestamp: number 
+  }>>(new Map());
   const loadingRef = useRef(false);
   const mountedRef = useRef(true);
   const currentRequestRef = useRef<string | null>(null);
@@ -94,9 +101,10 @@ export function TimeSlotSelector({ mentorId, onTimeSelected }: TimeSlotSelectorP
     if (cached && (now - cached.timestamp) < cacheExpiry) {
       console.log('[TimeSlotSelector] Using cached data for:', cacheKey);
       if (mountedRef.current) {
-        setAvailableSlots(cached.data);
+        setAvailableSlots(cached.data.slots);
+        setDisabledDays(cached.data.disabledDays);
       }
-      return cached.data;
+      return cached.data.slots;
     }
     
     // Check if we're already fetching this exact request
@@ -140,8 +148,20 @@ export function TimeSlotSelector({ mentorId, onTimeSelected }: TimeSlotSelectorP
           setSessionDuration(data.sessionDuration);
         }
         
-        // Update cache
-        cacheRef.current.set(cacheKey, { data: slots, timestamp: now });
+        // Update disabled days
+        const disabledDaysList = data.disabledDays || [];
+        if (mountedRef.current) {
+          setDisabledDays(disabledDaysList);
+        }
+        
+        // Update cache with both slots and disabled days
+        cacheRef.current.set(cacheKey, { 
+          data: { 
+            slots: slots, 
+            disabledDays: disabledDaysList 
+          }, 
+          timestamp: now 
+        });
         
         // Only update state if component is still mounted
         if (mountedRef.current) {
@@ -231,13 +251,33 @@ export function TimeSlotSelector({ mentorId, onTimeSelected }: TimeSlotSelectorP
   };
 
   const isDateSelectable = (date: Date) => {
+    // Check if date is in the past
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return !isBefore(date, today);
+    if (isBefore(date, today)) {
+      return false;
+    }
+    
+    // Check if the day of week is disabled by mentor
+    const dayOfWeek = getDay(date);
+    if (disabledDays.includes(dayOfWeek)) {
+      return false;
+    }
+    
+    return true;
+  };
+  
+  const isDayDisabled = (date: Date) => {
+    const dayOfWeek = getDay(date);
+    return disabledDays.includes(dayOfWeek);
   };
 
   const getDateBadgeCount = (date: Date) => {
     if (!availableSlots) return 0;
+    
+    // Don't show slot count for disabled days
+    if (isDayDisabled(date)) return 0;
+    
     const slots = generateTimeSlots(date, availableSlots);
     return slots.filter(slot => slot.available).length;
   };
@@ -290,21 +330,32 @@ export function TimeSlotSelector({ mentorId, onTimeSelected }: TimeSlotSelectorP
             {weekDays.map((day, index) => {
               const isSelectable = isDateSelectable(day);
               const isSelected = selectedDate && isSameDay(day, selectedDate);
+              const isDisabled = isDayDisabled(day);
+              const isPast = isBefore(day, new Date(new Date().setHours(0, 0, 0, 0)));
               const availableSlots = isSelectable ? getDateBadgeCount(day) : 0;
+              
+              let buttonClassName = "h-16 p-2 flex flex-col items-center justify-center relative ";
+              
+              if (isPast) {
+                buttonClassName += "opacity-40 cursor-not-allowed bg-gray-100 dark:bg-gray-800";
+              } else if (isDisabled) {
+                buttonClassName += "opacity-50 cursor-not-allowed bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800";
+              } else if (isSelected) {
+                buttonClassName += "bg-blue-500 hover:bg-blue-600 text-white";
+              } else if (!isSelectable) {
+                buttonClassName += "opacity-50 cursor-not-allowed";
+              } else {
+                buttonClassName += "hover:bg-gray-100 dark:hover:bg-gray-800";
+              }
 
               return (
                 <Button
                   key={index}
                   variant={isSelected ? "default" : "ghost"}
-                  className={`h-16 p-2 flex flex-col items-center justify-center ${
-                    !isSelectable 
-                      ? 'opacity-50 cursor-not-allowed' 
-                      : isSelected
-                      ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                  }`}
+                  className={buttonClassName}
                   onClick={() => isSelectable && handleDateSelect(day)}
                   disabled={!isSelectable}
+                  title={isDisabled ? "Mentor not available on this day" : isPast ? "Past date" : undefined}
                 >
                   <div className="text-xs font-medium">
                     {format(day, 'EEE')}
@@ -312,13 +363,18 @@ export function TimeSlotSelector({ mentorId, onTimeSelected }: TimeSlotSelectorP
                   <div className={`text-sm font-semibold ${isToday(day) ? 'text-blue-500' : ''}`}>
                     {format(day, 'd')}
                   </div>
-                  {isSelectable && availableSlots > 0 && (
+                  {isSelectable && !isDisabled && availableSlots > 0 && (
                     <Badge 
                       variant="secondary" 
                       className="text-xs px-1 py-0 mt-1 h-4"
                     >
                       {availableSlots}
                     </Badge>
+                  )}
+                  {isDisabled && !isPast && (
+                    <div className="absolute top-1 right-1">
+                      <XCircle className="h-3 w-3 text-red-500" />
+                    </div>
                   )}
                 </Button>
               );
