@@ -34,6 +34,7 @@ import { MentorProfileEdit } from "@/components/mentor/dashboard/mentor-profile-
 import { MentorContent } from "@/components/mentor/content/content"
 import { MentorBookingsCalendar } from "@/components/booking/mentor-bookings-calendar"
 import { MentorAvailabilityManager } from "@/components/mentor/availability/mentor-availability-manager"
+import { MentorMentees } from "@/components/mentor/dashboard/mentor-mentees"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertTriangle, CheckCircle } from "lucide-react"
 import { AdminDashboard } from "@/components/admin/dashboard/admin-dashboard"
@@ -112,6 +113,14 @@ function PageContent() {
       switch (activeSection) {
         case "dashboard":
           return <MentorOnlyDashboard user={session?.user} />
+        case "mentees":
+          return (
+            <div className="p-8">
+              <div className="max-w-7xl mx-auto">
+                <MentorMentees />
+              </div>
+            </div>
+          )
         case "schedule":
           return (
             <div className="p-8">
@@ -141,7 +150,7 @@ function PageContent() {
         case "messages":
           return <Messages />
         case "sessions":
-          return <Sessions />
+          return <div className="h-full flex flex-col flex-1"><Sessions /></div>
         case "mentor-detail":
           return (
             <MentorDetailView
@@ -164,7 +173,7 @@ function PageContent() {
 
     switch (activeSection) {
       case "dashboard":
-        return <Dashboard onMentorSelect={handleMentorSelect} />
+        return <Dashboard onMentorSelect={handleMentorSelect} onSectionChange={handleSectionChange} />
       case "explore":
         return <ExploreMentors onMentorSelect={handleMentorSelect} />
       case "saved":
@@ -178,7 +187,7 @@ function PageContent() {
       case "messages":
         return <Messages />
       case "sessions":
-        return <Sessions />
+        return <div className="h-full flex flex-col flex-1"><Sessions /></div>
       case "mentor-detail":
         return (
           <MentorDetailView
@@ -245,7 +254,7 @@ function PageContent() {
               isLoggedIn={isAuthenticated} 
               setIsLoggedIn={() => {}} // This will be handled by AuthContext
             />
-            <main className="flex-1 pt-24 px-6 pb-6">
+            <main className="flex-1 pt-24 px-4 pb-4 flex flex-col">
               {/* Incomplete Profile Alert */}
               {isMentorWithIncompleteProfile && (
                 <Alert className="mb-6 border-amber-200 bg-amber-50">

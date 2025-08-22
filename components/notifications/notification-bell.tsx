@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -32,24 +32,47 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  
+  // Use refs to prevent infinite loops and track state without causing re-renders
+  const isFetchingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastFetchTimeRef = useRef<number>(0);
+  const hasFetchedInitialRef = useRef(false);
 
-  // Fetch notifications
+  // Fetch notifications - NOT memoized to avoid dependency issues
   const fetchNotifications = async () => {
-    if (!session) return;
+    // Prevent concurrent fetches and rate limit to every 5 seconds minimum
+    const now = Date.now();
+    if (!session || isFetchingRef.current || (now - lastFetchTimeRef.current < 5000)) {
+      return;
+    }
+    
+    // Abort any ongoing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
 
-    setLoading(true);
+    isFetchingRef.current = true;
+    lastFetchTimeRef.current = now;
+    abortControllerRef.current = new AbortController();
+
     try {
-      const response = await fetch('/api/notifications?limit=10');
+      const response = await fetch('/api/notifications?limit=10', {
+        signal: abortControllerRef.current.signal
+      });
       const data = await response.json();
 
       if (response.ok) {
         setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
       }
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error);
+    } catch (error: any) {
+      // Ignore abort errors
+      if (error?.name !== 'AbortError') {
+        console.error('Failed to fetch notifications:', error);
+      }
     } finally {
-      setLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -161,19 +184,42 @@ export function NotificationBell() {
     setIsOpen(false);
   };
 
-  // Fetch notifications on mount and when dropdown opens
+  // Single effect for initial fetch only when session becomes available
   useEffect(() => {
-    if (session && isOpen) {
-      fetchNotifications();
-    }
-  }, [session, isOpen]);
+    if (!session || hasFetchedInitialRef.current) return;
+    
+    hasFetchedInitialRef.current = true;
+    fetchNotifications();
+  }, [session]); // Only depend on session
 
-  // Initial fetch
+  // Effect for dropdown state changes
   useEffect(() => {
-    if (session) {
-      fetchNotifications();
-    }
-  }, [session]);
+    if (!session || !isOpen) return;
+    
+    // Fetch when dropdown opens (rate limited by the function itself)
+    fetchNotifications();
+  }, [isOpen]); // Only depend on isOpen
+
+  // Effect for polling - separate to avoid dependency issues
+  useEffect(() => {
+    if (!session) return;
+
+    // Set up polling with reasonable interval
+    const pollInterval = setInterval(() => {
+      // Only poll if dropdown is closed
+      if (!isOpen) {
+        fetchNotifications();
+      }
+    }, 60000); // Poll every minute
+
+    // Cleanup
+    return () => {
+      clearInterval(pollInterval);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [session]); // Only depend on session, isOpen is intentionally read from outer scope
 
   if (!session) return null;
 

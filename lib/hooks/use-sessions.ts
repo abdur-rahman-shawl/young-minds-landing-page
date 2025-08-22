@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from '@/lib/auth-client';
 
 interface Session {
@@ -31,6 +31,8 @@ export function useSessions(type: 'upcoming' | 'past' | 'all' = 'all'): UseSessi
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { data: session } = useSession();
+  const hasFetched = useRef(false);
+  const lastType = useRef(type);
 
   const fetchSessions = async () => {
     if (!session?.user?.id) return;
@@ -51,6 +53,7 @@ export function useSessions(type: 'upcoming' | 'past' | 'all' = 'all'): UseSessi
       setError('Network error occurred');
     } finally {
       setLoading(false);
+      hasFetched.current = true;
     }
   };
 
@@ -110,8 +113,20 @@ export function useSessions(type: 'upcoming' | 'past' | 'all' = 'all'): UseSessi
   };
 
   useEffect(() => {
-    fetchSessions();
-  }, [session?.user?.id, type]);
+    // Check if type changed
+    if (type !== lastType.current) {
+      hasFetched.current = false;
+      lastType.current = type;
+    }
+
+    // Only fetch if we have a session and haven't fetched yet, or if type changed
+    if (session?.user?.id && !hasFetched.current) {
+      fetchSessions();
+    } else if (session === null) {
+      // Session loaded but user is not authenticated
+      setLoading(false);
+    }
+  }, [session?.user?.id, type]); // Re-fetch when session or type changes
 
   return {
     sessions,

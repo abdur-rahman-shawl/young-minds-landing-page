@@ -5,7 +5,9 @@
       "Bash(mv:*)",
       "WebFetch(domain:www.kibo-ui.com)",
       "WebFetch(domain:originui.com)",
-      "mcp__supabase__list_tables"
+      "mcp__supabase__list_tables",
+      "WebSearch",
+      "mcp__supabase__list_projects"
     ],
     "deny": []
   },

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { 
   Users, 
   Calendar, 
@@ -17,28 +18,25 @@ import {
   FileText,
   Star,
   TrendingUp,
-  MessageSquare
+  MessageSquare,
+  TrendingDown,
+  Video,
+  ArrowRight
 } from "lucide-react"
+import { useMentorDashboardStats, useMentorRecentSessions, useMentorRecentMessages } from "@/hooks/use-mentor-dashboard"
+import { format, formatDistanceToNow } from "date-fns"
+import { useRouter } from "next/navigation"
 
 interface MentorOnlyDashboardProps {
   user: any
 }
 
-interface MentorProfile {
-  id: string
-  title: string
-  company: string
-  verificationStatus: string
-  verificationNotes?: string
-  hourlyRate: string
-  currency: string
-  maxMentees: number
-  headline: string
-  about: string
-}
-
 export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
-  const { mentorProfile, isLoading } = useAuth()
+  const { mentorProfile, isLoading: profileLoading } = useAuth()
+  const { stats, isLoading: statsLoading, error: statsError } = useMentorDashboardStats()
+  const { sessions, isLoading: sessionsLoading } = useMentorRecentSessions(5)
+  const { messages, isLoading: messagesLoading } = useMentorRecentMessages(5)
+  const router = useRouter()
 
   const getVerificationStatusInfo = (status: string) => {
     switch (status) {
@@ -87,7 +85,7 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
     }
   }
 
-  if (isLoading) {
+  if (profileLoading || statsLoading) {
     return (
       <div className="space-y-6">
         <div className="animate-pulse">
@@ -215,37 +213,51 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
     )
   }
 
-  // Verified mentor gets full dashboard (existing code)
-  const stats = [
+  // Calculate trends
+  const sessionsTrend = stats && stats.sessionsLastMonth > 0 
+    ? ((stats.sessionsThisMonth - stats.sessionsLastMonth) / stats.sessionsLastMonth * 100).toFixed(0)
+    : stats?.sessionsThisMonth > 0 ? '100' : '0';
+
+  // Format rating display
+  const ratingDisplay = stats?.averageRating 
+    ? stats.averageRating.toFixed(1)
+    : 'N/A';
+
+  // Verified mentor gets full dashboard with dynamic data
+  const dashboardStats = [
     {
       title: "Active Mentees",
-      value: "0",
-      description: "Your current mentees",
+      value: stats?.activeMentees || 0,
+      description: `Out of ${stats?.totalMentees || 0} total`,
       icon: Users,
-      trend: "neutral"
+      trend: stats?.activeMentees > 0 ? "up" : "neutral",
+      color: "text-blue-500"
     },
     {
       title: "This Month Earnings",
-      value: "$0",
+      value: `$${stats?.monthlyEarnings?.toFixed(2) || '0.00'}`,
       description: "Revenue this month",
       icon: DollarSign,
-      trend: "neutral"
+      trend: stats?.monthlyEarnings > 0 ? "up" : "neutral",
+      color: "text-green-500"
     },
     {
       title: "Upcoming Sessions",
-      value: "0",
-      description: "Sessions scheduled",
+      value: stats?.upcomingSessions || 0,
+      description: `${stats?.completedSessions || 0} completed`,
       icon: Calendar,
-      trend: "neutral"
+      trend: stats?.upcomingSessions > 0 ? "up" : "neutral",
+      color: "text-purple-500"
     },
     {
       title: "Rating",
-      value: "5.0",
-      description: "Average rating",
+      value: ratingDisplay,
+      description: `Based on ${stats?.totalReviews || 0} reviews`,
       icon: Star,
-      trend: "up"
+      trend: stats?.averageRating >= 4 ? "up" : stats?.averageRating ? "neutral" : "neutral",
+      color: "text-yellow-500"
     }
-  ]
+  ];
 
   return (
     <div className="space-y-6">
@@ -253,28 +265,66 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''}! 👨‍🏫</h1>
-          <p className="text-gray-600 mt-1">Manage your mentees and track your mentoring progress</p>
+          <p className="text-gray-600 mt-1">
+            {stats?.upcomingSessions > 0 
+              ? `You have ${stats.upcomingSessions} upcoming session${stats.upcomingSessions > 1 ? 's' : ''}`
+              : 'Manage your mentees and track your mentoring progress'}
+          </p>
         </div>
-        <Button>
-          Find New Mentees
+        <Button onClick={() => router.push('/?section=mentees')}>
+          View All Mentees
         </Button>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <Card key={index}>
+        {dashboardStats.map((stat, index) => (
+          <Card key={index} className="hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
+              <stat.icon className={`h-4 w-4 ${stat.color}`} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
               <p className="text-xs text-muted-foreground">{stat.description}</p>
+              {stat.trend !== "neutral" && (
+                <div className="flex items-center mt-2">
+                  {stat.trend === "up" ? (
+                    <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 text-red-500 mr-1" />
+                  )}
+                  <span className={`text-xs ${stat.trend === "up" ? "text-green-500" : "text-red-500"}`}>
+                    Active
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Message Stats Bar */}
+      {stats && stats.unreadMessages > 0 && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MessageSquare className="h-5 w-5 text-blue-600" />
+              <span className="text-sm font-medium text-blue-900">
+                You have {stats.unreadMessages} unread message{stats.unreadMessages > 1 ? 's' : ''}
+              </span>
+            </div>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="border-blue-300 hover:bg-blue-100"
+              onClick={() => router.push('/?section=messages')}
+            >
+              View Messages
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Sessions */}
@@ -284,10 +334,55 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
               <CardTitle>Recent Sessions</CardTitle>
               <CardDescription>Your latest mentoring sessions</CardDescription>
             </div>
-            <Button variant="outline" size="sm">View All</Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => router.push('/?section=schedule')}
+            >
+              View All
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            {sessionsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="flex-1">
+                      <Skeleton className="h-4 w-32 mb-2" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : sessions && sessions.length > 0 ? (
+              <div className="space-y-3">
+                {sessions.map((session) => (
+                  <div key={session.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={session.mentee.image || undefined} />
+                        <AvatarFallback>
+                          {session.mentee.name?.charAt(0) || session.mentee.email.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium text-sm">{session.mentee.name || session.mentee.email}</p>
+                        <p className="text-xs text-gray-500">
+                          {format(new Date(session.scheduledAt), 'MMM d, h:mm a')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={session.status === 'scheduled' ? 'default' : session.status === 'completed' ? 'secondary' : 'outline'}>
+                        {session.status}
+                      </Badge>
+                      {session.meetingType === 'video' && <Video className="h-3 w-3 text-gray-400" />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
               <div className="flex items-center justify-center py-8 text-gray-500">
                 <div className="text-center">
                   <Calendar className="w-12 h-12 mx-auto mb-2 text-gray-400" />
@@ -295,21 +390,64 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
                   <p className="text-sm">Start accepting mentees to see sessions here</p>
                 </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Messages */}
+        {/* Recent Messages */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Recent Messages</CardTitle>
               <CardDescription>Latest messages from mentees</CardDescription>
             </div>
-            <Button variant="outline" size="sm">View All</Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => router.push('/?section=messages')}
+            >
+              View All
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            {messagesLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="flex-1">
+                      <Skeleton className="h-4 w-48 mb-2" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : messages && messages.length > 0 ? (
+              <div className="space-y-3">
+                {messages.map((message) => (
+                  <div key={message.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={message.sender.image || undefined} />
+                      <AvatarFallback>
+                        {message.sender.name?.charAt(0) || message.sender.email.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="font-medium text-sm">{message.sender.name || message.sender.email}</p>
+                        {!message.isRead && (
+                          <Badge className="bg-blue-100 text-blue-700 text-xs">New</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600 line-clamp-2">{message.content}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
               <div className="flex items-center justify-center py-8 text-gray-500">
                 <div className="text-center">
                   <MessageSquare className="w-12 h-12 mx-auto mb-2 text-gray-400" />
@@ -317,7 +455,7 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
                   <p className="text-sm">Connect with mentees to start conversations</p>
                 </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -341,10 +479,17 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
                 <p className="text-sm text-gray-500 mt-1">{mentorProfile.headline}</p>
                 <div className="flex items-center gap-4 mt-3">
                   <span className="text-sm"><strong>Rate:</strong> ${mentorProfile.hourlyRate}/{mentorProfile.currency}</span>
-                  <span className="text-sm"><strong>Mentees:</strong> {mentorProfile.maxMentees}</span>
+                  <span className="text-sm"><strong>Max Mentees:</strong> {mentorProfile.maxMentees}</span>
+                  {stats && (
+                    <span className="text-sm"><strong>Total Earnings:</strong> ${stats.totalEarnings.toFixed(2)}</span>
+                  )}
                 </div>
               </div>
-              <Button variant="outline" size="sm">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => router.push('/?section=profile')}
+              >
                 Edit Profile
               </Button>
             </div>
@@ -353,4 +498,4 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
       )}
     </div>
   )
-} 
+}

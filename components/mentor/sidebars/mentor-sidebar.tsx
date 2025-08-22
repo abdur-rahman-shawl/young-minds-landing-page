@@ -27,6 +27,9 @@ import {
   CalendarClock
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { useMentorDashboardStats } from "@/hooks/use-mentor-dashboard"
+import { useMessaging } from "@/hooks/use-messaging"
+import { Badge } from "@/components/ui/badge"
 
 interface MentorSidebarProps {
   activeSection: string
@@ -35,6 +38,8 @@ interface MentorSidebarProps {
 
 export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarProps) {
   const { session, primaryRole, mentorProfile, isLoading } = useAuth()
+  const { stats, isLoading: statsLoading } = useMentorDashboardStats()
+  const { totalUnreadCount } = useMessaging(session?.user?.id)
   
   const mentorMenuItems = [
     {
@@ -95,64 +100,85 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
   ]
 
   return (
-    <Sidebar className="bg-white dark:bg-gray-900 border-r border-gray-200/50 dark:border-gray-800/50 backdrop-blur-sm mt-16">
+    <Sidebar className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 mt-16">
       {/* Header with User Profile */}
-      <SidebarHeader className="p-6">
-        {/* Enlarged, centred profile card */}
-        <Card className="p-3 flex flex-col items-center gap-2 text-center">
-          {/* Avatar */}
-          <div className="relative">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={mentorProfile?.profileImageUrl || session?.user?.image || undefined} />
-              <AvatarFallback className="text-lg">
-                {mentorProfile?.fullName?.charAt(0) || session?.user?.name?.charAt(0) || 'M'}
-              </AvatarFallback>
-            </Avatar>
-            {/* Online indicator */}
-            <span className="absolute bottom-1 right-1 block h-3.5 w-3.5 rounded-full bg-green-500 ring-2 ring-white dark:ring-gray-900" />
-          </div>
-
-          {/* Name & role */}
-          <div className="space-y-0.5">
-            <h3 className="text-base font-medium leading-none">
-              {mentorProfile?.fullName || session?.user?.name || 'Mentor'}
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {mentorProfile?.title || (isLoading ? 'Loading...' : (primaryRole?.displayName || 'Mentor'))}
-            </p>
-          </div>
-
-          <Separator className="w-full" />
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-6 w-full text-xs">
-            <div className="space-y-0.5">
-              <p className="text-lg font-semibold">5</p>
-              <span className="text-muted-foreground">Mentees</span>
+      <SidebarHeader className="p-4">
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-100 dark:border-gray-800">
+          <div className="flex flex-col space-y-3">
+            {/* User Avatar and Info */}
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Avatar className="h-14 w-14">
+                  <AvatarImage src={mentorProfile?.profileImageUrl || session?.user?.image || undefined} />
+                  <AvatarFallback className="bg-blue-500 text-white font-medium">
+                    {mentorProfile?.fullName?.charAt(0) || session?.user?.name?.charAt(0) || 'M'}
+                  </AvatarFallback>
+                </Avatar>
+                {/* Online Status */}
+                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
+              </div>
+              
+              {/* User Info */}
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
+                  {mentorProfile?.fullName || session?.user?.name || 'Mentor'}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {mentorProfile?.title || (isLoading ? 'Loading...' : (primaryRole?.displayName || 'Mentor'))}
+                </p>
+              </div>
             </div>
-            <div className="space-y-0.5">
-              <p className="text-lg font-semibold">4.9</p>
-              <span className="text-muted-foreground">Rating</span>
+
+            {/* Stats */}
+            <div className="flex gap-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+              <div className="flex-1">
+                <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <Users className="w-3 h-3" />
+                  <span>Mentees</span>
+                </div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">{statsLoading ? '...' : (stats?.totalMentees || 0)}</p>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <Star className="w-3 h-3" />
+                  <span>Rating</span>
+                </div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">{statsLoading ? '...' : (stats?.averageRating ? stats.averageRating.toFixed(1) : 'N/A')}</p>
+              </div>
+            </div>
+
+            {/* Growth Message */}
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Empower your mentees
+              </p>
             </div>
           </div>
-        </Card>
+        </div>
       </SidebarHeader>
 
       {/* Navigation Menu */}
-      <SidebarContent className="px-4 py-4 bg-gradient-to-b from-transparent to-gray-50/30 dark:to-gray-800/20">
-        <SidebarMenu className="space-y-2">
+      <SidebarContent className="px-3 py-2">
+        <SidebarMenu className="space-y-0.5">
           {mentorMenuItems.map((item) => (
             <SidebarMenuItem key={item.key}>
               <SidebarMenuButton 
                 onClick={() => onSectionChange(item.key)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-150 ease-out ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeSection === item.key 
-                    ? 'bg-blue-500 text-white shadow-sm ring-1 ring-blue-500/20' 
-                    : 'text-gray-600 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/20 hover:shadow-sm'
+                    ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border-l-2 border-blue-500' 
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                <item.icon className="w-4 h-4 flex-shrink-0" />
+                <item.icon className={`w-4 h-4 flex-shrink-0 ${
+                  activeSection === item.key ? 'text-blue-500' : ''
+                }`} />
                 <span className="truncate">{item.title}</span>
+                {item.key === 'messages' && totalUnreadCount > 0 && (
+                  <Badge variant="destructive" className="ml-auto">
+                    {totalUnreadCount}
+                  </Badge>
+                )}
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
@@ -160,8 +186,8 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
       </SidebarContent>
 
       {/* Footer with Action Button */}
-      <SidebarFooter className="p-4 bg-gradient-to-t from-gray-50/50 to-transparent dark:from-gray-800/30 dark:to-transparent">
-        <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white gap-2 h-12 rounded-2xl font-medium text-sm transition-all duration-150 ease-out shadow-sm hover:shadow-md ring-1 ring-blue-500/20 hover:ring-blue-600/20">
+      <SidebarFooter className="p-4 border-t border-gray-100 dark:border-gray-800">
+        <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white gap-2 h-10 rounded-lg font-medium text-sm transition-colors duration-200">
           <Calendar className="w-4 h-4" />
           Schedule Session
         </Button>

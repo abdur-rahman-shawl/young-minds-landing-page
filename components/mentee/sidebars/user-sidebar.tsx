@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/sidebar"
 import { Eye, Users, Video, Bookmark, Users2, Mail, Calendar, LayoutDashboard, Home, User, GraduationCap, BookOpen } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { useMessaging } from "@/hooks/use-messaging"
+import { Badge } from "@/components/ui/badge"
 
 interface UserSidebarProps {
   activeSection: string
@@ -22,6 +24,7 @@ interface UserSidebarProps {
 
 export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSidebarProps) {
   const { session, primaryRole, isLoading } = useAuth()
+  const { totalUnreadCount } = useMessaging(session?.user?.id)
   
   const menuItems = [
     {
@@ -77,53 +80,55 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
   ]
 
   return (
-    <Sidebar className="bg-white dark:bg-gray-900 border-r border-gray-200/50 dark:border-gray-800/50 backdrop-blur-sm mt-16">
+    <Sidebar className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 mt-16">
       {/* User Profile Header */}
-      <SidebarHeader className="p-4 bg-gradient-to-b from-gray-50/50 to-transparent dark:from-gray-800/30 dark:to-transparent">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm border border-gray-200/50 dark:border-gray-800/50">
-          <div className="flex flex-col items-center text-center space-y-3">
-            {/* User Avatar */}
-            <div className="relative">
-              <Avatar className="h-12 w-12 ring-2 ring-gray-100 dark:ring-gray-800 shadow-sm">
-                <AvatarImage src="/placeholder.svg?height=48&width=48" alt="John Doe" />
-                <AvatarFallback className="bg-gradient-to-br from-blue-400 to-blue-600 text-white font-medium text-sm">JD</AvatarFallback>
-              </Avatar>
-              {/* Online Status */}
-              <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-900 shadow-sm"></div>
+      <SidebarHeader className="p-4">
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-100 dark:border-gray-800">
+          <div className="flex flex-col space-y-3">
+            {/* User Avatar and Info */}
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Avatar className="h-14 w-14">
+                  <AvatarImage src="/placeholder.svg?height=56&width=56" alt="John Doe" />
+                  <AvatarFallback className="bg-blue-500 text-white font-medium">JD</AvatarFallback>
+                </Avatar>
+                {/* Online Status */}
+                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
+              </div>
+              
+              {/* User Info */}
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
+                  {session?.user?.name || 'User'}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {isLoading ? 'Loading...' : (primaryRole?.displayName || 'User')}
+                </p>
+              </div>
             </div>
-            
-                         {/* User Info */}
-             <div className="space-y-0.5">
-               <h3 className="font-semibold text-gray-900 dark:text-white text-base">
-                 {session?.user?.name || 'User'}
-               </h3>
-               <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                 {isLoading ? 'Loading...' : (primaryRole?.displayName || 'User')}
-               </p>
-             </div>
 
             {/* Stats */}
-            <div className="w-full space-y-2 pt-2 border-t border-gray-200/50 dark:border-gray-800/50">
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
-                  <Eye className="w-3.5 h-3.5" />
-                  Profile views
-                </span>
-                <span className="font-semibold text-blue-500 dark:text-blue-400">24</span>
+            <div className="flex gap-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+              <div className="flex-1">
+                <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <Eye className="w-3 h-3" />
+                  <span>Views</span>
+                </div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">24</p>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
-                  <Users className="w-3.5 h-3.5" />
-                  Connections
-                </span>
-                <span className="font-semibold text-blue-500 dark:text-blue-400">156</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <Users className="w-3 h-3" />
+                  <span>Connections</span>
+                </div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">156</p>
               </div>
             </div>
 
             {/* Growth Message */}
-            <div className="w-full pt-2 border-t border-gray-200/50 dark:border-gray-800/50">
-              <p className="text-xs text-gray-500 dark:text-gray-500 leading-tight">
-                Connect with mentors and grow your network
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Grow your network
               </p>
             </div>
           </div>
@@ -131,8 +136,8 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
       </SidebarHeader>
 
       {/* Navigation Menu */}
-      <SidebarContent className="px-4 py-4 bg-gradient-to-b from-transparent to-gray-50/30 dark:to-gray-800/20">
-        <SidebarMenu className="space-y-2">
+      <SidebarContent className="px-3 py-2">
+        <SidebarMenu className="space-y-0.5">
           {menuItems.map((item) => (
             <SidebarMenuItem key={item.key}>
               <SidebarMenuButton 
@@ -140,14 +145,21 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
                   console.log('Sidebar clicked:', item.key, 'onSectionChange exists:', !!onSectionChange);
                   onSectionChange(item.key);
                 }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-150 ease-out ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeSection === item.key 
-                    ? 'bg-blue-500 text-white shadow-sm ring-1 ring-blue-500/20' 
-                    : 'text-gray-600 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/20 hover:shadow-sm'
+                    ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border-l-2 border-blue-500' 
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                <item.icon className="w-4 h-4 flex-shrink-0" />
+                <item.icon className={`w-4 h-4 flex-shrink-0 ${
+                  activeSection === item.key ? 'text-blue-500' : ''
+                }`} />
                 <span className="truncate">{item.title}</span>
+                {item.key === 'messages' && totalUnreadCount > 0 && (
+                  <Badge variant="destructive" className="ml-auto">
+                    {totalUnreadCount}
+                  </Badge>
+                )}
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
@@ -155,8 +167,8 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
       </SidebarContent>
 
       {/* Footer with Video Call Button */}
-      <SidebarFooter className="p-4 bg-gradient-to-t from-gray-50/50 to-transparent dark:from-gray-800/30 dark:to-transparent">
-        <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white gap-2 h-12 rounded-2xl font-medium text-sm transition-all duration-150 ease-out shadow-sm hover:shadow-md ring-1 ring-blue-500/20 hover:ring-blue-600/20">
+      <SidebarFooter className="p-4 border-t border-gray-100 dark:border-gray-800">
+        <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white gap-2 h-10 rounded-lg font-medium text-sm transition-colors duration-200">
           <Video className="w-4 h-4" />
           Start Video Call
         </Button>

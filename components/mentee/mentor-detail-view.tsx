@@ -26,6 +26,7 @@ import {
 } from "lucide-react"
 import { useMentorDetail } from "@/hooks/use-mentor-detail"
 import { BookingModal } from "@/components/booking/booking-modal"
+import { MessageRequestModal } from "@/components/messaging/message-request-modal"
 import { useAuth } from "@/contexts/auth-context"
 import { toast } from "sonner"
 
@@ -38,6 +39,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
   const { mentor, loading, error } = useMentorDetail(mentorId)
   const { session } = useAuth()
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false)
 
   const handleBookSession = () => {
     if (!session) {
@@ -45,6 +47,18 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
       return
     }
     setIsBookingModalOpen(true)
+  }
+
+  const handleSendMessage = () => {
+    if (!session) {
+      toast.error("Please log in to send a message")
+      return
+    }
+    setIsMessageModalOpen(true)
+  }
+
+  const handleMessageSuccess = () => {
+    toast.success("Message request sent successfully! The mentor will be notified.")
   }
 
   if (loading) {
@@ -221,7 +235,12 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                 <Calendar className="w-4 h-4" />
                 Book Session
               </Button>
-              <Button variant="outline" size="lg" className="gap-2">
+              <Button 
+                variant="outline" 
+                size="lg" 
+                className="gap-2"
+                onClick={handleSendMessage}
+              >
                 <MessageCircle className="w-4 h-4" />
                 Message
               </Button>
@@ -370,6 +389,19 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
             about: mentor.about,
             expertise: mentor.expertiseArray ? JSON.stringify(mentor.expertiseArray) : mentor.expertise,
           }}
+        />
+      )}
+
+      {/* Message Request Modal */}
+      {mentor && session?.user?.id && (
+        <MessageRequestModal
+          isOpen={isMessageModalOpen}
+          onClose={() => setIsMessageModalOpen(false)}
+          recipientId={mentor.userId}
+          recipientName={mentor.fullName || 'Mentor'}
+          recipientType="mentor"
+          userId={session.user.id}
+          onSuccess={handleMessageSuccess}
         />
       )}
     </div>
