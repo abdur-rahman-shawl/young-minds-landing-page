@@ -49,7 +49,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <div className="max-w-4xl mx-auto px-6 pt-10 space-y-6 min-h-full flex flex-col justify-center">
         <Button variant="ghost" onClick={onBack} className="gap-2 mb-4">
           <ArrowLeft className="w-4 h-4" />
           Back to Explore
@@ -116,7 +116,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
   // Note: Rating, reviews, and sessions data will be added when available in the database
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="max-w-4xl mx-auto px-6 pt-10 space-y-6">
       {/* Header with Back Button */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={onBack} className="gap-2">
@@ -212,7 +212,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Button 
                 size="lg" 
                 className="flex-1 bg-blue-500 hover:bg-blue-600 gap-2"

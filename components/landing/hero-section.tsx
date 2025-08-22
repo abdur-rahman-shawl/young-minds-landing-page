@@ -7,6 +7,8 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { v4 as uuidv4 } from 'uuid';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
+import { MentorDetailView } from "@/components/mentee/mentor-detail-view"
 
 interface Message {
   id: string
@@ -43,6 +45,8 @@ export function HeroSection() {
   const [inputValue, setInputValue] = useState("")
   const [isFocused, setIsFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [selectedMentorIdForModal, setSelectedMentorIdForModal] = useState<string | null>(null)
+  const [isMentorModalOpen, setIsMentorModalOpen] = useState(false)
   const [currentPlaceholder, setCurrentPlaceholder] = useState("")
   const [currentQueryIndex, setCurrentQueryIndex] = useState(0)
   const [charIndex, setCharIndex] = useState(0)
@@ -324,15 +328,7 @@ export function HeroSection() {
     }
   }
 
-  const handleBookMentor = (mentorId: string) => {
-    const isLoggedIn = localStorage.getItem("isLoggedIn") === "true"
-    if (!isLoggedIn) {
-      router.push("/auth")
-    } else {
-      // Replace with your booking flow
-      console.log("Booking mentor:", mentorId)
-    }
-  }
+  
 
   const nextMentors = () => {
     setCurrentMentorIndex((prev) => Math.min(prev + 3, Math.max(dbMentors.length - 3, 0)))
@@ -692,7 +688,7 @@ export function HeroSection() {
                     const imgSrc = m.image || placeholderDataUrl(m.name)
 
                     return (
-                      <div key={m.id} className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden flex flex-col">
+                      <div key={m.id} className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden flex flex-col cursor-pointer" onClick={() => { setSelectedMentorIdForModal(m.id); setIsMentorModalOpen(true); }}>
                         {/* Header image area (taller card) */}
                         <div className="relative w-full h-40 bg-gray-100 dark:bg-gray-900">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -775,7 +771,7 @@ export function HeroSection() {
                           </div>
 
                           <Button
-                            onClick={() => handleBookMentor(m.id)}
+                            onClick={() => { setSelectedMentorIdForModal(m.id); setIsMentorModalOpen(true); }}
                             className="mt-1 w-full rounded-xl"
                           >
                             Book Intro Call
@@ -790,6 +786,28 @@ export function HeroSection() {
           </div>
         </section>
       )}
+
+      <Dialog open={isMentorModalOpen} onOpenChange={setIsMentorModalOpen}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto overflow-x-hidden flex flex-col items-center justify-center">
+          <DialogHeader className="pl-8 pr-12 pt-20 pb-0 w-full">
+            <DialogTitle>Mentor Profile</DialogTitle>
+            <DialogDescription>
+              View mentor details and book a session.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedMentorIdForModal && (
+            <div className="pl-8 pr-12 pt-0 w-full mx-auto">
+              <MentorDetailView
+                mentorId={selectedMentorIdForModal}
+                onBack={() => {
+                  setIsMentorModalOpen(false)
+                  setSelectedMentorIdForModal(null)
+                }}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
