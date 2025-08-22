@@ -157,10 +157,12 @@ export function HeroSection() {
     }
   }, [messages, isAiTyping, isChatExpanded, isSearchingMentors])
 
-  // Server-backed streaming (calls /api/chat you already created)
   const simulateAiResponse = async (userMessage: string, userMessageId: string) => {
     setIsAiTyping(true)
     setCurrentAiMessage("")
+    let fullResponseText = "";
+    let toolCallDetected = false;
+
     try {
       const body = JSON.stringify({
         userMessage,
@@ -179,39 +181,59 @@ export function HeroSection() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let fullText = "";
+      let partialJson = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        fullText += chunk;
-        setCurrentAiMessage(fullText);
+
+        partialJson += decoder.decode(value, { stream: true });
+
+        // Try to parse the partial JSON to get the text part for streaming UI
+        try {
+          // This regex is a simple way to extract the 'text' field value
+          // for real-time display, even if the JSON is incomplete.
+          const textMatch = partialJson.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)/);
+          if (textMatch && textMatch[1]) {
+            // Unescape common characters for display
+            const streamingText = textMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');
+            setCurrentAiMessage(streamingText);
+          }
+
+          // Check if a tool call is present in the complete JSON object
+          const finalJson = JSON.parse(partialJson);
+          if (finalJson.tool_call && finalJson.tool_call.name === 'find_mentors') {
+            toolCallDetected = true;
+          }
+        } catch (e) {
+          // JSON is not yet complete, continue accumulating chunks
+        }
+      }
+
+      // Final processing after the stream is complete
+      try {
+        const finalResponse = JSON.parse(partialJson);
+        fullResponseText = finalResponse.text || "";
+      } catch (e) {
+        console.error("Failed to parse final JSON from stream:", e);
+        // Fallback to whatever text was partially streamed
+        fullResponseText = currentAiMessage;
       }
 
       const aiMessage: Message = {
         id: uuidv4(),
         type: 'ai',
-        content: fullText,
+        content: fullResponseText,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, aiMessage]);
-
       await saveMessageToDB('ai', aiMessage.content, userMessageId);
 
-      // If the user explicitly asks for mentors, load from DB
-      if (userMessage.trim().toLowerCase() === 'show me mentors') {
+      // If the tool call was detected during the stream, execute it now.
+      if (toolCallDetected) {
         await fetchMentorsFromApi();
-        setMessages(prev => [
-          ...prev,
-          {
-            id: uuidv4(),
-            type: 'ai',
-            content: 'Here are mentors available to chat — use the arrows to browse.',
-            timestamp: new Date()
-          }
-        ]);
       }
+
     } catch (err) {
       console.error("AI stream error:", err);
       setCurrentAiMessage("");
@@ -282,6 +304,8 @@ export function HeroSection() {
 
       await saveMessageToDB('user', currentInput)
 
+      // The hardcoded check is no longer needed here.
+      // The AI will decide when to call the tool.
       await simulateAiResponse(currentInput, userMessage.id)
     }
   }
