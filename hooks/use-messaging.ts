@@ -188,13 +188,13 @@ export function useMessaging(userId: string | undefined) {
   }, [userId]);
 
   // Send message
-  const sendMessage = useCallback(async (threadId: string, content: string) => {
+  const sendMessage = useCallback(async (threadId: string, content: string, replyToId?: string) => {
     if (!userId) throw new Error('User not authenticated');
 
     const response = await fetch(`/api/messaging/threads/${threadId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, content }),
+      body: JSON.stringify({ userId, content, replyToId }),
     });
 
     if (!response.ok) {
@@ -314,6 +314,54 @@ export function useMessaging(userId: string | undefined) {
     toast.success('Conversation archived');
   }, [userId]);
 
+  // Edit message
+  const editMessage = useCallback(async (messageId: string, newContent: string) => {
+    if (!userId) throw new Error('User not authenticated');
+
+    const response = await fetch(`/api/messaging/messages/${messageId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, content: newContent }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to edit message');
+    }
+
+    const result = await response.json();
+    
+    // Revalidate messages in the thread
+    if (result.data.threadId) {
+      mutate(`/api/messaging/threads/${result.data.threadId}?userId=${userId}`);
+    }
+    
+    return result.data;
+  }, [userId]);
+
+  // Delete message
+  const deleteMessage = useCallback(async (messageId: string) => {
+    if (!userId) throw new Error('User not authenticated');
+
+    const response = await fetch(`/api/messaging/messages/${messageId}?userId=${userId}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete message');
+    }
+
+    const result = await response.json();
+    
+    // Revalidate messages in the thread
+    if (result.data.threadId) {
+      mutate(`/api/messaging/threads/${result.data.threadId}?userId=${userId}`);
+    }
+    
+    return result.data;
+  }, [userId]);
+
   return {
     threads: threads || [],
     requests: requests || [],
@@ -330,6 +378,8 @@ export function useMessaging(userId: string | undefined) {
     handleRequest,
     markThreadAsRead,
     archiveThread,
+    editMessage,
+    deleteMessage,
   };
 }
 

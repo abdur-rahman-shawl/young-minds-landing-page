@@ -3,6 +3,7 @@ import { relations } from 'drizzle-orm';
 import { users } from './users';
 import { sessions } from './sessions';
 import { messageThreads } from './message-threads';
+import { messageReactions } from './message-reactions';
 
 export const messageTypeEnum = pgEnum('message_type', [
   'text',
@@ -59,7 +60,7 @@ export const messages = pgTable('messages', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export const messagesRelations = relations(messages, ({ one }) => ({
+export const messagesRelations = relations(messages, ({ one, many }) => ({
   sender: one(users, {
     fields: [messages.senderId],
     references: [users.id],
@@ -80,6 +81,7 @@ export const messagesRelations = relations(messages, ({ one }) => ({
     fields: [messages.replyToId],
     references: [messages.id],
   }),
+  reactions: many(messageReactions),
 }));
 
 export type Message = typeof messages.$inferSelect;

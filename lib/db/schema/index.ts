@@ -9,6 +9,7 @@ export * from './messages';
 export * from './message-requests';
 export * from './messaging-permissions';
 export * from './message-threads';
+export * from './message-reactions';
 export * from './mentoring-relationships';
 export * from './auth';
 export * from './mentor-content';

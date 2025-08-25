@@ -63,6 +63,7 @@
     "dotenv": "^17.2.1",
     "drizzle-orm": "^0.44.3",
     "embla-carousel-react": "latest",
+    "framer-motion": "^11.0.0",
     "input-otp": "latest",
     "lucide-react": "^0.454.0",
     "media-chrome": "^4.12.0",

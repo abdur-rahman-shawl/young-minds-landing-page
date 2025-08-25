@@ -44,7 +44,7 @@ export function MessagingHub({ userId }: MessagingHubProps) {
         threadId={selectedThreadId}
         userId={userId}
         onBack={handleBackToList}
-        onSendMessage={sendMessage}
+        onSendMessage={(threadId, content, replyToId) => sendMessage(threadId, content, replyToId)}
         onArchive={() => {
           archiveThread(selectedThreadId);
           handleBackToList();

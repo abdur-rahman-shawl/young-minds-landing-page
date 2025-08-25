@@ -17,6 +17,7 @@ import {
   Trash2,
   Paperclip,
   Loader2,
+  Edit2,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -25,7 +26,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useThread } from '@/hooks/use-messaging';
+import { useThread, useMessaging } from '@/hooks/use-messaging';
+import { useReactions } from '@/hooks/use-reactions';
+import { MessageReactions } from './message-reactions';
+import { ReactionPicker } from './reaction-picker';
+import { MessageEditForm } from './message-edit-form';
+import { MessageActionsMenu } from './message-actions-menu';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -33,8 +39,230 @@ interface MessageThreadProps {
   threadId: string;
   userId: string;
   onBack: () => void;
-  onSendMessage: (threadId: string, content: string) => Promise<any>;
+  onSendMessage: (threadId: string, content: string, replyToId?: string) => Promise<any>;
   onArchive: () => void;
+}
+
+interface MessageWithReactionsProps {
+  msg: any;
+  isOwnMessage: boolean;
+  userId: string;
+  showDateSeparator: boolean;
+  renderDateSeparator: (date: string) => JSX.Element;
+  formatMessageDate: (date: string) => string;
+  onReply: (msg: any) => void;
+  onEdit: (messageId: string, content: string) => Promise<void>;
+  onDelete: (messageId: string) => Promise<void>;
+  messages: any[];
+  scrollToMessage: (messageId: string) => void;
+}
+
+function MessageWithReactions({
+  msg,
+  isOwnMessage,
+  userId,
+  showDateSeparator,
+  renderDateSeparator,
+  formatMessageDate,
+  onReply,
+  onEdit,
+  onDelete,
+  messages,
+  scrollToMessage,
+}: MessageWithReactionsProps) {
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showActions, setShowActions] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const { reactions, toggleReaction, isLoading } = useReactions(msg.message.id, userId);
+  
+  const messageAge = Date.now() - new Date(msg.message.createdAt).getTime();
+  
+  // Find the replied-to message if this message is a reply
+  const repliedMessage = msg.message.replyToId 
+    ? messages.find(m => m.message.id === msg.message.replyToId)
+    : null;
+    
+  const handleEdit = async (newContent: string) => {
+    try {
+      await onEdit(msg.message.id, newContent);
+      setIsEditing(false);
+      toast.success('Message edited');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to edit message');
+    }
+  };
+  
+  const handleDelete = async () => {
+    try {
+      await onDelete(msg.message.id);
+      toast.success('Message deleted');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete message');
+    }
+  };
+
+  return (
+    <div>
+      {showDateSeparator && renderDateSeparator(msg.message.createdAt)}
+      
+      <div
+        className={cn(
+          'group relative flex gap-3',
+          isOwnMessage && 'flex-row-reverse'
+        )}
+        onMouseEnter={() => {
+          setShowReactionPicker(true);
+          setShowActions(true);
+        }}
+        onMouseLeave={() => {
+          setShowReactionPicker(false);
+          setShowActions(false);
+        }}
+      >
+        <Avatar className="h-8 w-8">
+          <AvatarImage src={msg.sender?.image} />
+          <AvatarFallback>
+            {msg.sender?.name?.charAt(0) || 'U'}
+          </AvatarFallback>
+        </Avatar>
+
+        <div
+          className={cn(
+            'max-w-[70%] space-y-1',
+            isOwnMessage && 'items-end'
+          )}
+        >
+          <div className="relative">
+            <div
+              className={cn(
+                'rounded-lg px-3 py-2',
+                isOwnMessage
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted'
+              )}
+            >
+              {/* Reply Indicator */}
+              {repliedMessage && (
+                <div
+                  className={cn(
+                    'mb-2 p-2 rounded border-l-2 cursor-pointer',
+                    isOwnMessage 
+                      ? 'bg-primary-foreground/10 border-primary-foreground/20' 
+                      : 'bg-background/50 border-muted-foreground/20'
+                  )}
+                  onClick={() => scrollToMessage(msg.message.replyToId)}
+                >
+                  <p className="text-xs font-medium opacity-70">
+                    {repliedMessage.sender?.name || 'Unknown'}
+                  </p>
+                  <p className="text-xs opacity-60 line-clamp-2">
+                    {repliedMessage.message.content}
+                  </p>
+                </div>
+              )}
+              
+              {isEditing ? (
+                <MessageEditForm
+                  originalContent={msg.message.content}
+                  onSave={handleEdit}
+                  onCancel={() => setIsEditing(false)}
+                />
+              ) : (
+                <p className="text-sm whitespace-pre-wrap break-words">
+                  {msg.message.content}
+                </p>
+              )}
+            </div>
+            
+            {/* Action Buttons - shows on hover */}
+            {!isEditing && (
+              <div
+                className={cn(
+                  'absolute top-0 flex items-center gap-1 transition-opacity duration-200',
+                  isOwnMessage ? 'left-0 -translate-x-full' : 'right-0 translate-x-full',
+                  showActions ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                )}
+              >
+                {/* Message Actions Menu for own messages */}
+                {isOwnMessage && (
+                  <MessageActionsMenu
+                    messageId={msg.message.id}
+                    messageContent={msg.message.content}
+                    isOwnMessage={isOwnMessage}
+                    isEdited={msg.message.isEdited}
+                    messageAge={messageAge}
+                    onEdit={() => setIsEditing(true)}
+                    onDelete={handleDelete}
+                    onReply={() => onReply(msg)}
+                    onCopy={() => {}}
+                  />
+                )}
+                
+                {/* Reply Button for others' messages */}
+                {!isOwnMessage && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 hover:bg-muted"
+                    onClick={() => onReply(msg)}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="9 17 4 12 9 7" />
+                      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                    </svg>
+                  </Button>
+                )}
+                
+                {/* Reaction Picker */}
+                <ReactionPicker
+                  onReact={toggleReaction}
+                  side={isOwnMessage ? 'left' : 'right'}
+                  triggerClassName="ml-1 mr-2"
+                />
+              </div>
+            )}
+          </div>
+          
+          {/* Display Reactions */}
+          {reactions.length > 0 && (
+            <MessageReactions
+              reactions={reactions}
+              onReact={toggleReaction}
+              className={cn(isOwnMessage && 'justify-end')}
+            />
+          )}
+          
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {formatMessageDate(msg.message.createdAt)}
+            </span>
+            {msg.message.isEdited && (
+              <span className="text-xs text-muted-foreground italic">
+                (edited)
+              </span>
+            )}
+            {isOwnMessage && (
+              <span className="text-xs text-muted-foreground">
+                {msg.message.status === 'read' ? 'Read' :
+                 msg.message.status === 'delivered' ? 'Delivered' :
+                 msg.message.status === 'sent' ? 'Sent' : 'Sending...'}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function MessageThread({
@@ -46,8 +274,11 @@ export function MessageThread({
 }: MessageThreadProps) {
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<any | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
   const { thread, messages, otherUser, isLoading } = useThread(threadId, userId);
+  const { editMessage, deleteMessage } = useMessaging(userId);
 
   useEffect(() => {
     // Scroll to bottom when messages change
@@ -60,17 +291,40 @@ export function MessageThread({
     if (!messageInput.trim() || isSending) return;
 
     const message = messageInput.trim();
+    const replyToId = replyingTo?.message?.id;
+    
     setMessageInput('');
+    setReplyingTo(null);
     setIsSending(true);
 
     try {
-      await onSendMessage(threadId, message);
+      await onSendMessage(threadId, message, replyToId);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to send message');
       setMessageInput(message); // Restore message on error
+      if (replyToId) setReplyingTo(replyingTo); // Restore reply state
     } finally {
       setIsSending(false);
     }
+  };
+  
+  const scrollToMessage = (messageId: string) => {
+    const element = messageRefs.current[messageId];
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Add highlight effect
+      element.classList.add('bg-accent/50');
+      setTimeout(() => {
+        element.classList.remove('bg-accent/50');
+      }, 2000);
+    }
+  };
+  
+  const handleReply = (msg: any) => {
+    setReplyingTo(msg);
+    // Focus the input
+    const input = document.querySelector('input[placeholder="Type a message..."]') as HTMLInputElement;
+    if (input) input.focus();
   };
 
   const formatMessageDate = (date: string) => {
@@ -192,55 +446,26 @@ export function MessageThread({
               const isOwnMessage = msg.message.senderId === userId;
 
               return (
-                <div key={msg.message.id}>
-                  {showDateSeparator && renderDateSeparator(msg.message.createdAt)}
-                  
-                  <div
-                    className={cn(
-                      'flex gap-3',
-                      isOwnMessage && 'flex-row-reverse'
-                    )}
-                  >
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={msg.sender?.image} />
-                      <AvatarFallback>
-                        {msg.sender?.name?.charAt(0) || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-
-                    <div
-                      className={cn(
-                        'max-w-[70%] space-y-1',
-                        isOwnMessage && 'items-end'
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          'rounded-lg px-3 py-2',
-                          isOwnMessage
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted'
-                        )}
-                      >
-                        <p className="text-sm whitespace-pre-wrap break-words">
-                          {msg.message.content}
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">
-                          {formatMessageDate(msg.message.createdAt)}
-                        </span>
-                        {isOwnMessage && (
-                          <span className="text-xs text-muted-foreground">
-                            {msg.message.status === 'read' ? 'Read' :
-                             msg.message.status === 'delivered' ? 'Delivered' :
-                             msg.message.status === 'sent' ? 'Sent' : 'Sending...'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                <div 
+                  key={msg.message.id}
+                  ref={(el) => {
+                    if (el) messageRefs.current[msg.message.id] = el;
+                  }}
+                  className="transition-colors duration-300"
+                >
+                  <MessageWithReactions
+                    msg={msg}
+                    isOwnMessage={isOwnMessage}
+                    userId={userId}
+                    showDateSeparator={showDateSeparator}
+                    renderDateSeparator={renderDateSeparator}
+                    formatMessageDate={formatMessageDate}
+                    onReply={handleReply}
+                    onEdit={editMessage}
+                    onDelete={deleteMessage}
+                    messages={messages}
+                    scrollToMessage={scrollToMessage}
+                  />
                 </div>
               );
             })
@@ -249,13 +474,50 @@ export function MessageThread({
       </ScrollArea>
 
       {/* Message Input */}
-      <div className="border-t p-4">
+      <div className="border-t">
+        {/* Reply Bar */}
+        {replyingTo && (
+          <div className="px-4 pt-3 pb-2 bg-muted/30 border-b">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-muted-foreground mb-1">
+                  Replying to {replyingTo.sender?.name || 'Unknown'}
+                </p>
+                <p className="text-sm text-muted-foreground truncate">
+                  {replyingTo.message.content}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setReplyingTo(null)}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </Button>
+            </div>
+          </div>
+        )}
+        
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSendMessage();
           }}
-          className="flex gap-2"
+          className="flex gap-2 p-4"
         >
           <Button
             type="button"
