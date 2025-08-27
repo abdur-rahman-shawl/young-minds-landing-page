@@ -11,10 +11,13 @@ import { signIn, useSession } from "@/lib/auth-client"
 import { useRouter } from "next/navigation"
 import { FcGoogle } from "react-icons/fc"
 import { GraduationCap, ArrowLeft, UserCheck } from "lucide-react"
+import { mentorApplicationSchema } from "@/lib/validations/mentor"
+import { z } from "zod"
 
 export default function BecomeExpertPage() {
   const [showMentorForm, setShowMentorForm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [errors, setErrors] = useState<z.ZodError | null>(null)
   const [mentorFormData, setMentorFormData] = useState<{
     fullName: string;
     email: string;
@@ -51,6 +54,54 @@ export default function BecomeExpertPage() {
     availability: "",
   })
 
+  const [otp, setOtp] = useState("")
+  const [showOtpInput, setShowOtpInput] = useState(false)
+  const [isEmailVerified, setIsEmailVerified] = useState(false)
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mentorFormData.email)
+
+  const handleSendOtp = () => {
+    // TODO: Implement API call to send OTP
+    console.log("Sending OTP to:", mentorFormData.email);
+    setShowOtpInput(true);
+    startCountdown();
+  };
+
+  const handleVerifyOtp = () => {
+    // TODO: Implement API call to verify OTP
+    console.log("Verifying OTP:", otp)
+    // Assuming OTP is correct
+    setIsEmailVerified(true)
+    setShowOtpInput(false)
+  }
+
+  const [countdown, setCountdown] = useState(10);
+  const [isCountingDown, setIsCountingDown] = useState(false);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isCountingDown && countdown > 0) {
+      timer = setTimeout(() => {
+        setCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (countdown === 0) {
+      setIsCountingDown(false);
+    }
+    return () => clearTimeout(timer);
+  }, [isCountingDown, countdown]);
+
+  const startCountdown = () => {
+    setCountdown(10);
+    setIsCountingDown(true);
+  };
+
+  const handleResendOtp = () => {
+    if (!isCountingDown) {
+      // TODO: Implement API call to resend OTP
+      console.log("Resending OTP to:", mentorFormData.email);
+      startCountdown();
+    }
+  };
+
   const { data: session, isPending } = useSession()
   const router = useRouter()
 
@@ -77,45 +128,35 @@ export default function BecomeExpertPage() {
   const handleMentorFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setErrors(null)
+
     try {
       if (!session?.user?.id) {
         alert('Please log in before submitting the form')
         setIsLoading(false)
         return
       }
-      if (!mentorFormData.termsAccepted) {
-        alert('You must accept the terms and conditions to proceed.')
-        setIsLoading(false)
-        return
-      }
-      if (!mentorFormData.profilePicture) {
-        alert('Profile picture is required.')
-        setIsLoading(false)
-        return
-      }
-      if (!mentorFormData.resume) {
-        alert('Resume is required.')
-        setIsLoading(false)
-        return
-      }
+
+      const validatedData = mentorApplicationSchema.parse(mentorFormData);
+
       const formData = new FormData();
       formData.append('userId', session.user.id);
-      formData.append('fullName', mentorFormData.fullName);
-      formData.append('email', mentorFormData.email);
-      formData.append('phone', mentorFormData.phone);
-      formData.append('city', mentorFormData.city);
-      formData.append('country', mentorFormData.country);
-      formData.append('title', mentorFormData.title);
-      formData.append('company', mentorFormData.company);
-      formData.append('industry', mentorFormData.industry);
-      formData.append('expertise', mentorFormData.expertise);
-      formData.append('experience', mentorFormData.experience);
-      formData.append('about', mentorFormData.about);
-      formData.append('linkedinUrl', mentorFormData.linkedinUrl);
-      formData.append('availability', mentorFormData.availability);
-      formData.append('profilePicture', mentorFormData.profilePicture);
-      formData.append('resume', mentorFormData.resume);
-      // Add other fields as needed
+      formData.append('fullName', validatedData.fullName);
+      formData.append('email', validatedData.email);
+      formData.append('phone', validatedData.phone);
+      formData.append('city', validatedData.city);
+      formData.append('country', validatedData.country);
+      formData.append('title', validatedData.title);
+      formData.append('company', validatedData.company);
+      formData.append('industry', validatedData.industry);
+      formData.append('expertise', validatedData.expertise);
+      formData.append('experience', validatedData.experience);
+      formData.append('about', validatedData.about);
+      formData.append('linkedinUrl', validatedData.linkedinUrl);
+      formData.append('availability', validatedData.availability);
+      formData.append('profilePicture', validatedData.profilePicture);
+      formData.append('resume', validatedData.resume);
+      
       const res = await fetch('/api/mentors/apply', {
         method: 'POST',
         body: formData,
@@ -129,7 +170,11 @@ export default function BecomeExpertPage() {
       }
       router.push('/auth/mentor-verification')
     } catch (error) {
-      alert('Something went wrong while submitting your application.')
+      if (error instanceof z.ZodError) {
+        setErrors(error)
+      } else {
+        alert('Something went wrong while submitting your application.')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -184,14 +229,63 @@ export default function BecomeExpertPage() {
                   </div>
                   <div>
                     <Label htmlFor="email">Email Address <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={mentorFormData.email}
-                      onChange={e => setMentorFormData(prev => ({ ...prev, email: e.target.value }))}
-                      placeholder="you@example.com"
-                      required
-                    />
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        id="email"
+                        type="email"
+                        value={mentorFormData.email}
+                        onChange={e => {
+                          setMentorFormData(prev => ({ ...prev, email: e.target.value }));
+                          setIsEmailVerified(false);
+                          setOtp("");
+                        }}
+                        placeholder="you@example.com"
+                        required
+                        disabled={isEmailVerified}
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleSendOtp}
+                        disabled={!isValidEmail || isEmailVerified}
+                      >
+                        {isEmailVerified ? "Verified" : "Verify"}
+                      </Button>
+                    </div>
+                    {showOtpInput && (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Input
+                            type="text"
+                            placeholder="Enter 6-digit OTP"
+                            value={otp}
+                            onChange={(e) => setOtp(e.target.value)}
+                            maxLength={6}
+                          />
+                          <Button
+                            type="button"
+                            onClick={handleVerifyOtp}
+                            disabled={otp.length !== 6}
+                          >
+                            Confirm OTP
+                          </Button>
+                        </div>
+                        <p className="text-xs text-gray-500 text-center">
+                          Didn't receive the OTP?{' '}
+                          {isCountingDown ? (
+                            `Resend in ${countdown}s`
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleResendOtp}
+                              className="underline font-medium text-blue-600 hover:text-blue-500"
+                            >
+                              Resend OTP
+                            </button>
+                          )}
+                        </p>
+                      </div>
+                    )}
+                    {isEmailVerified && <p className="text-sm text-green-600 mt-1">Email verified successfully.</p>}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -317,10 +411,14 @@ export default function BecomeExpertPage() {
                     id="expertise"
                     value={mentorFormData.expertise}
                     onChange={e => setMentorFormData(prev => ({ ...prev, expertise: e.target.value }))}
-                    placeholder="List skills you can mentor in (e.g., Python, Digital Marketing, Leadership, Career Transitions)"
+                    placeholder="List skills you can mentor in (e.g., Python, Digital Marketing, Leadership, Career Transitions). Minimum 100 characters, maximum 500 characters."
                     required
+                    maxLength={500}
                   />
-                  <span className="ml-2 text-xs text-gray-500">Be specific! This helps mentees find you. Use commas to separate multiple areas.</span>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Minimum 100 characters. Be specific! This helps mentees find you. Use commas to separate multiple areas.</span>
+                    <span>{mentorFormData.expertise.length} / 500</span>
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="availability">Preferred Mentorship Availability <span className="text-red-500">*</span></Label>
@@ -339,13 +437,14 @@ export default function BecomeExpertPage() {
                   </select>
                 </div>
                 <div>
-                  <Label htmlFor="linkedinUrl">LinkedIn Profile URL (Optional)</Label>
+                  <Label htmlFor="linkedinUrl">LinkedIn Profile URL <span className="text-red-500">*</span></Label>
                   <Input
                     id="linkedinUrl"
                     type="text"
                     value={mentorFormData.linkedinUrl}
                     onChange={e => setMentorFormData(prev => ({ ...prev, linkedinUrl: e.target.value }))}
                     placeholder="https://linkedin.com/in/yourprofile"
+                    required
                   />
                 </div>
                 <div className="flex items-center">
@@ -361,7 +460,7 @@ export default function BecomeExpertPage() {
                 </div>
                 <Button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || !isEmailVerified}
                   className="w-full bg-green-600 hover:bg-green-700"
                 >
                   {isLoading ? "Submitting..." : "Register as Mentor"}
