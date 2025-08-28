@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Eye, Users, Video, Bookmark, Users2, Mail, Calendar, LayoutDashboard, Home, User, GraduationCap, BookOpen } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-import { useMessaging } from "@/hooks/use-messaging"
+import { useMessaging } from "@/hooks/use-messaging-v2"
 import { Badge } from "@/components/ui/badge"
 
 interface UserSidebarProps {

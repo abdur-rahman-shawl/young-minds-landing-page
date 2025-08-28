@@ -24,18 +24,25 @@ export async function getMentorDashboardStats(mentorId: string): Promise<MentorD
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    
+    // Convert dates to ISO strings for SQL
+    const nowStr = now.toISOString();
+    const startOfMonthStr = startOfMonth.toISOString();
+    const endOfMonthStr = endOfMonth.toISOString();
+    const startOfLastMonthStr = startOfLastMonth.toISOString();
+    const endOfLastMonthStr = endOfLastMonth.toISOString();
 
     // Get session statistics
     const sessionStats = await db
       .select({
         totalMentees: sql<number>`COUNT(DISTINCT ${sessions.menteeId})::int`,
-        activeMentees: sql<number>`COUNT(DISTINCT CASE WHEN ${sessions.status} = 'scheduled' AND ${sessions.scheduledAt} >= ${now} THEN ${sessions.menteeId} END)::int`,
-        upcomingSessions: sql<number>`SUM(CASE WHEN ${sessions.status} = 'scheduled' AND ${sessions.scheduledAt} >= ${now} THEN 1 ELSE 0 END)::int`,
+        activeMentees: sql<number>`COUNT(DISTINCT CASE WHEN ${sessions.status} = 'scheduled' AND ${sessions.scheduledAt} >= ${nowStr} THEN ${sessions.menteeId} END)::int`,
+        upcomingSessions: sql<number>`SUM(CASE WHEN ${sessions.status} = 'scheduled' AND ${sessions.scheduledAt} >= ${nowStr} THEN 1 ELSE 0 END)::int`,
         completedSessions: sql<number>`SUM(CASE WHEN ${sessions.status} = 'completed' THEN 1 ELSE 0 END)::int`,
-        monthlyEarnings: sql<number>`COALESCE(SUM(CASE WHEN ${sessions.status} = 'completed' AND ${sessions.endedAt} >= ${startOfMonth} AND ${sessions.endedAt} <= ${endOfMonth} THEN ${sessions.rate} ELSE 0 END), 0)::decimal`,
+        monthlyEarnings: sql<number>`COALESCE(SUM(CASE WHEN ${sessions.status} = 'completed' AND ${sessions.endedAt} >= ${startOfMonthStr} AND ${sessions.endedAt} <= ${endOfMonthStr} THEN ${sessions.rate} ELSE 0 END), 0)::decimal`,
         totalEarnings: sql<number>`COALESCE(SUM(CASE WHEN ${sessions.status} = 'completed' THEN ${sessions.rate} ELSE 0 END), 0)::decimal`,
-        sessionsThisMonth: sql<number>`SUM(CASE WHEN ${sessions.scheduledAt} >= ${startOfMonth} AND ${sessions.scheduledAt} <= ${endOfMonth} THEN 1 ELSE 0 END)::int`,
-        sessionsLastMonth: sql<number>`SUM(CASE WHEN ${sessions.scheduledAt} >= ${startOfLastMonth} AND ${sessions.scheduledAt} <= ${endOfLastMonth} THEN 1 ELSE 0 END)::int`,
+        sessionsThisMonth: sql<number>`SUM(CASE WHEN ${sessions.scheduledAt} >= ${startOfMonthStr} AND ${sessions.scheduledAt} <= ${endOfMonthStr} THEN 1 ELSE 0 END)::int`,
+        sessionsLastMonth: sql<number>`SUM(CASE WHEN ${sessions.scheduledAt} >= ${startOfLastMonthStr} AND ${sessions.scheduledAt} <= ${endOfLastMonthStr} THEN 1 ELSE 0 END)::int`,
       })
       .from(sessions)
       .where(eq(sessions.mentorId, mentorId));

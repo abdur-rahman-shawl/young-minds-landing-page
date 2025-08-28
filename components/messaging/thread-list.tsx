@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useMessaging } from '@/hooks/use-messaging-v2';
 
 interface Thread {
   thread: {
@@ -49,6 +50,7 @@ interface ThreadListProps {
 
 export function ThreadList({ threads, loading, onThreadSelect, userId }: ThreadListProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const { prefetchThread } = useMessaging(userId);
 
   const filteredThreads = threads.filter((thread) => {
     if (!searchQuery) return true;
@@ -100,6 +102,7 @@ export function ThreadList({ threads, loading, onThreadSelect, userId }: ThreadL
               key={thread.thread.id}
               className="p-4 hover:bg-accent cursor-pointer transition-colors"
               onClick={() => onThreadSelect(thread.thread.id)}
+              onMouseEnter={() => prefetchThread(thread.thread.id, userId)}
             >
               <div className="flex items-start gap-3">
                 <Avatar className="h-10 w-10">

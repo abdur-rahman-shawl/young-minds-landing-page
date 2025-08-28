@@ -4,7 +4,6 @@ import {
   messages,
   messageThreads,
   messageRequests,
-  messageReactions,
   notifications,
   messagingPermissions
 } from '@/lib/db/schema';
@@ -87,35 +86,7 @@ export async function GET(request: NextRequest) {
             connection.lastEventId = message.createdAt.toISOString();
           }
 
-          // Check for reaction updates on user's messages
-          const messageReactions = await db
-            .select()
-            .from(messageReactions)
-            .leftJoin(messages, eq(messageReactions.messageId, messages.id))
-            .where(
-              and(
-                or(
-                  eq(messages.senderId, userId),
-                  eq(messages.receiverId, userId)
-                ),
-                gt(messageReactions.createdAt, new Date(connection.lastEventId))
-              )
-            )
-            .orderBy(messageReactions.createdAt);
-
-          for (const reaction of messageReactions) {
-            const eventData = {
-              type: 'reaction_update',
-              data: reaction,
-              timestamp: reaction.messageReactions.createdAt.toISOString()
-            };
-            
-            controller.enqueue(
-              encoder.encode(
-                createSSEMessage(eventData, 'reaction', reaction.messageReactions.id)
-              )
-            );
-          }
+          // Note: Message reactions feature can be added here later if needed
 
           const newRequests = await db
             .select()

@@ -7,7 +7,7 @@ import { MessageSquare, Inbox, Send } from 'lucide-react';
 import { ThreadList } from './thread-list';
 import { MessageThread } from './message-thread';
 import { MessageRequestsList } from './message-requests-list';
-import { useMessaging } from '@/hooks/use-messaging';
+import { useMessaging } from '@/hooks/use-messaging-v2';
 
 interface MessagingHubProps {
   userId: string;

@@ -74,12 +74,12 @@ async function checkAndUpdateMessageQuota(userId: string) {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     messageRateLimit.check(request);
 
-    const threadId = params.id;
+    const { id: threadId } = await params;
     const body = await request.json();
     
     const validatedData = sendMessageSchema.parse(body);

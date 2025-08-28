@@ -26,7 +26,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useThread, useMessaging } from '@/hooks/use-messaging';
+import { useThreadQuery } from '@/hooks/queries/use-messaging-queries';
+import { useMessaging } from '@/hooks/use-messaging-v2';
 import { useReactions } from '@/hooks/use-reactions';
 import { MessageReactions } from './message-reactions';
 import { ReactionPicker } from './reaction-picker';
@@ -277,8 +278,12 @@ export function MessageThread({
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
-  const { thread, messages, otherUser, isLoading } = useThread(threadId, userId);
+  const { data: threadData, isLoading } = useThreadQuery(threadId, userId);
   const { editMessage, deleteMessage } = useMessaging(userId);
+  
+  const thread = threadData?.thread;
+  const messages = threadData?.messages || [];
+  const otherUser = threadData?.otherUser;
 
   useEffect(() => {
     // Scroll to bottom when messages change

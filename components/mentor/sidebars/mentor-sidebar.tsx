@@ -28,7 +28,7 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useMentorDashboardStats } from "@/hooks/use-mentor-dashboard"
-import { useMessaging } from "@/hooks/use-messaging"
+import { useMessaging } from "@/hooks/use-messaging-v2"
 import { Badge } from "@/components/ui/badge"
 
 interface MentorSidebarProps {

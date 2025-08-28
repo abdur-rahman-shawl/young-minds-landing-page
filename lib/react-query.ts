@@ -50,10 +50,20 @@ export const queryKeys = {
   menteesList: (filters?: any) => ['mentees', 'list', filters] as const,
   menteeProfile: (userId: string) => ['mentees', 'profile', userId] as const,
   
-  // Messages
+  // Messages (Legacy - being replaced by messaging)
   messages: ['messages'] as const,
   messagesList: (userId: string) => ['messages', 'list', userId] as const,
   conversation: (participantIds: string[]) => ['messages', 'conversation', ...participantIds.sort()] as const,
+  
+  // Messaging (New system)
+  messaging: {
+    all: ['messaging'] as const,
+    threads: (userId: string) => ['messaging', 'threads', userId] as const,
+    thread: (threadId: string, userId: string) => ['messaging', 'thread', threadId, userId] as const,
+    requests: (userId: string, type?: string, status?: string) => 
+      ['messaging', 'requests', userId, { type, status }] as const,
+    unreadCount: (userId: string) => ['messaging', 'unread', userId] as const,
+  },
   
   // Sessions
   sessions: ['sessions'] as const,
@@ -92,10 +102,21 @@ export const invalidateQueries = {
     queryClient.invalidateQueries({ queryKey: queryKeys.sessionWithRoles });
   },
   
-  // Invalidate messages
+  // Invalidate messages (Legacy)
   messages: (userId: string) => {
     queryClient.invalidateQueries({ queryKey: queryKeys.messagesList(userId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.messages });
+  },
+  
+  // Invalidate messaging (New system)
+  messaging: {
+    all: () => queryClient.invalidateQueries({ queryKey: queryKeys.messaging.all }),
+    threads: (userId: string) => 
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.threads(userId) }),
+    thread: (threadId: string, userId: string) => 
+      queryClient.invalidateQueries({ queryKey: queryKeys.messaging.thread(threadId, userId) }),
+    requests: (userId: string) => 
+      queryClient.invalidateQueries({ queryKey: ['messaging', 'requests', userId] }),
   },
   
   // Invalidate sessions

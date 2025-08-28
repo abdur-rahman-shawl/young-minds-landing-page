@@ -103,10 +103,10 @@ async function createMessageThread(user1Id: string, user2Id: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const requestId = params.id;
+    const { id: requestId } = await params;
 
     const messageRequest = await db
       .select({
@@ -145,10 +145,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const requestId = params.id;
+    const { id: requestId } = await params;
     const body = await request.json();
     
     const validatedData = responseSchema.parse(body);
