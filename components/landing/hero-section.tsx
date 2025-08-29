@@ -9,6 +9,8 @@ import { Card } from "@/components/ui/card"
 import { v4 as uuidv4 } from 'uuid';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { MentorDetailView } from "@/components/mentee/mentor-detail-view"
+import { useAuth } from "@/contexts/auth-context"
+import { SignInPopup } from "@/components/auth/sign-in-popup"
 
 interface Message {
   id: string
@@ -72,6 +74,18 @@ export function HeroSection() {
   // Chat session ID logic
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+
+  const { isAuthenticated } = useAuth()
+  const [showSignInPopup, setShowSignInPopup] = useState(false)
+
+  const handleBookIntroCall = (mentorId: string) => {
+    if (isAuthenticated) {
+      setSelectedMentorIdForModal(mentorId)
+      setIsMentorModalOpen(true)
+    } else {
+      setShowSignInPopup(true)
+    }
+  }
 
   useEffect(() => {
     let sessionId = localStorage.getItem('ai_chatbot_session_id');
@@ -200,7 +214,7 @@ export function HeroSection() {
           const textMatch = partialJson.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)/);
           if (textMatch && textMatch[1]) {
             // Unescape common characters for display
-            const streamingText = textMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');
+            const streamingText = textMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, '"');
             setCurrentAiMessage(streamingText);
           }
 
@@ -423,7 +437,7 @@ export function HeroSection() {
             <div className="w-full max-w-4xl">
               {/* Chat Container */}
               <div 
-                className={`group relative overflow-hidden rounded-3xl bg-white dark:bg-gray-900 transition-all duration-700 ease-out cursor-text ${
+                className={`group relative overflow-hidden rounded-3xl bg-white dark:bg-gray-900 transition-all duration-700 ease-out cursor-text ${ 
                   isFocused 
                     ? 'shadow-2xl shadow-black/10 dark:shadow-black/30 scale-[1.02] ring-1 ring-gray-300 dark:ring-gray-600' 
                     : isHovered
@@ -463,7 +477,7 @@ export function HeroSection() {
                             </div>
                           )}
                           <div className="max-w-[80%]">
-                            <div className={`rounded-2xl px-4 py-3 ${
+                            <div className={`rounded-2xl px-4 py-3 ${ 
                               message.type === 'user' 
                                 ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white' 
                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
@@ -559,7 +573,7 @@ export function HeroSection() {
                         <Button
                           onClick={handleSubmit}
                           disabled={!inputValue.trim() || isAiTyping || isSearchingMentors}
-                          className={`h-11 w-11 rounded-2xl font-medium transition-all duration-300 ease-out ${
+                          className={`h-11 w-11 rounded-2xl font-medium transition-all duration-300 ease-out ${ 
                             inputValue.trim() && !isAiTyping && !isSearchingMentors
                               ? 'bg-gray-900 hover:bg-black dark:bg-gray-100 dark:hover:bg-white text-white dark:text-gray-900'
                               : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
@@ -604,7 +618,7 @@ export function HeroSection() {
                       <Button
                         onClick={handleSubmit}
                         disabled={!inputValue.trim() || isAiTyping || isSearchingMentors}
-                        className={`relative h-14 w-14 rounded-2xl font-medium transition-all duration-300 ease-out ${
+                        className={`relative h-14 w-14 rounded-2xl font-medium transition-all duration-300 ease-out ${ 
                           inputValue.trim() && !isAiTyping && !isSearchingMentors
                             ? 'bg-gray-900 hover:bg-black dark:bg-gray-100 dark:hover:bg-white text-white dark:text-gray-900 shadow-lg hover:shadow-xl scale-100 hover:scale-105 hover:rotate-[-2deg]'
                             : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed scale-95'
@@ -688,7 +702,7 @@ export function HeroSection() {
                     const imgSrc = m.image || placeholderDataUrl(m.name)
 
                     return (
-                      <div key={m.id} className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden flex flex-col cursor-pointer" onClick={() => { setSelectedMentorIdForModal(m.id); setIsMentorModalOpen(true); }}>
+                      <div key={m.id} className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden flex flex-col cursor-pointer" onClick={() => handleBookIntroCall(m.id)}>
                         {/* Header image area (taller card) */}
                         <div className="relative w-full h-40 bg-gray-100 dark:bg-gray-900">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -771,7 +785,7 @@ export function HeroSection() {
                           </div>
 
                           <Button
-                            onClick={() => { setSelectedMentorIdForModal(m.id); setIsMentorModalOpen(true); }}
+                            onClick={(e) => { e.stopPropagation(); handleBookIntroCall(m.id); }}
                             className="mt-1 w-full rounded-xl"
                           >
                             Book Intro Call
@@ -808,6 +822,12 @@ export function HeroSection() {
           )}
         </DialogContent>
       </Dialog>
+
+      <SignInPopup 
+        isOpen={showSignInPopup} 
+        onClose={() => setShowSignInPopup(false)} 
+        callbackUrl="/?section=explore"
+      />
     </>
   )
 }

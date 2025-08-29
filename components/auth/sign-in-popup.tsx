@@ -12,9 +12,10 @@ import { Users, GraduationCap } from "lucide-react"
 interface SignInPopupProps {
   isOpen: boolean
   onClose: () => void
+  callbackUrl?: string
 }
 
-export function SignInPopup({ isOpen, onClose }: SignInPopupProps) {
+export function SignInPopup({ isOpen, onClose, callbackUrl = "/dashboard" }: SignInPopupProps) {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { data: session } = useSession()
@@ -31,7 +32,7 @@ export function SignInPopup({ isOpen, onClose }: SignInPopupProps) {
     try {
       await signIn.social({
         provider: "google",
-        callbackURL: "/dashboard",
+        callbackURL: callbackUrl,
         prompt: "select_account" // Forces account selection
       })
     } catch (error) {
