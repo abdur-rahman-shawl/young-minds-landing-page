@@ -253,6 +253,7 @@ function PageContent() {
             <Header 
               isLoggedIn={isAuthenticated} 
               setIsLoggedIn={() => {}} // This will be handled by AuthContext
+              onSearchClick={() => handleSectionChange("explore")}
             />
             <main className="flex-1 pt-24 px-4 pb-4 flex flex-col">
               {/* Incomplete Profile Alert */}
