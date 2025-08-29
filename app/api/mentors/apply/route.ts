@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     const phone = formData.get('phone') as string;
     const city = formData.get('city') as string;
     const country = formData.get('country') as string;
+    const state = formData.get('state') as string;
     const availability = formData.get('availability') as string;
     const profilePicture = formData.get('profilePicture') as File;
     const resume = formData.get('resume') as File;
@@ -148,6 +149,7 @@ export async function POST(request: NextRequest) {
       phone: phone || null,
       city: city || null,
       country: country || null,
+      state: state || null,
       availability: availability || null,
       profileImageUrl: profileImageUrl,
       resumeUrl: resumeUrl
