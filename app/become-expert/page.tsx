@@ -10,22 +10,25 @@ import { Badge } from "@/components/ui/badge"
 import { signIn, useSession } from "@/lib/auth-client"
 import { useRouter } from "next/navigation"
 import { FcGoogle } from "react-icons/fc"
-import { GraduationCap, ArrowLeft, UserCheck } from "lucide-react"
+import { ArrowLeft, UserCheck, User } from "lucide-react"
 import { mentorApplicationSchema } from "@/lib/validations/mentor"
 import { z } from "zod"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default function BecomeExpertPage() {
   const [showMentorForm, setShowMentorForm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<z.ZodError | null>(null)
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null)
   const [mentorFormData, setMentorFormData] = useState<{
     fullName: string;
     email: string;
     phone: string;
-    city: string;
     country: string;
+    state: string;
+    city: string;
     title: string;
     company: string;
     industry: string;
@@ -41,8 +44,9 @@ export default function BecomeExpertPage() {
     fullName: "",
     email: "",
     phone: "",
-    city: "",
     country: "",
+    state: "",
+    city: "",
     title: "",
     company: "",
     industry: "",
@@ -60,6 +64,20 @@ export default function BecomeExpertPage() {
   const [showOtpInput, setShowOtpInput] = useState(false)
   const [isEmailVerified, setIsEmailVerified] = useState(false)
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mentorFormData.email)
+
+  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setMentorFormData(prev => ({ ...prev, profilePicture: file }));
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfilePicturePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setProfilePicturePreview(null);
+    }
+  };
 
   const handleSendOtp = () => {
     // TODO: Implement API call to send OTP
@@ -146,8 +164,9 @@ export default function BecomeExpertPage() {
       formData.append('fullName', validatedData.fullName);
       formData.append('email', validatedData.email);
       formData.append('phone', validatedData.phone);
-      formData.append('city', validatedData.city);
       formData.append('country', validatedData.country);
+      formData.append('state', validatedData.state);
+      formData.append('city', validatedData.city);
       formData.append('title', validatedData.title);
       formData.append('company', validatedData.company);
       formData.append('industry', validatedData.industry);
@@ -197,7 +216,6 @@ export default function BecomeExpertPage() {
               Back to Home
             </Button>
             
-            <GraduationCap className="mx-auto h-12 w-12 text-green-500 dark:text-green-400" />
             <h2 className="mt-6 text-3xl font-extrabold text-foreground">
               Become an Expert
             </h2>
@@ -218,6 +236,28 @@ export default function BecomeExpertPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleMentorFormSubmit} className="space-y-6" encType="multipart/form-data">
+                <div className="flex flex-col items-center space-y-2">
+                  <Label htmlFor="profilePicture">Profile Picture <span className="text-red-500">*</span></Label>
+                  <label htmlFor="profilePicture" className="cursor-pointer">
+                    <Avatar className="h-24 w-24">
+                      <AvatarImage src={profilePicturePreview || undefined} alt="Profile Picture" />
+                      <AvatarFallback>
+                        <User className="h-12 w-12" />
+                      </AvatarFallback>
+                    </Avatar>
+                  </label>
+                  <input
+                    id="profilePicture"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProfilePictureChange}
+                    required
+                    className="hidden"
+                  />
+                  <Button type="button" onClick={() => document.getElementById('profilePicture')?.click()} variant="ghost">
+                    Upload Picture
+                  </Button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="fullName">Full Name <span className="text-red-500">*</span></Label>
@@ -304,16 +344,6 @@ export default function BecomeExpertPage() {
                       required
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="profilePicture">Profile Picture <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="profilePicture"
-                      type="file"
-                      accept="image/*"
-                      onChange={e => setMentorFormData(prev => ({ ...prev, profilePicture: e.target.files?.[0] || null }))}
-                      required
-                    />
-                  </div>
                 </div>
                 <div>
                   <Label htmlFor="resume">Resume <span className="text-red-500">*</span></Label>
@@ -326,17 +356,7 @@ export default function BecomeExpertPage() {
                   />
                   <span className="text-xs text-muted-foreground">Upload your resume in PDF, DOC, or DOCX format (max 10MB)</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="city">City <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="city"
-                      value={mentorFormData.city}
-                      onChange={e => setMentorFormData(prev => ({ ...prev, city: e.target.value }))}
-                      placeholder="Your City"
-                      required
-                    />
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="country">Country <span className="text-red-500">*</span></Label>
                     <Input
@@ -344,6 +364,26 @@ export default function BecomeExpertPage() {
                       value={mentorFormData.country}
                       onChange={e => setMentorFormData(prev => ({ ...prev, country: e.target.value }))}
                       placeholder="Your Country"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="state">State <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="state"
+                      value={mentorFormData.state}
+                      onChange={e => setMentorFormData(prev => ({ ...prev, state: e.target.value }))}
+                      placeholder="Your State"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="city">City <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="city"
+                      value={mentorFormData.city}
+                      onChange={e => setMentorFormData(prev => ({ ...prev, city: e.target.value }))}
+                      placeholder="Your City"
                       required
                     />
                   </div>
@@ -491,7 +531,7 @@ export default function BecomeExpertPage() {
             Back to Home
           </Button>
           
-          <GraduationCap className="mx-auto h-12 w-12 text-green-500 dark:text-green-400" />
+          <User className="mx-auto h-12 w-12 text-green-500 dark:text-green-400" />
           <h2 className="mt-6 text-3xl font-extrabold text-foreground">
             Become an Expert
           </h2>
