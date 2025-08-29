@@ -14,12 +14,12 @@ This is a Next.js web application that serves as a platform to connect mentors a
 
 ## 2. Building and Running
 
-To get the project up and running, you will need to have Node.js and pnpm installed. You will also need a PostgreSQL database.
+To get the project up and running, you will need to have Node.js and npm installed. You will also need a PostgreSQL database.
 
 1.  **Install dependencies:**
 
     ```bash
-    pnpm install
+    npm install
     ```
 
 2.  **Set up environment variables:**
@@ -36,13 +36,13 @@ To get the project up and running, you will need to have Node.js and pnpm instal
 3.  **Run database migrations:**
 
     ```bash
-    pnpm run db:push
+    npm run db:push
     ```
 
 4.  **Run the development server:**
 
     ```bash
-    pnpm run dev
+    npm run dev
     ```
 
     The application will be available at `http://localhost:3000`.

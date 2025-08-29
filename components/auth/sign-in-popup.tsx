@@ -62,10 +62,10 @@ export function SignInPopup({ isOpen, onClose }: SignInPopupProps) {
         
         <div className="space-y-6">
           {/* Default User Sign In */}
-          <Card className="border-2 border-blue-200 bg-blue-50">
+          <Card className="border-2 border-primary/20 bg-primary/5">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Users className="h-5 w-5 text-blue-600" />
+                <Users className="h-5 w-5 text-primary" />
                 Join as User
               </CardTitle>
               <CardDescription>
