@@ -13,6 +13,8 @@ import { FcGoogle } from "react-icons/fc"
 import { GraduationCap, ArrowLeft, UserCheck } from "lucide-react"
 import { mentorApplicationSchema } from "@/lib/validations/mentor"
 import { z } from "zod"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export default function BecomeExpertPage() {
   const [showMentorForm, setShowMentorForm] = useState(false)
@@ -183,7 +185,7 @@ export default function BecomeExpertPage() {
   // Show mentor form if user is logged in
   if (session?.user && showMentorForm) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl w-full space-y-8">
           <div className="text-center">
             <Button
@@ -195,11 +197,11 @@ export default function BecomeExpertPage() {
               Back to Home
             </Button>
             
-            <GraduationCap className="mx-auto h-12 w-12 text-green-600" />
-            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            <GraduationCap className="mx-auto h-12 w-12 text-green-500 dark:text-green-400" />
+            <h2 className="mt-6 text-3xl font-extrabold text-foreground">
               Become an Expert
             </h2>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-muted-foreground">
               Help shape the next generation by sharing your expertise
             </p>
             <Badge variant="outline" className="mt-2">
@@ -269,7 +271,7 @@ export default function BecomeExpertPage() {
                             Confirm OTP
                           </Button>
                         </div>
-                        <p className="text-xs text-gray-500 text-center">
+                        <p className="text-xs text-muted-foreground text-center">
                           Didn't receive the OTP?{' '}
                           {isCountingDown ? (
                             `Resend in ${countdown}s`
@@ -277,7 +279,7 @@ export default function BecomeExpertPage() {
                             <button
                               type="button"
                               onClick={handleResendOtp}
-                              className="underline font-medium text-blue-600 hover:text-blue-500"
+                              className="underline font-medium text-primary hover:text-primary/90"
                             >
                               Resend OTP
                             </button>
@@ -285,7 +287,7 @@ export default function BecomeExpertPage() {
                         </p>
                       </div>
                     )}
-                    {isEmailVerified && <p className="text-sm text-green-600 mt-1">Email verified successfully.</p>}
+                    {isEmailVerified && <p className="text-sm text-green-500 dark:text-green-400 mt-1">Email verified successfully.</p>}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -322,7 +324,7 @@ export default function BecomeExpertPage() {
                     onChange={e => setMentorFormData(prev => ({ ...prev, resume: e.target.files?.[0] || null }))}
                     required
                   />
-                  <span className="text-xs text-gray-500">Upload your resume in PDF, DOC, or DOCX format (max 10MB)</span>
+                  <span className="text-xs text-muted-foreground">Upload your resume in PDF, DOC, or DOCX format (max 10MB)</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -371,25 +373,27 @@ export default function BecomeExpertPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="industry">Primary Industry <span className="text-red-500">*</span></Label>
-                    <select
-                      id="industry"
-                      className="w-full border rounded px-3 py-2"
+                    <Select
                       value={mentorFormData.industry}
-                      onChange={e => setMentorFormData(prev => ({ ...prev, industry: e.target.value }))}
+                      onValueChange={value => setMentorFormData(prev => ({ ...prev, industry: value }))}
                       required
                     >
-                      <option value="">Select your industry...</option>
-                      <option value="ITSoftware">IT & Software</option>
-                      <option value="Marketing">Marketing & Advertising</option>
-                      <option value="Finance">Finance & Banking</option>
-                      <option value="Education">Education</option>
-                      <option value="Healthcare">Healthcare</option>
-                      <option value="Entrepreneurship">Entrepreneurship & Startup</option>
-                      <option value="Design">Design (UI/UX, Graphic)</option>
-                      <option value="Sales">Sales</option>
-                      <option value="HR">Human Resources</option>
-                      <option value="Other">Other</option>
-                    </select>
+                      <SelectTrigger id="industry">
+                        <SelectValue placeholder="Select your industry..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ITSoftware">IT & Software</SelectItem>
+                        <SelectItem value="Marketing">Marketing & Advertising</SelectItem>
+                        <SelectItem value="Finance">Finance & Banking</SelectItem>
+                        <SelectItem value="Education">Education</SelectItem>
+                        <SelectItem value="Healthcare">Healthcare</SelectItem>
+                        <SelectItem value="Entrepreneurship">Entrepreneurship & Startup</SelectItem>
+                        <SelectItem value="Design">Design (UI/UX, Graphic)</SelectItem>
+                        <SelectItem value="Sales">Sales</SelectItem>
+                        <SelectItem value="HR">Human Resources</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label htmlFor="experience">Years of Professional Experience <span className="text-red-500">*</span></Label>
@@ -402,7 +406,7 @@ export default function BecomeExpertPage() {
                       placeholder="e.g., 5"
                       required
                     />
-                    <span className="ml-2 text-xs text-gray-500">Minimum 2 years of experience required to be a mentor.</span>
+                    <span className="ml-2 text-xs text-muted-foreground">Minimum 2 years of experience required to be a mentor.</span>
                   </div>
                 </div>
                 <div>
@@ -415,26 +419,28 @@ export default function BecomeExpertPage() {
                     required
                     maxLength={500}
                   />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
                     <span>Minimum 100 characters. Be specific! This helps mentees find you. Use commas to separate multiple areas.</span>
                     <span>{mentorFormData.expertise.length} / 500</span>
                   </div>
                 </div>
                 <div>
                   <Label htmlFor="availability">Preferred Mentorship Availability <span className="text-red-500">*</span></Label>
-                  <select
-                    id="availability"
-                    className="w-full border rounded px-3 py-2"
+                  <Select
                     value={mentorFormData.availability || ''}
-                    onChange={e => setMentorFormData(prev => ({ ...prev, availability: e.target.value }))}
+                    onValueChange={value => setMentorFormData(prev => ({ ...prev, availability: value }))}
                     required
                   >
-                    <option value="">Select...</option>
-                    <option value="Weekly">Weekly (e.g., 1 hour/week)</option>
-                    <option value="BiWeekly">Bi-weekly (e.g., 1 hour/bi-week)</option>
-                    <option value="Monthly">Monthly (e.g., 1 hour/month)</option>
-                    <option value="AsNeeded">As needed (flexible)</option>
-                  </select>
+                    <SelectTrigger id="availability">
+                      <SelectValue placeholder="Select..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Weekly">Weekly (e.g., 1 hour/week)</SelectItem>
+                      <SelectItem value="BiWeekly">Bi-weekly (e.g., 1 hour/bi-week)</SelectItem>
+                      <SelectItem value="Monthly">Monthly (e.g., 1 hour/month)</SelectItem>
+                      <SelectItem value="AsNeeded">As needed (flexible)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="linkedinUrl">LinkedIn Profile URL <span className="text-red-500">*</span></Label>
@@ -447,16 +453,14 @@ export default function BecomeExpertPage() {
                     required
                   />
                 </div>
-                <div className="flex items-center">
-                  <input
+                <div className="flex items-center space-x-2">
+                  <Checkbox
                     id="termsAccepted"
-                    type="checkbox"
                     checked={mentorFormData.termsAccepted}
-                    onChange={e => setMentorFormData(prev => ({ ...prev, termsAccepted: e.target.checked }))}
+                    onCheckedChange={checked => setMentorFormData(prev => ({ ...prev, termsAccepted: !!checked }))}
                     required
-                    className="mr-2"
                   />
-                  <Label htmlFor="termsAccepted" className="mb-0">I agree to the <span className="underline cursor-pointer">Terms and Conditions</span> (placeholder)</Label>
+                  <Label htmlFor="termsAccepted" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">I agree to the <span className="underline cursor-pointer">Terms and Conditions</span> (placeholder)</Label>
                 </div>
                 <Button
                   type="submit"
@@ -475,7 +479,7 @@ export default function BecomeExpertPage() {
 
   // Show sign-in page if user is not logged in
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <Button
@@ -487,11 +491,11 @@ export default function BecomeExpertPage() {
             Back to Home
           </Button>
           
-          <GraduationCap className="mx-auto h-12 w-12 text-green-600" />
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+          <GraduationCap className="mx-auto h-12 w-12 text-green-500 dark:text-green-400" />
+          <h2 className="mt-6 text-3xl font-extrabold text-foreground">
             Become an Expert
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-muted-foreground">
             Share your expertise and help others grow
           </p>
         </div>
@@ -500,9 +504,9 @@ export default function BecomeExpertPage() {
           <CardContent className="p-6">
             <div className="space-y-4">
               <div className="text-center">
-                <UserCheck className="mx-auto h-8 w-8 text-green-600 mb-2" />
+                <UserCheck className="mx-auto h-8 w-8 text-green-500 dark:text-green-400 mb-2" />
                 <h3 className="font-semibold">Sign in to Continue</h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   You'll need to sign in with your Google account to apply as an expert
                 </p>
               </div>
@@ -524,11 +528,11 @@ export default function BecomeExpertPage() {
         </Card>
 
         <div className="text-center">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             By continuing, you agree to our Terms of Service and Privacy Policy
           </p>
         </div>
       </div>
     </div>
   )
-} 
+}
