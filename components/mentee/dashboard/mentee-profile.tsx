@@ -157,13 +157,13 @@ const MenteeProfileComponent = React.memo(() => {
 
   if (state.isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+      <div className="min-h-screen">
         <div className="max-w-4xl mx-auto px-6 py-8">
           <div className="space-y-8 animate-pulse">
-            <div className="h-32 bg-gray-200 rounded-lg"></div>
+            <div className="h-32 bg-muted rounded-lg"></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-24 bg-gray-100 rounded-lg"></div>
+                <div key={i} className="h-24 bg-muted rounded-lg"></div>
               ))}
             </div>
           </div>
@@ -173,29 +173,29 @@ const MenteeProfileComponent = React.memo(() => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+    <div className="min-h-screen">
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="space-y-8">
           {/* Page Header */}
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-slate-900">My Profile</h1>
-            <p className="text-slate-600">Manage your mentee profile and preferences</p>
+            <h1 className="text-3xl font-bold text-foreground">My Profile</h1>
+            <p className="text-muted-foreground">Manage your mentee profile and preferences</p>
           </div>
 
           {/* Status Messages */}
           {state.error && (
-            <Alert className="border-red-200 bg-red-50">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-700 font-medium">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
                 {state.error}
               </AlertDescription>
             </Alert>
           )}
 
           {state.success && (
-            <Alert className="border-green-200 bg-green-50">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-700 font-medium">
+            <Alert className="border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-400">
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertDescription>
                 {state.success}
               </AlertDescription>
             </Alert>
@@ -213,10 +213,10 @@ const MenteeProfileComponent = React.memo(() => {
           />
 
           {/* Profile Form */}
-          <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm">
+          <Card>
             <CardHeader>
-              <CardTitle className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-                <Target className="h-5 w-5 text-blue-600" />
+              <CardTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
                 Career Information
               </CardTitle>
             </CardHeader>
@@ -224,7 +224,7 @@ const MenteeProfileComponent = React.memo(() => {
               {/* Current Role & Company */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Label className="text-sm font-semibold text-card-foreground flex items-center gap-2">
                     <Briefcase className="h-4 w-4" />
                     Current Role *
                   </Label>
@@ -233,19 +233,18 @@ const MenteeProfileComponent = React.memo(() => {
                       value={state.data.currentRole}
                       onChange={(e) => handleInputChange('currentRole', e.target.value)}
                       placeholder="e.g., Software Engineer, Student"
-                      className="border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 transition-all"
                       maxLength={100}
                       aria-required="true"
                     />
                   ) : (
-                    <p className="text-slate-800 bg-slate-50 rounded-lg px-4 py-3 min-h-[44px] flex items-center">
-                      {state.data.currentRole || <span className="text-slate-400">Not specified</span>}
+                    <p className="text-foreground bg-muted rounded-lg px-4 py-3 min-h-[44px] flex items-center">
+                      {state.data.currentRole || <span className="text-muted-foreground">Not specified</span>}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Label className="text-sm font-semibold text-card-foreground flex items-center gap-2">
                     <Briefcase className="h-4 w-4" />
                     Company / School *
                   </Label>
@@ -254,13 +253,12 @@ const MenteeProfileComponent = React.memo(() => {
                       value={state.data.currentCompany}
                       onChange={(e) => handleInputChange('currentCompany', e.target.value)}
                       placeholder="e.g., Google, Stanford University"
-                      className="border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 transition-all"
                       maxLength={100}
                       aria-required="true"
                     />
                   ) : (
-                    <p className="text-slate-800 bg-slate-50 rounded-lg px-4 py-3 min-h-[44px] flex items-center">
-                      {state.data.currentCompany || <span className="text-slate-400">Not specified</span>}
+                    <p className="text-foreground bg-muted rounded-lg px-4 py-3 min-h-[44px] flex items-center">
+                      {state.data.currentCompany || <span className="text-muted-foreground">Not specified</span>}
                     </p>
                   )}
                 </div>
@@ -270,7 +268,7 @@ const MenteeProfileComponent = React.memo(() => {
 
               {/* Education */}
               <div className="space-y-3">
-                <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Label className="text-sm font-semibold text-card-foreground flex items-center gap-2">
                   <GraduationCap className="h-4 w-4" />
                   Education Background
                 </Label>
@@ -279,19 +277,19 @@ const MenteeProfileComponent = React.memo(() => {
                     value={state.data.education}
                     onChange={(e) => handleInputChange('education', e.target.value)}
                     placeholder="e.g., BS Computer Science from University of California, Berkeley (2020)"
-                    className="border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 transition-all min-h-[100px]"
+                    className="min-h-[100px]"
                     maxLength={500}
                   />
                 ) : (
-                  <p className="text-slate-800 bg-slate-50 rounded-lg px-4 py-3 min-h-[44px] flex items-center whitespace-pre-wrap">
-                    {state.data.education || <span className="text-slate-400">Not specified</span>}
+                  <p className="text-foreground bg-muted rounded-lg px-4 py-3 min-h-[44px] flex items-center whitespace-pre-wrap">
+                    {state.data.education || <span className="text-muted-foreground">Not specified</span>}
                   </p>
                 )}
               </div>
 
               {/* Career Goals */}
               <div className="space-y-3">
-                <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Label className="text-sm font-semibold text-card-foreground flex items-center gap-2">
                   <Target className="h-4 w-4" />
                   Career Goals *
                 </Label>
@@ -300,13 +298,13 @@ const MenteeProfileComponent = React.memo(() => {
                     value={state.data.careerGoals}
                     onChange={(e) => handleInputChange('careerGoals', e.target.value)}
                     placeholder="Describe your career aspirations, what you want to achieve..."
-                    className="border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 transition-all min-h-[120px]"
+                    className="min-h-[120px]"
                     maxLength={1000}
                     aria-required="true"
                   />
                 ) : (
-                  <p className="text-slate-800 bg-slate-50 rounded-lg px-4 py-3 min-h-[44px] whitespace-pre-wrap">
-                    {state.data.careerGoals || <span className="text-slate-400">Not specified</span>}
+                  <p className="text-foreground bg-muted rounded-lg px-4 py-3 min-h-[44px] whitespace-pre-wrap">
+                    {state.data.careerGoals || <span className="text-muted-foreground">Not specified</span>}
                   </p>
                 )}
               </div>
@@ -316,7 +314,7 @@ const MenteeProfileComponent = React.memo(() => {
               {/* Skills Section */}
               <div className="space-y-6">
                 <div className="space-y-3">
-                  <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Label className="text-sm font-semibold text-card-foreground flex items-center gap-2">
                     <Code className="h-4 w-4" />
                     Current Skills
                   </Label>
@@ -325,28 +323,27 @@ const MenteeProfileComponent = React.memo(() => {
                       value={state.data.currentSkills}
                       onChange={(e) => handleInputChange('currentSkills', e.target.value)}
                       placeholder="e.g., JavaScript, Python, React, Node.js, SQL"
-                      className="border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 transition-all"
                       maxLength={500}
                     />
                   ) : (
-                    <div className="bg-slate-50 rounded-lg px-4 py-3 min-h-[44px]">
+                    <div className="bg-muted rounded-lg px-4 py-3 min-h-[44px]">
                       {state.data.currentSkills ? (
                         <div className="flex flex-wrap gap-2">
                           {state.data.currentSkills.split(',').map((skill, index) => (
-                            <Badge key={index} variant="secondary" className="bg-blue-100 text-blue-800">
+                            <Badge key={index} variant="secondary">
                               {skill.trim()}
                             </Badge>
                           ))}
                         </div>
                       ) : (
-                        <span className="text-slate-400">Not specified</span>
+                        <span className="text-muted-foreground">Not specified</span>
                       )}
                     </div>
                   )}
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Label className="text-sm font-semibold text-card-foreground flex items-center gap-2">
                     <Target className="h-4 w-4" />
                     Skills to Learn
                   </Label>
@@ -355,21 +352,20 @@ const MenteeProfileComponent = React.memo(() => {
                       value={state.data.skillsToLearn}
                       onChange={(e) => handleInputChange('skillsToLearn', e.target.value)}
                       placeholder="e.g., Machine Learning, Cloud Architecture, Leadership"
-                      className="border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 transition-all"
                       maxLength={500}
                     />
                   ) : (
-                    <div className="bg-slate-50 rounded-lg px-4 py-3 min-h-[44px]">
+                    <div className="bg-muted rounded-lg px-4 py-3 min-h-[44px]">
                       {state.data.skillsToLearn ? (
                         <div className="flex flex-wrap gap-2">
                           {state.data.skillsToLearn.split(',').map((skill, index) => (
-                            <Badge key={index} variant="outline" className="border-green-200 text-green-700">
+                            <Badge key={index} variant="outline">
                               {skill.trim()}
                             </Badge>
                           ))}
                         </div>
                       ) : (
-                        <span className="text-slate-400">Not specified</span>
+                        <span className="text-muted-foreground">Not specified</span>
                       )}
                     </div>
                   )}
@@ -381,7 +377,7 @@ const MenteeProfileComponent = React.memo(() => {
               {/* Interests & Preferences */}
               <div className="space-y-6">
                 <div className="space-y-3">
-                  <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Label className="text-sm font-semibold text-card-foreground flex items-center gap-2">
                     <Heart className="h-4 w-4" />
                     Interests
                   </Label>
@@ -390,19 +386,18 @@ const MenteeProfileComponent = React.memo(() => {
                       value={state.data.interests}
                       onChange={(e) => handleInputChange('interests', e.target.value)}
                       placeholder="e.g., Artificial Intelligence, Startups, Open Source"
-                      className="border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 transition-all"
                       maxLength={500}
                     />
                   ) : (
-                    <p className="text-slate-800 bg-slate-50 rounded-lg px-4 py-3 min-h-[44px] whitespace-pre-wrap">
-                      {state.data.interests || <span className="text-slate-400">Not specified</span>}
+                    <p className="text-foreground bg-muted rounded-lg px-4 py-3 min-h-[44px] whitespace-pre-wrap">
+                      {state.data.interests || <span className="text-muted-foreground">Not specified</span>}
                     </p>
                   )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <Label className="text-sm font-semibold text-card-foreground flex items-center gap-2">
                       <Brain className="h-4 w-4" />
                       Learning Style
                     </Label>
@@ -411,7 +406,7 @@ const MenteeProfileComponent = React.memo(() => {
                         value={state.data.learningStyle}
                         onValueChange={(value) => handleInputChange('learningStyle', value)}
                       >
-                        <SelectTrigger className="border-slate-200 focus:border-blue-500 focus:ring-blue-500/20">
+                        <SelectTrigger>
                           <SelectValue placeholder="Select learning style" />
                         </SelectTrigger>
                         <SelectContent>
@@ -422,7 +417,7 @@ const MenteeProfileComponent = React.memo(() => {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <p className="text-slate-800 bg-slate-50 rounded-lg px-4 py-3 min-h-[44px] flex items-center">
+                      <p className="text-foreground bg-muted rounded-lg px-4 py-3 min-h-[44px] flex items-center">
                         {state.data.learningStyle ? (
                           <span>
                             {state.data.learningStyle === 'visual' && 'Visual Learner'}
@@ -431,14 +426,14 @@ const MenteeProfileComponent = React.memo(() => {
                             {state.data.learningStyle === 'interactive' && 'Interactive Learner'}
                           </span>
                         ) : (
-                          <span className="text-slate-400">Not specified</span>
+                          <span className="text-muted-foreground">Not specified</span>
                         )}
                       </p>
                     )}
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <Label className="text-sm font-semibold text-card-foreground flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
                       Meeting Frequency
                     </Label>
@@ -447,7 +442,7 @@ const MenteeProfileComponent = React.memo(() => {
                         value={state.data.preferredMeetingFrequency}
                         onValueChange={(value) => handleInputChange('preferredMeetingFrequency', value)}
                       >
-                        <SelectTrigger className="border-slate-200 focus:border-blue-500 focus:ring-blue-500/20">
+                        <SelectTrigger>
                           <SelectValue placeholder="Select frequency" />
                         </SelectTrigger>
                         <SelectContent>
@@ -458,7 +453,7 @@ const MenteeProfileComponent = React.memo(() => {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <p className="text-slate-800 bg-slate-50 rounded-lg px-4 py-3 min-h-[44px] flex items-center">
+                      <p className="text-foreground bg-muted rounded-lg px-4 py-3 min-h-[44px] flex items-center">
                         {state.data.preferredMeetingFrequency ? (
                           <span>
                             {state.data.preferredMeetingFrequency === 'weekly' && 'Weekly Sessions'}
@@ -467,7 +462,7 @@ const MenteeProfileComponent = React.memo(() => {
                             {state.data.preferredMeetingFrequency === 'as-needed' && 'As Needed'}
                           </span>
                         ) : (
-                          <span className="text-slate-400">Not specified</span>
+                          <span className="text-muted-foreground">Not specified</span>
                         )}
                       </p>
                     )}
