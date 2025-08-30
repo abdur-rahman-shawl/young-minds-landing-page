@@ -63,6 +63,7 @@ export default function BecomeExpertPage() {
   const [otp, setOtp] = useState("")
   const [showOtpInput, setShowOtpInput] = useState(false)
   const [isEmailVerified, setIsEmailVerified] = useState(false)
+  const [otpError, setOtpError] = useState<string | null>(null)
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mentorFormData.email)
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,6 +82,7 @@ export default function BecomeExpertPage() {
 
   const handleSendOtp = async () => {
   try {
+    setOtpError(null);
     const res = await fetch("/api/auth/send-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -117,10 +119,13 @@ export default function BecomeExpertPage() {
     if (data.success) {
       setIsEmailVerified(true);
       setShowOtpInput(false);
+      setOtpError(null);
       console.log("OTP verified successfully");
     } else {
+      setOtpError(data.error || "Invalid or expired OTP. Please try again.");
     }
   } catch (err) {
+    setOtpError("An unexpected error occurred. Please try again.");
     console.error("Error verifying OTP:", err);
   }
 };
@@ -148,6 +153,7 @@ export default function BecomeExpertPage() {
 
   const handleResendOtp = async () => {
   if (!isCountingDown) {
+    setOtpError(null);
     try {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
@@ -348,7 +354,10 @@ export default function BecomeExpertPage() {
                             type="text"
                             placeholder="Enter 6-digit OTP"
                             value={otp}
-                            onChange={(e) => setOtp(e.target.value)}
+                            onChange={(e) => {
+                              setOtp(e.target.value)
+                              setOtpError(null)
+                            }}
                             maxLength={6}
                           />
                           <Button
@@ -359,6 +368,7 @@ export default function BecomeExpertPage() {
                             Confirm OTP
                           </Button>
                         </div>
+                        {otpError && <p className="text-sm text-red-500 mt-1">{otpError}</p>}
                         <p className="text-xs text-muted-foreground text-center">
                           Didn't receive the OTP?{' '}
                           {isCountingDown ? (
