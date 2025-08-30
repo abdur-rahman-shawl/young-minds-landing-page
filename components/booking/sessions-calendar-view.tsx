@@ -609,15 +609,18 @@ export function SessionsCalendarView() {
                   const Icon = MEETING_TYPE_ICONS[session.meetingType];
                   
                   return (
-                    <button
+                    <div
                       key={session.id}
+                      role="button"
+                      tabIndex={0}
                       className={cn(
-                        "focus-visible:border-ring focus-visible:ring-ring/50 flex w-full flex-col gap-1 rounded p-2 text-left transition outline-none focus-visible:ring-[3px] data-past-event:line-through data-past-event:opacity-90",
+                        "focus-visible:border-ring focus-visible:ring-ring/50 flex w-full flex-col gap-1 rounded p-2 text-left transition outline-none focus-visible:ring-[3px] data-past-event:line-through data-past-event:opacity-90 cursor-pointer",
                         colors.bg,
                         colors.border
                       )}
                       data-past-event={isPast(new Date(session.scheduledAt)) || undefined}
                       onClick={() => handleSessionClick(session)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSessionClick(session)}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -655,7 +658,7 @@ export function SessionsCalendarView() {
                           </Button>
                         )}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
