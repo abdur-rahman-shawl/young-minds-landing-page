@@ -10,6 +10,8 @@ import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, 
 import { useAuth } from '@/contexts/auth-context';
 import { toast } from 'sonner';
 
+import { SessionViewModal } from './SessionViewModal';
+
 interface Session {
   id: string;
   title: string;
@@ -45,7 +47,7 @@ export function MenteeSessionsCalendar() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [sessionToJoin, setSessionToJoin] = useState<Session | null>(null);
 
   // Get days of the current week
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -85,20 +87,6 @@ export function MenteeSessionsCalendar() {
   const navigateWeek = (direction: 'prev' | 'next') => {
     const newWeek = addDays(currentWeek, direction === 'next' ? 7 : -7);
     setCurrentWeek(newWeek);
-  };
-
-  // Handle session click
-  const handleSessionClick = (sessionData: Session) => {
-    setSelectedSession(sessionData);
-  };
-
-  // Handle join session
-  const handleJoinSession = (sessionData: Session) => {
-    if (sessionData.meetingUrl) {
-      window.open(sessionData.meetingUrl, '_blank');
-    } else {
-      toast.info('Meeting link will be provided by your mentor');
-    }
   };
 
   // Format currency
@@ -199,14 +187,12 @@ export function MenteeSessionsCalendar() {
                         const statusColor = STATUS_COLORS[sessionData.status as keyof typeof STATUS_COLORS] || STATUS_COLORS.scheduled;
                         const sessionTime = new Date(sessionData.scheduledAt);
                         const canJoin = sessionData.status === 'scheduled' && 
-                                       sessionData.meetingUrl && 
-                                       Math.abs(sessionTime.getTime() - new Date().getTime()) < 30 * 60 * 1000; // 30 minutes
+                                       Math.abs(sessionTime.getTime() - new Date().getTime()) < 30 * 60 * 1000; // Can join 30 mins before/after
 
                         return (
                           <div
                             key={sessionData.id}
                             className="p-2 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
-                            onClick={() => handleSessionClick(sessionData)}
                           >
                             <div className="flex items-start justify-between mb-1">
                               <div className="flex items-center gap-1">
@@ -248,7 +234,7 @@ export function MenteeSessionsCalendar() {
                                 className="w-full h-6 text-xs mt-1"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleJoinSession(sessionData);
+                                  setSessionToJoin(sessionData);
                                 }}
                               >
                                 Join Now
@@ -336,56 +322,11 @@ export function MenteeSessionsCalendar() {
         </Card>
       </div>
 
-      {/* Session Details Modal/Card */}
-      {selectedSession && (
-        <Card className="fixed inset-4 z-50 bg-white dark:bg-gray-900 shadow-2xl">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Session Details</CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedSession(null)}
-            >
-              ×
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {selectedSession.title}
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                {selectedSession.description}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Date & Time</p>
-                <p className="font-medium">
-                  {format(new Date(selectedSession.scheduledAt), 'PPP \'at\' p')}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Duration</p>
-                <p className="font-medium">{selectedSession.duration} minutes</p>
-              </div>
-            </div>
-
-            {selectedSession.meetingUrl && (
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => handleJoinSession(selectedSession)}
-                  className="gap-2"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Join Session
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <SessionViewModal 
+        isOpen={!!sessionToJoin}
+        onClose={() => setSessionToJoin(null)}
+        session={sessionToJoin}
+      />
     </div>
   );
 }
