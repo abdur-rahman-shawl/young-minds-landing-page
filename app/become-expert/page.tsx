@@ -79,20 +79,52 @@ export default function BecomeExpertPage() {
     }
   };
 
-  const handleSendOtp = () => {
-    // TODO: Implement API call to send OTP
-    console.log("Sending OTP to:", mentorFormData.email);
+  const handleSendOtp = async () => {
+  try {
+    const res = await fetch("/api/auth/send-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: mentorFormData.email }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to send OTP");
+    }
+
+    console.log("OTP sent successfully to:", mentorFormData.email);
     setShowOtpInput(true);
     startCountdown();
-  };
-
-  const handleVerifyOtp = () => {
-    // TODO: Implement API call to verify OTP
-    console.log("Verifying OTP:", otp)
-    // Assuming OTP is correct
-    setIsEmailVerified(true)
-    setShowOtpInput(false)
+  } catch (err) {
+    console.error("Error sending OTP:", err);
   }
+};
+
+
+  const handleVerifyOtp = async () => {
+  if (!otp) return alert("Please enter the OTP");
+  let email = mentorFormData.email;
+  try {
+    const res = await fetch("/api/auth/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({email, otp }),
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      setIsEmailVerified(true);
+      setShowOtpInput(false);
+      console.log("OTP verified successfully");
+    } else {
+    }
+  } catch (err) {
+    console.error("Error verifying OTP:", err);
+  }
+};
+
 
   const [countdown, setCountdown] = useState(10);
   const [isCountingDown, setIsCountingDown] = useState(false);
@@ -110,17 +142,33 @@ export default function BecomeExpertPage() {
   }, [isCountingDown, countdown]);
 
   const startCountdown = () => {
-    setCountdown(10);
+    setCountdown(30);
     setIsCountingDown(true);
   };
 
-  const handleResendOtp = () => {
-    if (!isCountingDown) {
-      // TODO: Implement API call to resend OTP
-      console.log("Resending OTP to:", mentorFormData.email);
-      startCountdown();
+  const handleResendOtp = async () => {
+  if (!isCountingDown) {
+    try {
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: mentorFormData.email }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        console.log("OTP resent successfully to:", mentorFormData.email);
+        startCountdown(); // restart timer
+      } else {
+        alert(data.error || "Failed to resend OTP");
+      }
+    } catch (err) {
+      console.error("Error resending OTP:", err);
     }
-  };
+  }
+};
+
 
   const { data: session, isPending } = useSession()
   const router = useRouter()
