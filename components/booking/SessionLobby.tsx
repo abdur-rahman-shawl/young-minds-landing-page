@@ -10,42 +10,47 @@ interface SessionLobbyProps {
   mentorName: string
   sessionTitle: string
   onJoin: () => void
+  isCameraOn: boolean
+  mediaStream: MediaStream | null
+  startCamera: () => void
+  stopCamera: () => void
 }
 
-export function SessionLobby({ mentorName, sessionTitle, onJoin }: SessionLobbyProps) {
+export function SessionLobby({ 
+  mentorName, 
+  sessionTitle, 
+  onJoin, 
+  isCameraOn, 
+  mediaStream, 
+  startCamera, 
+  stopCamera 
+}: SessionLobbyProps) {
   const [isMicMuted, setIsMicMuted] = useState(false)
-  const [isCameraOff, setIsCameraOff] = useState(false)
   const [isJoining, setIsJoining] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
-    if (!isCameraOff) {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream
-          }
-        })
-        .catch(err => {
-          console.error("Error accessing camera:", err)
-          setIsCameraOff(true) // Turn off camera if permission is denied
-        })
-    } else {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream
-        stream.getTracks().forEach(track => track.stop())
-        videoRef.current.srcObject = null
-      }
+    if (isCameraOn && mediaStream && videoRef.current) {
+      videoRef.current.srcObject = mediaStream
+    } else if (videoRef.current) {
+      videoRef.current.srcObject = null
     }
-  }, [isCameraOff])
+  }, [isCameraOn, mediaStream])
 
   const handleJoinClick = () => {
     setIsJoining(true)
-    // Simulate a short delay for connecting
     setTimeout(() => {
       onJoin()
       setIsJoining(false)
     }, 1500)
+  }
+
+  const handleToggleCamera = () => {
+    if (isCameraOn) {
+      stopCamera()
+    } else {
+      startCamera()
+    }
   }
 
   return (
@@ -54,12 +59,12 @@ export function SessionLobby({ mentorName, sessionTitle, onJoin }: SessionLobbyP
       <p className="text-gray-600 dark:text-gray-400 mb-6">Session with {mentorName}: "{sessionTitle}"</p>
 
       <div className="w-full max-w-md bg-black rounded-lg overflow-hidden aspect-video mb-6 shadow-lg">
-        {isCameraOff ? (
+        {isCameraOn ? (
+          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+        ) : (
           <div className="w-full h-full bg-gray-800 flex items-center justify-center">
             <VideoOff className="w-12 h-12 text-gray-500" />
           </div>
-        ) : (
-          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
         )}
       </div>
 
@@ -67,8 +72,8 @@ export function SessionLobby({ mentorName, sessionTitle, onJoin }: SessionLobbyP
         <Button variant={isMicMuted ? "destructive" : "secondary"} size="icon" className="rounded-full w-12 h-12" onClick={() => setIsMicMuted(!isMicMuted)}>
           {isMicMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
         </Button>
-        <Button variant={isCameraOff ? "destructive" : "secondary"} size="icon" className="rounded-full w-12 h-12" onClick={() => setIsCameraOff(!isCameraOff)}>
-          {isCameraOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
+        <Button variant={isCameraOn ? "secondary" : "destructive"} size="icon" className="rounded-full w-12 h-12" onClick={handleToggleCamera}>
+          {isCameraOn ? <Video className="w-6 h-6" /> : <VideoOff className="w-6 h-6" />}
         </Button>
       </div>
 

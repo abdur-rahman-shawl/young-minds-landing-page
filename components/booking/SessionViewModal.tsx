@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SessionLobby } from "./SessionLobby"
 import { LiveSessionUI } from "./LiveSessionUI"
@@ -26,21 +26,39 @@ type Stage = 'lobby' | 'in-call' | 'rating' | 'success'
 
 export function SessionViewModal({ session, isOpen, onClose }: SessionViewModalProps) {
   const [stage, setStage] = useState<Stage>('lobby')
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null)
+  const [isCameraOn, setIsCameraOn] = useState(false)
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setMediaStream(stream);
+      setIsCameraOn(true);
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      setIsCameraOn(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+    }
+    setMediaStream(null);
+    setIsCameraOn(false);
+  };
 
   const handleJoin = () => {
     setStage('in-call')
   }
 
   const handleTimeUp = () => {
-    // In a real app, you might have different logic if the user hangs up early
     setStage('rating')
   }
 
   const handleSubmitRating = (rating: number, feedback: string) => {
     console.log("Rating submitted:", { rating, feedback, sessionId: session?.id })
-    // Here you would make an API call to save the feedback
     setStage('success')
-    // Auto-close after a few seconds
     setTimeout(() => {
       handleClose()
     }, 3000)
@@ -52,12 +70,21 @@ export function SessionViewModal({ session, isOpen, onClose }: SessionViewModalP
   }
 
   const handleClose = () => {
+    stopCamera() // Ensure camera is off when modal closes
     onClose()
-    // Reset to lobby for the next time it opens
     setTimeout(() => {
       setStage('lobby')
-    }, 300) // Delay to allow for closing animation
+    }, 300)
   }
+
+  // Cleanup effect when the modal is forced to unmount
+  useEffect(() => {
+    return () => {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [mediaStream]);
 
   const getStageTitle = (stage: Stage) => {
     switch (stage) {
@@ -87,6 +114,10 @@ export function SessionViewModal({ session, isOpen, onClose }: SessionViewModalP
             mentorName={session.mentorName || 'Mentor'}
             sessionTitle={session.title}
             onJoin={handleJoin}
+            isCameraOn={isCameraOn}
+            mediaStream={mediaStream}
+            startCamera={startCamera}
+            stopCamera={stopCamera}
           />
         )}
         {stage === 'in-call' && (
@@ -94,6 +125,10 @@ export function SessionViewModal({ session, isOpen, onClose }: SessionViewModalP
             mentorName={session.mentorName || 'Mentor'}
             mentorAvatar={session.mentorAvatar}
             onTimeUp={handleTimeUp}
+            isCameraOn={isCameraOn}
+            mediaStream={mediaStream}
+            startCamera={startCamera}
+            stopCamera={stopCamera}
           />
         )}
         {stage === 'rating' && (

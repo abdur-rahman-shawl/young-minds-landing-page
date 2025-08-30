@@ -322,11 +322,12 @@ export function MenteeSessionsCalendar() {
         </Card>
       </div>
 
-      <SessionViewModal 
-        isOpen={!!sessionToJoin}
-        onClose={() => setSessionToJoin(null)}
-        session={sessionToJoin}
+      <SessionLobbyModal 
+        isOpen={!!lobbySession}
+        onClose={() => setLobbySession(null)}
+        session={lobbySession}
       />
     </div>
   );
+});
 }

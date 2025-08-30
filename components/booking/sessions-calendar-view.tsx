@@ -58,7 +58,7 @@ import {
 import { useAuth } from '@/contexts/auth-context';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { SessionViewModal } from './SessionViewModal';
+import { SessionLobbyModal } from './SessionLobbyModal';
 
 interface Session {
   id: string;
@@ -116,7 +116,7 @@ export function SessionsCalendarView() {
   const [loading, setLoading] = useState(false);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [joiningSession, setJoiningSession] = useState<Session | null>(null);
+  const [lobbySession, setLobbySession] = useState<Session | null>(null);
 
   // Calculate date ranges based on view type
   const dateRange = useMemo(() => {
@@ -861,7 +861,7 @@ export function SessionsCalendarView() {
                     className="w-full"
                     onClick={() => {
                       setDialogOpen(false);
-                      setJoiningSession(selectedSession);
+                      setLobbySession(selectedSession);
                     }}
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
@@ -874,10 +874,10 @@ export function SessionsCalendarView() {
         </DialogContent>
       </Dialog>
 
-      <SessionViewModal 
-        isOpen={!!joiningSession}
-        onClose={() => setJoiningSession(null)}
-        session={joiningSession}
+      <SessionLobbyModal 
+        isOpen={!!lobbySession}
+        onClose={() => setLobbySession(null)}
+        session={lobbySession}
       />
     </div>
   );

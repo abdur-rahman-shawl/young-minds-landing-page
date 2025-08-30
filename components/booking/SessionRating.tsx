@@ -32,7 +32,7 @@ export function SessionRating({ mentorName, mentorAvatar, onSubmit, onSkip }: Se
   }
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-8 bg-gray-50 dark:bg-gray-900 text-center">
+    <div className="flex flex-col items-center justify-center max-w-2xl w-full p-8 sm:p-12 bg-white dark:bg-gray-800 text-center rounded-2xl shadow-2xl">
       <Avatar className="w-24 h-24 mb-4">
         <AvatarImage src={mentorAvatar} />
         <AvatarFallback className="text-3xl bg-gray-700">{mentorName.charAt(0)}</AvatarFallback>
