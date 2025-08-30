@@ -162,14 +162,6 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
                   Book a mentoring session with {mentor.fullName}
                 </DialogDescription>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleClose}
-                className="rounded-full h-8 w-8"
-              >
-                <X className="h-4 w-4" />
-              </Button>
             </div>
             
             {/* Progress Steps */}
