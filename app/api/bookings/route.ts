@@ -185,32 +185,40 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for booking conflicts with buffer time
-    const bufferTime = schedule.bufferTimeBetweenSessions;
-    const sessionStart = new Date(scheduledAt.getTime() - bufferTime * 60 * 1000);
-    const sessionEnd = new Date(scheduledAt.getTime() + (validatedData.duration + bufferTime) * 60 * 1000);
-    
-    const conflictingBookings = await db
-      .select()
+    const bufferTime = schedule.bufferTimeBetweenSessions || 0;
+    const newBookingStart = scheduledAt;
+    const newBookingEnd = addMinutes(newBookingStart, validatedData.duration);
+
+    // Fetch potentially conflicting bookings that are scheduled
+    const potentialConflicts = await db
+      .select({
+        scheduledAt: sessions.scheduledAt,
+        duration: sessions.duration,
+      })
       .from(sessions)
       .where(
         and(
           eq(sessions.mentorId, validatedData.mentorId),
-          eq(sessions.status, 'scheduled'),
-          or(
-            // Check if new booking overlaps with existing bookings (including buffer)
-            and(
-              lte(sessions.scheduledAt, sessionEnd),
-              gte(sessions.scheduledAt, sessionStart)
-            )
-          )
+          eq(sessions.status, 'scheduled')
         )
       );
 
-    if (conflictingBookings.length > 0) {
-      return NextResponse.json(
-        { error: 'This time slot conflicts with another booking' },
-        { status: 409 }
-      );
+    // Perform conflict check in code for accuracy
+    for (const existingBooking of potentialConflicts) {
+      const existingBookingStart = new Date(existingBooking.scheduledAt);
+      const existingBookingEnd = addMinutes(existingBookingStart, existingBooking.duration);
+
+      // Apply buffer to the existing booking for the check
+      const existingStartWithBuffer = new Date(existingBookingStart.getTime() - bufferTime * 60 * 1000);
+      const existingEndWithBuffer = new Date(existingBookingEnd.getTime() + bufferTime * 60 * 1000);
+
+      // Standard interval overlap check: (StartA < EndB) and (EndA > StartB)
+      if (newBookingStart < existingEndWithBuffer && newBookingEnd > existingStartWithBuffer) {
+        return NextResponse.json(
+          { error: 'This time slot conflicts with another booking' },
+          { status: 409 }
+        );
+      }
     }
 
     // Create the booking

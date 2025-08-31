@@ -1,0 +1,2 @@
+Error: This time slot conflicts with another booking
+    at handleConfirmBooking (webpack-internal:///(app-pages-browser)/./components/booking/booking-modal.tsx:90:23)

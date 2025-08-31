@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Calendar, Clock, Video, MapPin, DollarSign, CheckCircle, X } from 'lucide-react';
-import { TimeSlotSelector } from './time-slot-selector';
+import { TimeSlotSelectorV2 } from './time-slot-selector-v2';
 import { BookingForm } from './booking-form';
 import { BookingConfirmation } from './booking-confirmation';
 import { useAuth } from '@/contexts/auth-context';
@@ -271,7 +271,7 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
               <div className="lg:col-span-2 flex flex-col overflow-hidden">
                 {currentStep === 'time-selection' && (
                   <div className="p-6 overflow-y-auto">
-                    <TimeSlotSelector
+                    <TimeSlotSelectorV2
                       mentorId={mentor.userId}
                       onTimeSelected={handleTimeSelection}
                     />

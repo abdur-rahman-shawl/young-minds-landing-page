@@ -2,23 +2,27 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, Clock, ChevronLeft, ChevronRight, AlertCircle, Globe } from 'lucide-react';
+import { Calendar, Clock, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
 import { 
   format, 
-  addDays, 
-  startOfWeek, 
-  endOfWeek, 
+  addMonths,
+  subMonths,
+  startOfMonth, 
+  endOfMonth, 
+  startOfWeek,
+  endOfWeek,
   eachDayOfInterval, 
   isSameDay, 
   isToday,
   isPast,
-  parseISO
+  isSameMonth,
+  parseISO,
+  endOfDay
 } from 'date-fns';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface TimeSlotSelectorProps {
   mentorId: string;
@@ -28,308 +32,231 @@ interface TimeSlotSelectorProps {
 interface AvailableSlot {
   startTime: string;
   endTime: string;
-  available: boolean;
-  reason?: string;
+}
+
+interface MonthAvailability {
+  [day: string]: boolean; // format: "yyyy-MM-dd"
 }
 
 export function TimeSlotSelectorV2({ mentorId, onTimeSelected }: TimeSlotSelectorProps) {
-  const [currentWeek, setCurrentWeek] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
-  const [selectedDate, setSelectedDate] = useState<Date>();
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<Date>();
-  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
-  const [loading, setLoading] = useState(false);
+  
+  const [dailySlots, setDailySlots] = useState<AvailableSlot[]>([]);
+  const [monthAvailability, setMonthAvailability] = useState<MonthAvailability>({});
+  
+  const [dailyLoading, setDailyLoading] = useState(true);
+  const [monthLoading, setMonthLoading] = useState(true);
+
   const [mentorTimezone, setMentorTimezone] = useState<string>('UTC');
-  const [sessionDuration, setSessionDuration] = useState<number>(60);
+  const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
-  // Get user's timezone
-  const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const firstDayOfMonth = useMemo(() => startOfMonth(currentMonth), [currentMonth]);
+  const lastDayOfMonth = useMemo(() => endOfMonth(currentMonth), [currentMonth]);
 
-  // Memoize week calculations
-  const { weekStart, weekEnd, weekDays } = useMemo(() => {
-    const start = currentWeek;
-    const end = endOfWeek(start, { weekStartsOn: 1 });
-    const days = eachDayOfInterval({ start, end });
-    return { weekStart: start, weekEnd: end, weekDays: days };
-  }, [currentWeek]);
+  const calendarDays = useMemo(() => {
+    return eachDayOfInterval({
+      start: startOfWeek(firstDayOfMonth, { weekStartsOn: 1 }),
+      end: endOfWeek(lastDayOfMonth, { weekStartsOn: 1 }),
+    });
+  }, [firstDayOfMonth, lastDayOfMonth]);
 
-  // Fetch available slots from the new API
-  const fetchAvailableSlots = useCallback(async (date: Date) => {
-    if (!mentorId || !date) return;
-
-    setLoading(true);
+  const fetchMonthAvailability = useCallback(async (month: Date) => {
+    setMonthLoading(true);
     try {
-      const startDate = new Date(date);
-      startDate.setHours(0, 0, 0, 0);
-      
-      const endDate = new Date(date);
-      endDate.setHours(23, 59, 59, 999);
-
       const params = new URLSearchParams({
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        timezone: userTimezone
+        startDate: startOfMonth(month).toISOString(),
+        endDate: endOfMonth(month).toISOString(),
+        timezone: userTimezone,
       });
-
       const response = await fetch(`/api/mentors/${mentorId}/availability/slots?${params}`);
       const data = await response.json();
-
+      
       if (response.ok) {
-        setAvailableSlots(data.slots || []);
+        const availability: MonthAvailability = {};
+        (data.slots || []).forEach((slot: AvailableSlot) => {
+          const day = format(parseISO(slot.startTime), 'yyyy-MM-dd');
+          availability[day] = true;
+        });
+        setMonthAvailability(availability);
         setMentorTimezone(data.mentorTimezone || 'UTC');
-        setSessionDuration(data.sessionDuration || 60);
-        
-        if (data.slots.length === 0 && isSameDay(date, selectedDate || new Date())) {
-          toast.info('No available slots for this date');
-        }
       } else {
-        console.error('Failed to fetch slots:', data.error);
-        setAvailableSlots([]);
-        
-        if (data.message) {
-          toast.error(data.message);
-        }
+        toast.error(data.message || 'Failed to load monthly availability');
       }
     } catch (error) {
-      console.error('Failed to fetch available slots:', error);
-      setAvailableSlots([]);
-      toast.error('Failed to load available time slots');
+      toast.error('An error occurred while fetching availability.');
     } finally {
-      setLoading(false);
+      setMonthLoading(false);
     }
-  }, [mentorId, userTimezone, selectedDate]);
+  }, [mentorId, userTimezone]);
 
-  // Handle date selection
-  const handleDateSelection = (date: Date) => {
-    setSelectedDate(date);
+  const fetchDailySlots = useCallback(async (date: Date) => {
+    setDailyLoading(true);
+    setDailySlots([]);
+    try {
+      const params = new URLSearchParams({
+        startDate: date.toISOString(),
+        endDate: endOfDay(date).toISOString(),
+        timezone: userTimezone,
+      });
+      const response = await fetch(`/api/mentors/${mentorId}/availability/slots?${params}`);
+      const data = await response.json();
+      if (response.ok) {
+        setDailySlots(data.slots || []);
+      } else {
+        toast.error(data.message || 'Failed to load time slots');
+      }
+    } catch (error) {
+      toast.error('An error occurred while fetching time slots.');
+    } finally {
+      setDailyLoading(false);
+    }
+  }, [mentorId, userTimezone]);
+
+  useEffect(() => {
+    fetchMonthAvailability(currentMonth);
+  }, [currentMonth, fetchMonthAvailability]);
+
+  useEffect(() => {
+    if (selectedDate) {
+      fetchDailySlots(selectedDate);
+    }
+  }, [selectedDate, fetchDailySlots]);
+
+  const handleDateClick = (day: Date) => {
+    if (isPast(day) && !isToday(day)) return;
+    setSelectedDate(day);
     setSelectedTimeSlot(undefined);
-    fetchAvailableSlots(date);
   };
 
-  // Handle time slot selection
   const handleTimeSlotSelection = (slot: AvailableSlot) => {
-    if (!slot.available) {
-      toast.error(slot.reason || 'This slot is not available');
-      return;
-    }
-
     const slotTime = parseISO(slot.startTime);
     setSelectedTimeSlot(slotTime);
   };
 
-  // Confirm selection
-  const confirmSelection = () => {
+  const handleConfirm = () => {
     if (selectedTimeSlot) {
       onTimeSelected(selectedTimeSlot);
     }
   };
 
-  // Navigate weeks
-  const navigateWeek = (direction: 'prev' | 'next') => {
-    const newWeek = addDays(currentWeek, direction === 'next' ? 7 : -7);
-    setCurrentWeek(newWeek);
-    setSelectedDate(undefined);
-    setSelectedTimeSlot(undefined);
-    setAvailableSlots([]);
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    const newMonth = direction === 'prev' ? subMonths(currentMonth, 1) : addMonths(currentMonth, 1);
+    setCurrentMonth(newMonth);
   };
-
-  // Get slots for a specific date (for preview)
-  const getSlotsCountForDate = (date: Date): number => {
-    // This would need to be fetched from the API for accurate counts
-    // For now, return 0 for past dates and weekends
-    if (isPast(date) && !isToday(date)) return 0;
-    const dayOfWeek = date.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) return 0; // Weekend
-    return 8; // Default estimate
-  };
-
-  // Group slots by hour for better display
-  const groupedSlots = useMemo(() => {
-    const groups: { [key: string]: AvailableSlot[] } = {};
-    
-    availableSlots.forEach(slot => {
-      const hour = format(parseISO(slot.startTime), 'ha');
-      if (!groups[hour]) {
-        groups[hour] = [];
-      }
-      groups[hour].push(slot);
-    });
-    
-    return groups;
-  }, [availableSlots]);
-
-  // Auto-select today if it's in the current week
-  useEffect(() => {
-    const today = new Date();
-    if (weekDays.some(day => isSameDay(day, today))) {
-      handleDateSelection(today);
-    }
-  }, []); // Only run on mount
 
   return (
     <div className="space-y-6">
-      {/* Week Navigation */}
+      {/* Calendar Section */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Select Date & Time
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => navigateWeek('prev')}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm font-medium px-3">
-                {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
-              </span>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => navigateWeek('next')}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <Button variant="ghost" size="icon" onClick={() => navigateMonth('prev')}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <h3 className="text-lg font-semibold">
+              {format(currentMonth, 'MMMM yyyy')}
+            </h3>
+            <Button variant="ghost" size="icon" onClick={() => navigateMonth('next')}>
+              <ChevronRight className="h-5 w-5" />
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          {/* Days of the Week */}
-          <div className="grid grid-cols-7 gap-2">
-            {weekDays.map((day, index) => {
-              const isSelected = selectedDate && isSameDay(day, selectedDate);
-              const isCurrentDay = isToday(day);
-              const isPastDay = isPast(day) && !isCurrentDay;
-              const slotsCount = getSlotsCountForDate(day);
-              
-              return (
-                <Button
-                  key={index}
-                  variant={isSelected ? 'default' : 'outline'}
-                  className={`h-auto flex-col py-3 ${
-                    isPastDay ? 'opacity-50 cursor-not-allowed' : ''
-                  } ${isCurrentDay ? 'ring-2 ring-blue-500' : ''}`}
-                  onClick={() => !isPastDay && handleDateSelection(day)}
-                  disabled={isPastDay}
-                >
-                  <span className="text-xs font-medium">
-                    {format(day, 'EEE')}
-                  </span>
-                  <span className="text-lg font-semibold">
-                    {format(day, 'd')}
-                  </span>
-                  {!isPastDay && slotsCount > 0 && (
-                    <Badge variant="secondary" className="text-xs mt-1">
-                      {slotsCount} slots
-                    </Badge>
-                  )}
-                </Button>
-              );
-            })}
-          </div>
+          {monthLoading ? (
+            <Skeleton className="w-full h-64" />
+          ) : (
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                <div key={day} className="text-xs font-medium text-gray-500 dark:text-gray-400 pb-2">
+                  {day}
+                </div>
+              ))}
+              {calendarDays.map(day => {
+                const dayStr = format(day, 'yyyy-MM-dd');
+                const isDayInPast = isPast(day) && !isToday(day);
+                const isDayInCurrentMonth = isSameMonth(day, currentMonth);
+                const hasAvailability = monthAvailability[dayStr];
+                const isSelectable = !isDayInPast && hasAvailability;
 
-          {/* Timezone Info */}
-          {selectedDate && mentorTimezone !== userTimezone && (
-            <Alert className="mt-4">
-              <Globe className="h-4 w-4" />
-              <AlertDescription>
-                Times are shown in your timezone ({userTimezone}). 
-                The mentor's timezone is {mentorTimezone}.
-              </AlertDescription>
-            </Alert>
+                return (
+                  <div key={day.toString()} className="py-1">
+                    <Button
+                      variant={selectedDate && isSameDay(day, selectedDate) ? 'default' : 'ghost'}
+                      className={cn(
+                        "w-10 h-10 p-0 rounded-full",
+                        !isDayInCurrentMonth && "text-gray-400 dark:text-gray-500",
+                        isToday(day) && "ring-2 ring-blue-500 dark:ring-blue-400",
+                        !isSelectable && "text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50"
+                      )}
+                      onClick={() => isSelectable && handleDateClick(day)}
+                      disabled={!isSelectable}
+                    >
+                      {format(day, 'd')}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Time Slots */}
-      {selectedDate && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Available Times for {format(selectedDate, 'EEEE, MMMM d')}
-            </CardTitle>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Session duration: {sessionDuration} minutes
-            </p>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4].map(i => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : availableSlots.length === 0 ? (
-              <div className="text-center py-8">
-                <Clock className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-500 dark:text-gray-400">
-                  No available time slots for this date
-                </p>
-                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                  Please select another date
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {Object.entries(groupedSlots).map(([hour, slots]) => (
-                  <div key={hour}>
-                    <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                      {hour}
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                      {slots.map((slot, index) => {
-                        const slotTime = parseISO(slot.startTime);
-                        const isSelected = selectedTimeSlot && isSameDay(slotTime, selectedTimeSlot) && 
-                                         slotTime.getTime() === selectedTimeSlot.getTime();
-                        
-                        return (
-                          <Button
-                            key={index}
-                            variant={isSelected ? 'default' : slot.available ? 'outline' : 'ghost'}
-                            size="sm"
-                            className={`${!slot.available ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            onClick={() => handleTimeSlotSelection(slot)}
-                            disabled={!slot.available}
-                          >
-                            {format(slotTime, 'h:mm a')}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* Timezone Info */}
+      {mentorTimezone !== userTimezone && (
+        <div className="flex items-center justify-center text-xs text-gray-500 dark:text-gray-400">
+          <Globe className="h-3 w-3 mr-1.5" />
+          All times are in your local timezone: {userTimezone}
+        </div>
       )}
 
-      {/* Confirm Selection */}
-      {selectedTimeSlot && (
-        <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Selected Time
-                </p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {format(selectedTimeSlot, 'EEEE, MMMM d, yyyy')} at {format(selectedTimeSlot, 'h:mm a')}
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Duration: {sessionDuration} minutes
-                </p>
+      {/* Time Slots Section */}
+      {selectedDate && (
+        <div className="pt-4">
+          <h4 className="font-semibold mb-3 text-center">
+            Available Times for {format(selectedDate, 'EEEE, MMMM d')}
+          </h4>
+          <div className="border rounded-lg p-4 max-h-60 overflow-y-auto">
+            {dailyLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
               </div>
-              <Button onClick={confirmSelection} size="lg">
-                Continue
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            ) : dailySlots.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {dailySlots.map((slot, index) => {
+                  const slotTime = parseISO(slot.startTime);
+                  const isSelected = selectedTimeSlot && selectedTimeSlot.getTime() === slotTime.getTime();
+                  return (
+                    <Button
+                      key={index}
+                      variant={isSelected ? 'default' : 'outline'}
+                      onClick={() => handleTimeSlotSelection(slot)}
+                    >
+                      {format(slotTime, 'h:mm a')}
+                    </Button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 dark:text-gray-400 py-8">
+                <Clock className="h-8 w-8 mb-2" />
+                <p className="text-sm font-medium">No available slots</p>
+                <p className="text-xs">Please select another date.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Button */}
+      {selectedTimeSlot && (
+        <div className="pt-4 text-center border-t mt-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            You selected: <span className="font-semibold text-gray-900 dark:text-white">{format(selectedTimeSlot, 'h:mm a')}</span>
+          </p>
+          <Button onClick={handleConfirm} size="lg">
+            Confirm Time and Continue
+          </Button>
+        </div>
       )}
     </div>
   );
