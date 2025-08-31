@@ -40,6 +40,7 @@ export const mentors = pgTable('mentors', {
   email: text('email'),
   phone: text('phone'),
   city: text('city'),
+  state: text('state'),
   country: text('country'),
   profileImageUrl: text('profile_image_url'), // URL to uploaded profile picture
   resumeUrl: text('resume_url'), // URL to uploaded resume

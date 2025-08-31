@@ -44,7 +44,7 @@ export default function BecomeExpertPage() {
     fullName: "",
     email: "",
     phone: "",
-    country: "",
+    country: "India",
     state: "",
     city: "",
     title: "",
@@ -423,6 +423,7 @@ export default function BecomeExpertPage() {
                       onChange={e => setMentorFormData(prev => ({ ...prev, country: e.target.value }))}
                       placeholder="Your Country"
                       required
+                      disabled
                     />
                   </div>
                   <div>
