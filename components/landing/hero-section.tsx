@@ -802,8 +802,8 @@ export function HeroSection() {
       )}
 
       <Dialog open={isMentorModalOpen} onOpenChange={setIsMentorModalOpen}>
-        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto overflow-x-hidden flex flex-col items-center justify-center">
-          <DialogHeader className="pl-8 pr-12 pt-20 pb-0 w-full">
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
+          <DialogHeader className="pl-8 pr-12 pt-8 pb-4 w-full">
             <DialogTitle>Mentor Profile</DialogTitle>
             <DialogDescription>
               View mentor details and book a session.
