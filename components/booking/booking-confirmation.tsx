@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Calendar, Clock, Video, MessageSquare, Headphones, User, CreditCard, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
+import { PaymentForm } from './PaymentForm';
 
 interface Mentor {
   id: string;
@@ -218,6 +219,9 @@ export function BookingConfirmation({
         </Card>
       )}
 
+      {/* Payment Form */}
+      <PaymentForm />
+
       {/* Important Notes */}
       <Card className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
         <CardContent className="p-4">
@@ -265,7 +269,7 @@ export function BookingConfirmation({
               Booking...
             </>
           ) : (
-            'Confirm Booking'
+            'Confirm & Pay'
           )}
         </Button>
       </div>

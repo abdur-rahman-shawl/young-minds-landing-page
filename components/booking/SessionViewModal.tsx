@@ -48,26 +48,104 @@ export function SessionViewModal({ session, isOpen, onClose }: SessionViewModalP
     setIsCameraOn(false);
   };
 
-  const handleJoin = () => {
-    setStage('in-call')
-  }
+  const handleJoin = async () => {
+    if (session) {
+      try {
+        await fetch(`/api/bookings/${session.id}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'in_progress' }),
+          }
+        );
+      } catch (error) {
+        console.error("Failed to update session status to 'in_progress':", error);
+      }
+    }
+    setStage('in-call');
+  };
 
-  const handleTimeUp = () => {
-    setStage('rating')
-  }
+  const handleTimeUp = async () => {
+    if (session) {
+      try {
+        await fetch(`/api/bookings/${session.id}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'completed' }),
+          }
+        );
+      } catch (error) {
+        console.error("Failed to update session status to 'completed':", error);
+      }
+    }
+    setStage('rating');
+  };
 
-  const handleSubmitRating = (rating: number, feedback: string) => {
-    console.log("Rating submitted:", { rating, feedback, sessionId: session?.id })
-    setStage('success')
-    setTimeout(() => {
-      handleClose()
-    }, 3000)
-  }
+  const { session: authSession } = useAuth();
 
-  const handleSkipRating = () => {
-    console.log("Rating skipped for session:", session?.id)
-    handleClose()
-  }
+  const handleSubmitRating = async (rating: number, feedback: string) => {
+    if (!session || !authSession) {
+      toast.error("You must be logged in to submit a review.");
+      return;
+    }
+
+    const payload = {
+      sessionId: session.id,
+      revieweeId: session.mentorId,
+      rating: rating,
+      comment: feedback,
+      reviewerRole: 'mentee',
+    };
+
+    try {
+      const response = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit review');
+      }
+      
+      toast.success("Review submitted successfully!");
+      setStage('success');
+      setTimeout(() => {
+        handleClose();
+      }, 3000);
+
+    } catch (error) {
+      console.error("Failed to submit review:", error);
+      toast.error("There was an error submitting your review.");
+    }
+  };
+
+  const handleSkipRating = async () => {
+    if (!session || !authSession) {
+      return handleClose();
+    }
+
+    const payload = {
+      sessionId: session.id,
+      revieweeId: session.mentorId,
+      rating: 0, // 0 for skipped
+      comment: 'skipped',
+      reviewerRole: 'mentee',
+    };
+
+    try {
+      await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      console.error("Failed to record skipped review:", error);
+    }
+    
+    handleClose();
+  };
 
   const handleClose = () => {
     stopCamera() // Ensure camera is off when modal closes
