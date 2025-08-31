@@ -32,6 +32,13 @@ interface BookingFormProps {
     location?: string;
   }) => void;
   onBack: () => void;
+  initialData?: Partial<{
+    duration: number;
+    meetingType: 'video' | 'audio' | 'chat';
+    title: string;
+    description?: string;
+    location?: string;
+  }>;
 }
 
 const MEETING_TYPES = [
@@ -47,13 +54,13 @@ const DURATION_OPTIONS = [
   { value: 120, label: '2 hours', price: 2 },
 ];
 
-export function BookingForm({ scheduledAt, mentor, onSubmit, onBack }: BookingFormProps) {
+export function BookingForm({ scheduledAt, mentor, onSubmit, onBack, initialData }: BookingFormProps) {
   const [formData, setFormData] = useState({
-    duration: 60,
-    meetingType: 'video' as const,
-    title: '',
-    description: '',
-    location: '',
+    duration: initialData?.duration || 60,
+    meetingType: initialData?.meetingType || 'video' as const,
+    title: initialData?.title || '',
+    description: initialData?.description || '',
+    location: initialData?.location || '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});

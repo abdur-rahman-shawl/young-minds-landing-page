@@ -274,6 +274,7 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
                     <TimeSlotSelectorV2
                       mentorId={mentor.userId}
                       onTimeSelected={handleTimeSelection}
+                      initialSelectedTime={bookingData.scheduledAt}
                     />
                   </div>
                 )}
@@ -285,6 +286,7 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
                       mentor={mentor}
                       onSubmit={handleBookingDetails}
                       onBack={handleBackStep}
+                      initialData={bookingData}
                     />
                   </div>
                 )}

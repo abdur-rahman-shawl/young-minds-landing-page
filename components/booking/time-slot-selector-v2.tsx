@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 interface TimeSlotSelectorProps {
   mentorId: string;
   onTimeSelected: (selectedTime: Date) => void;
+  initialSelectedTime?: Date;
 }
 
 interface AvailableSlot {
@@ -38,15 +39,15 @@ interface MonthAvailability {
   [day: string]: boolean; // format: "yyyy-MM-dd"
 }
 
-export function TimeSlotSelectorV2({ mentorId, onTimeSelected }: TimeSlotSelectorProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<Date>();
+export function TimeSlotSelectorV2({ mentorId, onTimeSelected, initialSelectedTime }: TimeSlotSelectorProps) {
+  const [currentMonth, setCurrentMonth] = useState(initialSelectedTime || new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialSelectedTime);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<Date | undefined>(initialSelectedTime);
   
   const [dailySlots, setDailySlots] = useState<AvailableSlot[]>([]);
   const [monthAvailability, setMonthAvailability] = useState<MonthAvailability>({});
   
-  const [dailyLoading, setDailyLoading] = useState(true);
+  const [dailyLoading, setDailyLoading] = useState(false);
   const [monthLoading, setMonthLoading] = useState(true);
 
   const [mentorTimezone, setMentorTimezone] = useState<string>('UTC');
@@ -124,6 +125,16 @@ export function TimeSlotSelectorV2({ mentorId, onTimeSelected }: TimeSlotSelecto
     }
   }, [selectedDate, fetchDailySlots]);
 
+  // Auto-select today if it has availability and no initial time is set
+  useEffect(() => {
+    if (!initialSelectedTime && !monthLoading) {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      if (monthAvailability[todayStr]) {
+        setSelectedDate(new Date());
+      }
+    }
+  }, [initialSelectedTime, monthLoading, monthAvailability]);
+
   const handleDateClick = (day: Date) => {
     if (isPast(day) && !isToday(day)) return;
     setSelectedDate(day);
@@ -144,6 +155,9 @@ export function TimeSlotSelectorV2({ mentorId, onTimeSelected }: TimeSlotSelecto
   const navigateMonth = (direction: 'prev' | 'next') => {
     const newMonth = direction === 'prev' ? subMonths(currentMonth, 1) : addMonths(currentMonth, 1);
     setCurrentMonth(newMonth);
+    setSelectedDate(undefined);
+    setSelectedTimeSlot(undefined);
+    setDailySlots([]);
   };
 
   return (
@@ -152,13 +166,13 @@ export function TimeSlotSelectorV2({ mentorId, onTimeSelected }: TimeSlotSelecto
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-4">
-            <Button variant="ghost" size="icon" onClick={() => navigateMonth('prev')}>
+            <Button aria-label="Previous month" variant="ghost" size="icon" onClick={() => navigateMonth('prev')}>
               <ChevronLeft className="h-5 w-5" />
             </Button>
             <h3 className="text-lg font-semibold">
               {format(currentMonth, 'MMMM yyyy')}
             </h3>
-            <Button variant="ghost" size="icon" onClick={() => navigateMonth('next')}>
+            <Button aria-label="Next month" variant="ghost" size="icon" onClick={() => navigateMonth('next')}>
               <ChevronRight className="h-5 w-5" />
             </Button>
           </div>
@@ -179,14 +193,16 @@ export function TimeSlotSelectorV2({ mentorId, onTimeSelected }: TimeSlotSelecto
                 const isSelectable = !isDayInPast && hasAvailability;
 
                 return (
-                  <div key={day.toString()} className="py-1">
+                  <div key={day.toString()} className="py-1 flex justify-center">
                     <Button
                       variant={selectedDate && isSameDay(day, selectedDate) ? 'default' : 'ghost'}
                       className={cn(
-                        "w-10 h-10 p-0 rounded-full",
-                        !isDayInCurrentMonth && "text-gray-400 dark:text-gray-500",
-                        isToday(day) && "ring-2 ring-blue-500 dark:ring-blue-400",
-                        !isSelectable && "text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50"
+                        "w-10 h-10 p-0 rounded-full font-semibold",
+                        !isDayInCurrentMonth && "text-gray-300 dark:text-gray-600",
+                        isToday(day) && !isSameDay(day, selectedDate) && "bg-blue-100/60 dark:bg-blue-900/30",
+                        selectedDate && isSameDay(day, selectedDate) && "bg-blue-600 text-white hover:bg-blue-700",
+                        !isSelectable && "text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50 line-through",
+                        isSelectable && !isSameDay(day, selectedDate) && "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                       )}
                       onClick={() => isSelectable && handleDateClick(day)}
                       disabled={!isSelectable}
@@ -217,11 +233,11 @@ export function TimeSlotSelectorV2({ mentorId, onTimeSelected }: TimeSlotSelecto
           </h4>
           <div className="border rounded-lg p-4 max-h-60 overflow-y-auto">
             {dailyLoading ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
               </div>
             ) : dailySlots.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {dailySlots.map((slot, index) => {
                   const slotTime = parseISO(slot.startTime);
                   const isSelected = selectedTimeSlot && selectedTimeSlot.getTime() === slotTime.getTime();
@@ -230,6 +246,7 @@ export function TimeSlotSelectorV2({ mentorId, onTimeSelected }: TimeSlotSelecto
                       key={index}
                       variant={isSelected ? 'default' : 'outline'}
                       onClick={() => handleTimeSlotSelection(slot)}
+                      className={cn(isSelected && "bg-blue-600 hover:bg-blue-700")}
                     >
                       {format(slotTime, 'h:mm a')}
                     </Button>
@@ -249,11 +266,15 @@ export function TimeSlotSelectorV2({ mentorId, onTimeSelected }: TimeSlotSelecto
 
       {/* Confirmation Button */}
       {selectedTimeSlot && (
-        <div className="pt-4 text-center border-t mt-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-            You selected: <span className="font-semibold text-gray-900 dark:text-white">{format(selectedTimeSlot, 'h:mm a')}</span>
+        <div className="pt-6 text-center border-t-2 border-dashed mt-6">
+           <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            Selected slot:
           </p>
-          <Button onClick={handleConfirm} size="lg">
+          <div className="inline-flex items-center bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full px-4 py-2 font-semibold mb-4">
+             <Calendar className="w-4 h-4 mr-2" />
+             {format(selectedTimeSlot, 'EEEE, MMMM d')} at {format(selectedTimeSlot, 'h:mm a')}
+          </div>
+          <Button onClick={handleConfirm} size="lg" className="w-full sm:w-auto">
             Confirm Time and Continue
           </Button>
         </div>
