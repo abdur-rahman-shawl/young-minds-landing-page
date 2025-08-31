@@ -10,7 +10,7 @@ import { QueryProvider } from "@/providers/query-provider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "YoungMinds",
+  title: "SharingMinds",
   description: "A personalized mentor and mentee connect platform.",
     generator: 'v0.dev'
 }

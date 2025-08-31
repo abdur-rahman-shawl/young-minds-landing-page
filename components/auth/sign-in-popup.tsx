@@ -57,7 +57,7 @@ export function SignInPopup({ isOpen, onClose, callbackUrl = "/dashboard" }: Sig
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center text-2xl font-bold">
-            Welcome to Young Minds
+            Welcome to Sharing Minds
           </DialogTitle>
         </DialogHeader>
         

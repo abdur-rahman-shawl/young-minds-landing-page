@@ -79,7 +79,7 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
               className="text-lg font-bold cursor-pointer transition-colors"
               onClick={handleLogoClick}
             >
-              Young<span className="text-blue-500">Minds</span>
+              Sharing<span className="text-blue-500">Minds</span>
             </div>
           </div>
           
@@ -114,7 +114,7 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
               className="text-xl lg:text-2xl font-bold cursor-pointer hover:text-blue-500 transition-colors" 
               onClick={handleLogoClick}
             >
-              Young<span className="text-blue-500">Minds</span>
+              Sharing<span className="text-blue-500">Minds</span>
             </div>
             <nav className="hidden md:flex space-x-8">
               <a
