@@ -4,6 +4,8 @@ export const users = pgTable('users', {
   // BetterAuth compatible fields
   id: text('id').primaryKey(), // BetterAuth expects text ID
   email: text('email').notNull().unique(),
+  password: text('password'),
+  authProvider: text('authProvider').default('google'),
   emailVerified: boolean('email_verified').default(false),
   name: text('name'),
   image: text('image'),
