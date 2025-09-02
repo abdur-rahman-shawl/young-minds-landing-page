@@ -3,13 +3,19 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/layout/header';
-import { MentorSidebar } from '@/components/mentor/sidebars/mentor-sidebar';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { MentorAvailabilityManager } from '@/components/mentor/availability/mentor-availability-manager';
 import { useAuth } from '@/contexts/auth-context';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import dynamic from 'next/dynamic';
+
+const DynamicMentorSidebar = dynamic(() => import('@/components/mentor/sidebars/mentor-sidebar').then(mod => mod.MentorSidebar), {
+  ssr: false,
+  loading: () => <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+});
+
 
 export default function MentorAvailabilityPage() {
   const { session, mentorProfile, isLoading } = useAuth();
@@ -41,9 +47,9 @@ export default function MentorAvailabilityPage() {
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
         <SidebarProvider defaultOpen={false}>
           <div className="flex min-h-screen w-full">
-            <MentorSidebar 
-              activeSection="availability" 
-              onSectionChange={() => {}} 
+            <DynamicMentorSidebar
+              activeSection="availability"
+              onSectionChange={() => {}}
             />
             <SidebarInset className="flex flex-col flex-1">
               <Header />
@@ -67,12 +73,12 @@ export default function MentorAvailabilityPage() {
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
         <SidebarProvider defaultOpen={false}>
           <div className="flex min-h-screen w-full">
-            <MentorSidebar 
-              activeSection="availability" 
+            <DynamicMentorSidebar
+              activeSection="availability"
               onSectionChange={(section) => {
                 if (section === 'availability') return;
                 router.push(`/?section=${section}`);
-              }} 
+              }}
             />
             <SidebarInset className="flex flex-col flex-1">
               <Header />
@@ -119,12 +125,12 @@ export default function MentorAvailabilityPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full">
-          <MentorSidebar 
-            activeSection="availability" 
+          <DynamicMentorSidebar
+            activeSection="availability"
             onSectionChange={(section) => {
               if (section === 'availability') return;
               router.push(`/?section=${section}`);
-            }} 
+            }}
           />
           <SidebarInset className="flex flex-col flex-1">
             <Header />

@@ -370,7 +370,7 @@ export default function BecomeExpertPage() {
                         </div>
                         {otpError && <p className="text-sm text-red-500 mt-1">{otpError}</p>}
                         <p className="text-xs text-muted-foreground text-center">
-                          Didn't receive the OTP?{' '}
+                          Didn&apos;t receive the OTP?{' '}
                           {isCountingDown ? (
                             `Resend in ${countdown}s`
                           ) : (
@@ -606,7 +606,7 @@ export default function BecomeExpertPage() {
                 <UserCheck className="mx-auto h-8 w-8 text-green-500 dark:text-green-400 mb-2" />
                 <h3 className="font-semibold">Sign in to Continue</h3>
                 <p className="text-sm text-muted-foreground">
-                  You'll need to sign in with your Google account to apply as an expert
+                  You&apos;ll need to sign in with your Google account to apply as an expert
                 </p>
               </div>
               

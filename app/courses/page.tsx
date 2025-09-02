@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -87,7 +87,7 @@ function CoursesContent() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || '');
   const [selectedDifficulty, setSelectedDifficulty] = useState(searchParams.get('difficulty') || '');
-  const [minPrice, setMinPrice] = useState(searchParams.get('minPrice') || '');
+    const [minPrice, setMinPrice] = useState(searchParams.get('minPrice') || '');
   const [maxPrice, setMaxPrice] = useState(searchParams.get('maxPrice') || '');
   const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'created_at');
   const [sortOrder, setSortOrder] = useState(searchParams.get('sortOrder') || 'desc');
@@ -121,7 +121,7 @@ function CoursesContent() {
   };
 
   // Fetch courses
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -143,19 +143,19 @@ function CoursesContent() {
       if (data.success) {
         setCourses(data.data.courses);
         setCategories(data.data.filters.categories);
-        setPagination(data.data.pagination);
+                setPagination(data.data.pagination);
       }
     } catch (error) {
       console.error('Error fetching courses:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, debouncedSearch, maxPrice, minPrice, selectedCategory, selectedDifficulty, sortBy, sortOrder]);
 
   // Effects
   useEffect(() => {
     fetchCourses();
-  }, [debouncedSearch, selectedCategory, selectedDifficulty, minPrice, maxPrice, sortBy, sortOrder, currentPage]);
+  }, [fetchCourses]);
 
   useEffect(() => {
     updateURL({

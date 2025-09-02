@@ -47,11 +47,11 @@ export default function MentorVerificationPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
-                  You'll receive an email notification with our decision
+                  You&apos;ll receive an email notification with our decision
                 </li>
                 <li className="flex items-start gap-2">
                   <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
-                  Once approved, you'll get access to your mentor dashboard
+                  Once approved, you&apos;ll get access to your mentor dashboard
                 </li>
               </ul>
             </div>
@@ -64,7 +64,7 @@ export default function MentorVerificationPage() {
                 </span>
               </div>
               <p className="text-sm text-blue-800">
-                We've sent a confirmation email with your application details.
+                We&apos;ve sent a confirmation email with your application details.
               </p>
             </div>
           </CardContent>
