@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json();
+    const { id, email, password } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json({ success: false, error: "Email and password required" }, { status: 400 });
@@ -17,9 +17,10 @@ export async function POST(req: NextRequest) {
 
     // Insert user (fail if email already registered)
     await db.insert(users).values({
+      id,
       email,
       passwordHash: passwordHash,
-      authProvider: 'PASSWORD'
+      authenticationProvider: 'PASSWORD'
     });
 
     return NextResponse.json({ success: true, message: "User registered successfully" });
