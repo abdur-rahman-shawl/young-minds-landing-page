@@ -1,6 +1,6 @@
 {
-  "id": "b954a6ab-36cc-4bb9-baf2-57edb3d87b3d",
-  "prevId": "90510080-ecd7-4f45-b82f-fcec456c1851",
+  "id": "0041d471-8096-4f4a-bec2-e2537744c950",
+  "prevId": "8b7284ca-8396-4794-abfc-f6f8cc67d9bd",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1597,18 +1597,19 @@
           "primaryKey": false,
           "notNull": true
         },
-        "password": {
-          "name": "password",
+        "password_hash": {
+          "name": "password_hash",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "authProvider": {
-          "name": "authProvider",
-          "type": "text",
+        "authentication_provider": {
+          "name": "authentication_provider",
+          "type": "authentication_provider",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": false,
-          "default": "'google'"
+          "default": "'GOOGLE'"
         },
         "email_verified": {
           "name": "email_verified",
@@ -5811,6 +5812,14 @@
         "IN_PROGRESS",
         "COMPLETED",
         "SKIPPED"
+      ]
+    },
+    "public.authentication_provider": {
+      "name": "authentication_provider",
+      "schema": "public",
+      "values": [
+        "PASSWORD",
+        "GOOGLE"
       ]
     },
     "public.verification_status": {

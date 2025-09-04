@@ -127,6 +127,13 @@
       "when": 1756499620684,
       "tag": "0017_woozy_hedge_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1756996114637,
+      "tag": "0019_pale_krista_starr",
+      "breakpoints": true
     }
   ]
 }

@@ -18,8 +18,8 @@ export async function POST(req: NextRequest) {
     // Insert user (fail if email already registered)
     await db.insert(users).values({
       email,
-      password: passwordHash,
-      authProvider: 'password'
+      passwordHash: passwordHash,
+      authProvider: 'PASSWORD'
     });
 
     return NextResponse.json({ success: true, message: "User registered successfully" });
