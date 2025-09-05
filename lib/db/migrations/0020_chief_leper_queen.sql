@@ -33,3 +33,11 @@ ALTER TABLE "cities" ADD CONSTRAINT "cities_country_id_countries_id_fk" FOREIGN 
 ALTER TABLE "cities" ADD CONSTRAINT "cities_country_code_countries_code_fk" FOREIGN KEY ("country_code") REFERENCES "public"."countries"("code") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "states" ADD CONSTRAINT "states_country_id_countries_id_fk" FOREIGN KEY ("country_id") REFERENCES "public"."countries"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "states" ADD CONSTRAINT "states_country_code_countries_code_fk" FOREIGN KEY ("country_code") REFERENCES "public"."countries"("code") ON DELETE no action ON UPDATE no action;
+
+-- ======== INDEXES FOR THE 'states' TABLE ========
+CREATE INDEX idx_states_country_id ON states(country_id);
+
+
+-- ======== INDEXES FOR THE 'cities' TABLE ========
+CREATE INDEX idx_cities_state_id ON cities(state_id);
+CREATE INDEX idx_cities_country_id ON cities(country_id);
