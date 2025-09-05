@@ -134,10 +134,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         });
       }
 
-      const module = modulesMap.get(item.moduleId);
+      const moduleData = modulesMap.get(item.moduleId);
 
-      if (item.sectionId && !module.sections.has(item.sectionId)) {
-        module.sections.set(item.sectionId, {
+      if (item.sectionId && !moduleData.sections.has(item.sectionId)) {
+        moduleData.sections.set(item.sectionId, {
           id: item.sectionId,
           title: item.sectionTitle,
           description: item.sectionDescription,
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
 
       if (item.contentItemId && item.sectionId) {
-        const section = module.sections.get(item.sectionId);
+        const section = moduleData.sections.get(item.sectionId);
         section.contentItems.push({
           id: item.contentItemId,
           title: item.contentItemTitle,

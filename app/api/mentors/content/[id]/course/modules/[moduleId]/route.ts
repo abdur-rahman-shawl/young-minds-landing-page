@@ -62,7 +62,7 @@ export async function GET(
     }
 
     // Get specific module
-    const module = await db.select()
+    const moduleData = await db.select()
       .from(courseModules)
       .where(and(
         eq(courseModules.id, moduleId),
@@ -70,11 +70,11 @@ export async function GET(
       ))
       .limit(1);
 
-    if (!module.length) {
+    if (!moduleData.length) {
       return NextResponse.json({ error: 'Module not found' }, { status: 404 });
     }
 
-    return NextResponse.json(module[0]);
+    return NextResponse.json(moduleData[0]);
   } catch (error) {
     console.error('Error fetching module:', error);
     return NextResponse.json(

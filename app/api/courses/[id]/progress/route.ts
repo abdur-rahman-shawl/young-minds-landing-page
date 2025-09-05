@@ -148,12 +148,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         });
       }
 
-      const module = modulesMap.get(item.moduleId);
-      module.progress.totalItems++;
+      const moduleData = modulesMap.get(item.moduleId);
+      moduleData.progress.totalItems++;
 
       // Structure sections
-      if (!module.sections.has(item.sectionId)) {
-        module.sections.set(item.sectionId, {
+      if (!moduleData.sections.has(item.sectionId)) {
+        moduleData.sections.set(item.sectionId, {
           id: item.sectionId,
           title: item.sectionTitle,
           orderIndex: item.sectionOrderIndex,
@@ -166,7 +166,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         });
       }
 
-      const section = module.sections.get(item.sectionId);
+      const section = moduleData.sections.get(item.sectionId);
       section.progress.totalItems++;
 
       // Add content item with progress
@@ -205,7 +205,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       // Update section progress
       if (item.status === 'COMPLETED') {
         section.progress.completedItems++;
-        module.progress.completedItems++;
+        moduleData.progress.completedItems++;
       }
     });
 
