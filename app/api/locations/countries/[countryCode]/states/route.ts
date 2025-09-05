@@ -7,7 +7,7 @@ export async function GET(
   request: Request,
   { params }: { params: { countryCode: string } }
 ) {
-  const { countryCode } = params;
+  const { countryCode } = await params;
 
   if (!countryCode) {
     return NextResponse.json(
