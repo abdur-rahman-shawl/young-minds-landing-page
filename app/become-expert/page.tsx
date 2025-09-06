@@ -22,13 +22,23 @@ export default function BecomeExpertPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<z.ZodError | null>(null)
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null)
+  
+  const [countries, setCountries] = useState<{ id: number; name: string }[]>([]);
+  const [states, setStates] = useState<{ id: number; name: string }[]>([]);
+  const [cities, setCities] = useState<{ id: number; name: string }[]>([]);
+  const [locationsLoading, setLocationsLoading] = useState({
+    countries: false,
+    states: false,
+    cities: false,
+  });
+
   const [mentorFormData, setMentorFormData] = useState<{
     fullName: string;
     email: string;
     phone: string;
-    country: string;
-    state: string;
-    city: string;
+    countryId: string;
+    stateId: string;
+    cityId: string;
     title: string;
     company: string;
     industry: string;
@@ -44,9 +54,9 @@ export default function BecomeExpertPage() {
     fullName: "",
     email: "",
     phone: "",
-    country: "India",
-    state: "",
-    city: "",
+    countryId: "",
+    stateId: "",
+    cityId: "",
     title: "",
     company: "",
     industry: "",
@@ -59,6 +69,68 @@ export default function BecomeExpertPage() {
     termsAccepted: false,
     availability: "",
   })
+
+  useEffect(() => {
+    const fetchCountries = async () => {
+      setLocationsLoading(prev => ({ ...prev, countries: true }));
+      try {
+        const response = await fetch('/api/locations/countries');
+        const data = await response.json();
+        setCountries(data);
+        // Automatically select India if it exists
+        const india = data.find((c: { name: string; }) => c.name === 'India');
+        if (india) {
+          setMentorFormData(prev => ({ ...prev, countryId: india.id.toString() }));
+        }
+      } catch (error) {
+        console.error("Failed to fetch countries", error);
+      } finally {
+        setLocationsLoading(prev => ({ ...prev, countries: false }));
+      }
+    };
+    fetchCountries();
+  }, []);
+
+  useEffect(() => {
+    if (mentorFormData.countryId) {
+      const fetchStates = async () => {
+        setLocationsLoading(prev => ({ ...prev, states: true }));
+        setStates([]);
+        setCities([]);
+        setMentorFormData(prev => ({ ...prev, stateId: "", cityId: "" }));
+        try {
+          const response = await fetch(`/api/locations/states?countryId=${mentorFormData.countryId}`);
+          const data = await response.json();
+          setStates(data);
+        } catch (error) {
+          console.error("Failed to fetch states", error);
+        } finally {
+          setLocationsLoading(prev => ({ ...prev, states: false }));
+        }
+      };
+      fetchStates();
+    }
+  }, [mentorFormData.countryId]);
+
+  useEffect(() => {
+    if (mentorFormData.stateId) {
+      const fetchCities = async () => {
+        setLocationsLoading(prev => ({ ...prev, cities: true }));
+        setCities([]);
+        setMentorFormData(prev => ({ ...prev, cityId: "" }));
+        try {
+          const response = await fetch(`/api/locations/cities?stateId=${mentorFormData.stateId}`);
+          const data = await response.json();
+          setCities(data);
+        } catch (error) {
+          console.error("Failed to fetch cities", error);
+        } finally {
+          setLocationsLoading(prev => ({ ...prev, cities: false }));
+        }
+      };
+      fetchCities();
+    }
+  }, [mentorFormData.stateId]);
 
   const [otp, setOtp] = useState("")
   const [showOtpInput, setShowOtpInput] = useState(false)
@@ -211,16 +283,21 @@ export default function BecomeExpertPage() {
         return
       }
 
-      const validatedData = mentorApplicationSchema.parse(mentorFormData);
+      const validatedData = mentorApplicationSchema.parse({
+        ...mentorFormData,
+        country: mentorFormData.countryId,
+        state: mentorFormData.stateId,
+        city: mentorFormData.cityId,
+      });
 
       const formData = new FormData();
       formData.append('userId', session.user.id);
       formData.append('fullName', validatedData.fullName);
       formData.append('email', validatedData.email);
       formData.append('phone', validatedData.phone);
-      formData.append('country', validatedData.country);
-      formData.append('state', validatedData.state);
-      formData.append('city', validatedData.city);
+      formData.append('countryId', validatedData.country);
+      formData.append('stateId', validatedData.state);
+      formData.append('cityId', validatedData.city);
       formData.append('title', validatedData.title);
       formData.append('company', validatedData.company);
       formData.append('industry', validatedData.industry);
@@ -417,34 +494,57 @@ export default function BecomeExpertPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="country">Country <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="country"
-                      value={mentorFormData.country}
-                      onChange={e => setMentorFormData(prev => ({ ...prev, country: e.target.value }))}
-                      placeholder="Your Country"
+                    <Select
+                      value={mentorFormData.countryId}
+                      onValueChange={value => setMentorFormData(prev => ({ ...prev, countryId: value }))}
                       required
                       disabled
-                    />
+                    >
+                      <SelectTrigger id="country">
+                        <SelectValue placeholder="Select Country..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {countries.map(country => (
+                          <SelectItem key={country.id} value={country.id.toString()}>{country.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label htmlFor="state">State <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="state"
-                      value={mentorFormData.state}
-                      onChange={e => setMentorFormData(prev => ({ ...prev, state: e.target.value }))}
-                      placeholder="Your State"
+                    <Select
+                      value={mentorFormData.stateId}
+                      onValueChange={value => setMentorFormData(prev => ({ ...prev, stateId: value }))}
                       required
-                    />
+                      disabled={locationsLoading.states || states.length === 0}
+                    >
+                      <SelectTrigger id="state">
+                        <SelectValue placeholder={locationsLoading.states ? "Loading..." : "Select State..."} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {states.map(state => (
+                          <SelectItem key={state.id} value={state.id.toString()}>{state.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label htmlFor="city">City <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="city"
-                      value={mentorFormData.city}
-                      onChange={e => setMentorFormData(prev => ({ ...prev, city: e.target.value }))}
-                      placeholder="Your City"
+                    <Select
+                      value={mentorFormData.cityId}
+                      onValueChange={value => setMentorFormData(prev => ({ ...prev, cityId: value }))}
                       required
-                    />
+                      disabled={locationsLoading.cities || cities.length === 0}
+                    >
+                      <SelectTrigger id="city">
+                        <SelectValue placeholder={locationsLoading.cities ? "Loading..." : "Select City..."} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cities.map(city => (
+                          <SelectItem key={city.id} value={city.id.toString()}>{city.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
