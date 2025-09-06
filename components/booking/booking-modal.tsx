@@ -1,7 +1,23 @@
 "use client"
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -50,12 +66,32 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
   const [bookingData, setBookingData] = useState<Partial<BookingData>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingId, setBookingId] = useState<string>();
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
 
-  const handleClose = () => {
+  const resetState = () => {
     setCurrentStep('time-selection');
     setBookingData({});
     setBookingId(undefined);
     onClose();
+  };
+
+  const handleAttemptClose = () => {
+    // If user hasn't made progress, just close.
+    if (currentStep === 'time-selection' && !bookingData.scheduledAt) {
+      resetState();
+    } else {
+      // Otherwise, show confirmation.
+      setIsCloseConfirmOpen(true);
+    }
+  };
+
+  const handleConfirmClose = () => {
+    resetState();
+    setIsCloseConfirmOpen(false);
+  };
+
+  const handleCancelClose = () => {
+    setIsCloseConfirmOpen(false);
   };
 
   const handleTimeSelection = (scheduledAt: Date) => {
@@ -120,7 +156,7 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
         setCurrentStep('details');
         break;
       default:
-        handleClose();
+        handleAttemptClose();
     }
   };
 
@@ -148,187 +184,206 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
-        <div className="flex flex-col flex-1 min-h-0">
-          {/* Header */}
-          <DialogHeader className="p-6 pb-4 border-b border-gray-100 dark:border-gray-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
-                  {getStepTitle()}
-                </DialogTitle>
-                <DialogDescription className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Book a mentoring session with {mentor.fullName}
-                </DialogDescription>
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && handleAttemptClose()}>
+        <DialogContent
+          className="max-w-4xl h-[90vh] flex flex-col p-0"
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <div className="flex flex-col flex-1 min-h-0">
+            {/* Header */}
+            <DialogHeader className="p-6 pb-4 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {getStepTitle()}
+                  </DialogTitle>
+                  <DialogDescription className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Book a mentoring session with {mentor.fullName}
+                  </DialogDescription>
+                </div>
               </div>
-            </div>
-            
-            {/* Progress Steps */}
-            <div className="flex items-center space-x-2 mt-4">
-              {['time-selection', 'details', 'confirmation', 'success'].map((step, index) => (
-                <div key={step} className="flex items-center">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
-                      currentStep === step
-                        ? 'bg-blue-500 text-white'
-                        : index < ['time-selection', 'details', 'confirmation', 'success'].indexOf(currentStep)
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                    }`}
-                  >
-                    {index < ['time-selection', 'details', 'confirmation', 'success'].indexOf(currentStep) ? (
-                      <CheckCircle className="w-4 h-4" />
-                    ) : (
-                      index + 1
+              
+              {/* Progress Steps */}
+              <div className="flex items-center space-x-2 mt-4">
+                {['time-selection', 'details', 'confirmation', 'success'].map((step, index) => (
+                  <div key={step} className="flex items-center">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
+                        currentStep === step
+                          ? 'bg-blue-500 text-white'
+                          : index < ['time-selection', 'details', 'confirmation', 'success'].indexOf(currentStep)
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                      }`}
+                    >
+                      {index < ['time-selection', 'details', 'confirmation', 'success'].indexOf(currentStep) ? (
+                        <CheckCircle className="w-4 h-4" />
+                      ) : (
+                        index + 1
+                      )}
+                    </div>
+                    {index < 3 && (
+                      <div className={`w-12 h-0.5 ${
+                        index < ['time-selection', 'details', 'confirmation', 'success'].indexOf(currentStep)
+                          ? 'bg-green-500'
+                          : 'bg-gray-200 dark:bg-gray-700'
+                      }`} />
                     )}
                   </div>
-                  {index < 3 && (
-                    <div className={`w-12 h-0.5 ${
-                      index < ['time-selection', 'details', 'confirmation', 'success'].indexOf(currentStep)
-                        ? 'bg-green-500'
-                        : 'bg-gray-200 dark:bg-gray-700'
-                    }`} />
-                  )}
-                </div>
-              ))}
-            </div>
-          </DialogHeader>
+                ))}
+              </div>
+            </DialogHeader>
 
-          {/* Content */}
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <div className="grid grid-cols-1 lg:grid-cols-3 h-full">
-              {/* Left Side - Mentor Info */}
-              <div className="lg:col-span-1 p-6 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-100 dark:border-gray-800">
-                <div className="sticky top-0">
-                  {/* Mentor Profile */}
-                  <div className="text-center mb-6">
-                    <Avatar className="h-20 w-20 mx-auto mb-4 ring-4 ring-white dark:ring-gray-800 shadow-lg">
-                      <AvatarImage src={mentor.profileImageUrl} />
-                      <AvatarFallback className="text-lg font-semibold bg-gradient-to-br from-blue-400 to-purple-500 text-white">
-                        {mentor.fullName?.charAt(0) || 'M'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
-                      {mentor.fullName}
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {mentor.title} {mentor.company && `at ${mentor.company}`}
-                    </p>
-                  </div>
-
-                  <Separator className="mb-6" />
-
-                  {/* Pricing */}
-                  <div className="mb-6">
-                    <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center space-x-2">
-                        <DollarSign className="h-4 w-4 text-green-500" />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Hourly Rate
-                        </span>
-                      </div>
-                      <Badge variant="secondary" className="text-sm font-semibold">
-                        {formatCurrency(mentor.hourlyRate, mentor.currency)}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Expertise */}
-                  {mentor.expertise && (
-                    <div className="mb-6">
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Expertise
-                      </h4>
-                      <div className="flex flex-wrap gap-1">
-                        {parseExpertise(mentor.expertise).slice(0, 4).map((skill: string, index: number) => (
-                          <Badge key={index} variant="outline" className="text-xs">
-                            {skill}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* About */}
-                  {mentor.about && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        About
-                      </h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                        {mentor.about.length > 150 
-                          ? `${mentor.about.substring(0, 150)}...` 
-                          : mentor.about
-                        }
+            {/* Content */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-3 h-full">
+                {/* Left Side - Mentor Info */}
+                <div className="lg:col-span-1 p-6 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-100 dark:border-gray-800">
+                  <div className="sticky top-0">
+                    {/* Mentor Profile */}
+                    <div className="text-center mb-6">
+                      <Avatar className="h-20 w-20 mx-auto mb-4 ring-4 ring-white dark:ring-gray-800 shadow-lg">
+                        <AvatarImage src={mentor.profileImageUrl} />
+                        <AvatarFallback className="text-lg font-semibold bg-gradient-to-br from-blue-400 to-purple-500 text-white">
+                          {mentor.fullName?.charAt(0) || 'M'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
+                        {mentor.fullName}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {mentor.title} {mentor.company && `at ${mentor.company}`}
                       </p>
                     </div>
+
+                    <Separator className="mb-6" />
+
+                    {/* Pricing */}
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center space-x-2">
+                          <DollarSign className="h-4 w-4 text-green-500" />
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Hourly Rate
+                          </span>
+                        </div>
+                        <Badge variant="secondary" className="text-sm font-semibold">
+                          {formatCurrency(mentor.hourlyRate, mentor.currency)}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Expertise */}
+                    {mentor.expertise && (
+                      <div className="mb-6">
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Expertise
+                        </h4>
+                        <div className="flex flex-wrap gap-1">
+                          {parseExpertise(mentor.expertise).slice(0, 4).map((skill: string, index: number) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* About */}
+                    {mentor.about && (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          About
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                          {mentor.about.length > 150 
+                            ? `${mentor.about.substring(0, 150)}...` 
+                            : mentor.about
+                          }
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Side - Booking Steps */}
+                <div className="lg:col-span-2 flex flex-col overflow-hidden">
+                  {currentStep === 'time-selection' && (
+                    <div className="p-6 overflow-y-auto">
+                      <TimeSlotSelectorV2
+                        mentorId={mentor.userId}
+                        onTimeSelected={handleTimeSelection}
+                        initialSelectedTime={bookingData.scheduledAt}
+                      />
+                    </div>
+                  )}
+
+                  {currentStep === 'details' && bookingData.scheduledAt && (
+                    <div className="h-[calc(90vh-200px)]">
+                      <BookingForm
+                        scheduledAt={bookingData.scheduledAt}
+                        mentor={mentor}
+                        onSubmit={handleBookingDetails}
+                        onBack={handleBackStep}
+                        initialData={bookingData}
+                      />
+                    </div>
+                  )}
+
+                  {currentStep === 'confirmation' && (
+                    <div className="p-6 overflow-y-auto">
+                      <BookingConfirmation
+                        bookingData={bookingData as BookingData}
+                        mentor={mentor}
+                        onConfirm={handleConfirmBooking}
+                        onBack={handleBackStep}
+                        isSubmitting={isSubmitting}
+                      />
+                    </div>
+                  )}
+
+                  {currentStep === 'success' && bookingId && (
+                    <div className="p-6 text-center py-12">
+                      <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <CheckCircle className="w-8 h-8 text-green-500" />
+                      </div>
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                        Session Booked Successfully!
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-400 mb-6">
+                        You'll receive a confirmation email shortly with meeting details.
+                      </p>
+                      <div className="flex justify-center space-x-3">
+                        <Button onClick={resetState} variant="outline">
+                          Close
+                        </Button>
+                        <Button onClick={() => window.location.href = '/dashboard?section=sessions'}>
+                          View My Sessions
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-
-              {/* Right Side - Booking Steps */}
-              <div className="lg:col-span-2 flex flex-col overflow-hidden">
-                {currentStep === 'time-selection' && (
-                  <div className="p-6 overflow-y-auto">
-                    <TimeSlotSelectorV2
-                      mentorId={mentor.userId}
-                      onTimeSelected={handleTimeSelection}
-                      initialSelectedTime={bookingData.scheduledAt}
-                    />
-                  </div>
-                )}
-
-                {currentStep === 'details' && bookingData.scheduledAt && (
-                  <div className="h-[calc(90vh-200px)]">
-                    <BookingForm
-                      scheduledAt={bookingData.scheduledAt}
-                      mentor={mentor}
-                      onSubmit={handleBookingDetails}
-                      onBack={handleBackStep}
-                      initialData={bookingData}
-                    />
-                  </div>
-                )}
-
-                {currentStep === 'confirmation' && (
-                  <div className="p-6 overflow-y-auto">
-                    <BookingConfirmation
-                      bookingData={bookingData as BookingData}
-                      mentor={mentor}
-                      onConfirm={handleConfirmBooking}
-                      onBack={handleBackStep}
-                      isSubmitting={isSubmitting}
-                    />
-                  </div>
-                )}
-
-                {currentStep === 'success' && bookingId && (
-                  <div className="p-6 text-center py-12">
-                    <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <CheckCircle className="w-8 h-8 text-green-500" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                      Session Booked Successfully!
-                    </h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-6">
-                      You'll receive a confirmation email shortly with meeting details.
-                    </p>
-                    <div className="flex justify-center space-x-3">
-                      <Button onClick={handleClose} variant="outline">
-                        Close
-                      </Button>
-                      <Button onClick={() => window.location.href = '/dashboard?section=sessions'}>
-                        View My Sessions
-                      </Button>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog open={isCloseConfirmOpen} onOpenChange={setIsCloseConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to close?</AlertDialogTitle>
+            <AlertDialogDescription>
+              If you close now, your booking progress will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelClose}>Continue Booking</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmClose}>Close Anyway</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
