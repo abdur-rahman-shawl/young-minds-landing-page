@@ -83,6 +83,28 @@ export function SignInPopup({ isOpen, onClose, callbackUrl = "/dashboard" }: Sig
                 <FcGoogle className="h-5 w-5" />
                 {isLoading ? "Signing in..." : "Continue with Google"}
               </Button>
+
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-primary/5 px-2 text-muted-foreground">
+                    Or
+                  </span>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => {
+                  onClose();
+                  router.push('/auth/signin');
+                }}
+                disabled={isLoading}
+                className="w-full"
+              >
+                Continue with Email
+              </Button>
             </CardContent>
           </Card>
 

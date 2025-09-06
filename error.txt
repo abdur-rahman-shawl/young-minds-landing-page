@@ -1,0 +1,18 @@
+dotenv@17.2.1] injecting env (0) from .env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+ POST /api/auth/verify-otp 200 in 2066ms
+ GET /auth/signin?verified=true 200 in 448ms
+ GET /auth/signin?verified=true 200 in 877ms
+ GET /api/auth/session-with-roles 200 in 773ms
+ ○ Compiling /api/auth/password/login ...
+ ✓ Compiled /api/auth/password/login in 4.5s (2547 modules)
+[dotenv@17.2.1] injecting env (0) from .env.local -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+Login error: TypeError: Cannot read properties of undefined (reading 'create')
+    at POST (app\api\auth\password\login\route.ts:38:40)
+  36 |     }
+  37 |
+> 38 |     const session = await auth.session.create({ userId: user.id });
+     |                                        ^
+  39 |
+  40 |     const res = NextResponse.json({ success: true, message: "Login successful" });
+  41 |     res.cookies.set(auth.session.cookie.name, session.id, auth.session.cookie.attributes);
+ POST /api/auth/password/login 500 in 6717ms
