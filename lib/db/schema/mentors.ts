@@ -1,6 +1,7 @@
 import { pgTable, text, timestamp, boolean, integer, decimal, pgEnum, uuid } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { users } from './users';
+import { cities, states, countries } from './locations';
 
 // Define verification status enum
 export const verificationStatusEnum = pgEnum('verification_status', [
@@ -42,6 +43,9 @@ export const mentors = pgTable('mentors', {
   city: text('city'),
   state: text('state'),
   country: text('country'),
+  countryId: integer('country_id').references(() => countries.id),
+  stateId: integer('state_id').references(() => states.id),
+  cityId: integer('city_id').references(() => cities.id),
   profileImageUrl: text('profile_image_url'), // URL to uploaded profile picture
   resumeUrl: text('resume_url'), // URL to uploaded resume
   
@@ -61,8 +65,20 @@ export const mentorsRelations = relations(mentors, ({ one }) => ({
     fields: [mentors.userId],
     references: [users.id],
   }),
+  country: one(countries, {
+    fields: [mentors.countryId],
+    references: [countries.id],
+  }),
+  state: one(states, {
+    fields: [mentors.stateId],
+    references: [states.id],
+  }),
+  city: one(cities, {
+    fields: [mentors.cityId],
+    references: [cities.id],
+  }),
 }));
 
 export type Mentor = typeof mentors.$inferSelect;
 export type NewMentor = typeof mentors.$inferInsert;
-export type VerificationStatus = typeof verificationStatusEnum.enumValues[number]; 
+export type VerificationStatus = typeof verificationStatusEnum.enumValues[number];

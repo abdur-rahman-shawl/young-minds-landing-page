@@ -92,7 +92,7 @@
     "@types/nodemailer": "^7.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "drizzle-kit": "^0.18.1",
+    "drizzle-kit": "^0.31.4",
     "eslint": "^9.34.0",
     "eslint-config-next": "^15.5.2",
     "postcss": "^8.5",
