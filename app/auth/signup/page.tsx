@@ -13,6 +13,10 @@ import { signUpSchema } from "@/lib/validations/auth"
 import { z } from "zod"
 import { PasswordInput } from "@/components/auth/password-input"
 import { Eye, EyeOff } from "lucide-react"
+import { createAuthClient } from "better-auth/react"
+
+
+const client = createAuthClient()
 
 export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -38,21 +42,15 @@ export default function SignUpPage() {
     setError(null)
 
     try {
-      const res = await fetch("/api/auth/password/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          id: crypto.randomUUID(),
-          name: values.name, 
-          email: values.email, 
-          password: values.password 
-        }),
+
+        const res = await client.signUp.email({
+        email: values.email,
+        password: values.password,
+        name: values.name,
       })
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to sign up")
+      if (res.error) {
+        throw new Error(res.error.message)
       }
 
       router.push(`/auth/verify-email?email=${encodeURIComponent(values.email)}`)

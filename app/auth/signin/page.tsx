@@ -12,6 +12,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { signInSchema } from '@/lib/validations/auth'
 import { z } from 'zod'
 import { Eye, EyeOff } from 'lucide-react'
+import { createAuthClient } from "better-auth/react"
+
+
+const client = createAuthClient()
 
 export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -32,16 +36,14 @@ export default function SignInPage() {
     setError(null)
 
     try {
-      const res = await fetch('/api/auth/password/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      })
+        const { email, password } = values;
+        const res = await client.signIn.email({
+          email,
+          password,
+        })
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to sign in')
+      if (res.error) {
+        throw new Error(res.error.message)
       }
 
       router.push('/dashboard')

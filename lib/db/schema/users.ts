@@ -1,18 +1,10 @@
 import { pgTable, text, timestamp, boolean, pgEnum } from 'drizzle-orm/pg-core';
 
-// Define auth provider types
-export const authenticationProviderEnum = pgEnum('authentication_provider', [
-  'PASSWORD',
-  'GOOGLE'
-]);
-
 
 export const users = pgTable('users', {
   // BetterAuth compatible fields
   id: text('id').primaryKey(), // BetterAuth expects text ID
   email: text('email').notNull().unique(),
-  passwordHash: text('password_hash'),
-  authenticationProvider: authenticationProviderEnum('authentication_provider').default('GOOGLE'),
   emailVerified: boolean('email_verified').default(false),
   name: text('name'),
   image: text('image'),
@@ -38,4 +30,3 @@ export const users = pgTable('users', {
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert; 
-export type AuthenticationProvider = typeof authenticationProviderEnum.enumValues[number];
