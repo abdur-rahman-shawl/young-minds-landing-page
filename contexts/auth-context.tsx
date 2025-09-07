@@ -1,8 +1,9 @@
-"use client";
+'use client';
 
 import React, { createContext, useContext, useCallback, useEffect } from 'react';
 import { useSessionWithRolesQuery, useSignOutMutation, useRefreshSessionMutation } from '@/hooks/queries/use-session-query';
 import { AuthErrorBoundary, useErrorHandler } from '@/components/common/error-boundary';
+import { signIn as betterAuthSignIn } from '@/lib/auth-client';
 
 interface UserRole {
   name: string;
@@ -55,6 +56,7 @@ interface AuthState {
   isMentee: boolean;
   
   // Actions
+  signIn: (provider: string, credentials: any) => Promise<any>;
   refreshUserData: () => Promise<void>;
   signOut: () => Promise<void>;
   
@@ -76,6 +78,7 @@ function AuthProviderInner({ children }: AuthProviderProps) {
     data: sessionData, 
     isLoading, 
     error: sessionError, 
+    refetch,
   } = useSessionWithRolesQuery();
 
   const signOutMutation = useSignOutMutation();
@@ -101,8 +104,8 @@ function AuthProviderInner({ children }: AuthProviderProps) {
 
   // Refresh function using React Query
   const refreshUserData = useCallback(async () => {
-    await refreshSessionMutation.mutateAsync();
-  }, [refreshSessionMutation]);
+    await refetch();
+  }, [refetch]);
 
   // Set or remove userId in localStorage on login/logout
   useEffect(() => {
@@ -113,6 +116,18 @@ function AuthProviderInner({ children }: AuthProviderProps) {
       localStorage.removeItem('userId');
     }
   }, [session?.user?.id]);
+
+  const handleSignIn = useCallback(async (provider: string, credentials: any) => {
+    try {
+      const result = await betterAuthSignIn(provider, credentials);
+      await refreshUserData();
+      return result;
+    } catch (err) {
+      const error = err as Error;
+      handleError(error, 'signIn');
+      throw error;
+    }
+  }, [refreshUserData, handleError]);
 
   // Patch sign out to also clear userId
   const handleSignOut = useCallback(async () => {
@@ -142,6 +157,7 @@ function AuthProviderInner({ children }: AuthProviderProps) {
     isAdmin,
     isMentor,
     isMentee,
+    signIn: handleSignIn,
     refreshUserData,
     signOut: handleSignOut,
     error,

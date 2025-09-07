@@ -37,7 +37,8 @@ function VerifyEmailPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to verify OTP")
+        setError(data.error || "Failed to verify OTP");
+        return;
       }
 
       // On successful verification, redirect to sign-in page to log in.

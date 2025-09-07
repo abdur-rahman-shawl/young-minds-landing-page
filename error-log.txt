@@ -1,2 +1,27 @@
-Error: This time slot conflicts with another booking
-    at handleConfirmBooking (webpack-internal:///(app-pages-browser)/./components/booking/booking-modal.tsx:90:23)
+[dotenv@17.2.1] injecting env (0) from .env.local -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+Login error: Error: Failed query: insert into "auth_sessions" ("id", "expires_at", "token", "created_at", "updated_at", "ip_address", "user_agent", "user_id") values ($1, $2, $3, $4, default, default, default, $5)
+params: gNcKs_g7rhZlgqQX9gha5jxOAhab9fxNOeiNynI8nzLoEbFEJAq41P7uGQfCBS74,2025-09-14T08:51:02.513Z,gNcKs_g7rhZlgqQX9gha5jxOAhab9fxNOeiNynI8nzLoEbFEJAq41P7uGQfCBS74,2025-09-07T08:51:02.514Z,d2c16abe-78e7-4ada-bc75-13d84b58fd7e
+    at async POST (app\api\auth\password\login\route.ts:43:5)
+  41 |     const sessionExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+  42 |
+> 43 |     await db.insert(betterAuthSessions).values({
+     |     ^
+  44 |       id: sessionToken,
+  45 |       userId: user.id,
+  46 |       expiresAt: sessionExpires, {
+  query: 'insert into "auth_sessions" ("id", "expires_at", "token", "created_at", "updated_at", "ip_address", "user_agent", "user_id") values ($1, $2, $3, $4, default, default, default, $5)',
+  params: [Array],
+  [cause]: [Error [PostgresError]: null value in column "updated_at" of relation "auth_sessions" violates not-null constraint] {
+    severity_local: 'ERROR',
+    severity: 'ERROR',
+    code: '23502',
+    detail: 'Failing row contains (gNcKs_g7rhZlgqQX9gha5jxOAhab9fxNOeiNynI8nzLoEbFEJAq41P7uGQfCBS74, 2025-09-14 08:51:02.513, gNcKs_g7rhZlgqQX9gha5jxOAhab9fxNOeiNynI8nzLoEbFEJAq41P7uGQfCBS74, 2025-09-07 08:51:02.514, null, null, null, d2c16abe-78e7-4ada-bc75-13d84b58fd7e).',     
+    schema_name: 'public',
+    table_name: 'auth_sessions',
+    column_name: 'updated_at',
+    file: 'execMain.c',
+    line: '1982',
+    routine: 'ExecConstraints'
+  }
+}
+ POST /api/auth/password/login 500 in 2323ms

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema/users";
+import { users, betterAuthSessions } from "@/lib/db/schema";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
-import { auth } from "@/lib/auth";
+import { nanoid } from "nanoid";
+import { createHMAC } from "@better-auth/utils/hmac";
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,10 +36,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Incorrect Credentials" }, { status: 401 });
     }
 
-    const session = await auth.session.create({ userId: user.id });
+    // Manual session creation
+    const sessionToken = nanoid(64);
+    const sessionExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+    const now = new Date();
+
+    await db.insert(betterAuthSessions).values({
+      id: sessionToken,
+      userId: user.id,
+      expiresAt: sessionExpires,
+      token: sessionToken,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const secret = process.env.BETTER_AUTH_SECRET;
+    if (!secret) {
+      throw new Error("BETTER_AUTH_SECRET is not set");
+    }
+    const signature = await createHMAC("SHA-256", secret, sessionToken);
+    const cookieValue = `${sessionToken}.${signature}`;
 
     const res = NextResponse.json({ success: true, message: "Login successful" });
-    res.cookies.set(auth.session.cookie.name, session.id, auth.session.cookie.attributes);
+
+    res.cookies.set("better-auth.session_token", cookieValue, {
+      expires: sessionExpires,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
 
     return res;
   } catch (err) {

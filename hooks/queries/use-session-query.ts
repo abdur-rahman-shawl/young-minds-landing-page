@@ -43,6 +43,22 @@ export function useSessionWithRolesQuery() {
   });
 }
 
+// Sign in mutation
+export function useSignInMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ provider, credentials }: { provider: string, credentials: any }) => {
+      const { signIn } = await import('@/lib/auth-client');
+      return signIn(provider, credentials);
+    },
+    onSuccess: () => {
+      // Invalidate session to refetch user data
+      return queryClient.invalidateQueries({ queryKey: queryKeys.sessionWithRoles });
+    },
+  });
+}
+
 // Sign out mutation
 export function useSignOutMutation() {
   const queryClient = useQueryClient();
