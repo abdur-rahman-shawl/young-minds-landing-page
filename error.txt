@@ -5,6 +5,8 @@ Console ReferenceError
 session is not defined
 
 
+
+
     at SignInPopup (components\auth\sign-in-popup.tsx:54:3)
     at AuthProvider (contexts\auth-context.tsx:175:5)
     at RootLayout (app\layout.tsx:29:15)
@@ -19,3 +21,4 @@ session is not defined
   57 |
 
 Next.js version: 15.5.2 (Webpack)
+

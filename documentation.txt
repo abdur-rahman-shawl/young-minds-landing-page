@@ -45,3 +45,11 @@ Notes
 Entry: Fix SignInPopup reference error on Home Page
 - components/auth/sign-in-popup.tsx: replaced `session?.user` check with `isAuthenticated` from AuthContext.
 - Prevents `ReferenceError: session is not defined` after popup refactor.
+Entry: Auth pages polish (navigation, callbackUrl preservation)
+- Added components/auth/AuthHeader.tsx: minimal top bar with logo, Back to Home, Help, and ThemeToggle.
+- Wired AuthHeader into auth pages: app/auth/page.tsx, app/auth/signin/page.tsx, app/auth/signup/page.tsx.
+- Preserved return path via `callbackUrl` across flows:
+  - app/auth/signin/page.tsx: redirects to `callbackUrl` after success; Sign Up link carries it forward.
+  - components/auth/sign-in-form.tsx: Google SSO uses `callbackUrl` for mentees; Continue with Email routes to `/auth/signin?callbackUrl=...`.
+  - app/auth/signup/page.tsx: Sign In link carries `callbackUrl`.
+- Kept mentor flow targeting `/become-expert` explicitly.

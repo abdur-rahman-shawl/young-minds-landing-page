@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import AuthHeader from '@/components/auth/AuthHeader'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -19,6 +20,8 @@ export default function SignInPage() {
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get('callbackUrl') || '/'
   const { signIn } = useAuth()
 
   const form = useForm<z.infer<typeof signInSchema>>({
@@ -37,8 +40,8 @@ export default function SignInPage() {
       const { email, password } = values
       // Use central auth context to sign in and refresh session data
       await signIn('email', { email, password })
-      // Redirect to app root; it renders dashboard for authenticated users
-      router.replace('/')
+      // Redirect to callback or app root; it renders dashboard for authenticated users
+      router.replace(callbackUrl)
       router.refresh()
 
     } catch (err) {
@@ -49,7 +52,9 @@ export default function SignInPage() {
   }
 
   return (
-    <div className='min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8'>
+    <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
+      <AuthHeader />
+      <div className='flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
       <div className='max-w-md w-full space-y-8'>
         <div className='text-center'>
           <h2 className='mt-6 text-3xl font-extrabold text-gray-900 dark:text-white'>
@@ -107,11 +112,12 @@ export default function SignInPage() {
         <div className='text-center'>
           <p className='text-sm text-gray-600 dark:text-gray-400'>
             Don't have an account?{' '}
-            <Link href='/auth/signup' className='font-medium text-primary hover:underline'>
+            <Link href={`/auth/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`} className='font-medium text-primary hover:underline'>
               Sign Up
             </Link>
           </p>
         </div>
+      </div>
       </div>
     </div>
   )

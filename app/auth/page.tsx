@@ -1,10 +1,14 @@
 import { Suspense } from 'react'
 import SignInForm from '@/components/auth/sign-in-form'
+import AuthHeader from '@/components/auth/AuthHeader'
 
 export default function AuthPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <SignInForm />
-    </Suspense>
+    <>
+      <AuthHeader />
+      <Suspense fallback={<div>Loading...</div>}>
+        <SignInForm />
+      </Suspense>
+    </>
   )
 }

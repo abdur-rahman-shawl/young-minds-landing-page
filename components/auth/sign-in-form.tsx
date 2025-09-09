@@ -18,6 +18,7 @@ export default function SignInForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const roleParam = searchParams.get("role") as UserRole
+  const callbackUrlParam = searchParams.get('callbackUrl') || '/'
 
   useEffect(() => {
     if (roleParam && (roleParam === "mentee" || roleParam === "mentor")) {
@@ -26,24 +27,24 @@ export default function SignInForm() {
   }, [roleParam])
 
   useEffect(() => {
-    // If user is already logged in and is a mentee, go to root (dashboard is on "/")
+    // If user is already logged in and is a mentee, go to intended page or root
     if (isAuthenticated && selectedRole === 'mentee') {
-      router.replace('/')
+      router.replace(callbackUrlParam)
       router.refresh()
     }
-  }, [isAuthenticated, selectedRole, router])
+  }, [isAuthenticated, selectedRole, router, callbackUrlParam])
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     try {
       await signIn('social', {
         provider: 'google',
-        callbackURL: selectedRole === 'mentor' ? '/become-expert' : '/',
+        callbackURL: selectedRole === 'mentor' ? '/become-expert' : callbackUrlParam,
       })
       if (selectedRole === 'mentor') {
         router.replace('/become-expert')
       } else {
-        router.replace('/')
+        router.replace(callbackUrlParam)
       }
       router.refresh()
     } catch (error) {
@@ -129,7 +130,7 @@ export default function SignInForm() {
           <Card>
             <CardContent className="p-6">
               <Button
-                onClick={() => router.push('/auth/signin')}
+                onClick={() => router.push(`/auth/signin?callbackUrl=${encodeURIComponent(callbackUrlParam)}`)}
                 disabled={isLoading || authLoading}
                 className="w-full"
               >
