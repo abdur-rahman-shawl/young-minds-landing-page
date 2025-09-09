@@ -12,16 +12,14 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { signInSchema } from '@/lib/validations/auth'
 import { z } from 'zod'
 import { Eye, EyeOff } from 'lucide-react'
-import { createAuthClient } from "better-auth/react"
-
-
-const client = createAuthClient()
+import { useAuth } from '@/contexts/auth-context'
 
 export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
+  const { signIn } = useAuth()
 
   const form = useForm<z.infer<typeof signInSchema>>({
     resolver: zodResolver(signInSchema),
@@ -36,17 +34,12 @@ export default function SignInPage() {
     setError(null)
 
     try {
-        const { email, password } = values;
-        const res = await client.signIn.email({
-          email,
-          password,
-        })
-
-      if (res.error) {
-        throw new Error(res.error.message)
-      }
-
-      router.push('/dashboard')
+      const { email, password } = values
+      // Use central auth context to sign in and refresh session data
+      await signIn('email', { email, password })
+      // Redirect to app root; it renders dashboard for authenticated users
+      router.replace('/')
+      router.refresh()
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred')

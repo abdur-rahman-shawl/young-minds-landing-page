@@ -119,7 +119,24 @@ function AuthProviderInner({ children }: AuthProviderProps) {
 
   const handleSignIn = useCallback(async (provider: string, credentials: any) => {
     try {
-      const result = await betterAuthSignIn(provider, credentials);
+      let result: any;
+      if (provider === 'email') {
+        // Email/password sign in
+        result = await (betterAuthSignIn as any).email(credentials);
+      } else if (provider === 'social') {
+        // Social provider sign in (e.g., Google)
+        result = await (betterAuthSignIn as any).social(credentials);
+      } else {
+        throw new Error(`Unsupported sign-in provider: ${provider}`);
+      }
+
+      // Normalize BetterAuth error shape: throw to let callers show inline errors
+      if (result?.error) {
+        const message = (result.error as any)?.message || 'Invalid credentials';
+        throw new Error(message);
+      }
+
+      // Ensure session/react-query state updates
       await refreshUserData();
       return result;
     } catch (err) {

@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { signIn, useSession } from "@/lib/auth-client"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FcGoogle } from "react-icons/fc"
 import { GraduationCap, Users } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
 
 type UserRole = "mentee" | "mentor"
 
@@ -14,7 +14,7 @@ export default function SignInForm() {
   const [selectedRole, setSelectedRole] = useState<UserRole>("mentee")
   const [isLoading, setIsLoading] = useState(false)
 
-  const { data: session, isPending } = useSession()
+  const { isAuthenticated, isLoading: authLoading, signIn } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const roleParam = searchParams.get("role") as UserRole
@@ -26,24 +26,26 @@ export default function SignInForm() {
   }, [roleParam])
 
   useEffect(() => {
-    // If user is already logged in and is a mentee, redirect to dashboard.
-    // The mentor flow is handled by the /become-expert page.
-    if (session?.user && selectedRole === 'mentee') {
-      router.push("/dashboard")
+    // If user is already logged in and is a mentee, go to root (dashboard is on "/")
+    if (isAuthenticated && selectedRole === 'mentee') {
+      router.replace('/')
+      router.refresh()
     }
-  }, [session, selectedRole, router])
+  }, [isAuthenticated, selectedRole, router])
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     try {
-      await signIn.social({
-        provider: "google",
-        // Redirect mentors to the correct, single application form.
-        // Mentees go to their dashboard.
-        callbackURL: selectedRole === "mentor" 
-          ? "/become-expert" 
-          : "/dashboard"
+      await signIn('social', {
+        provider: 'google',
+        callbackURL: selectedRole === 'mentor' ? '/become-expert' : '/',
       })
+      if (selectedRole === 'mentor') {
+        router.replace('/become-expert')
+      } else {
+        router.replace('/')
+      }
+      router.refresh()
     } catch (error) {
       console.error("Sign in error:", error)
     } finally {
@@ -100,12 +102,12 @@ export default function SignInForm() {
             <CardContent className="p-6">
               <Button
                 onClick={handleGoogleSignIn}
-                disabled={isLoading || isPending}
+                disabled={isLoading || authLoading}
                 className="w-full flex items-center justify-center gap-2"
                 variant="outline"
               >
                 <FcGoogle className="h-5 w-5" />
-                {isLoading || isPending 
+                {isLoading || authLoading 
                   ? "Redirecting..." 
                   : `Continue with Google as ${selectedRole === "mentee" ? "Mentee" : "Mentor"}`
                 }
@@ -128,7 +130,7 @@ export default function SignInForm() {
             <CardContent className="p-6">
               <Button
                 onClick={() => router.push('/auth/signin')}
-                disabled={isLoading || isPending}
+                disabled={isLoading || authLoading}
                 className="w-full"
               >
                 Continue with Email

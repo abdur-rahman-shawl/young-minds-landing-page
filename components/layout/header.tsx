@@ -6,20 +6,18 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { useRouter } from "next/navigation"
 import { Search, Bell, Settings } from "lucide-react"
 import { useState, useEffect } from "react"
-import { signOut } from "@/lib/auth-client"
+// Use centralized auth context for logout and auth state
 import { SignInPopup } from "@/components/auth/sign-in-popup"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 import { useAuth } from "@/contexts/auth-context"
 
 interface HeaderProps {
-  isLoggedIn: boolean
-  setIsLoggedIn: (value: boolean) => void
   onSearchClick?: () => void
 }
 
-export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps) {
+export function Header({ onSearchClick }: HeaderProps) {
   const router = useRouter()
-  const { roles } = useAuth()
+  const { roles, signOut: authSignOut, isAuthenticated } = useAuth()
   const [isScrolled, setIsScrolled] = useState(false)
   const [showSignInPopup, setShowSignInPopup] = useState(false)
   
@@ -36,22 +34,18 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
   }, [])
 
   const handleAuthClick = async () => {
-    if (isLoggedIn) {
+    if (isAuthenticated) {
       try {
-        // Use BetterAuth signOut
-        await signOut({
-          fetchOptions: {
-            onSuccess: () => {
-              setIsLoggedIn(false)
-              router.push("/")
-            },
-          },
-        })
+        // Use AuthContext signOut to clear session and caches
+        await authSignOut()
+        // Navigate to landing and refresh app/router state
+        router.replace("/")
+        router.refresh()
       } catch (error) {
         console.error("Logout error:", error)
         // Fallback: just update state and redirect
-        setIsLoggedIn(false)
-        router.push("/")
+        router.replace("/")
+        router.refresh()
       }
     } else {
       setShowSignInPopup(true)
@@ -70,7 +64,7 @@ export function Header({ isLoggedIn, setIsLoggedIn, onSearchClick }: HeaderProps
 
   return (
     <>
-      {isLoggedIn ? (
+      {isAuthenticated ? (
         // Dashboard Header
         <header className={`${headerClasses} h-16 flex items-center justify-between px-6`}>
           <div className="flex items-center gap-4">

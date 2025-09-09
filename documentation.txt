@@ -1,0 +1,47 @@
+Young Minds Platform – Development Log
+
+Entry: Immediate Logout Redirect and Refresh
+- Updated components/layout/header.tsx to use AuthContext’s signOut instead of direct BetterAuth client.
+- After sign out: router.replace('/') + router.refresh() for instant UI update.
+- Simplified Header to read isAuthenticated and roles from AuthContext; removed isLoggedIn/setIsLoggedIn props.
+- Updated app/page.tsx Header usage accordingly.
+
+Entry: Email Sign-In Redirect and Refresh
+- Updated app/auth/signin/page.tsx to use useAuth().signIn('email', { email, password }).
+- After sign-in: router.replace('/') + router.refresh() so dashboard renders immediately.
+
+Entry: Fix AuthContext signIn provider handling
+- contexts/auth-context.tsx: implemented provider routing inside handleSignIn.
+  - 'email' → betterAuth signIn.email(credentials)
+  - 'social' → betterAuth signIn.social(credentials)
+- Ensures sign-in actions actually perform and refresh the session query.
+
+Entry: Surface invalid credentials on email sign-in
+- contexts/auth-context.tsx: if BetterAuth returns `{ error }` from signIn, throw with its message.
+- app/auth/signin/page.tsx already catches errors and displays them inline; no redirect on failure.
+
+Entry: Centralized Social Sign-In (Popup and Auth Page)
+- components/auth/sign-in-popup.tsx now uses useAuth() for auth state and signIn.
+  - Default callbackUrl changed to '/' (was '/dashboard').
+  - On success: close popup, router.replace('/') + router.refresh().
+- components/auth/sign-in-form.tsx switched to useAuth().
+  - Google sign-in: mentor → '/become-expert'; mentee → '/'.
+  - After success: router.replace(destination) + router.refresh().
+
+Entry: Become Expert – Auth Integration
+- app/become-expert/page.tsx now uses useAuth().signIn for Google flow.
+- After success: router.replace('/become-expert') + router.refresh().
+
+Entry: Dashboard Route Refactor
+- app/dashboard/page.tsx refactored to use AuthContext (useAuth()).
+  - If not authenticated → router.replace('/auth').
+  - If authenticated → router.replace('/?section=dashboard') + router.refresh().
+  - Keeps a minimal skeleton while resolving state.
+
+Notes
+- All sign-in/out flows now drive session via AuthContext + React Query to avoid stale UI and manual refreshes.
+- Main route '/' is the single source for dashboard rendering based on isAuthenticated.
+
+Entry: Fix SignInPopup reference error on Home Page
+- components/auth/sign-in-popup.tsx: replaced `session?.user` check with `isAuthenticated` from AuthContext.
+- Prevents `ReferenceError: session is not defined` after popup refactor.

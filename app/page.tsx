@@ -250,11 +250,7 @@ function PageContent() {
           
           {/* Main Content Area */}
           <SidebarInset className="flex-1">
-            <Header 
-              isLoggedIn={isAuthenticated} 
-              setIsLoggedIn={() => {}} // This will be handled by AuthContext
-              onSearchClick={() => handleSectionChange("explore")}
-            />
+            <Header onSearchClick={() => handleSectionChange("explore")} />
             <main className="flex-1 pt-24 px-4 pb-4 flex flex-col">
               {/* Incomplete Profile Alert */}
               {isMentorWithIncompleteProfile && (
@@ -281,7 +277,7 @@ function PageContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header isLoggedIn={isAuthenticated} setIsLoggedIn={() => {}} />
+      <Header />
       <main className="flex pt-24">
         {/* Main Content */}
         <div className="flex-1 min-w-0 max-w-6xl mx-auto">

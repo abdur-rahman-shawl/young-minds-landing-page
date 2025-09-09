@@ -4,10 +4,10 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { signIn, useSession } from "@/lib/auth-client"
 import { useRouter } from "next/navigation"
 import { FcGoogle } from "react-icons/fc"
 import { Users, GraduationCap } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
 
 interface SignInPopupProps {
   isOpen: boolean
@@ -15,26 +15,29 @@ interface SignInPopupProps {
   callbackUrl?: string
 }
 
-export function SignInPopup({ isOpen, onClose, callbackUrl = "/dashboard" }: SignInPopupProps) {
+export function SignInPopup({ isOpen, onClose, callbackUrl = "/" }: SignInPopupProps) {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const { data: session } = useSession()
+  const { isAuthenticated, signIn } = useAuth()
 
   // Close popup if user is already signed in (using useEffect to avoid render-time state updates)
   useEffect(() => {
-    if (session?.user && isOpen) {
+    if (isAuthenticated && isOpen) {
       onClose()
     }
-  }, [session?.user, isOpen, onClose])
+  }, [isAuthenticated, isOpen, onClose])
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     try {
-      await signIn.social({
-        provider: "google",
+      await signIn('social', {
+        provider: 'google',
         callbackURL: callbackUrl,
-        prompt: "select_account" // Forces account selection
+        prompt: 'select_account',
       })
+      onClose()
+      router.replace('/')
+      router.refresh()
     } catch (error) {
       console.error("Sign in error:", error)
     } finally {
@@ -48,7 +51,7 @@ export function SignInPopup({ isOpen, onClose, callbackUrl = "/dashboard" }: Sig
   }
 
   // Don't render if user is already signed in
-  if (session?.user) {
+  if (isAuthenticated) {
     return null
   }
 

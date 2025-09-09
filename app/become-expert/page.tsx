@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { signIn, useSession } from "@/lib/auth-client"
+import { useSession } from "@/lib/auth-client"
+import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
 import { FcGoogle } from "react-icons/fc"
 import { ArrowLeft, UserCheck, User } from "lucide-react"
@@ -250,6 +251,7 @@ export default function BecomeExpertPage() {
 
   const { data: session, isPending } = useSession()
   const router = useRouter()
+  const { signIn } = useAuth()
 
   useEffect(() => {
     if (session?.user && !showMentorForm) {
@@ -260,10 +262,9 @@ export default function BecomeExpertPage() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     try {
-      await signIn.social({
-        provider: "google",
-        callbackURL: "/become-expert"
-      })
+      await signIn('social', { provider: 'google', callbackURL: '/become-expert' })
+      router.replace('/become-expert')
+      router.refresh()
     } catch (error) {
       console.error("Sign in error:", error)
     } finally {
