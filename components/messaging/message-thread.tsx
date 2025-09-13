@@ -390,7 +390,6 @@ export function MessageThread({
               variant="ghost"
               size="icon"
               onClick={onBack}
-              className="md:hidden"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
