@@ -8,15 +8,18 @@ import { Calendar, Clock, User, Video, MessageSquare, Headphones, ChevronLeft, C
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isToday, startOfDay } from 'date-fns';
 import { useAuth } from '@/contexts/auth-context';
 import { toast } from 'sonner';
+import { SessionActions } from './session-actions';
 
 interface Session {
   id: string;
   title: string;
   description?: string;
-  status: string;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
   scheduledAt: string;
   duration: number;
-  meetingType: string;
+  meetingType: 'video' | 'audio' | 'chat';
+  meetingUrl?: string;
+  mentorId?: string;
   menteeId: string;
   menteeName?: string;
   menteeAvatar?: string;
@@ -187,40 +190,55 @@ export function MentorBookingsCalendar() {
 
                     {/* Sessions */}
                     <div className="space-y-1 min-h-[200px]">
-                      {daySessions.map((session) => {
-                        const MeetingIcon = MEETING_TYPE_ICONS[session.meetingType as keyof typeof MEETING_TYPE_ICONS] || Video;
-                        const statusColor = STATUS_COLORS[session.status as keyof typeof STATUS_COLORS] || STATUS_COLORS.scheduled;
+                      {daySessions.map((bookingSession) => {
+                        const MeetingIcon = MEETING_TYPE_ICONS[bookingSession.meetingType as keyof typeof MEETING_TYPE_ICONS] || Video;
+                        const statusColor = STATUS_COLORS[bookingSession.status as keyof typeof STATUS_COLORS] || STATUS_COLORS.scheduled;
 
                         return (
                           <div
-                            key={session.id}
+                            key={bookingSession.id}
                             className="p-2 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
-                            onClick={() => handleSessionClick(session)}
+                            onClick={() => handleSessionClick(bookingSession)}
                           >
                             <div className="flex items-start justify-between mb-1">
                               <div className="flex items-center gap-1">
                                 <MeetingIcon className="w-3 h-3 text-gray-500" />
                                 <span className="text-xs font-medium text-gray-900 dark:text-white">
-                                  {format(new Date(session.scheduledAt), 'HH:mm')}
+                                  {format(new Date(bookingSession.scheduledAt), 'HH:mm')}
                                 </span>
                               </div>
                               <Badge className={`text-xs px-1 py-0 h-4 ${statusColor}`}>
-                                {session.status}
+                                {bookingSession.status}
                               </Badge>
                             </div>
                             
                             <h4 className="text-xs font-medium text-gray-900 dark:text-white mb-1 line-clamp-2">
-                              {session.title}
+                              {bookingSession.title}
                             </h4>
                             
                             <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                               <Clock className="w-3 h-3" />
-                              <span>{session.duration} min</span>
+                              <span>{bookingSession.duration} min</span>
                             </div>
                             
-                            {session.rate && (
+                            {bookingSession.rate && (
                               <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                                {formatCurrency(session.rate, session.currency)}
+                                {formatCurrency(bookingSession.rate, bookingSession.currency)}
+                              </div>
+                            )}
+                            
+                            {session?.user?.id && (
+                              <div className="mt-2">
+                                <SessionActions
+                                  session={{
+                                    ...bookingSession,
+                                    scheduledAt: new Date(bookingSession.scheduledAt),
+                                    mentorId: session.user.id,
+                                  }}
+                                  userId={session.user.id}
+                                  userRole="mentor"
+                                  onUpdate={fetchSessions}
+                                />
                               </div>
                             )}
                           </div>

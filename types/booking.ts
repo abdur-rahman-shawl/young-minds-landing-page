@@ -16,7 +16,7 @@ export interface Session {
   menteeId: string;
   title: string;
   description?: string;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
   scheduledAt: Date;
   startedAt?: Date;
   endedAt?: Date;
@@ -30,6 +30,11 @@ export interface Session {
   menteeNotes?: string;
   mentorRating?: number;
   menteeRating?: number;
+  cancelledBy?: 'mentor' | 'mentee';
+  cancellationReason?: string;
+  rescheduledFrom?: string;
+  noShowMarkedBy?: 'mentor' | 'system';
+  noShowMarkedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

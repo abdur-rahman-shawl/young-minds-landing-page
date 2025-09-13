@@ -11,18 +11,20 @@ import { useAuth } from '@/contexts/auth-context';
 import { toast } from 'sonner';
 
 import { SessionViewModal } from './SessionViewModal';
+import { SessionActions } from './session-actions';
 
 interface Session {
   id: string;
   title: string;
   description?: string;
-  status: string;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
   scheduledAt: string;
   duration: number;
-  meetingType: string;
+  meetingType: 'video' | 'audio' | 'chat';
   meetingUrl?: string;
   location?: string;
   mentorId: string;
+  menteeId?: string;
   mentorName?: string;
   mentorAvatar?: string;
   rate?: number;
@@ -228,17 +230,19 @@ export function MenteeSessionsCalendar() {
                               </span>
                             </div>
                             
-                            {canJoin && (
-                              <Button
-                                size="sm"
-                                className="w-full h-6 text-xs mt-1"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSessionToJoin(sessionData);
-                                }}
-                              >
-                                Join Now
-                              </Button>
+                            {session?.user?.id && (
+                              <div className="mt-1">
+                                <SessionActions
+                                  session={{
+                                    ...sessionData,
+                                    scheduledAt: new Date(sessionData.scheduledAt),
+                                    menteeId: session.user.id,
+                                  }}
+                                  userId={session.user.id}
+                                  userRole="mentee"
+                                  onUpdate={fetchSessions}
+                                />
+                              </div>
                             )}
                           </div>
                         );

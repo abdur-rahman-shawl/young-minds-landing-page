@@ -8,7 +8,7 @@ import { z } from 'zod';
 
 // Validation schema for booking updates
 const updateBookingSchema = z.object({
-  status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).optional(),
+  status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled', 'no_show']).optional(),
   title: z.string().min(1).optional(),
   description: z.string().optional(),
   scheduledAt: z.string().datetime().optional(),

@@ -59,18 +59,20 @@ import { useAuth } from '@/contexts/auth-context';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { SessionLobbyModal } from './SessionLobbyModal';
+import { SessionActions } from './session-actions';
 
 interface Session {
   id: string;
   title: string;
   description?: string;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
   scheduledAt: string;
   duration: number;
   meetingType: 'video' | 'audio' | 'chat';
   meetingUrl?: string;
   location?: string;
   mentorId: string;
+  menteeId?: string;
   mentorName?: string;
   mentorAvatar?: string;
   rate?: number;
@@ -117,6 +119,9 @@ export function SessionsCalendarView() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [lobbySession, setLobbySession] = useState<Session | null>(null);
+  
+  // Get user info for SessionActions
+  const userId = session?.user?.id || '';
 
   // Calculate date ranges based on view type
   const dateRange = useMemo(() => {
@@ -537,17 +542,16 @@ export function SessionsCalendarView() {
                               </div>
                             </div>
                           </div>
-                          {session.status === 'scheduled' && !isPast(new Date(session.scheduledAt)) && (
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleJoinSession(session);
-                              }}
-                            >
-                              Join
-                            </Button>
-                          )}
+                          <SessionActions
+                            session={{
+                              ...session,
+                              scheduledAt: new Date(session.scheduledAt),
+                              menteeId: session.menteeId || userId, // If menteeId is missing, use current user as mentee
+                            }}
+                            userId={userId}
+                            userRole={session.mentorId === userId ? 'mentor' : 'mentee'}
+                            onUpdate={fetchSessions}
+                          />
                         </div>
                       </div>
                     );
@@ -644,19 +648,16 @@ export function SessionsCalendarView() {
                             </div>
                           )}
                         </div>
-                        {session.status === 'scheduled' && !isPast(new Date(session.scheduledAt)) && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="ml-2"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleJoinSession(session);
-                            }}
-                          >
-                            Join
-                          </Button>
-                        )}
+                        <SessionActions
+                          session={{
+                            ...session,
+                            scheduledAt: new Date(session.scheduledAt),
+                            menteeId: session.menteeId || userId, // If menteeId is missing, use current user as mentee
+                          }}
+                          userId={userId}
+                          userRole={session.mentorId === userId ? 'mentor' : 'mentee'}
+                          onUpdate={fetchSessions}
+                        />
                       </div>
                     </div>
                   );

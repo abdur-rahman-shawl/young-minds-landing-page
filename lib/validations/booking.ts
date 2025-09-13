@@ -33,7 +33,7 @@ export const createBookingSchema = z.object({
 });
 
 export const updateBookingSchema = z.object({
-  status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).optional(),
+  status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled', 'no_show']).optional(),
   title: z.string()
     .min(1, 'Session title is required')
     .max(200, 'Title must be less than 200 characters')
@@ -66,6 +66,33 @@ export const updateBookingSchema = z.object({
   menteeRating: z.number()
     .min(1, 'Rating must be between 1 and 5')
     .max(5, 'Rating must be between 1 and 5')
+    .optional(),
+  cancelledBy: z.enum(['mentor', 'mentee']).optional(),
+  cancellationReason: z.string()
+    .max(500, 'Cancellation reason must be less than 500 characters')
+    .optional(),
+});
+
+export const cancelBookingSchema = z.object({
+  reason: z.string()
+    .max(500, 'Cancellation reason must be less than 500 characters')
+    .optional(),
+});
+
+export const rescheduleBookingSchema = z.object({
+  scheduledAt: z.string()
+    .datetime('Invalid date format')
+    .refine(
+      (val) => {
+        const date = new Date(val);
+        const now = new Date();
+        return date > now;
+      },
+      'Session must be rescheduled to a future time'
+    ),
+  duration: z.number()
+    .min(15, 'Session must be at least 15 minutes')
+    .max(240, 'Session cannot exceed 4 hours')
     .optional(),
 });
 

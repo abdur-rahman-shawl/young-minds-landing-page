@@ -10,7 +10,7 @@ export const sessions = pgTable('sessions', {
   // Session details
   title: text('title').notNull(),
   description: text('description'),
-  status: text('status').notNull().default('scheduled'), // 'scheduled', 'in_progress', 'completed', 'cancelled'
+  status: text('status').notNull().default('scheduled'), // 'scheduled', 'in_progress', 'completed', 'cancelled', 'no_show'
   
   // Timing
   scheduledAt: timestamp('scheduled_at').notNull(),
@@ -32,6 +32,13 @@ export const sessions = pgTable('sessions', {
   menteeNotes: text('mentee_notes'),
   mentorRating: integer('mentor_rating'), // 1-5 rating from mentee
   menteeRating: integer('mentee_rating'), // 1-5 rating from mentor
+  
+  // Cancellation and rescheduling
+  cancelledBy: text('cancelled_by'), // 'mentor' | 'mentee'
+  cancellationReason: text('cancellation_reason'),
+  rescheduledFrom: uuid('rescheduled_from').references(() => sessions.id),
+  noShowMarkedBy: text('no_show_marked_by'), // 'mentor' | 'system'
+  noShowMarkedAt: timestamp('no_show_marked_at'),
   
   // Timestamps
   createdAt: timestamp('created_at').defaultNow().notNull(),
