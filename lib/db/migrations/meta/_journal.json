@@ -155,6 +155,20 @@
       "when": 1757256147301,
       "tag": "0022_needy_anthem",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1758169962332,
+      "tag": "0023_rare_talisman",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1758194632473,
+      "tag": "0024_shallow_paibok",
+      "breakpoints": true
     }
   ]
 }
