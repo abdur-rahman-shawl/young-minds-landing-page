@@ -12,7 +12,7 @@ export default function ReviewDemoPage() {
   // --- Mock Data for Demonstration ---
   // In a real app, you would get the sessionId from the URL params
   // and fetch the reviewee's details.
-  const sessionId = "a1b2c3d4-e5f6-7890-1234-567890abcdef"; // Replace with a real session ID from your DB for testing
+  const sessionId = "7c98e083-ac21-419c-9f12-fa3d51c79bc0"; // Replace with a real session ID from your DB for testing
   const revieweeDetails = {
     id: 'user_id_of_mentor', // The ID of the user being reviewed
     name: 'Jane Doe',

@@ -21,12 +21,12 @@ const createReviewSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-   /* const userSession = await auth.api.getSession({ headers: await headers() });
+    const userSession = await auth.api.getSession({ headers: await headers() });
     if (!userSession?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const reviewerId = userSession.user.id;*/
-    const reviewerId = 'wlZdojeEuxSE8tafVv7VC7YjUyra4wjX';
+    const reviewerId = userSession.user.id;
+   // const reviewerId = 'wlZdojeEuxSE8tafVv7VC7YjUyra4wjX';
 
     const body = await req.json();
     const validatedData = createReviewSchema.parse(body);

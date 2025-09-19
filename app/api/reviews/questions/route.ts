@@ -18,13 +18,13 @@ const querySchema = z.object({
 export async function GET(req: NextRequest) {
   try {
     // 1. Authenticate the user
-   /* const userSession = await auth.api.getSession({ headers: await headers() });
+    const userSession = await auth.api.getSession({ headers: await headers() });
     if (!userSession?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const currentUserId = userSession.user.id;*/
+    const currentUserId = userSession.user.id;
 
-    const currentUserId = 'BPyy0bdbVjWhL1MlRUX7XwhovwJM9bUY';
+    //const currentUserId = 'BPyy0bdbVjWhL1MlRUX7XwhovwJM9bUY';
 
     // 2. Get and validate the 'role' and 'sessionId' query parameters
     const { searchParams } = new URL(req.url);

@@ -51,7 +51,8 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
       try {
         setIsLoading(true);
         setError(null);
-        const response = await fetch(`/api/review-questions?role=${reviewee.role}&sessionId=${sessionId}`);
+        const sid = '7c98e083-ac21-419c-9f12-fa3d51c79bc0';
+        const response = await fetch(`/api/reviews/questions?role=${reviewee.role}&sessionId=${sid}`);
         
         if (!response.ok) {
           const errorData = await response.json();
@@ -95,7 +96,7 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
     }));
 
     try {
-      const response = await fetch('/api/review', {
+      const response = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
