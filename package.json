@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "NODE_OPTIONS='--inspect' next dev",
+    "dev": "cross-env NODE_OPTIONS=--inspect next dev",
     "lint": "next lint",
     "start": "next start",
     "db:generate": "drizzle-kit generate",
@@ -92,6 +92,7 @@
     "@types/nodemailer": "^7.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.0.0",
     "drizzle-kit": "^0.31.4",
     "eslint": "^9.34.0",
     "eslint-config-next": "^15.5.2",

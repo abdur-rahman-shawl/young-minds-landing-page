@@ -1,24 +1,167 @@
-## Error Type
-Console ReferenceError
-
-## Error Message
-session is not defined
-
-
-
-
-    at SignInPopup (components\auth\sign-in-popup.tsx:54:3)
-    at AuthProvider (contexts\auth-context.tsx:175:5)
-    at RootLayout (app\layout.tsx:29:15)
-
-## Code Frame
-  52 |
-  53 |   // Don't render if user is already signed in
-> 54 |   if (session?.user) {
-     |   ^
-  55 |     return null
-  56 |   }
-  57 |
-
-Next.js version: 15.5.2 (Webpack)
-
+[dotenv@17.2.1] injecting env (0) from .env.local -- tip: ⚙️  enable debug logging with { debug: true }
+Error: Route "/api/mentors/[id]/availability/slots" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (app\api\mentors\[id]\availability\slots\route.ts:64:40)
+  62 |       .select()
+  63 |       .from(mentors)
+> 64 |       .where(eq(mentors.userId, params.id))
+     |                                        ^
+  65 |       .limit(1);
+  66 |
+  67 |     if (!mentor.length) {
+Error: Route "/api/mentors/[id]/availability/slots" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (app\api\mentors\[id]\availability\slots\route.ts:115:40)
+  113 |       .where(
+  114 |         and(
+> 115 |           eq(sessions.mentorId, params.id),
+      |                                        ^
+  116 |           gte(sessions.scheduledAt, new Date(startDate)),
+  117 |           lte(sessions.scheduledAt, new Date(endDate)),
+  118 |           or(
+Get available slots error: Error: Failed query: select "id", "mentor_id", "mentee_id", "title", "description", "status", "scheduled_at", "started_at", "ended_at", "duration_minutes", "meeting_url", "meeting_type", "location", "rate", "currency", "mentor_notes", "mentee_notes", "mentor_rating", "mentee_rating", "cancelled_by", "cancellation_reason", "rescheduled_from", "no_show_marked_by", "no_show_marked_at", "created_at", "updated_at" from "sessions" where ("sessions"."mentor_id" = $1 and "sessions"."scheduled_at" >= $2 and "sessions"."scheduled_at" <= $3 and ("sessions"."status" = $4 or "sessions"."status" = $5))
+params: BPyy0bdbVjWhL1MlRUX7XwhovwJM9bUY,2025-08-31T18:30:00.000Z,2025-09-30T18:29:59.999Z,scheduled,in_progress
+    at async GET (app\api\mentors\[id]\availability\slots\route.ts:110:30)
+  108 |
+  109 |     // Get existing bookings for the date range
+> 110 |     const existingBookings = await db
+      |                              ^
+  111 |       .select()
+  112 |       .from(sessions)
+  113 |       .where( {
+  query: 'select "id", "mentor_id", "mentee_id", "title", "description", "status", "scheduled_at", "started_at", "ended_at", "duration_minutes", "meeting_url", "meeting_type", "location", "rate", "currency", "mentor_notes", "mentee_notes", "mentor_rating", "mentee_rating", "cancelled_by", "cancellation_reason", "rescheduled_from", "no_show_marked_by", "no_show_marked_at", "created_at", "updated_at" from "sessions" where ("sessions"."mentor_id" = $1 and "sessions"."scheduled_at" >= $2 and "sessions"."scheduled_at" <= $3 and ("sessions"."status" = $4 or "sessions"."status" = $5))',
+  params: [Array],
+  [cause]: [Error [PostgresError]: column "mentor_rating" does not exist] {
+    severity_local: 'ERROR',
+    severity: 'ERROR',
+    code: '42703',
+    position: '231',
+    file: 'parse_relation.c',
+    line: '3716',
+    routine: 'errorMissingColumn'
+  }
+}
+ GET /api/mentors/BPyy0bdbVjWhL1MlRUX7XwhovwJM9bUY/availability/slots?startDate=2025-08-31T18%3A30%3A00.000Z&endDate=2025-09-30T18%3A29%3A59.999Z&timezone=Asia%2FCalcutta 500 in 7393ms
+Error: Route "/api/mentors/[id]/availability/slots" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (app\api\mentors\[id]\availability\slots\route.ts:64:40)
+  62 |       .select()
+  63 |       .from(mentors)
+> 64 |       .where(eq(mentors.userId, params.id))
+     |                                        ^
+  65 |       .limit(1);
+  66 |
+  67 |     if (!mentor.length) {
+Error: Route "/api/mentors/[id]/availability/slots" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (app\api\mentors\[id]\availability\slots\route.ts:115:40)
+  113 |       .where(
+  114 |         and(
+> 115 |           eq(sessions.mentorId, params.id),
+      |                                        ^
+  116 |           gte(sessions.scheduledAt, new Date(startDate)),
+  117 |           lte(sessions.scheduledAt, new Date(endDate)),
+  118 |           or(
+Get available slots error: Error: Failed query: select "id", "mentor_id", "mentee_id", "title", "description", "status", "scheduled_at", "started_at", "ended_at", "duration_minutes", "meeting_url", "meeting_type", "location", "rate", "currency", "mentor_notes", "mentee_notes", "mentor_rating", "mentee_rating", "cancelled_by", "cancellation_reason", "rescheduled_from", "no_show_marked_by", "no_show_marked_at", "created_at", "updated_at" from "sessions" where ("sessions"."mentor_id" = $1 and "sessions"."scheduled_at" >= $2 and "sessions"."scheduled_at" <= $3 and ("sessions"."status" = $4 or "sessions"."status" = $5))
+params: BPyy0bdbVjWhL1MlRUX7XwhovwJM9bUY,2025-08-31T18:30:00.000Z,2025-09-30T18:29:59.999Z,scheduled,in_progress
+    at async GET (app\api\mentors\[id]\availability\slots\route.ts:110:30)
+  108 |
+  109 |     // Get existing bookings for the date range
+> 110 |     const existingBookings = await db
+      |                              ^
+  111 |       .select()
+  112 |       .from(sessions)
+  113 |       .where( {
+  query: 'select "id", "mentor_id", "mentee_id", "title", "description", "status", "scheduled_at", "started_at", "ended_at", "duration_minutes", "meeting_url", "meeting_type", "location", "rate", "currency", "mentor_notes", "mentee_notes", "mentor_rating", "mentee_rating", "cancelled_by", "cancellation_reason", "rescheduled_from", "no_show_marked_by", "no_show_marked_at", "created_at", "updated_at" from "sessions" where ("sessions"."mentor_id" = $1 and "sessions"."scheduled_at" >= $2 and "sessions"."scheduled_at" <= $3 and ("sessions"."status" = $4 or "sessions"."status" = $5))',
+  params: [Array],
+  [cause]: [Error [PostgresError]: column "mentor_rating" does not exist] {
+    severity_local: 'ERROR',
+    severity: 'ERROR',
+    code: '42703',
+    position: '231',
+    file: 'parse_relation.c',
+    line: '3716',
+    routine: 'errorMissingColumn'
+  }
+}
+ GET /api/mentors/BPyy0bdbVjWhL1MlRUX7XwhovwJM9bUY/availability/slots?startDate=2025-08-31T18%3A30%3A00.000Z&endDate=2025-09-30T18%3A29%3A59.999Z&timezone=Asia%2FCalcutta 500 in 858ms
+[dotenv@17.2.1] injecting env (0) from .env.local -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+Error: Route "/api/mentors/[id]/availability/slots" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (app\api\mentors\[id]\availability\slots\route.ts:64:40)
+  62 |       .select()
+  63 |       .from(mentors)
+> 64 |       .where(eq(mentors.userId, params.id))
+     |                                        ^
+  65 |       .limit(1);
+  66 |
+  67 |     if (!mentor.length) {
+Error: Route "/api/mentors/[id]/availability/slots" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (app\api\mentors\[id]\availability\slots\route.ts:115:40)
+  113 |       .where(
+  114 |         and(
+> 115 |           eq(sessions.mentorId, params.id),
+      |                                        ^
+  116 |           gte(sessions.scheduledAt, new Date(startDate)),
+  117 |           lte(sessions.scheduledAt, new Date(endDate)),
+  118 |           or(
+Get available slots error: Error: Failed query: select "id", "mentor_id", "mentee_id", "title", "description", "status", "scheduled_at", "started_at", "ended_at", "duration_minutes", "meeting_url", "meeting_type", "location", "rate", "currency", "mentor_notes", "mentee_notes", "mentor_rating", "mentee_rating", "cancelled_by", "cancellation_reason", "rescheduled_from", "no_show_marked_by", "no_show_marked_at", "created_at", "updated_at" from "sessions" where ("sessions"."mentor_id" = $1 and "sessions"."scheduled_at" >= $2 and "sessions"."scheduled_at" <= $3 and ("sessions"."status" = $4 or "sessions"."status" = $5))
+params: BPyy0bdbVjWhL1MlRUX7XwhovwJM9bUY,2025-09-30T18:30:00.000Z,2025-10-31T18:29:59.999Z,scheduled,in_progress
+    at async GET (app\api\mentors\[id]\availability\slots\route.ts:110:30)
+  108 |
+  109 |     // Get existing bookings for the date range
+> 110 |     const existingBookings = await db
+      |                              ^
+  111 |       .select()
+  112 |       .from(sessions)
+  113 |       .where( {
+  query: 'select "id", "mentor_id", "mentee_id", "title", "description", "status", "scheduled_at", "started_at", "ended_at", "duration_minutes", "meeting_url", "meeting_type", "location", "rate", "currency", "mentor_notes", "mentee_notes", "mentor_rating", "mentee_rating", "cancelled_by", "cancellation_reason", "rescheduled_from", "no_show_marked_by", "no_show_marked_at", "created_at", "updated_at" from "sessions" where ("sessions"."mentor_id" = $1 and "sessions"."scheduled_at" >= $2 and "sessions"."scheduled_at" <= $3 and ("sessions"."status" = $4 or "sessions"."status" = $5))',
+  params: [Array],
+  [cause]: [Error [PostgresError]: column "mentor_rating" does not exist] {
+    severity_local: 'ERROR',
+    severity: 'ERROR',
+    code: '42703',
+    position: '231',
+    file: 'parse_relation.c',
+    line: '3716',
+    routine: 'errorMissingColumn'
+  }
+}
+ GET /api/mentors/BPyy0bdbVjWhL1MlRUX7XwhovwJM9bUY/availability/slots?startDate=2025-09-30T18%3A30%3A00.000Z&endDate=2025-10-31T18%3A29%3A59.999Z&timezone=Asia%2FCalcutta 500 in 766ms
+[dotenv@17.2.1] injecting env (0) from .env.local -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+Error: Route "/api/mentors/[id]/availability/slots" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (app\api\mentors\[id]\availability\slots\route.ts:64:40)
+  62 |       .select()
+  63 |       .from(mentors)
+> 64 |       .where(eq(mentors.userId, params.id))
+     |                                        ^
+  65 |       .limit(1);
+  66 |
+  67 |     if (!mentor.length) {
+Error: Route "/api/mentors/[id]/availability/slots" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (app\api\mentors\[id]\availability\slots\route.ts:115:40)
+  113 |       .where(
+  114 |         and(
+> 115 |           eq(sessions.mentorId, params.id),
+      |                                        ^
+  116 |           gte(sessions.scheduledAt, new Date(startDate)),
+  117 |           lte(sessions.scheduledAt, new Date(endDate)),
+  118 |           or(
+Get available slots error: Error: Failed query: select "id", "mentor_id", "mentee_id", "title", "description", "status", "scheduled_at", "started_at", "ended_at", "duration_minutes", "meeting_url", "meeting_type", "location", "rate", "currency", "mentor_notes", "mentee_notes", "mentor_rating", "mentee_rating", "cancelled_by", "cancellation_reason", "rescheduled_from", "no_show_marked_by", "no_show_marked_at", "created_at", "updated_at" from "sessions" where ("sessions"."mentor_id" = $1 and "sessions"."scheduled_at" >= $2 and "sessions"."scheduled_at" <= $3 and ("sessions"."status" = $4 or "sessions"."status" = $5))
+params: BPyy0bdbVjWhL1MlRUX7XwhovwJM9bUY,2025-08-31T18:30:00.000Z,2025-09-30T18:29:59.999Z,scheduled,in_progress
+    at async GET (app\api\mentors\[id]\availability\slots\route.ts:110:30)
+  108 |
+  109 |     // Get existing bookings for the date range
+> 110 |     const existingBookings = await db
+      |                              ^
+  111 |       .select()
+  112 |       .from(sessions)
+  113 |       .where( {
+  query: 'select "id", "mentor_id", "mentee_id", "title", "description", "status", "scheduled_at", "started_at", "ended_at", "duration_minutes", "meeting_url", "meeting_type", "location", "rate", "currency", "mentor_notes", "mentee_notes", "mentor_rating", "mentee_rating", "cancelled_by", "cancellation_reason", "rescheduled_from", "no_show_marked_by", "no_show_marked_at", "created_at", "updated_at" from "sessions" where ("sessions"."mentor_id" = $1 and "sessions"."scheduled_at" >= $2 and "sessions"."scheduled_at" <= $3 and ("sessions"."status" = $4 or "sessions"."status" = $5))',
+  params: [Array],
+  [cause]: [Error [PostgresError]: column "mentor_rating" does not exist] {
+    severity_local: 'ERROR',
+    severity: 'ERROR',
+    code: '42703',
+    position: '231',
+    file: 'parse_relation.c',
+    line: '3716',
+    routine: 'errorMissingColumn'
+  }
+}
+ GET /api/mentors/BPyy0bdbVjWhL1MlRUX7XwhovwJM9bUY/availability/slots?startDate=2025-08-31T18%3A30%3A00.000Z&endDate=2025-09-30T18%3A29%3A59.999Z&timezone=Asia%2FCalcutta 500 in 819ms

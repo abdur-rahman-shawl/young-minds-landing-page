@@ -60,7 +60,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'You were not a participant in this session.' }, { status: 403 });
     }
     
-    // This query can also be written in the db.select() style if you prefer
     const existingReviewArr = await db
       .select({ id: reviews.id })
       .from(reviews)
@@ -69,9 +68,9 @@ export async function POST(req: NextRequest) {
         eq(reviews.reviewerId, reviewerId)
       ));
 
-    if (existingReviewArr.length > 0) {
+    /*if (existingReviewArr.length > 0) {
       return NextResponse.json({ error: 'You have already submitted a review for this session.' }, { status: 409 });
-    }
+    }*/
 
     const questionIds = ratings.map(r => r.questionId);
     
@@ -115,6 +114,15 @@ export async function POST(req: NextRequest) {
       }));
 
       await tx.insert(reviewRatings).values(ratingsToInsert);
+      const sessionUpdateData = reviewerRole === 'mentor' 
+        ? { isReviewedByMentor: true } 
+        : { isReviewedByMentee: true };
+
+      // Update the session record to mark it as reviewed by the appropriate party
+      await tx
+        .update(sessions)
+        .set(sessionUpdateData)
+        .where(eq(sessions.id, sessionId));
 
       return newReview;
     });

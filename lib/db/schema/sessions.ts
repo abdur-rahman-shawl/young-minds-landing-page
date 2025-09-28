@@ -4,8 +4,8 @@ import { users } from './users';
 
 export const sessions = pgTable('sessions', {
   id: uuid('id').defaultRandom().primaryKey(),
-  mentorId: uuid('mentor_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  menteeId: uuid('mentee_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  mentorId: text('mentor_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  menteeId: text('mentee_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   
   // Session details
   title: text('title').notNull(),
@@ -30,8 +30,8 @@ export const sessions = pgTable('sessions', {
   // Session notes and feedback
   mentorNotes: text('mentor_notes'),
   menteeNotes: text('mentee_notes'),
-  mentorRating: integer('mentor_rating'), // 1-5 rating from mentee
-  menteeRating: integer('mentee_rating'), // 1-5 rating from mentor
+  //mentorRating: integer('mentor_rating'), // 1-5 rating from mentee
+  //menteeRating: integer('mentee_rating'), // 1-5 rating from mentor
   
   // Cancellation and rescheduling
   cancelledBy: text('cancelled_by'), // 'mentor' | 'mentee'
@@ -39,7 +39,10 @@ export const sessions = pgTable('sessions', {
   rescheduledFrom: uuid('rescheduled_from').references(() => sessions.id),
   noShowMarkedBy: text('no_show_marked_by'), // 'mentor' | 'system'
   noShowMarkedAt: timestamp('no_show_marked_at'),
-  
+
+  isReviewedByMentor: boolean('is_reviewed_by_mentor').default(false).notNull(),
+  isReviewedByMentee: boolean('is_reviewed_by_mentee').default(false).notNull(),
+
   // Timestamps
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
