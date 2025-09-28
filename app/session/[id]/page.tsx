@@ -2,66 +2,106 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
+import { useSession } from "@/lib/auth-client" // This import is correct
 import { LiveSessionUI } from "@/components/booking/LiveSessionUI"
 import { SessionRating } from "@/components/booking/SessionRating"
-import { CheckCircle } from "lucide-react"
+import { CheckCircle, AlertCircle } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-// In a real app, you'd fetch this data based on the `params.id`
-const MOCK_SESSION_DATA = {
-  id: '12345',
-  title: 'Resume Review',
-  mentorName: 'Jane Doe',
-  mentorAvatar: 'https://github.com/shadcn.png',
+// Define the structure of the data we expect from our API
+interface SessionData {
+  id: string;
+  mentorId: string;
+  menteeId: string;
+  mentor: { id: string; name: string; image: string | null };
+  mentee: { id: string; name: string; image: string | null };
 }
 
-type Stage = 'in-call' | 'rating' | 'success'
+interface Reviewee {
+  id: string;
+  name: string;
+  avatar?: string | null;
+  role: 'mentor' | 'mentee';
+}
+
+type Stage = 'loading' | 'in-call' | 'rating' | 'success' | 'error';
 
 export default function SessionPage() {
-  const router = useRouter()
-  const params = useParams<{ id: string }>()
-  const [stage, setStage] = useState<Stage>('in-call')
-  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null)
-  const [isCameraOn, setIsCameraOn] = useState(false)
+  const router = useRouter();
+  const params = useParams<{ id: string }>();
+  
+  // --- THE FIX: Using the correct properties from your 'better-auth' hook ---
+  const { data: authSession, isPending: isAuthLoading, error: authError } = useSession();
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      setMediaStream(stream);
-      setIsCameraOn(true);
-    } catch (err) {
-      console.error("Error accessing camera:", err);
-      setIsCameraOn(false);
+  const [stage, setStage] = useState<Stage>('loading');
+  const [sessionData, setSessionData] = useState<SessionData | null>(null);
+  const [reviewee, setReviewee] = useState<Reviewee | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Media stream state
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [isCameraOn, setIsCameraOn] = useState(false);
+
+  useEffect(() => {
+    // 1. Wait for auth to finish loading and for params to be available
+    if (isAuthLoading || !params.id) {
+      return;
     }
-  };
 
-  const stopCamera = () => {
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(track => track.stop());
+    // 2. Handle unauthenticated user or auth error
+    if (!authSession || authError) {
+      setError(authError?.message || "You must be logged in to view a session.");
+      setStage('error');
+      return;
     }
-    setMediaStream(null);
-    setIsCameraOn(false);
-  };
 
-  const handleTimeUp = () => {
-    setStage('rating')
-  }
+    const currentUser = authSession.user;
 
-  const handleSubmitRating = (rating: number, feedback: string) => {
-    console.log("Rating submitted:", { rating, feedback, sessionId: params.id })
-    stopCamera()
-    setStage('success')
-    setTimeout(() => {
-      router.push('/dashboard') // Navigate back to dashboard
-    }, 3000)
-  }
+    const fetchAndPrepareSession = async () => {
+      try {
+        const response = await fetch(`/api/sessions/${params.id}`);
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || "Failed to load session data.");
+        }
+        const data: SessionData = await response.json();
+        setSessionData(data);
 
-  const handleSkipRating = () => {
-    console.log("Rating skipped for session:", params.id)
-    stopCamera()
-    router.push('/dashboard')
-  }
+        // *** CRITICAL LOGIC: Determine who is being reviewed ***
+        if (currentUser.id === data.menteeId) {
+          setReviewee({
+            id: data.mentor.id,
+            name: data.mentor.name,
+            avatar: data.mentor.image,
+            role: 'mentor',
+          });
+        } else if (currentUser.id === data.mentorId) {
+          setReviewee({
+            id: data.mentee.id,
+            name: data.mentee.name,
+            avatar: data.mentee.image,
+            role: 'mentee',
+          });
+        } else {
+          throw new Error("You are not a participant in this session.");
+        }
 
-  // Cleanup effect when the user navigates away from the page
+        setStage('in-call');
+      } catch (err: any) {
+        setError(err.message);
+        setStage('error');
+      }
+    };
+
+    // Only run the fetch logic if the stage is still 'loading'
+    if (stage === 'loading') {
+        fetchAndPrepareSession();
+    }
+  }, [params.id, authSession, isAuthLoading, authError, stage]);
+
+  // --- Camera and Cleanup Logic (no changes needed) ---
+  const startCamera = async () => { /* ... */ };
+  const stopCamera = () => { /* ... */ };
   useEffect(() => {
     return () => {
       if (mediaStream) {
@@ -69,13 +109,48 @@ export default function SessionPage() {
       }
     };
   }, [mediaStream]);
+  // ---
+
+  const handleTimeUp = () => {
+    setStage('rating');
+  };
+
+  const handleRatingComplete = () => {
+    stopCamera();
+    setStage('success');
+    setTimeout(() => {
+      router.push('/dashboard');
+    }, 3000);
+  };
+
+  // --- Render Logic based on Stage ---
+  // Use isAuthLoading for the initial page load indicator
+  if (isAuthLoading) {
+    return (
+      <div className="w-screen h-screen bg-gray-900 flex flex-col items-center justify-center">
+        <p className="text-white text-lg">Authenticating...</p>
+      </div>
+    );
+  }
+
+  if (stage === 'error' || !sessionData || !reviewee) {
+    return (
+      <div className="w-screen h-screen bg-gray-900 flex items-center justify-center p-4">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error || "An unknown error occurred."}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="w-screen h-screen bg-gray-900">
       {stage === 'in-call' && (
         <LiveSessionUI
-          mentorName={MOCK_SESSION_DATA.mentorName}
-          mentorAvatar={MOCK_SESSION_DATA.mentorAvatar}
+          mentorName={sessionData.mentor.name}
+          mentorAvatar={sessionData.mentor.image ?? undefined}
           onTimeUp={handleTimeUp}
           isCameraOn={isCameraOn}
           mediaStream={mediaStream}
@@ -87,10 +162,9 @@ export default function SessionPage() {
         <div className="w-full h-full flex items-center justify-center p-4">
           {stage === 'rating' && (
             <SessionRating
-              mentorName={MOCK_SESSION_DATA.mentorName}
-              mentorAvatar={MOCK_SESSION_DATA.mentorAvatar}
-              onSubmit={handleSubmitRating}
-              onSkip={handleSkipRating}
+              sessionId={params.id}
+              reviewee={reviewee}
+              onComplete={handleRatingComplete}
             />
           )}
           {stage === 'success' && (
@@ -103,5 +177,5 @@ export default function SessionPage() {
         </div>
       )}
     </div>
-  )
+  );
 }

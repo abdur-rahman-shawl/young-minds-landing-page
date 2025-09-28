@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Star, ThumbsUp, MessageCircle, Zap, AlertCircle } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-//import { toast } from "sonner" // Assuming you use 'sonner' for toasts. If not, replace with your preferred method.
-//import { Spinner } from "@/components/ui/spinner" // Assuming a Spinner component exists
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert" // Assuming an Alert component exists
+import { toast } from "sonner"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // --- Component Props ---
 interface SessionRatingProps {
@@ -15,10 +14,10 @@ interface SessionRatingProps {
   reviewee: {
     id: string;
     name: string;
-    avatar?: string;
+    avatar?: string | null;
     role: 'mentor' | 'mentee';
   };
-  onComplete: () => void; // A single callback for when the process is done (submitted or skipped)
+  onComplete: () => void;
 }
 
 // --- Type for the questions fetched from the API ---
@@ -28,14 +27,7 @@ interface ReviewQuestion {
   displayOrder: number;
 }
 
-const feedbackTags = [
-  { icon: ThumbsUp, text: "Very Helpful" },
-  { icon: MessageCircle, text: "Great Communicator" },
-  { icon: Zap, text: "Knowledgeable" },
-]
-
 export function SessionRating({ sessionId, reviewee, onComplete }: SessionRatingProps) {
-  // --- State Management ---
   const [questions, setQuestions] = useState<ReviewQuestion[]>([]);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [hoverRatings, setHoverRatings] = useState<Record<string, number>>({});
@@ -45,14 +37,13 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Data Fetching Effect ---
   useEffect(() => {
     const fetchQuestions = async () => {
+      if (!sessionId || !reviewee.role) return;
       try {
         setIsLoading(true);
         setError(null);
-        const sid = '7c98e083-ac21-419c-9f12-fa3d51c79bc0';
-        const response = await fetch(`/api/reviews/questions?role=${reviewee.role}&sessionId=${sid}`);
+        const response = await fetch(`/api/reviews/questions?role=${reviewee.role}&sessionId=${sessionId}`);
         
         if (!response.ok) {
           const errorData = await response.json();
@@ -63,7 +54,7 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
         setQuestions(data);
       } catch (err: any) {
         setError(err.message);
-       // toast.error("Could not load questions", { description: err.message });
+        toast.error("Could not load questions", { description: err.message });
       } finally {
         setIsLoading(false);
       }
@@ -72,38 +63,21 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
     fetchQuestions();
   }, [sessionId, reviewee.role]);
 
-  // --- Handlers ---
-  const handleRatingChange = (questionId: string, value: number) => {
-    setRatings(prev => ({ ...prev, [questionId]: value }));
-  };
-
-  const handleHoverChange = (questionId: string, value: number) => {
-    setHoverRatings(prev => ({ ...prev, [questionId]: value }));
-  };
-
   const handleSubmit = async () => {
     if (!allQuestionsRated) {
-     // toast.error("Please rate all questions before submitting.");
+      toast.error("Please rate all questions before submitting.");
       return;
     }
     
     setIsSubmitting(true);
     
-    // Format ratings into the array structure the API expects
-    const ratingsPayload = Object.entries(ratings).map(([questionId, rating]) => ({
-      questionId,
-      rating,
-    }));
+    const ratingsPayload = Object.entries(ratings).map(([questionId, rating]) => ({ questionId, rating }));
 
     try {
       const response = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          feedback,
-          ratings: ratingsPayload,
-        }),
+        body: JSON.stringify({ sessionId, feedback, ratings: ratingsPayload }),
       });
 
       if (!response.ok) {
@@ -111,27 +85,24 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
         throw new Error(errorData.error || "Failed to submit feedback.");
       }
 
-      //toast.success("Feedback submitted!", { description: "Thank you for helping us improve." });
-      onComplete(); // Notify parent component that we are done
+      toast.success("Feedback submitted!", { description: "Thank you for helping us improve." });
+      onComplete();
 
     } catch (err: any) {
       setError(err.message);
-     // toast.error("Submission Failed", { description: err.message });
+      toast.error("Submission Failed", { description: err.message });
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  // --- Derived State ---
+  
   const allQuestionsRated = questions.length > 0 && questions.every(q => ratings[q.id] > 0);
-
-  // --- Render Logic ---
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center max-w-2xl w-full p-12 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl">
-        
-        <p className="mt-4 text-gray-600 dark:text-gray-400">Loading questions...</p>
+        {/* Spinner component removed */}
+        <p className="text-lg text-gray-600 dark:text-gray-400">Loading questions...</p>
       </div>
     );
   }
@@ -148,10 +119,19 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
     );
   }
 
+   const handleRatingChange = (questionId: string, value: number) => {
+    setRatings(prev => ({ ...prev, [questionId]: value }));
+  };
+
+  // THIS IS THE CORRECT IMPLEMENTATION
+  const handleHoverChange = (questionId: string, value: number) => {
+    setHoverRatings(prev => ({ ...prev, [questionId]: value }));
+  };
+
   return (
     <div className="flex flex-col items-center justify-center max-w-2xl w-full p-8 sm:p-12 bg-white dark:bg-gray-800 text-center rounded-2xl shadow-2xl">
       <Avatar className="w-24 h-24 mb-4">
-        <AvatarImage src={reviewee.avatar} />
+        <AvatarImage src={reviewee.avatar ?? undefined} />
         <AvatarFallback className="text-3xl bg-gray-700">{reviewee.name.charAt(0)}</AvatarFallback>
       </Avatar>
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Rate your session with {reviewee.name}</h2>
@@ -182,16 +162,6 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
         ))}
       </div>
 
-      {/* Feedback Tags (Kept for similar look and feel) */}
-      <div className="flex flex-wrap justify-center gap-3 mb-8">
-        {feedbackTags.map(tag => (
-          <Button key={tag.text} variant="outline" onClick={() => setFeedback(prev => prev ? `${prev}, ${tag.text}` : tag.text)}>
-            <tag.icon className="w-4 h-4 mr-2" />
-            {tag.text}
-          </Button>
-        ))}
-      </div>
-
       {/* Comments Box */}
       <Textarea
         value={feedback}
@@ -205,7 +175,7 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
       <div className="flex space-x-4">
         <Button variant="ghost" onClick={onComplete}>Skip</Button>
         <Button size="lg" onClick={handleSubmit} disabled={!allQuestionsRated || isSubmitting}>
-          {isSubmitting ? null : null}
+          {/* Spinner component removed from button */}
           {isSubmitting ? "Submitting..." : "Submit Feedback"}
         </Button>
       </div>
