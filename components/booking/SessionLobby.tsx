@@ -1,5 +1,4 @@
-
-"use client"
+﻿"use client"
 
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -7,7 +6,7 @@ import { Mic, MicOff, Video, VideoOff, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface SessionLobbyProps {
-  mentorName: string
+  counterpartName: string
   sessionTitle: string
   onJoin: () => void
   isCameraOn: boolean
@@ -17,7 +16,7 @@ interface SessionLobbyProps {
 }
 
 export function SessionLobby({ 
-  mentorName, 
+  counterpartName, 
   sessionTitle, 
   onJoin, 
   isCameraOn, 
@@ -56,7 +55,7 @@ export function SessionLobby({
   return (
     <div className="flex flex-col items-center justify-center h-full p-8 bg-gray-50 dark:bg-gray-900">
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Ready to join?</h2>
-      <p className="text-gray-600 dark:text-gray-400 mb-6">Session with {mentorName}: "{sessionTitle}"</p>
+      <p className="text-gray-600 dark:text-gray-400 mb-6">Session with {counterpartName}: "{sessionTitle}"</p>
 
       <div className="w-full max-w-md bg-black rounded-lg overflow-hidden aspect-video mb-6 shadow-lg">
         {isCameraOn ? (
@@ -93,7 +92,7 @@ export function SessionLobby({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="default-cam">Default Camera</SelectItem>
-             <SelectItem value="disabled-cam" disabled>No other cameras found</SelectItem>
+            <SelectItem value="disabled-cam" disabled>No other cameras found</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -105,3 +104,4 @@ export function SessionLobby({
     </div>
   )
 }
+

@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,20 +34,24 @@ import { RescheduleDialog } from "./reschedule-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { isPast, isWithinInterval, addHours, subHours } from "date-fns";
 
+interface ActionSession {
+  id: string;
+  title: string;
+  status: "scheduled" | "in_progress" | "completed" | "cancelled" | "no_show";
+  scheduledAt: Date;
+  duration: number;
+  mentorId: string;
+  menteeId: string;
+  meetingUrl?: string;
+  meetingType?: string;
+}
+
 interface SessionActionsProps {
-  session: {
-    id: string;
-    title: string;
-    status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
-    scheduledAt: Date;
-    duration: number;
-    mentorId: string;
-    menteeId: string;
-    meetingUrl?: string;
-  };
+  session: ActionSession;
   userId: string;
-  userRole: 'mentor' | 'mentee';
+  userRole: "mentor" | "mentee";
   onUpdate?: () => void;
+  onJoin?: (session: ActionSession) => void;
 }
 
 export function SessionActions({
@@ -54,14 +59,16 @@ export function SessionActions({
   userId,
   userRole,
   onUpdate,
+  onJoin,
 }: SessionActionsProps) {
+  const router = useRouter();
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [showNoShowDialog, setShowNoShowDialog] = useState(false);
   const { toast } = useToast();
 
   // Debug logging
-  console.log('SessionActions Debug:', {
+  console.log("SessionActions Debug:", {
     sessionId: session.id,
     sessionTitle: session.title,
     status: session.status,
@@ -77,29 +84,25 @@ export function SessionActions({
   const isPastSession = isPast(scheduledTime);
   const hoursUntilSession = (scheduledTime.getTime() - now.getTime()) / (1000 * 60 * 60);
   
-  console.log('Time calculations:', {
+  console.log("Time calculations:", {
     scheduledTime,
     now,
     hoursUntilSession,
     isPastSession,
   });
   
-  // Check if session can be joined (15 minutes before to 15 minutes after scheduled time)
-  const canJoin = session.status === 'scheduled' && 
-    isWithinInterval(now, {
-      start: subHours(scheduledTime, 0.25), // 15 minutes before
-      end: addHours(scheduledTime, 0.25), // 15 minutes after
-    });
+  // Demo mode: allow mentors/mentees to jump into the lobby regardless of schedule timing
+  const canJoin = session.status === "scheduled" || session.status === "in_progress";
 
   // Determine what actions are available
-  const canCancel = session.status === 'scheduled' && hoursUntilSession >= 2;
-  const canReschedule = session.status === 'scheduled' && hoursUntilSession >= 4;
-  const canMarkNoShow = userRole === 'mentor' && 
-    session.status === 'scheduled' && 
-    isPastSession && 
+  const canCancel = session.status === "scheduled" && hoursUntilSession >= 2;
+  const canReschedule = session.status === "scheduled" && hoursUntilSession >= 4;
+  const canMarkNoShow = userRole === "mentor" &&
+    session.status === "scheduled" &&
+    isPastSession &&
     (now.getTime() - scheduledTime.getTime()) / (1000 * 60 * 60) <= 24;
   
-  console.log('Permissions:', {
+  console.log("Permissions:", {
     canJoin,
     canCancel,
     canReschedule,
@@ -107,15 +110,12 @@ export function SessionActions({
   });
 
   const handleJoinSession = () => {
-    if (session.meetingUrl) {
-      window.open(session.meetingUrl, '_blank');
-    } else {
-      toast({
-        title: "Meeting URL not available",
-        description: "Please contact the other party for the meeting link.",
-        variant: "destructive",
-      });
+    if (onJoin) {
+      onJoin(session);
+      return;
     }
+
+    router.push(`/session/${session.id}`);
   };
 
   const handleMarkNoShow = async () => {
@@ -147,7 +147,7 @@ export function SessionActions({
     }
   };
 
-  if (session.status === 'completed' || session.status === 'cancelled' || session.status === 'no_show') {
+  if (session.status === "completed" || session.status === "cancelled" || session.status === "no_show") {
     return null; // No actions for completed/cancelled/no-show sessions
   }
 
@@ -254,3 +254,7 @@ export function SessionActions({
     </>
   );
 }
+
+
+
+
