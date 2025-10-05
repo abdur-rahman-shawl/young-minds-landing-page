@@ -978,9 +978,56 @@ export function AdminMentors() {
                 </p>
               </section>
             )}
+
+            <Separator />
+
+            <section className='flex flex-wrap justify-end gap-2'>
+              <Button
+                size='sm'
+                className='gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700'
+                disabled={isProcessing(selectedMentor.id)}
+                onClick={() => handleStatusChange(selectedMentor.id, 'VERIFIED')}
+              >
+                {isProcessing(selectedMentor.id) && pendingAction?.status === 'VERIFIED' ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  <CheckCircle2 className='h-4 w-4' />
+                )}
+                Approve
+              </Button>
+              <Button
+                variant='secondary'
+                size='sm'
+                className='gap-1.5'
+                disabled={isProcessing(selectedMentor.id)}
+                onClick={() => openNoteDialog(selectedMentor, 'REVERIFICATION')}
+              >
+                {isProcessing(selectedMentor.id) && pendingAction?.status === 'REVERIFICATION' ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  <RotateCcw className='h-4 w-4' />
+                )}
+                Request updates
+              </Button>
+              <Button
+                variant='destructive'
+                size='sm'
+                className='gap-1.5'
+                disabled={isProcessing(selectedMentor.id)}
+                onClick={() => openNoteDialog(selectedMentor, 'REJECTED')}
+              >
+                {isProcessing(selectedMentor.id) && pendingAction?.status === 'REJECTED' ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  <XCircle className='h-4 w-4' />
+                )}
+                Reject
+              </Button>
+            </section>
           </DialogContent>
         )}
       </Dialog>
     </div>
   );
 }
+
