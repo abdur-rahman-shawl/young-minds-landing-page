@@ -1,11 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users } from "lucide-react";
+import {
+  Users,
+  UserCheck,
+  UserPlus,
+  CalendarClock,
+  AlertTriangle,
+  PieChart,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface MentorItem {
   id: string;
@@ -15,6 +34,8 @@ interface MentorItem {
   title: string | null;
   company: string | null;
   verificationStatus: string;
+  isAvailable: boolean | null;
+  createdAt: string | null;
 }
 
 interface MenteeItem {
@@ -24,33 +45,116 @@ interface MenteeItem {
   email: string;
   currentRole: string | null;
   careerGoals: string | null;
+  createdAt: string | null;
 }
+
+const pendingStatuses = new Set([
+  "YET_TO_APPLY",
+  "IN_PROGRESS",
+  "REVERIFICATION",
+]);
+
+const formatNumber = (value: number) =>
+  new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
+
+const formatPercentage = (value: number | null) =>
+  value === null
+    ? "–"
+    : new Intl.NumberFormat(undefined, {
+        style: "percent",
+        maximumFractionDigits: 1,
+      }).format(value);
 
 export function AdminDashboard() {
   const [mentors, setMentors] = useState<MentorItem[]>([]);
   const [mentees, setMentees] = useState<MenteeItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchData = async () => {
-    try {
-      const [mRes, tRes] = await Promise.all([
-        fetch("/api/admin/mentors", { credentials: "include" }),
-        fetch("/api/admin/mentees", { credentials: "include" }),
-      ]);
-      const mJson = await mRes.json();
-      const tJson = await tRes.json();
-      if (mJson.success) setMentors(mJson.data);
-      if (tJson.success) setMentees(tJson.data);
-    } catch (e) {
-      console.error("Admin dashboard fetch error", e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchData();
+    const load = async () => {
+      try {
+        const [mentorResponse, menteeResponse] = await Promise.all([
+          fetch("/api/admin/mentors", { credentials: "include" }),
+          fetch("/api/admin/mentees", { credentials: "include" }),
+        ]);
+
+        const [mentorJson, menteeJson] = await Promise.all([
+          mentorResponse.json(),
+          menteeResponse.json(),
+        ]);
+
+        if (mentorResponse.ok && mentorJson?.success) {
+          setMentors(mentorJson.data ?? []);
+        }
+
+        if (menteeResponse.ok && menteeJson?.success) {
+          setMentees(menteeJson.data ?? []);
+        }
+      } catch (error) {
+        console.error("Admin dashboard fetch error", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
   }, []);
+
+  const stats = useMemo(() => {
+    const totalMentors = mentors.length;
+    const totalMentees = mentees.length;
+    const totalUsers = totalMentors + totalMentees;
+
+    const verifiedMentors = mentors.filter(
+      (mentor) => mentor.verificationStatus === "VERIFIED",
+    ).length;
+
+    const availableMentors = mentors.filter(
+      (mentor) =>
+        mentor.verificationStatus === "VERIFIED" && mentor.isAvailable !== false,
+    ).length;
+
+    const pendingMentors = mentors.filter((mentor) =>
+      pendingStatuses.has(mentor.verificationStatus),
+    ).length;
+
+    const needsFollowUpMentors = mentors.filter((mentor) =>
+      mentor.verificationStatus === "REJECTED" ||
+      mentor.verificationStatus === "REVERIFICATION",
+    ).length;
+
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const isWithinLastWeek = (isoDate: string | null | undefined) => {
+      if (!isoDate) return false;
+      const parsed = Date.parse(isoDate);
+      if (Number.isNaN(parsed)) return false;
+      return parsed >= weekAgo;
+    };
+
+    const mentorsThisWeek = mentors.filter((mentor) =>
+      isWithinLastWeek(mentor.createdAt),
+    ).length;
+    const menteesThisWeek = mentees.filter((mentee) =>
+      isWithinLastWeek(mentee.createdAt),
+    ).length;
+
+    const verifiedRate = totalMentors
+      ? verifiedMentors / Math.max(totalMentors, 1)
+      : null;
+
+    return {
+      totalMentors,
+      totalMentees,
+      totalUsers,
+      verifiedMentors,
+      availableMentors,
+      pendingMentors,
+      needsFollowUpMentors,
+      mentorsThisWeek,
+      menteesThisWeek,
+      verifiedRate,
+    };
+  }, [mentors, mentees]);
 
   const updateStatus = async (mentorId: string, status: string) => {
     try {
@@ -63,7 +167,9 @@ export function AdminDashboard() {
       const json = await res.json();
       if (json.success) {
         setMentors((prev) =>
-          prev.map((m) => (m.id === mentorId ? { ...m, verificationStatus: status } : m))
+          prev.map((m) =>
+            m.id === mentorId ? { ...m, verificationStatus: status } : m,
+          ),
         );
       }
     } catch (e) {
@@ -71,7 +177,67 @@ export function AdminDashboard() {
     }
   };
 
-  if (loading) return <p className="p-6">Loading...</p>;
+  if (loading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading dashboard metrics…</p>
+      </div>
+    );
+  }
+
+  const primaryCards = [
+    {
+      title: "Total mentors",
+      value: formatNumber(stats.totalMentors),
+      description: `${formatNumber(stats.verifiedMentors)} verified so far`,
+      icon: Users,
+    },
+    {
+      title: "Active mentors",
+      value: formatNumber(stats.availableMentors),
+      description: "Accepting sessions right now",
+      icon: UserCheck,
+    },
+    {
+      title: "Pending mentor applications",
+      value: formatNumber(stats.pendingMentors),
+      description: `${formatNumber(stats.needsFollowUpMentors)} need follow-up`,
+      icon: AlertTriangle,
+    },
+    {
+      title: "Total mentees",
+      value: formatNumber(stats.totalMentees),
+      description: `${formatNumber(stats.totalUsers)} total people in system`,
+      icon: UserPlus,
+    },
+  ];
+
+  const secondaryCards = [
+    {
+      title: "Mentors onboarded this week",
+      value: formatNumber(stats.mentorsThisWeek),
+      description: "Created in the last 7 days",
+      icon: CalendarClock,
+    },
+    {
+      title: "Mentees joined this week",
+      value: formatNumber(stats.menteesThisWeek),
+      description: "New learners in the last 7 days",
+      icon: CalendarClock,
+    },
+    {
+      title: "Mentors needing updates",
+      value: formatNumber(stats.needsFollowUpMentors),
+      description: "Rejected or flagged for revisions",
+      icon: AlertTriangle,
+    },
+    {
+      title: "Verified mentor rate",
+      value: formatPercentage(stats.verifiedRate),
+      description: "Share of mentors fully approved",
+      icon: PieChart,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -86,55 +252,37 @@ export function AdminDashboard() {
               <Badge variant="secondary">Administrator</Badge>
             </div>
 
-            {/* Admin Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">1,234</div>
-                  <p className="text-xs text-muted-foreground">+12% this month</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Mentors</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">156</div>
-                  <p className="text-xs text-muted-foreground">+8% this month</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Pending Applications</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">23</div>
-                  <p className="text-xs text-muted-foreground">Awaiting review</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Monthly Sessions</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">2,847</div>
-                  <p className="text-xs text-muted-foreground">+18% from last month</p>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {primaryCards.map(({ title, value, description, icon: Icon }) => (
+                <Card key={title}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{value}</div>
+                    <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
-            {/* Admin Content */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {secondaryCards.map(({ title, value, description, icon: Icon }) => (
+                <Card key={title} className="border-dashed">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-xl font-semibold">{value}</div>
+                    <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle>Recent Mentor Applications</CardTitle>
@@ -160,7 +308,6 @@ export function AdminDashboard() {
               </Card>
             </div>
 
-            {/* Mentors List */}
             <Card>
               <CardHeader>
                 <CardTitle>All Mentors</CardTitle>
@@ -170,7 +317,7 @@ export function AdminDashboard() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left border-b">
+                      <tr className="border-b text-left">
                         <th className="py-2">Name</th>
                         <th>Email</th>
                         <th>Title</th>
@@ -192,56 +339,20 @@ export function AdminDashboard() {
                               defaultValue={m.verificationStatus}
                               onValueChange={(val) => updateStatus(m.id, val)}
                             >
-                              <SelectTrigger className="w-36 h-8 text-xs">
+                              <SelectTrigger className="h-8 w-36 text-xs">
                                 <SelectValue placeholder="Status" />
                               </SelectTrigger>
                               <SelectContent>
-                                {[
-                                  "YET_TO_APPLY",
-                                  "IN_PROGRESS",
-                                  "VERIFIED",
-                                  "REJECTED",
-                                  "REVERIFICATION",
-                                ].map((s) => (
-                                  <SelectItem key={s} value={s} className="text-xs">
-                                    {s}
-                                  </SelectItem>
-                                ))}
+                                {["YET_TO_APPLY", "IN_PROGRESS", "VERIFIED", "REJECTED", "REVERIFICATION"].map(
+                                  (status) => (
+                                    <SelectItem key={status} value={status}>
+                                      {status}
+                                    </SelectItem>
+                                  ),
+                                )}
                               </SelectContent>
                             </Select>
                           </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Mentees List */}
-            <Card>
-              <CardHeader>
-                <CardTitle>All Mentees</CardTitle>
-                <CardDescription>List of mentee profiles</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left border-b">
-                        <th className="py-2">Name</th>
-                        <th>Email</th>
-                        <th>Current Role</th>
-                        <th>Career Goals</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {mentees.map((m) => (
-                        <tr key={m.id} className="border-b hover:bg-gray-50">
-                          <td className="py-2">{m.name}</td>
-                          <td>{m.email}</td>
-                          <td>{m.currentRole}</td>
-                          <td>{m.careerGoals}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -254,4 +365,4 @@ export function AdminDashboard() {
       </div>
     </div>
   );
-} 
+}

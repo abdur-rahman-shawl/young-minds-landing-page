@@ -118,6 +118,38 @@ const pendingStatuses: VerificationStatus[] = [
   'IN_PROGRESS',
   'REVERIFICATION',
 ];
+const renderAvailabilityBadge = (availability: boolean | null) => {
+  if (availability === false) {
+    return (
+      <Badge
+        variant='outline'
+        className='border-transparent text-xs text-red-600'
+      >
+        Not accepting sessions
+      </Badge>
+    );
+  }
+
+  if (availability) {
+    return (
+      <Badge
+        variant='outline'
+        className='border-transparent text-xs text-emerald-600'
+      >
+        Accepting sessions
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge
+      variant='outline'
+      className='border-transparent text-xs text-muted-foreground'
+    >
+      Availability unknown
+    </Badge>
+  );
+};
 
 export function AdminMentors() {
   const [mentors, setMentors] = useState<Mentor[]>([]);
@@ -279,6 +311,11 @@ export function AdminMentors() {
   const extractExpertise = (mentor: Mentor) =>
     Array.from(new Set((mentor.expertise || []).filter(Boolean)));
 
+  const selectedMentorExpertise = useMemo(
+    () => (selectedMentor ? extractExpertise(selectedMentor) : []),
+    [selectedMentor],
+  );
+
   const renderMentorList = (rows: Mentor[]) => {
     if (!rows.length) {
       return (
@@ -303,30 +340,6 @@ export function AdminMentors() {
             const registered = mentor.createdAt
               ? format(new Date(mentor.createdAt), 'PP')
               : '?';
-
-            const availabilityBadge =
-              mentor.isAvailable === false ? (
-                <Badge
-                  variant='outline'
-                  className='border-transparent text-xs text-red-600'
-                >
-                  Not accepting sessions
-                </Badge>
-              ) : mentor.isAvailable ? (
-                <Badge
-                  variant='outline'
-                  className='border-transparent text-xs text-emerald-600'
-                >
-                  Accepting sessions
-                </Badge>
-              ) : (
-                <Badge
-                  variant='outline'
-                  className='border-transparent text-xs text-muted-foreground'
-                >
-                  Availability unknown
-                </Badge>
-              );
 
             const handleButtonClick =
               (action: () => void | Promise<unknown>) =>
@@ -360,7 +373,7 @@ export function AdminMentors() {
                       >
                         {statusCopy[mentor.verificationStatus]}
                       </Badge>
-                      {availabilityBadge}
+                      {renderAvailabilityBadge(mentor.isAvailable)}
                     </div>
                     {mentor.headline && (
                       <p className='max-w-2xl text-sm text-muted-foreground'>
@@ -561,6 +574,7 @@ export function AdminMentors() {
       </TooltipProvider>
     );
   };
+
   if (loading) {
     return (
       <div className='flex h-[70vh] flex-col items-center justify-center gap-3 text-muted-foreground'>
@@ -582,7 +596,6 @@ export function AdminMentors() {
       </div>
     );
   }
-
   return (
     <div className='space-y-6 p-6'>
       <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
@@ -649,65 +662,73 @@ export function AdminMentors() {
 
       <Dialog
         open={!!noteDialog}
-        onOpenChange={(open) => !open && setNoteDialog(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setNoteDialog(null);
+          }
+        }}
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {noteDialog?.status === 'REJECTED'
-                ? 'Reject mentor application'
-                : 'Request mentor updates'}
-            </DialogTitle>
-            <DialogDescription>
-              {noteDialog?.status === 'REJECTED'
-                ? 'Share a short note so the mentor understands why the application was rejected.'
-                : 'Let the mentor know what needs to be updated before approval.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className='space-y-3'>
-            <div className='text-sm'>
-              <span className='font-medium'>
-                {noteDialog?.mentor.name || noteDialog?.mentor.fullName || 'Mentor'}
-              </span>
+        {noteDialog && (
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {noteDialog.status === 'REJECTED'
+                  ? 'Reject mentor application'
+                  : 'Request mentor updates'}
+              </DialogTitle>
+              <DialogDescription>
+                {noteDialog.status === 'REJECTED'
+                  ? 'Share a short note so the mentor understands why the application was rejected.'
+                  : 'Let the mentor know what needs to be updated before approval.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className='space-y-3'>
+              <div className='text-sm'>
+                <span className='font-medium'>
+                  {noteDialog.mentor.name ||
+                    noteDialog.mentor.fullName ||
+                    'Mentor'}
+                </span>
+              </div>
+              <Textarea
+                value={noteDialog.note}
+                onChange={(event) =>
+                  setNoteDialog((prev) =>
+                    prev ? { ...prev, note: event.target.value } : prev,
+                  )
+                }
+                placeholder='Provide context for this decision...'
+                rows={4}
+              />
             </div>
-            <Textarea
-              value={noteDialog?.note ?? ''}
-              onChange={(event) =>
-                setNoteDialog((prev) =>
-                  prev ? { ...prev, note: event.target.value } : prev,
-                )
-              }
-              placeholder='Provide context for this decision...'
-              rows={4}
-            />
-          </div>
-          <DialogFooter className='gap-2 sm:gap-0'>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => setNoteDialog(null)}
-              disabled={noteDialog?.submitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type='button'
-              variant={noteDialog?.status === 'REJECTED' ? 'destructive' : 'default'}
-              onClick={handleNoteSubmit}
-              disabled={noteDialog?.submitting || !noteDialog?.note.trim()}
-              className='gap-1.5'
-            >
-              {noteDialog?.submitting ? (
-                <Loader2 className='h-4 w-4 animate-spin' />
-              ) : noteDialog?.status === 'REJECTED' ? (
-                <XCircle className='h-4 w-4' />
-              ) : (
-                <RotateCcw className='h-4 w-4' />
-              )}
-              Submit
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+            <DialogFooter className='gap-2 sm:gap-0'>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => setNoteDialog(null)}
+                disabled={noteDialog.submitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type='button'
+                variant={noteDialog.status === 'REJECTED' ? 'destructive' : 'default'}
+                onClick={handleNoteSubmit}
+                disabled={noteDialog.submitting || !noteDialog.note.trim()}
+                className='gap-1.5'
+              >
+                {noteDialog.submitting ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : noteDialog.status === 'REJECTED' ? (
+                  <XCircle className='h-4 w-4' />
+                ) : (
+                  <RotateCcw className='h-4 w-4' />
+                )}
+                Submit
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
       </Dialog>
       <Dialog
         open={showDetails && !!selectedMentor}
@@ -717,298 +738,248 @@ export function AdminMentors() {
           }
         }}
       >
-        <DialogContent
-          className='max-w-4xl space-y-6 overflow-hidden'
-          aria-labelledby='mentor-detail-title'
-          aria-describedby='mentor-detail-description'
-        >
-          <DialogHeader>
-            <DialogTitle id='mentor-detail-title'>Mentor details</DialogTitle>
-            <DialogDescription id='mentor-detail-description'>
-              Detailed mentor application profile
-            </DialogDescription>
-          </DialogHeader>
-          {selectedMentor && (
-            <div className='space-y-6'>
-              {(() => {
-                const detailAvailabilityBadge =
-                  selectedMentor.isAvailable === false ? (
-                    <Badge
-                      variant='outline'
-                      className='border-transparent text-xs text-red-600'
-                    >
-                      Not accepting sessions
-                    </Badge>
-                  ) : selectedMentor.isAvailable ? (
-                    <Badge
-                      variant='outline'
-                      className='border-transparent text-xs text-emerald-600'
-                    >
-                      Accepting sessions
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant='outline'
-                      className='border-transparent text-xs text-muted-foreground'
-                    >
-                      Availability unknown
-                    </Badge>
-                  );
-                const detailExpertise = extractExpertise(selectedMentor);
-                return (
-                  <>
-                    <section
-                      aria-labelledby='mentor-overview-heading'
-                      className='flex flex-col gap-4 md:flex-row md:items-start md:justify-between'
-                    >
-                      <div className='space-y-3'>
-                        <h3
-                          id='mentor-overview-heading'
-                          className='text-xl font-semibold text-foreground'
-                        >
-                          {selectedMentor.name ||
-                            selectedMentor.fullName ||
-                            'Mentor'}
-                        </h3>
-                        {selectedMentor.headline && (
-                          <p className='text-sm text-muted-foreground'>
-                            {selectedMentor.headline}
-                          </p>
-                        )}
-                        <div className='flex flex-wrap items-center gap-2'>
-                          <Badge
-                            variant='outline'
-                            className={cn(
-                              'border-transparent text-xs capitalize',
-                              statusBadgeClass[selectedMentor.verificationStatus],
-                            )}
-                          >
-                            {statusCopy[selectedMentor.verificationStatus]}
-                          </Badge>
-                          {detailAvailabilityBadge}
-                          {selectedMentor.location && (
-                            <span className='inline-flex items-center gap-1 text-xs text-muted-foreground'>
-                              <MapPin className='h-3 w-3' />
-                              {selectedMentor.location}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className='flex flex-wrap gap-2'>
-                        {selectedMentor.linkedinUrl && (
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            className='gap-1.5'
-                            asChild
-                          >
-                            <a
-                              href={selectedMentor.linkedinUrl}
-                              target='_blank'
-                              rel='noopener noreferrer'
-                            >
-                              <ExternalLink className='h-3 w-3' />
-                              LinkedIn
-                            </a>
-                          </Button>
-                        )}
-                        {selectedMentor.resumeUrl && (
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            className='gap-1.5'
-                            asChild
-                          >
-                            <a
-                              href={selectedMentor.resumeUrl}
-                              target='_blank'
-                              rel='noopener noreferrer'
-                            >
-                              <FileText className='h-3 w-3' />
-                              Resume
-                            </a>
-                          </Button>
-                        )}
-                        {selectedMentor.websiteUrl && (
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            className='gap-1.5'
-                            asChild
-                          >
-                            <a
-                              href={selectedMentor.websiteUrl}
-                              target='_blank'
-                              rel='noopener noreferrer'
-                            >
-                              <ExternalLink className='h-3 w-3' />
-                              Website
-                            </a>
-                          </Button>
-                        )}
-                      </div>
-                    </section>
+        {showDetails && selectedMentor && (
+          <DialogContent
+            className='max-w-4xl space-y-6 overflow-hidden'
+            aria-labelledby='mentor-detail-title'
+            aria-describedby='mentor-detail-description'
+          >
+            <DialogHeader>
+              <DialogTitle id='mentor-detail-title'>Mentor details</DialogTitle>
+              <DialogDescription id='mentor-detail-description'>
+                Detailed mentor application profile
+              </DialogDescription>
+            </DialogHeader>
 
-                    <Separator />
-
-                    <section
-                      aria-labelledby='mentor-summary-heading'
-                      className='grid gap-6 md:grid-cols-2'
-                    >
-                      <div>
-                        <h4
-                          id='mentor-summary-heading'
-                          className='text-sm font-semibold text-foreground'
-                        >
-                          Application summary
-                        </h4>
-                        <dl className='mt-3 space-y-3 text-sm text-muted-foreground'>
-                          <div className='flex items-start justify-between gap-4'>
-                            <dt className='font-medium text-foreground'>Experience</dt>
-                            <dd>
-                              {selectedMentor.experienceYears
-                                ? `${selectedMentor.experienceYears} years`
-                                : 'Not provided'}
-                            </dd>
-                          </div>
-                          <div className='flex items-start justify-between gap-4'>
-                            <dt className='font-medium text-foreground'>Rate</dt>
-                            <dd>
-                              {selectedMentor.hourlyRate
-                                ? `${selectedMentor.currency ?? 'USD'} ${
-                                    selectedMentor.hourlyRate
-                                  }/hr`
-                                : 'Not provided'}
-                            </dd>
-                          </div>
-                          <div className='flex items-start justify-between gap-4'>
-                            <dt className='font-medium text-foreground'>Company</dt>
-                            <dd className='max-w-[200px] break-words'>
-                              {selectedMentor.company || 'Not provided'}
-                            </dd>
-                          </div>
-                          <div className='flex items-start justify-between gap-4'>
-                            <dt className='font-medium text-foreground'>Industry</dt>
-                            <dd className='max-w-[200px] break-words'>
-                              {selectedMentor.industry || 'Not provided'}
-                            </dd>
-                          </div>
-                          <div className='flex items-start justify-between gap-4'>
-                            <dt className='font-medium text-foreground'>Joined</dt>
-                            <dd>
-                              {selectedMentor.createdAt
-                                ? format(new Date(selectedMentor.createdAt), 'PP')
-                                : 'Unknown'}
-                            </dd>
-                          </div>
-                        </dl>
-                      </div>
-
-                      <div>
-                        <h4
-                          id='mentor-contact-heading'
-                          className='text-sm font-semibold text-foreground'
-                        >
-                          Contact
-                        </h4>
-                        <div className='mt-3 space-y-2 text-sm text-muted-foreground'>
-                          {selectedMentor.email && (
-                            <a
-                              href={`mailto:${selectedMentor.email}`}
-                              className='font-medium text-primary hover:underline'
-                            >
-                              {selectedMentor.email}
-                            </a>
-                          )}
-                          {selectedMentor.city && (
-                            <p>
-                              City: <span className='font-medium'>{selectedMentor.city}</span>
-                            </p>
-                          )}
-                          {selectedMentor.state && (
-                            <p>
-                              State: <span className='font-medium'>{selectedMentor.state}</span>
-                            </p>
-                          )}
-                          {selectedMentor.country && (
-                            <p>
-                              Country:{' '}
-                              <span className='font-medium'>{selectedMentor.country}</span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </section>
-
-                    <Separator />
-
-                    <section
-                      aria-labelledby='mentor-expertise-heading'
-                      className='space-y-3'
-                    >
-                      <h4
-                        id='mentor-expertise-heading'
-                        className='text-sm font-semibold text-foreground'
-                      >
-                        Expertise
-                      </h4>
-                      <div className='flex flex-wrap gap-2'>
-                        {detailExpertise.map((item, index) => (
-                          <Badge
-                            key={`${selectedMentor.id}-detail-expertise-${index}`}
-                            variant='secondary'
-                            className='text-xs'
-                          >
-                            {item}
-                          </Badge>
-                        ))}
-                        {detailExpertise.length === 0 && (
-                          <span className='text-sm text-muted-foreground'>
-                            No expertise listed
-                          </span>
-                        )}
-                      </div>
-                    </section>
-
-                    <Separator />
-
-                    <section
-                      aria-labelledby='mentor-about-heading'
-                      className='space-y-3'
-                    >
-                      <h4
-                        id='mentor-about-heading'
-                        className='text-sm font-semibold text-foreground'
-                      >
-                        About
-                      </h4>
-                      <p className='whitespace-pre-line text-sm text-muted-foreground'>
-                        {selectedMentor.about || 'No additional biography provided.'}
-                      </p>
-                    </section>
-
-                    {selectedMentor.verificationNotes && (
-                      <section
-                        aria-labelledby='mentor-notes-heading'
-                        className='space-y-2 rounded-lg border border-dashed border-amber-300 bg-amber-50/60 p-4 text-sm text-amber-800 dark:border-amber-500/60 dark:bg-amber-500/10 dark:text-amber-200'
-                      >
-                        <h4
-                          id='mentor-notes-heading'
-                          className='font-semibold text-amber-800 dark:text-amber-200'
-                        >
-                          Latest reviewer note
-                        </h4>
-                        <p className='whitespace-pre-line'>
-                          {selectedMentor.verificationNotes}
-                        </p>
-                      </section>
+            <section
+              aria-labelledby='mentor-overview-heading'
+              className='flex flex-col gap-4 md:flex-row md:items-start md:justify-between'
+            >
+              <div className='space-y-3'>
+                <h3
+                  id='mentor-overview-heading'
+                  className='text-xl font-semibold text-foreground'
+                >
+                  {selectedMentor.name || selectedMentor.fullName || 'Mentor'}
+                </h3>
+                {selectedMentor.headline && (
+                  <p className='text-sm text-muted-foreground'>
+                    {selectedMentor.headline}
+                  </p>
+                )}
+                <div className='flex flex-wrap items-center gap-2'>
+                  <Badge
+                    variant='outline'
+                    className={cn(
+                      'border-transparent text-xs capitalize',
+                      statusBadgeClass[selectedMentor.verificationStatus],
                     )}
-                  </>
-                );
-              })()}
-            </div>
-          )}
-        </DialogContent>
+                  >
+                    {statusCopy[selectedMentor.verificationStatus]}
+                  </Badge>
+                  {renderAvailabilityBadge(selectedMentor.isAvailable)}
+                  {selectedMentor.location && (
+                    <span className='inline-flex items-center gap-1 text-xs text-muted-foreground'>
+                      <MapPin className='h-3 w-3' />
+                      {selectedMentor.location}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className='flex flex-wrap gap-2'>
+                {selectedMentor.linkedinUrl && (
+                  <Button variant='outline' size='sm' className='gap-1.5' asChild>
+                    <a
+                      href={selectedMentor.linkedinUrl}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                    >
+                      <ExternalLink className='h-3 w-3' />
+                      LinkedIn
+                    </a>
+                  </Button>
+                )}
+                {selectedMentor.resumeUrl && (
+                  <Button variant='outline' size='sm' className='gap-1.5' asChild>
+                    <a
+                      href={selectedMentor.resumeUrl}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                    >
+                      <FileText className='h-3 w-3' />
+                      Resume
+                    </a>
+                  </Button>
+                )}
+                {selectedMentor.websiteUrl && (
+                  <Button variant='outline' size='sm' className='gap-1.5' asChild>
+                    <a
+                      href={selectedMentor.websiteUrl}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                    >
+                      <ExternalLink className='h-3 w-3' />
+                      Website
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </section>
+
+            <Separator />
+
+            <section
+              aria-labelledby='mentor-summary-heading'
+              className='grid gap-6 md:grid-cols-2'
+            >
+              <div>
+                <h4
+                  id='mentor-summary-heading'
+                  className='text-sm font-semibold text-foreground'
+                >
+                  Application summary
+                </h4>
+                <dl className='mt-3 space-y-3 text-sm text-muted-foreground'>
+                  <div className='flex items-start justify-between gap-4'>
+                    <dt className='font-medium text-foreground'>Experience</dt>
+                    <dd>
+                      {selectedMentor.experienceYears
+                        ? `${selectedMentor.experienceYears} years`
+                        : 'Not provided'}
+                    </dd>
+                  </div>
+                  <div className='flex items-start justify-between gap-4'>
+                    <dt className='font-medium text-foreground'>Rate</dt>
+                    <dd>
+                      {selectedMentor.hourlyRate
+                        ? `${selectedMentor.currency ?? 'USD'} ${selectedMentor.hourlyRate}/hr`
+                        : 'Not provided'}
+                    </dd>
+                  </div>
+                  <div className='flex items-start justify-between gap-4'>
+                    <dt className='font-medium text-foreground'>Company</dt>
+                    <dd className='max-w-[200px] break-words'>
+                      {selectedMentor.company || 'Not provided'}
+                    </dd>
+                  </div>
+                  <div className='flex items-start justify-between gap-4'>
+                    <dt className='font-medium text-foreground'>Industry</dt>
+                    <dd className='max-w-[200px] break-words'>
+                      {selectedMentor.industry || 'Not provided'}
+                    </dd>
+                  </div>
+                  <div className='flex items-start justify-between gap-4'>
+                    <dt className='font-medium text-foreground'>Joined</dt>
+                    <dd>
+                      {selectedMentor.createdAt
+                        ? format(new Date(selectedMentor.createdAt), 'PP')
+                        : 'Unknown'}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div>
+                <h4
+                  id='mentor-contact-heading'
+                  className='text-sm font-semibold text-foreground'
+                >
+                  Contact
+                </h4>
+                <div className='mt-3 space-y-2 text-sm text-muted-foreground'>
+                  {selectedMentor.email && (
+                    <a
+                      href={`mailto:${selectedMentor.email}`}
+                      className='font-medium text-primary hover:underline'
+                    >
+                      {selectedMentor.email}
+                    </a>
+                  )}
+                  {selectedMentor.city && (
+                    <p>
+                      City: <span className='font-medium'>{selectedMentor.city}</span>
+                    </p>
+                  )}
+                  {selectedMentor.state && (
+                    <p>
+                      State: <span className='font-medium'>{selectedMentor.state}</span>
+                    </p>
+                  )}
+                  {selectedMentor.country && (
+                    <p>
+                      Country:{' '}
+                      <span className='font-medium'>{selectedMentor.country}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <Separator />
+
+            <section
+              aria-labelledby='mentor-expertise-heading'
+              className='space-y-3'
+            >
+              <h4
+                id='mentor-expertise-heading'
+                className='text-sm font-semibold text-foreground'
+              >
+                Expertise
+              </h4>
+              <div className='flex flex-wrap gap-2'>
+                {selectedMentorExpertise.map((item, index) => (
+                  <Badge
+                    key={`${selectedMentor.id}-detail-expertise-${index}`}
+                    variant='secondary'
+                    className='break-all text-xs'
+                  >
+                    {item}
+                  </Badge>
+                ))}
+                {selectedMentorExpertise.length === 0 && (
+                  <span className='text-sm text-muted-foreground'>
+                    No expertise listed
+                  </span>
+                )}
+              </div>
+            </section>
+
+            <Separator />
+
+            <section
+              aria-labelledby='mentor-about-heading'
+              className='space-y-3'
+            >
+              <h4
+                id='mentor-about-heading'
+                className='text-sm font-semibold text-foreground'
+              >
+                About
+              </h4>
+              <p className='whitespace-pre-line text-sm text-muted-foreground'>
+                {selectedMentor.about || 'No additional biography provided.'}
+              </p>
+            </section>
+
+            {selectedMentor.verificationNotes && (
+              <section
+                aria-labelledby='mentor-notes-heading'
+                className='space-y-2 rounded-lg border border-dashed border-amber-300 bg-amber-50/60 p-4 text-sm text-amber-800 dark:border-amber-500/60 dark:bg-amber-500/10 dark:text-amber-200'
+              >
+                <h4
+                  id='mentor-notes-heading'
+                  className='font-semibold text-amber-800 dark:text-amber-200'
+                >
+                  Latest reviewer note
+                </h4>
+                <p className='whitespace-pre-line'>
+                  {selectedMentor.verificationNotes}
+                </p>
+              </section>
+            )}
+          </DialogContent>
+        )}
       </Dialog>
     </div>
   );
