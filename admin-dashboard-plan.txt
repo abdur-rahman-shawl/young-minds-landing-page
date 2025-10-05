@@ -1,0 +1,1 @@
+Remaining tasks for Admin Mentors UI cleanup:\n- Rebuild mentor table layout with cards/rows per new design (compact, no horizontal scroll).\n- Add mentor detail panel/dialog with polished styling and accessible title/description.\n- Tighten expertise badges (tooltips, wrapping) and status/moderation buttons styling.\n- Final QA pass and rebuild once updates complete.
