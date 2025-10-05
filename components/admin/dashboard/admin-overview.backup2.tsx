@@ -1,4 +1,4 @@
-ï»¿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -154,7 +154,7 @@ export function AdminOverview() {
     {
       title: "Total people",
       value: formatNumber(stats.totalUsers),
-      description: `${formatNumber(stats.totalMentors)} mentors ï¿½ ${formatNumber(stats.totalMentees)} mentees`,
+      description: `${formatNumber(stats.totalMentors)} mentors • ${formatNumber(stats.totalMentees)} mentees`,
       icon: Users,
     },
     {
