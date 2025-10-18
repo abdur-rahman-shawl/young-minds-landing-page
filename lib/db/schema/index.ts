@@ -19,6 +19,7 @@ export * from './ai-chatbot-messages';
 export * from './notifications';
 export * from './mentor-availability';
 export * from './reviews';
+export * from './livekit';
 
 // Temporary empty export to prevent TypeScript errors
 export {}; 

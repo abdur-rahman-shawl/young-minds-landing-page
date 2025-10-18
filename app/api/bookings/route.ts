@@ -2,20 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { 
-  sessions, 
-  notifications, 
-  mentors, 
+import {
+  sessions,
+  notifications,
+  mentors,
   users,
   mentorAvailabilitySchedules,
   mentorWeeklyPatterns,
-  mentorAvailabilityExceptions 
+  mentorAvailabilityExceptions
 } from '@/lib/db/schema';
 import { eq, and, desc, gte, lte, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { createBookingSchema, validateBookingTime, canUserAccessBooking } from '@/lib/validations/booking';
 import { bookingRateLimit, RateLimitError } from '@/lib/rate-limit';
 import { getDay, isWithinInterval, addMinutes, setHours, setMinutes, setSeconds } from 'date-fns';
+import { LiveKitRoomManager } from '@/lib/livekit/room-manager';
 
 // Remove duplicate schema definition since it's imported
 
@@ -262,6 +263,49 @@ export async function POST(req: NextRequest) {
       actionUrl: `/dashboard?section=sessions`,
       actionText: 'View Sessions',
     });
+
+    // ========================================================================
+    // CREATE LIVEKIT ROOM FOR THE SESSION
+    // ========================================================================
+    // CRITICAL: Room creation must succeed for video calling to work
+    // If this fails, the booking is still valid but video call won't be available
+    try {
+      console.log(`📹 Creating LiveKit room for session ${newBooking.id}`);
+
+      const { roomId, roomName, meetingUrl } = await LiveKitRoomManager.createRoomForSession(
+        newBooking.id
+      );
+
+      // Update session with meeting URL
+      await db
+        .update(sessions)
+        .set({ meetingUrl })
+        .where(eq(sessions.id, newBooking.id));
+
+      console.log(
+        `✅ LiveKit room created successfully: ${roomName} (${roomId}) for session ${newBooking.id}`
+      );
+    } catch (roomError) {
+      // FAIL LOUDLY - Log critical error but don't fail the booking
+      // Booking is successful even if room creation fails
+      // This allows manual intervention to create room later
+      console.error(
+        '❌ CRITICAL ERROR: Failed to create LiveKit room for session',
+        {
+          sessionId: newBooking.id,
+          error: roomError instanceof Error ? roomError.message : 'Unknown error',
+          stack: roomError instanceof Error ? roomError.stack : undefined,
+        }
+      );
+
+      // TODO: Send alert to system administrators
+      // TODO: Create a system notification for manual room creation
+      // For now, log this as a critical issue requiring immediate attention
+      console.error(
+        '🚨 MANUAL INTERVENTION REQUIRED: LiveKit room creation failed for session',
+        newBooking.id
+      );
+    }
 
     return NextResponse.json({
       success: true,
