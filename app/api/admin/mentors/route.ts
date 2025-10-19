@@ -1,10 +1,11 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { mentors, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
 import { z } from 'zod';
+import { sendMentorApplicationApprovedEmail } from '@/lib/email';
 
 const VERIFICATION_STATUSES = [
   'YET_TO_APPLY',
@@ -162,6 +163,25 @@ export async function GET(request: NextRequest) {
   }
 }
 
+async function sendNotification(userId: string, type: string, title: string, message: string, actionUrl?: string) {
+  console.log(`🚀 Sending notification to user ${userId}...`);
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  try {
+    const response = await fetch(`${baseUrl}/api/notifications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, type, title, message, actionUrl }),
+    });
+    if (response.ok) {
+      console.log(`✅ Notification sent successfully to user ${userId}`);
+    } else {
+      console.error(`❌ Failed to send notification to user ${userId}:`, await response.json());
+    }
+  } catch (error) {
+    console.error(`❌ Error sending notification to user ${userId}:`, error);
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const adminCheck = await ensureAdmin(request);
@@ -190,10 +210,39 @@ export async function PATCH(request: NextRequest) {
         updatedAt: new Date(),
       })
       .where(eq(mentors.id, mentorId))
-      .returning({ id: mentors.id });
+      .returning({ id: mentors.id, userId: mentors.userId, fullName: mentors.fullName, email: mentors.email });
 
     if (!updatedMentor) {
       return NextResponse.json({ success: false, error: 'Mentor not found' }, { status: 404 });
+    }
+
+    const { userId, fullName, email } = updatedMentor;
+
+    if (status === 'VERIFIED') {
+      await sendMentorApplicationApprovedEmail(email!, fullName! );
+      await sendNotification(
+        userId,
+        'MENTOR_APPLICATION_APPROVED',
+        'Application Approved!',
+        'Congratulations! Your mentor application has been approved.',
+        '/dashboard'
+      );
+    } else if (status === 'REJECTED') {
+      await sendNotification(
+        userId,
+        'MENTOR_APPLICATION_REJECTED',
+        'Application Rejected',
+        `Your mentor application has been rejected. Reason: ${notes || 'No reason provided.'}`,
+        '/become-expert'
+      );
+    } else if (status === 'REVERIFICATION') {
+      await sendNotification(
+        userId,
+        'MENTOR_APPLICATION_UPDATE_REQUESTED',
+        'Update Requested',
+        `An update has been requested for your mentor application. Note: ${notes || 'No reason provided.'}`,
+        '/become-expert'
+      );
     }
 
     const refreshedRows = await fetchMentorRows(mentorId);

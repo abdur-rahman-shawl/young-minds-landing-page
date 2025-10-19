@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Bell, Calendar, MessageSquare, User, Clock, Check, X, MoreHorizontal } from 'lucide-react';
+import { Bell, Calendar, MessageSquare, User, Clock, Check, X, MoreHorizontal, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -41,9 +41,9 @@ export function NotificationBell() {
 
   // Fetch notifications - NOT memoized to avoid dependency issues
   const fetchNotifications = async () => {
-    // Prevent concurrent fetches and rate limit to every 5 seconds minimum
+    // Prevent concurrent fetches and rate limit to every 10 seconds minimum
     const now = Date.now();
-    if (!session || isFetchingRef.current || (now - lastFetchTimeRef.current < 5000)) {
+    if (!session || isFetchingRef.current || (now - lastFetchTimeRef.current < 10000)) {
       return;
     }
     
@@ -148,6 +148,12 @@ export function NotificationBell() {
         return MessageSquare;
       case 'PROFILE_UPDATED':
         return User;
+      case 'MENTOR_APPLICATION_APPROVED':
+        return Check;
+      case 'MENTOR_APPLICATION_REJECTED':
+        return X;
+      case 'MENTOR_APPLICATION_UPDATE_REQUESTED':
+        return RotateCcw;
       default:
         return Bell;
     }
@@ -158,11 +164,14 @@ export function NotificationBell() {
     switch (type) {
       case 'BOOKING_CONFIRMED':
       case 'SESSION_COMPLETED':
+      case 'MENTOR_APPLICATION_APPROVED':
         return 'text-green-600 bg-green-100 dark:bg-green-900/30';
       case 'BOOKING_CANCELLED':
+      case 'MENTOR_APPLICATION_REJECTED':
         return 'text-red-600 bg-red-100 dark:bg-red-900/30';
       case 'BOOKING_REQUEST':
       case 'SESSION_REMINDER':
+      case 'MENTOR_APPLICATION_UPDATE_REQUESTED':
         return 'text-blue-600 bg-blue-100 dark:bg-blue-900/30';
       case 'MESSAGE_RECEIVED':
         return 'text-purple-600 bg-purple-100 dark:bg-purple-900/30';
