@@ -258,6 +258,29 @@ export default function BecomeExpertPage() {
   useEffect(() => {
     if (session?.user && !showMentorForm) {
       setShowMentorForm(true)
+
+      const fetchMentorApplication = async () => {
+        try {
+          const response = await fetch('/api/mentors/application');
+          const result = await response.json();
+          if (result.success) {
+            const { data } = result;
+            if (data.verificationStatus === 'REVERIFICATION') {
+              setMentorFormData({
+                ...mentorFormData,
+                ...data,
+                countryId: data.country,
+                stateId: data.state,
+                cityId: data.city,
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching mentor application:', error);
+        }
+      };
+
+      fetchMentorApplication();
     }
   }, [session, showMentorForm])
 

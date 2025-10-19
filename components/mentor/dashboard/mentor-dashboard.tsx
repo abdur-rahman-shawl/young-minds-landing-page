@@ -7,7 +7,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, Users, Calendar, MessageSquare, CheckCircle, AlertCircle } from "lucide-react";
+import { Clock, Users, Calendar, MessageSquare, CheckCircle, AlertCircle, RotateCcw } from "lucide-react";
 import { ErrorBoundary, AuthErrorBoundary } from "@/components/common/error-boundary";
 
 interface MentorDashboardProps {
@@ -15,15 +15,88 @@ interface MentorDashboardProps {
 }
 
 export function MentorDashboard({ user }: MentorDashboardProps) {
-  const [mentorStatus, setMentorStatus] = useState<"pending" | "approved" | "rejected">("pending");
+  const [mentorData, setMentorData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    // In a real app, you'd fetch this from your database
-    // For now, we'll simulate the verification status
-    setMentorStatus("pending"); // Could be "approved" or "rejected"
+    const fetchMentorData = async () => {
+      try {
+        const response = await fetch('/api/mentors/application');
+        const result = await response.json();
+        if (result.success) {
+          setMentorData(result.data);
+        }
+      } catch (error) {
+        console.error('Error fetching mentor data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMentorData();
   }, []);
 
-  if (mentorStatus === "pending") {
+  if (loading) {
+    return <div>Loading...</div>; // Or a proper skeleton loader
+  }
+
+  if (!mentorData) {
+    // This case should ideally not happen if the user is a mentor
+    return <div>Error loading mentor data.</div>;
+  }
+
+  const { verificationStatus } = mentorData;
+
+  if (verificationStatus === "REVERIFICATION") {
+    return (
+      <AuthErrorBoundary>
+        <ErrorBoundary>
+          <div className="min-h-screen bg-gray-50">
+            <SidebarProvider defaultOpen={false}>
+              <div className="flex min-h-screen w-full">
+                <SidebarInset className="flex flex-col flex-1">
+                  <Header />
+                  <main className="flex-1 flex items-center justify-center p-6">
+                    <div className="max-w-md w-full space-y-6">
+                      <div className="text-center">
+                        <RotateCcw className="mx-auto h-16 w-16 text-blue-500" />
+                        <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+                          Update Your Application
+                        </h2>
+                        <p className="mt-2 text-sm text-gray-600">
+                          The admin has requested updates to your application.
+                        </p>
+                      </div>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <AlertCircle className="h-5 w-5 text-blue-500" />
+                            Action Required
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <p className="text-sm text-gray-800">
+                            Please review the feedback from the admin and resubmit your application.
+                          </p>
+                          <Button onClick={() => router.push('/become-expert')} className="w-full">
+                            Reapply Now
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </main>
+                </SidebarInset>
+              </div>
+            </SidebarProvider>
+          </div>
+        </ErrorBoundary>
+      </AuthErrorBoundary>
+    );
+  }
+
+  if (verificationStatus === "pending" || verificationStatus === "IN_PROGRESS") {
     return (
       <AuthErrorBoundary>
       <ErrorBoundary>

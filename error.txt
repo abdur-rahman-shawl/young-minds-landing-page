@@ -1,62 +1,10 @@
-GET /api/mentor/dashboard-stats 200 in 844ms
- GET /api/notifications?limit=10 200 in 1043ms
-Error fetching mentor dashboard stats: Error: Failed query: select AVG()::decimal(3,2), COUNT("id")::int from "reviews" where ("reviews"."reviewee_id" = $1 and "reviews"."reviewer_role" = $2)
-params: PBwS5UR0HwQsKWnbEaSDY7gIIjv6KFJr,mentee
-    at async getMentorDashboardStats (lib\db\queries\mentor-dashboard-stats.ts:51:25)
-    at async GET (app\api\mentor\dashboard-stats\route.ts:19:19)
-  49 |
-  50 |     // Get review statistics
-> 51 |     const reviewStats = await db
-     |                         ^
-  52 |       .select({
-  53 |         averageRating: sql<number>`AVG(${reviews.rating})::decimal(3,2)`,
-  54 |         totalReviews: sql<number>`COUNT(${reviews.id})::int`, {
-  query: 'select AVG()::decimal(3,2), COUNT("id")::int from "reviews" where ("reviews"."reviewee_id" = $1 and "reviews"."reviewer_role" = $2)',
-  params: [Array],
-  [cause]: [Error [PostgresError]: function avg() does not exist] {
-    severity_local: 'ERROR',
-    severity: 'ERROR',
-    code: '42883',
-    hint: 'No function matches the given name and argument types. You might need to add explicit type casts.',        
-    position: '8',
-    file: 'parse_func.c',
-    line: '629',
-    routine: 'ParseFuncOrColumn'
-  }
-}
- GET /api/mentor/dashboard-stats 200 in 475ms
- GET /api/mentor/recent-messages?limit=5 200 in 626ms
-🚀 Sending notification to user PBwS5UR0HwQsKWnbEaSDY7gIIjv6KFJr...
-🚀 === CREATE NOTIFICATION API CALLED ===
-📋 Request body: {
-  userId: 'PBwS5UR0HwQsKWnbEaSDY7gIIjv6KFJr',
-  type: 'MENTOR_APPLICATION_UPDATE_REQUESTED',
-  title: 'Update Requested',
-  message: 'An update has been requested for your mentor application. Note: rejected',
-  actionUrl: '/become-expert'
-}
-✅ Validated data: {
-  userId: 'PBwS5UR0HwQsKWnbEaSDY7gIIjv6KFJr',
-  type: 'MENTOR_APPLICATION_UPDATE_REQUESTED',
-  title: 'Update Requested',
-  message: 'An update has been requested for your mentor application. Note: rejected',
-  actionUrl: '/become-expert'
-}
-❌ Error creating notification: Error: Failed query: insert into "notifications" ("id", "user_id", "type", "title", "message", "related_id", "related_type", "is_read", "is_archived", "action_url", "action_text", "created_at", "read_at", "archived_at") values (default, $1, $2, $3, $4, default, default, default, default, $5, default, default, default, default) returning "id", "user_id", "type", "title", "message", "related_id", "related_type", "is_read", "is_archived", "action_url", "action_text", "created_at", "read_at", "archived_at"
-params: PBwS5UR0HwQsKWnbEaSDY7gIIjv6KFJr,MENTOR_APPLICATION_UPDATE_REQUESTED,Update Requested,An update has been requested for your mentor application. Note: rejected,/become-expert
-    at async POST (app\api\notifications\route.ts:97:31)   
-   95 |     console.log('✅ Validated data:', validatedData);
-read", "is_archived", "action_url", "action_text", "created_at", "read_at", "archived_at") values (default, $1, $2, $3, $4, default, default, default, default, $5, default, default, default, default) returning "id", "user_id", "type", "title", "message", "related_id", "related_type", "is_read", "is_archived", "action_url", "action_text", "created_at", "read_at", "archived_at"',
-  params: [Array],
-  [cause]: [Error [PostgresError]: invalid input value for enum notification_type: "MENTOR_APPLICATION_UPDATE_REQUESTED"] {
-    severity_local: 'ERROR',
-    severity: 'ERROR',
-    code: '22P02',
-    where: "unnamed portal parameter $2 = '...'",
-    file: 'enum.c',
-    line: '129',
-    routine: 'enum_in'
-  }
-}
- POST /api/notifications 500 in 313ms
-❌ Failed to send notification to user PBwS5UR0HwQsKWnbEaSDY7gIIjv6KFJr: { error: 'Failed to create notification' }
+Now I need the following functionality:
+  The approve and reject actions from Admin are complete. Now let's dive into the Request updates.
+  Here, since the admin wants the mentor to provide additional info, the "Reapply Now" button that comes up on the dashboard for 
+  the mentor in this case has to be functional. Here's what I want to happen:
+
+  On clicking, it should go to the become-expert page but.. since the mentor has been asked to request update, I want the form to 
+  open with all the fields pre filled as per the form already submitted by the mentor, which is available in the db already. the 
+  mentor then will re fill this, and submit, and then the admin in this case should be sent a notification that so and so mentor 
+  has resubmitted their form.
+  How will you do this?

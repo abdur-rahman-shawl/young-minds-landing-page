@@ -1,12 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { users, mentors, userRoles, roles } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { uploadProfilePicture, uploadResume } from '@/lib/storage';
 import { sendApplicationReceivedEmail } from '@/lib/email';
 
 const MAX_RESUME_SIZE = 5 * 1024 * 1024; // 5MB
+
+async function getAdminUserId() {
+  const [adminUser] = await db
+    .select({ id: users.id })
+    .from(users)
+    .innerJoin(userRoles, eq(users.id, userRoles.userId))
+    .innerJoin(roles, eq(userRoles.roleId, roles.id))
+    .where(eq(roles.name, 'admin'))
+    .limit(1);
+  return adminUser?.id;
+}
+
+async function sendNotification(userId: string, type: string, title: string, message: string, actionUrl?: string) {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
+  await fetch(`${baseUrl}/api/notifications`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, type, title, message, actionUrl }),
+  });
+}
 
 export async function POST(request: NextRequest) {
   console.log('🚀 === MENTOR APPLICATION API CALLED ===');
@@ -115,22 +135,7 @@ export async function POST(request: NextRequest) {
       .where(eq(mentors.userId, userId))
       .limit(1);
 
-    if (existingMentor) {
-      console.error('❌ MENTOR ALREADY EXISTS for user:', userId);
-      return NextResponse.json(
-        { success: false, error: 'Mentor profile already exists' },
-        { status: 400 }
-      );
-    }
-    
-    console.log('✅ No existing mentor profile found, proceeding...');
-
-    // Create mentor profile data
-    const mentorId = randomUUID();
-    console.log('🆔 Generated mentor ID:', mentorId);
-    
     const mentorProfileData = {
-      id: mentorId,
       userId,
       title: title || null,
       company: company || null,
@@ -154,65 +159,85 @@ export async function POST(request: NextRequest) {
       state: state || null,
       availability: availability || null,
       profileImageUrl: profileImageUrl,
-      resumeUrl: resumeUrl
+      resumeUrl: resumeUrl,
+      updatedAt: new Date(),
     };
-    
-    console.log('📝 Step 4: Creating mentor profile with data:', JSON.stringify(mentorProfileData, null, 2));
-    
-    try {
+
+    if (existingMentor) {
+      console.log('✅ Existing mentor profile found, updating...');
+      const [updatedMentor] = await db
+        .update(mentors)
+        .set(mentorProfileData)
+        .where(eq(mentors.id, existingMentor.id))
+        .returning({ id: mentors.id });
+
+      const adminId = await getAdminUserId();
+      if (adminId) {
+        await sendNotification(
+          adminId,
+          'MENTOR_APPLICATION_UPDATE_REQUESTED',
+          'Mentor Application Updated',
+          `${fullName} has updated their mentor application.`,
+          `/admin/dashboard?section=mentors&mentorId=${existingMentor.id}`
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Mentor application updated successfully',
+        data: { id: updatedMentor.id, userId, status: 'IN_PROGRESS' }
+      });
+    } else {
+      console.log('✅ No existing mentor profile found, creating new one...');
+      const mentorId = randomUUID();
       const [newMentor] = await db
         .insert(mentors)
-        .values(mentorProfileData)
+        .values({ ...mentorProfileData, id: mentorId })
         .returning();
-        
-      console.log('🎉 SUCCESS: Mentor profile created in database:', newMentor);
-    } catch (insertError) {
-      console.error('❌ DATABASE INSERT ERROR:', insertError);
-      throw insertError;
-    }
 
-    // Assign mentor role to user
-    console.log('👤 Step 5: Assigning mentor role to user...');
-    try {
-      const [mentorRole] = await db
-        .select()
-        .from(roles)
-        .where(eq(roles.name, 'mentor'))
-        .limit(1);
+      // Assign mentor role to user
+      console.log('👤 Step 5: Assigning mentor role to user...');
+      try {
+        const [mentorRole] = await db
+          .select()
+          .from(roles)
+          .where(eq(roles.name, 'mentor'))
+          .limit(1);
 
-      if (mentorRole) {
-        console.log('📋 Found mentor role in database:', mentorRole);
-        
-        const roleAssignment = {
-          userId,
-          roleId: mentorRole.id,
-          assignedBy: userId
-        };
-        
-        console.log('👤 Assigning role with data:', roleAssignment);
-        
-        await db
-          .insert(userRoles)
-          .values(roleAssignment)
-          .onConflictDoNothing();
+        if (mentorRole) {
+          console.log('📋 Found mentor role in database:', mentorRole);
           
-        console.log('✅ Mentor role successfully assigned');
-      } else {
-        console.error('❌ Mentor role NOT FOUND in roles table');
+          const roleAssignment = {
+            userId,
+            roleId: mentorRole.id,
+            assignedBy: userId
+          };
+          
+          console.log('👤 Assigning role with data:', roleAssignment);
+          
+          await db
+            .insert(userRoles)
+            .values(roleAssignment)
+            .onConflictDoNothing();
+            
+          console.log('✅ Mentor role successfully assigned');
+        } else {
+          console.error('❌ Mentor role NOT FOUND in roles table');
+        }
+      } catch (roleError) {
+        console.error('❌ Error during role assignment:', roleError);
       }
-    } catch (roleError) {
-      console.error('❌ Error during role assignment:', roleError);
+
+      await sendApplicationReceivedEmail(email, fullName);
+
+      console.log('🎉 === MENTOR APPLICATION COMPLETED SUCCESSFULLY ===');
+      
+      return NextResponse.json({
+        success: true,
+        message: 'Mentor application submitted successfully',
+        data: { id: newMentor.id, userId, status: 'IN_PROGRESS' }
+      });
     }
-
-    await sendApplicationReceivedEmail(email, fullName);
-
-    console.log('🎉 === MENTOR APPLICATION COMPLETED SUCCESSFULLY ===');
-    
-    return NextResponse.json({
-      success: true,
-      message: 'Mentor application submitted successfully',
-      data: { id: mentorId, userId, status: 'IN_PROGRESS' }
-    });
 
   } catch (error) {
     console.error('❌ === FATAL ERROR IN MENTOR APPLICATION ===');
