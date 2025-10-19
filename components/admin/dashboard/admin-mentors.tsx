@@ -519,56 +519,101 @@ export function AdminMentors() {
                   </div>
 
                   <div className='flex flex-wrap justify-start gap-2 md:justify-end'>
-                    <Button
-                      size='sm'
-                      className='gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700'
-                      onClick={handleButtonClick(() =>
-                        handleStatusChange(mentor.id, 'VERIFIED'),
-                      )}
-                      disabled={isProcessing(mentor.id)}
-                    >
-                      {isProcessing(mentor.id) &&
-                      pendingAction?.status === 'VERIFIED' ? (
-                        <Loader2 className='h-4 w-4 animate-spin' />
-                      ) : (
-                        <CheckCircle2 className='h-4 w-4' />
-                      )}
-                      Approve
-                    </Button>
-                    <Button
-                      variant='secondary'
-                      size='sm'
-                      className='gap-1.5'
-                      onClick={handleButtonClick(() =>
-                        openNoteDialog(mentor, 'REVERIFICATION'),
-                      )}
-                      disabled={isProcessing(mentor.id)}
-                    >
-                      {isProcessing(mentor.id) &&
-                      pendingAction?.status === 'REVERIFICATION' ? (
-                        <Loader2 className='h-4 w-4 animate-spin' />
-                      ) : (
-                        <RotateCcw className='h-4 w-4' />
-                      )}
-                      Request updates
-                    </Button>
-                    <Button
-                      variant='destructive'
-                      size='sm'
-                      className='gap-1.5'
-                      onClick={handleButtonClick(() =>
-                        openNoteDialog(mentor, 'REJECTED'),
-                      )}
-                      disabled={isProcessing(mentor.id)}
-                    >
-                      {isProcessing(mentor.id) &&
-                      pendingAction?.status === 'REJECTED' ? (
-                        <Loader2 className='h-4 w-4 animate-spin' />
-                      ) : (
-                        <XCircle className='h-4 w-4' />
-                      )}
-                      Reject
-                    </Button>
+                    {(mentor.verificationStatus === 'IN_PROGRESS' || mentor.verificationStatus === 'RESUBMITTED') && (
+                      <>
+                        <Button
+                          size='sm'
+                          className='gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700'
+                          onClick={handleButtonClick(() =>
+                            handleStatusChange(mentor.id, 'VERIFIED'),
+                          )}
+                          disabled={isProcessing(mentor.id)}
+                        >
+                          {isProcessing(mentor.id) &&
+                          pendingAction?.status === 'VERIFIED' ? (
+                            <Loader2 className='h-4 w-4 animate-spin' />
+                          ) : (
+                            <CheckCircle2 className='h-4 w-4' />
+                          )}
+                          Approve
+                        </Button>
+                        <Button
+                          variant='secondary'
+                          size='sm'
+                          className='gap-1.5'
+                          onClick={handleButtonClick(() =>
+                            openNoteDialog(mentor, 'REVERIFICATION'),
+                          )}
+                          disabled={isProcessing(mentor.id)}
+                        >
+                          {isProcessing(mentor.id) &&
+                          pendingAction?.status === 'REVERIFICATION' ? (
+                            <Loader2 className='h-4 w-4 animate-spin' />
+                          ) : (
+                            <RotateCcw className='h-4 w-4' />
+                          )}
+                          Request updates
+                        </Button>
+                        <Button
+                          variant='destructive'
+                          size='sm'
+                          className='gap-1.5'
+                          onClick={handleButtonClick(() =>
+                            openNoteDialog(mentor, 'REJECTED'),
+                          )}
+                          disabled={isProcessing(mentor.id)}
+                        >
+                          {isProcessing(mentor.id) &&
+                          pendingAction?.status === 'REJECTED' ? (
+                            <Loader2 className='h-4 w-4 animate-spin' />
+                          ) : (
+                            <XCircle className='h-4 w-4' />
+                          )}
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                    {mentor.verificationStatus === 'VERIFIED' && (
+                      <>
+                        <Button
+                          variant='destructive'
+                          size='sm'
+                          className='gap-1.5'
+                          onClick={handleButtonClick(() =>
+                            openNoteDialog(mentor, 'REJECTED'),
+                          )}
+                          disabled={isProcessing(mentor.id)}
+                        >
+                          {isProcessing(mentor.id) &&
+                          pendingAction?.status === 'REJECTED' ? (
+                            <Loader2 className='h-4 w-4 animate-spin' />
+                          ) : (
+                            <XCircle className='h-4 w-4' />
+                          )}
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                    {mentor.verificationStatus === 'REJECTED' && (
+                      <>
+                        <Button
+                          size='sm'
+                          className='gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700'
+                          onClick={handleButtonClick(() =>
+                            handleStatusChange(mentor.id, 'VERIFIED'),
+                          )}
+                          disabled={isProcessing(mentor.id)}
+                        >
+                          {isProcessing(mentor.id) &&
+                          pendingAction?.status === 'VERIFIED' ? (
+                            <Loader2 className='h-4 w-4 animate-spin' />
+                          ) : (
+                            <CheckCircle2 className='h-4 w-4' />
+                          )}
+                          Approve
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </article>
