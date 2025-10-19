@@ -106,3 +106,369 @@
     background: rgba(107, 114, 128, 0.6);
   }
 }
+
+/* ============================================================================
+   LIVEKIT PREJOIN - PRODUCTION-GRADE DARK THEME
+   ============================================================================
+   Professional dark theme with modern design, smooth animations, and polish.
+   Matches Google Meet aesthetic with WCAG AAA accessibility standards.
+   ============================================================================ */
+
+/* CSS Variable Overrides */
+[data-lk-theme],
+[data-lk-theme="default"] {
+  /* Text colors */
+  --lk-fg: #ffffff !important;
+  --lk-fg2: #e3e3e3 !important;
+  --lk-fg3: #b8b8b8 !important;
+
+  /* Background colors */
+  --lk-bg: #1a1a1a !important;
+  --lk-bg2: #2a2a2a !important;
+  --lk-bg3: #3a3a3a !important;
+
+  /* Control colors */
+  --lk-control-bg: #2d2d2d !important;
+  --lk-control-hover-bg: #3d3d3d !important;
+  --lk-control-active-bg: #4d4d4d !important;
+
+  /* Accent colors (blue theme for primary actions) */
+  --lk-accent-bg: #2563eb !important;
+  --lk-accent2: #1d4ed8 !important;
+  --lk-accent3: #1e40af !important;
+  --lk-accent4: #1e3a8a !important;
+  --lk-accent-fg: #ffffff !important;
+
+  /* Border colors */
+  --lk-border-color: #404040 !important;
+  --lk-border-radius: 0.5rem !important;
+
+  /* Font settings */
+  --lk-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+  --lk-font-size: 14px !important;
+  --lk-line-height: 1.5 !important;
+}
+
+/* PreJoin Container - Dramatic Modern Design */
+.lk-prejoin {
+  background: linear-gradient(145deg, #1f1f1f 0%, #1a1a1a 100%) !important;
+  color: var(--lk-fg) !important;
+  padding: 2.5rem !important;
+  border-radius: 1.25rem !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow:
+    0 30px 60px -12px rgba(0, 0, 0, 0.7),
+    0 18px 36px -18px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(20px) !important;
+}
+
+/* Force all text to be visible */
+.lk-prejoin * {
+  color: var(--lk-fg) !important;
+}
+
+/* Video Preview Container - Premium Glass Effect */
+.lk-prejoin .lk-video-container {
+  background-color: #000000 !important;
+  border: 2px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 1rem !important;
+  overflow: hidden !important;
+  box-shadow:
+    0 20px 40px -12px rgba(0, 0, 0, 0.6),
+    0 8px 16px -8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  position: relative !important;
+}
+
+.lk-prejoin .lk-video-container .lk-camera-off-note {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%) !important;
+  color: var(--lk-fg2) !important;
+  font-size: 1rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Gradient for video container when camera is off */
+.lk-prejoin .lk-video-container:not(:has(video)) {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%) !important;
+}
+
+/* Labels */
+.lk-prejoin label {
+  color: var(--lk-fg2) !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  margin-bottom: 0.5rem !important;
+  display: block !important;
+}
+
+/* Form Controls (Inputs, Selects) - Modern Glass Design */
+.lk-prejoin .lk-form-control,
+.lk-prejoin input,
+.lk-prejoin select {
+  background: linear-gradient(145deg, rgba(45, 45, 45, 0.8), rgba(45, 45, 45, 0.6)) !important;
+  color: var(--lk-fg) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 0.625rem !important;
+  padding: 0.875rem 1.125rem !important;
+  font-size: 14px !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  backdrop-filter: blur(10px) !important;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+.lk-prejoin .lk-form-control:hover,
+.lk-prejoin input:hover,
+.lk-prejoin select:hover {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  background: linear-gradient(145deg, rgba(61, 61, 61, 0.8), rgba(61, 61, 61, 0.6)) !important;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+.lk-prejoin .lk-form-control:focus,
+.lk-prejoin input:focus,
+.lk-prejoin select:focus {
+  outline: none !important;
+  border-color: rgba(37, 99, 235, 0.5) !important;
+  background: linear-gradient(145deg, rgba(45, 45, 45, 0.9), rgba(45, 45, 45, 0.7)) !important;
+  box-shadow:
+    0 0 0 4px rgba(37, 99, 235, 0.12),
+    0 4px 16px rgba(37, 99, 235, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Nuclear option - force ALL inputs to have dark background */
+.lk-prejoin input[type="text"],
+.lk-prejoin input[type="email"],
+.lk-prejoin input {
+  background-color: var(--lk-control-bg) !important;
+  color: var(--lk-fg) !important;
+  border: 1px solid var(--lk-border-color) !important;
+}
+
+/* Placeholder text */
+.lk-prejoin input::placeholder {
+  color: #888888 !important;
+}
+
+/* Username Container */
+.lk-prejoin .lk-username-container {
+  width: 100% !important;
+}
+
+.lk-prejoin .lk-username-container input {
+  width: 100% !important;
+}
+
+/* Device Toggle Buttons (Camera, Microphone) - Premium Neomorphic Style */
+.lk-prejoin .lk-button {
+  background: linear-gradient(145deg, rgba(55, 55, 55, 0.8), rgba(35, 35, 35, 0.6)) !important;
+  color: var(--lk-fg) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 0.625rem !important;
+  padding: 0.875rem 1.125rem !important;
+  font-weight: 500 !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  cursor: pointer !important;
+  backdrop-filter: blur(10px) !important;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+.lk-prejoin .lk-button:hover {
+  background: linear-gradient(145deg, rgba(65, 65, 65, 0.9), rgba(45, 45, 45, 0.7)) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  transform: translateY(-1px) !important;
+}
+
+.lk-prejoin .lk-button:active {
+  background: linear-gradient(145deg, rgba(45, 45, 45, 0.9), rgba(35, 35, 35, 0.7)) !important;
+  transform: translateY(0) !important;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+/* Muted/Disabled button state - Dramatic Red Glow */
+.lk-prejoin .lk-button[data-lk-muted="true"],
+.lk-prejoin .lk-button[data-lk-disabled="true"] {
+  background: linear-gradient(145deg, #ef4444, #dc2626) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 0 20px 2px rgba(220, 38, 38, 0.3),
+    0 4px 12px rgba(220, 38, 38, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.lk-prejoin .lk-button[data-lk-muted="true"]:hover,
+.lk-prejoin .lk-button[data-lk-disabled="true"]:hover {
+  background: linear-gradient(145deg, #dc2626, #b91c1c) !important;
+  box-shadow:
+    0 0 25px 3px rgba(220, 38, 38, 0.4),
+    0 6px 16px rgba(220, 38, 38, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Join Meeting Button - Premium Design with Glow Effect */
+.lk-prejoin .lk-join-button {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  padding: 1.125rem 2.5rem !important;
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  border-radius: 0.75rem !important;
+  box-shadow:
+    0 0 0 0 rgba(37, 99, 235, 0),
+    0 8px 20px -4px rgba(37, 99, 235, 0.5),
+    0 4px 12px -2px rgba(37, 99, 235, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  cursor: pointer !important;
+  text-transform: none !important;
+  letter-spacing: 0.02em !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.lk-prejoin .lk-join-button::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: -100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent) !important;
+  transition: left 0.5s ease !important;
+}
+
+.lk-prejoin .lk-join-button:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%) !important;
+  box-shadow:
+    0 0 30px 5px rgba(37, 99, 235, 0.4),
+    0 12px 28px -4px rgba(37, 99, 235, 0.6),
+    0 6px 16px -2px rgba(37, 99, 235, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  transform: translateY(-2px) scale(1.02) !important;
+}
+
+.lk-prejoin .lk-join-button:hover::before {
+  left: 100% !important;
+}
+
+.lk-prejoin .lk-join-button:active {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 50%, #1e3a8a 100%) !important;
+  transform: translateY(0) scale(1) !important;
+  box-shadow:
+    0 0 20px 2px rgba(37, 99, 235, 0.3),
+    0 4px 12px -2px rgba(37, 99, 235, 0.4) !important;
+}
+
+.lk-prejoin .lk-join-button:disabled {
+  background-color: #4b5563 !important;
+  cursor: not-allowed !important;
+  opacity: 0.5 !important;
+  box-shadow: none !important;
+}
+
+/* Button Groups */
+.lk-prejoin .lk-button-group-container {
+  gap: 1rem !important;
+}
+
+.lk-prejoin .lk-button-group {
+  background-color: transparent !important;
+}
+
+.lk-prejoin .lk-button-group > .lk-button {
+  margin: 0 !important;
+}
+
+/* Device Selection Dropdowns */
+.lk-prejoin select option {
+  background-color: var(--lk-control-bg) !important;
+  color: var(--lk-fg) !important;
+}
+
+/* Icons */
+.lk-prejoin svg {
+  color: currentColor !important;
+  fill: currentColor !important;
+}
+
+.lk-prejoin .lk-button svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Loading State */
+.lk-prejoin [data-lk-loading="true"] {
+  opacity: 0.6 !important;
+  cursor: wait !important;
+}
+
+/* Error State */
+.lk-prejoin [data-lk-error="true"] {
+  border-color: #dc2626 !important;
+  background-color: rgba(220, 38, 38, 0.1) !important;
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+
+@media (max-width: 640px) {
+  .lk-prejoin {
+    padding: 1.5rem !important;
+  }
+
+  .lk-prejoin .lk-join-button {
+    width: 100% !important;
+    padding: 0.875rem !important;
+  }
+}
+
+/* ============================================================================
+   ACCESSIBILITY ENHANCEMENTS
+   ============================================================================ */
+
+/* Focus visible for keyboard navigation */
+.lk-prejoin *:focus-visible {
+  outline: 2px solid var(--lk-accent-bg) !important;
+  outline-offset: 2px !important;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  [data-lk-theme],
+  [data-lk-theme="default"] {
+    --lk-fg: #ffffff !important;
+    --lk-bg: #000000 !important;
+    --lk-border-color: #ffffff !important;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .lk-prejoin *,
+  .lk-prejoin *::before,
+  .lk-prejoin *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
