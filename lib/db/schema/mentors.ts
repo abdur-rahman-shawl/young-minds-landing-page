@@ -8,7 +8,8 @@ export const verificationStatusEnum = pgEnum('verification_status', [
   'IN_PROGRESS', 
   'VERIFIED',
   'REJECTED',
-  'REVERIFICATION'
+  'REVERIFICATION',
+  'RESUBMITTED'
 ]);
 
 export const mentors = pgTable('mentors', {

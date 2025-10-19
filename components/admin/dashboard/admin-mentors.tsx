@@ -47,7 +47,8 @@ type VerificationStatus =
   | 'IN_PROGRESS'
   | 'VERIFIED'
   | 'REJECTED'
-  | 'REVERIFICATION';
+  | 'REVERIFICATION'
+  | 'RESUBMITTED';
 
 type Mentor = {
   id: string;
@@ -97,6 +98,7 @@ const statusBadgeClass: Record<VerificationStatus, string> = {
   YET_TO_APPLY: 'bg-slate-100 text-slate-700',
   REJECTED: 'bg-red-100 text-red-700',
   REVERIFICATION: 'bg-purple-100 text-purple-700',
+  RESUBMITTED: 'bg-blue-100 text-blue-700',
 };
 
 const statusCopy: Record<VerificationStatus, string> = {
@@ -105,6 +107,7 @@ const statusCopy: Record<VerificationStatus, string> = {
   YET_TO_APPLY: 'Draft',
   REJECTED: 'Rejected',
   REVERIFICATION: 'Needs Updates',
+  RESUBMITTED: 'Resubmitted',
 };
 
 const actionSuccessCopy: Record<MentorAction, string> = {
@@ -117,6 +120,7 @@ const pendingStatuses: VerificationStatus[] = [
   'YET_TO_APPLY',
   'IN_PROGRESS',
   'REVERIFICATION',
+  'RESUBMITTED',
 ];
 const renderAvailabilityBadge = (availability: boolean | null) => {
   if (availability === false) {

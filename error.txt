@@ -1,10 +1,21 @@
-Now I need the following functionality:
-  The approve and reject actions from Admin are complete. Now let's dive into the Request updates.
-  Here, since the admin wants the mentor to provide additional info, the "Reapply Now" button that comes up on the dashboard for 
-  the mentor in this case has to be functional. Here's what I want to happen:
+Import trace for requested module:
+./app/api/admin/mentors/route.ts
+ ⨯ ./lib/db/audit.ts:1:1
+Module not found: Can't resolve './db'
+> 1 | import { db } from './db';
+    | ^
+  2 | import { adminAuditTrail } from './schema/admin-audit-trail';
+  3 |
+  4 | interface LogAdminActionParams {
 
-  On clicking, it should go to the become-expert page but.. since the mentor has been asked to request update, I want the form to 
-  open with all the fields pre filled as per the form already submitted by the mentor, which is available in the db already. the 
-  mentor then will re fill this, and submit, and then the admin in this case should be sent a notification that so and so mentor 
-  has resubmitted their form.
-  How will you do this?
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./app/api/admin/mentors/route.ts
+ ⨯ ./lib/db/audit.ts:1:1
+Module not found: Can't resolve './db'
+> 1 | import { db } from './db';
+    | ^
+  2 | import { adminAuditTrail } from './schema/admin-audit-trail';
+  3 |
+  4 | interface LogAdminActionParams {

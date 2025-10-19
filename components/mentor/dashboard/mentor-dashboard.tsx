@@ -96,7 +96,7 @@ export function MentorDashboard({ user }: MentorDashboardProps) {
     );
   }
 
-  if (verificationStatus === "pending" || verificationStatus === "IN_PROGRESS") {
+  if (verificationStatus === "pending" || verificationStatus === "IN_PROGRESS" || verificationStatus === "RESUBMITTED") {
     return (
       <AuthErrorBoundary>
       <ErrorBoundary>

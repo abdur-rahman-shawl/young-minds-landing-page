@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
 import { z } from 'zod';
 import { sendMentorApplicationApprovedEmail } from '@/lib/email';
+import { logAdminAction } from '@/lib/db/audit';
 
 const VERIFICATION_STATUSES = [
   'YET_TO_APPLY',
@@ -13,6 +14,7 @@ const VERIFICATION_STATUSES = [
   'VERIFIED',
   'REJECTED',
   'REVERIFICATION',
+  'RESUBMITTED',
 ] as const;
 
 type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
@@ -165,7 +167,7 @@ export async function GET(request: NextRequest) {
 
 async function sendNotification(userId: string, type: string, title: string, message: string, actionUrl?: string) {
   console.log(`🚀 Sending notification to user ${userId}...`);
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
   try {
     const response = await fetch(`${baseUrl}/api/notifications`, {
       method: 'POST',
@@ -188,6 +190,7 @@ export async function PATCH(request: NextRequest) {
     if ('error' in adminCheck) {
       return adminCheck.error;
     }
+    const adminId = adminCheck.session.user.id;
 
     const payload = await request.json();
     const parsed = updateMentorSchema.safeParse(payload);
@@ -215,6 +218,14 @@ export async function PATCH(request: NextRequest) {
     if (!updatedMentor) {
       return NextResponse.json({ success: false, error: 'Mentor not found' }, { status: 404 });
     }
+
+    await logAdminAction({
+      adminId,
+      action: 'MENTOR_VERIFICATION_STATUS_CHANGED',
+      targetId: updatedMentor.userId,
+      targetType: 'mentor',
+      details: { newStatus: status, notes },
+    });
 
     const { userId, fullName, email } = updatedMentor;
 

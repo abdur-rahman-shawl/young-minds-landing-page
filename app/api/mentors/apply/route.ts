@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       linkedinUrl: linkedinUrl || null,
       githubUrl: githubUrl || null,
       websiteUrl: websiteUrl || null,
-      verificationStatus: 'IN_PROGRESS' as const,
+      verificationStatus: existingMentor ? 'RESUBMITTED' : 'IN_PROGRESS' as const,
       isAvailable: isAvailable !== 'false',
       fullName: fullName || null,
       email: email || null,
@@ -185,14 +185,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: 'Mentor application updated successfully',
-        data: { id: updatedMentor.id, userId, status: 'IN_PROGRESS' }
+        data: { id: updatedMentor.id, userId, status: 'RESUBMITTED' }
       });
     } else {
       console.log('✅ No existing mentor profile found, creating new one...');
       const mentorId = randomUUID();
       const [newMentor] = await db
         .insert(mentors)
-        .values({ ...mentorProfileData, id: mentorId })
+        .values({ ...mentorProfileData, id: mentorId, verificationStatus: 'IN_PROGRESS' })
         .returning();
 
       // Assign mentor role to user
