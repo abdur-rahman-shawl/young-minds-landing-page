@@ -4,6 +4,9 @@ import { users, mentors, userRoles, roles } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { uploadProfilePicture, uploadResume } from '@/lib/storage';
+import { sendApplicationReceivedEmail } from '@/lib/email';
+
+const MAX_RESUME_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function POST(request: NextRequest) {
   console.log('🚀 === MENTOR APPLICATION API CALLED ===');
@@ -34,7 +37,7 @@ export async function POST(request: NextRequest) {
     const state = formData.get('state') as string;
     const availability = formData.get('availability') as string;
     const profilePicture = formData.get('profilePicture') as File;
-    const resume = formData.get('resume') as File;
+    const resume = formData.get('resume') as File | null;
 
     console.log('👤 Extracted userId:', userId);
 
@@ -46,10 +49,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!resume || resume.size === 0) {
-      console.error('❌ VALIDATION FAILED: No resume file provided');
+    if (resume && resume.size > MAX_RESUME_SIZE) {
       return NextResponse.json(
-        { success: false, error: 'Resume file is required' },
+        { success: false, error: 'Resume file size must be less than 5MB' },
         { status: 400 }
       );
     }
@@ -202,6 +204,8 @@ export async function POST(request: NextRequest) {
       console.error('❌ Error during role assignment:', roleError);
     }
 
+    await sendApplicationReceivedEmail(email, fullName);
+
     console.log('🎉 === MENTOR APPLICATION COMPLETED SUCCESSFULLY ===');
     
     return NextResponse.json({
@@ -222,4 +226,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

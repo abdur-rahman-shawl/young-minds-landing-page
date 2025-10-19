@@ -24,7 +24,7 @@ export default function BecomeExpertPage() {
   const [errors, setErrors] = useState<z.ZodError | null>(null)
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null)
   
-  const [countries, setCountries] = useState<{ id: number; name: string }[]>([]);
+  const [countries, setCountries] = useState<{ id: number; name: string; phone_code: string }[]>([])
   const [states, setStates] = useState<{ id: number; name: string }[]>([]);
   const [cities, setCities] = useState<{ id: number; name: string }[]>([]);
   const [locationsLoading, setLocationsLoading] = useState({
@@ -34,27 +34,29 @@ export default function BecomeExpertPage() {
   });
 
   const [mentorFormData, setMentorFormData] = useState<{
-    fullName: string;
-    email: string;
-    phone: string;
-    countryId: string;
-    stateId: string;
-    cityId: string;
-    title: string;
-    company: string;
-    industry: string;
-    experience: string;
-    expertise: string;
-    about: string;
-    linkedinUrl: string;
-    profilePicture: File | null;
-    resume: File | null;
-    termsAccepted: boolean;
-    availability: string;
+    fullName: string
+    email: string
+    phone: string
+    phoneCountryCode: string
+    countryId: string
+    stateId: string
+    cityId: string
+    title: string
+    company: string
+    industry: string
+    experience: string
+    expertise: string
+    about: string
+    linkedinUrl: string
+    profilePicture: File | null
+    resume: File | null
+    termsAccepted: boolean
+    availability: string
   }>({
     fullName: "",
     email: "",
     phone: "",
+    phoneCountryCode: "",
     countryId: "",
     stateId: "",
     cityId: "",
@@ -286,6 +288,7 @@ export default function BecomeExpertPage() {
 
       const validatedData = mentorApplicationSchema.parse({
         ...mentorFormData,
+        phone: `+${mentorFormData.phoneCountryCode}-${mentorFormData.phone}`,
         country: mentorFormData.countryId,
         state: mentorFormData.stateId,
         city: mentorFormData.cityId,
@@ -303,12 +306,14 @@ export default function BecomeExpertPage() {
       formData.append('company', validatedData.company);
       formData.append('industry', validatedData.industry);
       formData.append('expertise', validatedData.expertise);
-      formData.append('experience', validatedData.experience);
-      formData.append('about', validatedData.about);
+      formData.append('experience', validatedData.experience.toString());
+      formData.append('about', validatedData.about || '');
       formData.append('linkedinUrl', validatedData.linkedinUrl);
       formData.append('availability', validatedData.availability);
       formData.append('profilePicture', validatedData.profilePicture);
-      formData.append('resume', validatedData.resume);
+      if (validatedData.resume) {
+        formData.append('resume', validatedData.resume)
+      }
       
       const res = await fetch('/api/mentors/apply', {
         method: 'POST',
@@ -466,31 +471,45 @@ export default function BecomeExpertPage() {
                     {isEmailVerified && <p className="text-sm text-green-500 dark:text-green-400 mt-1">Email verified successfully.</p>}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="phone">Phone Number <span className="text-red-500">*</span></Label>
+                {/* Phone */}
+                <div>
+                  <Label htmlFor="phone">Phone Number <span className="text-red-500">*</span></Label>
+                  <div className="flex items-center space-x-2">
+                    <Select
+                      value={mentorFormData.phoneCountryCode}
+                      onValueChange={value => setMentorFormData(prev => ({ ...prev, phoneCountryCode: value }))}
+                      required
+                    >
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Code" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {countries.map(country => (
+                          country.phone_code ? <SelectItem key={country.id} value={country.phone_code}>+{country.phone_code}</SelectItem> : <SelectItem key={91} value="91">+91</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Input
                       id="phone"
                       type="tel"
                       value={mentorFormData.phone}
                       onChange={e => setMentorFormData(prev => ({ ...prev, phone: e.target.value }))}
-                      placeholder="+91-XXXXXXXXXX"
-                      pattern="^\+91-\d{10}$"
-                      title="Format: +91-XXXXXXXXXX"
+                      placeholder="Enter your phone number"
                       required
                     />
                   </div>
+                  {errors?.errors.find(e => e.path[0] === 'phone') && <p className="text-sm text-red-500 mt-1">{errors.errors.find(e => e.path[0] === 'phone')?.message}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="resume">Resume <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="linkedinUrl">LinkedIn Profile URL <span className="text-red-500">*</span></Label>
                   <Input
-                    id="resume"
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    onChange={e => setMentorFormData(prev => ({ ...prev, resume: e.target.files?.[0] || null }))}
+                    id="linkedinUrl"
+                    type="text"
+                    value={mentorFormData.linkedinUrl}
+                    onChange={e => setMentorFormData(prev => ({ ...prev, linkedinUrl: e.target.value }))}
+                    placeholder="https://linkedin.com/in/yourprofile"
                     required
                   />
-                  <span className="text-xs text-muted-foreground">Upload your resume in PDF, DOC, or DOCX format (max 10MB)</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
@@ -499,7 +518,6 @@ export default function BecomeExpertPage() {
                       value={mentorFormData.countryId}
                       onValueChange={value => setMentorFormData(prev => ({ ...prev, countryId: value }))}
                       required
-                      disabled
                     >
                       <SelectTrigger id="country">
                         <SelectValue placeholder="Select Country..." />
@@ -615,15 +633,27 @@ export default function BecomeExpertPage() {
                     id="expertise"
                     value={mentorFormData.expertise}
                     onChange={e => setMentorFormData(prev => ({ ...prev, expertise: e.target.value }))}
-                    placeholder="List skills you can mentor in (e.g., Python, Digital Marketing, Leadership, Career Transitions). Minimum 100 characters, maximum 500 characters."
+                    placeholder="List at least 5 skills you can mentor in, separated by commas (e.g., Python, Digital Marketing, Leadership)."
                     required
                     maxLength={500}
                   />
                   <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    <span>Minimum 100 characters. Be specific! This helps mentees find you. Use commas to separate multiple areas.</span>
+                    <span>Minimum 5 skills, comma-separated.</span>
                     <span>{mentorFormData.expertise.length} / 500</span>
                   </div>
                 </div>
+                <div>
+                  <Label htmlFor="about">About You</Label>
+                  <Textarea
+                    id="about"
+                    value={mentorFormData.about}
+                    onChange={e => setMentorFormData(prev => ({ ...prev, about: e.target.value }))}
+                    placeholder="Tell us a bit about yourself, your journey, and what you're passionate about."
+                    rows={4}
+                  />
+                  {errors?.errors.find(e => e.path[0] === 'about') && <p className="text-sm text-red-500 mt-1">{errors.errors.find(e => e.path[0] === 'about')?.message}</p>}
+                </div>
+
                 <div>
                   <Label htmlFor="availability">Preferred Mentorship Availability <span className="text-red-500">*</span></Label>
                   <Select
@@ -643,15 +673,14 @@ export default function BecomeExpertPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="linkedinUrl">LinkedIn Profile URL <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="resume">Resume (Optional)</Label>
                   <Input
-                    id="linkedinUrl"
-                    type="text"
-                    value={mentorFormData.linkedinUrl}
-                    onChange={e => setMentorFormData(prev => ({ ...prev, linkedinUrl: e.target.value }))}
-                    placeholder="https://linkedin.com/in/yourprofile"
-                    required
+                    id="resume"
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={e => setMentorFormData(prev => ({ ...prev, resume: e.target.files?.[0] || null }))}
                   />
+                  <span className="text-xs text-muted-foreground">Upload your resume in PDF, DOC, or DOCX format (max 5MB)</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
