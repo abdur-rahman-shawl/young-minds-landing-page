@@ -496,4 +496,40 @@ export class LiveKitRoomManager {
       console.error(`⚠️ Failed to log event ${eventType} for room ${roomId}:`, error);
     }
   }
+
+  /**
+   * Handle room activation (first participant joined)
+   *
+   * Called automatically by webhook when room becomes active.
+   * Triggers auto-recording if enabled for the session.
+   *
+   * @param sessionId - UUID of the session
+   * @returns void
+   *
+   * Note: This is non-blocking - recording failure should not break the meeting
+   */
+  static async handleRoomActivation(sessionId: string): Promise<void> {
+    try {
+      console.log(`🟢 Room activated for session ${sessionId}`);
+
+      // Import recording manager dynamically to avoid circular dependencies
+      const { startRecording } = await import('./recording-manager');
+
+      // Start recording automatically if enabled
+      await startRecording(sessionId);
+
+      console.log(`✅ Auto-recording handled successfully for session ${sessionId}`);
+    } catch (error) {
+      console.error(
+        `❌ Failed to handle room activation for session ${sessionId}:`,
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+        }
+      );
+
+      // Don't throw - recording failure shouldn't break the meeting
+      // The meeting should continue even if recording fails to start
+    }
+  }
 }

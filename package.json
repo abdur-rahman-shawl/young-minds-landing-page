@@ -50,7 +50,7 @@
     "@radix-ui/react-toggle": "latest",
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
-    "@supabase/supabase-js": "^2.52.1",
+    "@supabase/supabase-js": "^2.75.1",
     "@tanstack/react-query": "^5.83.0",
     "@tanstack/react-query-devtools": "^5.83.0",
     "@types/pg": "^8.15.4",
@@ -68,6 +68,7 @@
     "embla-carousel-react": "latest",
     "framer-motion": "^11.0.0",
     "input-otp": "latest",
+    "jsonwebtoken": "^9.0.2",
     "livekit-client": "^2.15.11",
     "livekit-server-sdk": "^2.14.0",
     "lucide-react": "^0.454.0",
@@ -92,6 +93,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22",
     "@types/nodemailer": "^7.0.2",
     "@types/react": "^19",

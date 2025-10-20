@@ -508,6 +508,47 @@ function MeetingRoomContent({
   // Get all participants
   const participants = useParticipants();
 
+  // Recording indicator state
+  const [isRecording, setIsRecording] = useState(false);
+
+  // Extract session ID from URL (for recording status check)
+  const sessionId = typeof window !== 'undefined'
+    ? window.location.pathname.split('/').pop()
+    : null;
+
+  // Check recording status
+  useEffect(() => {
+    if (!sessionId) return;
+
+    async function checkRecordingStatus() {
+      try {
+        const response = await fetch(`/api/sessions/${sessionId}/recordings`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (!data.success || !data.data) return;
+
+        // Check if any recording is in_progress
+        const hasActiveRecording = data.data.some(
+          (rec: any) => rec.status === 'in_progress'
+        );
+
+        setIsRecording(hasActiveRecording);
+      } catch (error) {
+        console.error('Failed to check recording status:', error);
+        // Don't fail the meeting if we can't check recording status
+      }
+    }
+
+    // Check on mount
+    checkRecordingStatus();
+
+    // Poll every 30 seconds to update recording status
+    const interval = setInterval(checkRecordingStatus, 30000);
+
+    return () => clearInterval(interval);
+  }, [sessionId]);
+
   /**
    * Format chat messages
    *
@@ -550,6 +591,16 @@ function MeetingRoomContent({
           </button>
         </div>
       </div>
+
+      {/* Recording Indicator - Always visible when recording is active */}
+      {isRecording && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 pointer-events-none">
+          <div className="bg-red-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 animate-pulse">
+            <div className="w-3 h-3 bg-white rounded-full"></div>
+            <span className="font-medium">Recording in Progress</span>
+          </div>
+        </div>
+      )}
 
       {/* Main video conference UI */}
       <VideoConference chatMessageFormatter={formatChatMessage} />
