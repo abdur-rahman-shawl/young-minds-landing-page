@@ -56,6 +56,29 @@ interface TokenData {
   expiresAt: string;
 }
 
+/**
+ * Normalize the LiveKit WebSocket URL for the current environment.
+ *
+ * Production on HTTPS must use WSS, otherwise browsers block the connection.
+ * Local development still runs over HTTP, so we only upgrade when necessary.
+ */
+const normalizeWsUrlForClient = (rawUrl: string): string => {
+  if (!rawUrl) return rawUrl;
+
+  const trimmed = rawUrl.trim();
+
+  if (typeof window === 'undefined') {
+    return trimmed;
+  }
+
+  const isSecureContext = window.location.protocol === 'https:';
+  if (isSecureContext && trimmed.startsWith('ws://')) {
+    return trimmed.replace('ws://', 'wss://');
+  }
+
+  return trimmed;
+};
+
 // ============================================================================
 // DARK THEME INLINE STYLES FOR PREJOIN
 // ============================================================================
@@ -186,7 +209,11 @@ export default function MeetingRoom({
         }
 
         setToken(tokenData.token);
-        setWsUrl(tokenData.wsUrl);
+        const normalizedWsUrl = normalizeWsUrlForClient(tokenData.wsUrl);
+        if (normalizedWsUrl !== tokenData.wsUrl) {
+          console.log('🔐 Upgraded LiveKit WebSocket to WSS for secure context');
+        }
+        setWsUrl(normalizedWsUrl);
         setParticipantName(tokenData.participantName);
 
         // Initialize user choices with participant name
