@@ -51,9 +51,9 @@ if (typeof window === 'undefined') {
  * not at module load time, to allow Next.js to inject it properly.
  */
 export function getPublicWsUrl(): string {
-  const wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_WS_URL;
+  const rawWsUrl = process.env.NEXT_PUBLIC_LIVEKIT_WS_URL;
 
-  if (!wsUrl) {
+  if (!rawWsUrl) {
     throw new Error(
       'CRITICAL: NEXT_PUBLIC_LIVEKIT_WS_URL is not defined.\n' +
       'Add it to your .env.local file and restart the Next.js dev server.\n' +
@@ -61,7 +61,20 @@ export function getPublicWsUrl(): string {
     );
   }
 
-  return wsUrl;
+  const trimmed = rawWsUrl.trim();
+
+  // Accept either ws://, wss://, http://, or https:// and normalize to ws/wss.
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/^http/i, 'ws');
+  }
+
+  if (!/^wss?:\/\//i.test(trimmed)) {
+    throw new Error(
+      'CRITICAL: NEXT_PUBLIC_LIVEKIT_WS_URL must start with ws:// or wss:// (or http(s):// to be auto-normalized).'
+    );
+  }
+
+  return trimmed;
 }
 
 /**

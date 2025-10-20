@@ -27,7 +27,7 @@ import {
   livekitEvents,
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { livekitConfig, type ParticipantRole } from './config';
+import { livekitConfig, type ParticipantRole, getPublicWsUrl } from './config';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -367,7 +367,7 @@ export class LiveKitRoomManager {
         token: jwt,
         roomName: room.roomName,
         participantName: user.name || user.email,
-        wsUrl: livekitConfig.server.wsUrl,
+        wsUrl: getPublicWsUrl(),
         expiresAt,
       };
     } catch (error) {
