@@ -20,6 +20,22 @@ const MENTOR_ROUTES = [
   '/mentor/profile',
 ];
 
+const SESSION_COOKIE_NAMES = [
+  'better-auth.session_token',
+  '__Secure-better-auth.session_token',
+];
+
+function getSessionCookie(request: NextRequest) {
+  for (const name of SESSION_COOKIE_NAMES) {
+    const cookie = request.cookies.get(name);
+    if (cookie) {
+      return cookie;
+    }
+  }
+
+  return null;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -41,7 +57,7 @@ async function handleApiProtection(request: NextRequest) {
   }
 
   // Check for session cookie
-  const sessionCookie = request.cookies.get('better-auth.session_token');
+  const sessionCookie = getSessionCookie(request);
   
   if (!sessionCookie) {
     return NextResponse.json(
@@ -78,7 +94,7 @@ async function handlePageProtection(request: NextRequest) {
   }
 
   // Check session
-  const sessionCookie = request.cookies.get('better-auth.session_token');
+  const sessionCookie = getSessionCookie(request);
   
   if (!sessionCookie) {
     const loginUrl = new URL('/auth', request.url);
