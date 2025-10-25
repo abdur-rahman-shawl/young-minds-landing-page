@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
 import { z } from 'zod';
-import { sendMentorApplicationApprovedEmail } from '@/lib/email';
+import { sendMentorApplicationApprovedEmail, sendMentorApplicationRejectedEmail, sendMentorApplicationReverificationRequestEmail } from '@/lib/email';
 import { logAdminAction } from '@/lib/db/audit';
 
 const VERIFICATION_STATUSES = [
@@ -239,6 +239,7 @@ export async function PATCH(request: NextRequest) {
         '/dashboard'
       );
     } else if (status === 'REJECTED') {
+      await sendMentorApplicationRejectedEmail(email!, fullName!, noteToStore || 'No reason provided.');
       await sendNotification(
         userId,
         'MENTOR_APPLICATION_REJECTED',
@@ -247,6 +248,7 @@ export async function PATCH(request: NextRequest) {
         '/become-expert'
       );
     } else if (status === 'REVERIFICATION') {
+      await sendMentorApplicationReverificationRequestEmail(email!, fullName!, noteToStore || 'No reason provided.');
       await sendNotification(
         userId,
         'MENTOR_APPLICATION_UPDATE_REQUESTED',
