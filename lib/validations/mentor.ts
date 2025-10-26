@@ -12,6 +12,7 @@ export const mentorApplicationSchema = z.object({
   title: z.string().min(1, 'Job title is required'),
   company: z.string().min(1, 'Company is required'),
   industry: z.string().min(1, 'Industry is required'),
+  otherIndustry: z.string().optional(), // New field for specifying 'Other' industry
   experience: z.preprocess(
     (a) => parseInt(z.string().parse(a), 10),
     z.number().min(2, 'Minimum 2 years of experience is required')
@@ -28,4 +29,12 @@ export const mentorApplicationSchema = z.object({
     .refine(file => !file || file.size <= MAX_RESUME_SIZE, `Resume must be less than 5MB`)
     .optional(),
   termsAccepted: z.boolean().refine(value => value, 'You must accept the terms and conditions'),
+}).superRefine((data, ctx) => {
+  if (data.industry === 'Other' && (!data.otherIndustry || data.otherIndustry.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Please specify your industry',
+      path: ['otherIndustry'],
+    });
+  }
 });

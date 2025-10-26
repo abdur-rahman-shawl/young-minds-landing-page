@@ -25,6 +25,7 @@ export default function BecomeExpertPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<z.ZodError | null>(null)
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null)
+  const [showOtherIndustryInput, setShowOtherIndustryInput] = useState(false);
   
   const [countries, setCountries] = useState<{ id: number; name: string }[]>([])
   const [states, setStates] = useState<{ id: number; name: string }[]>([]);
@@ -66,6 +67,7 @@ export default function BecomeExpertPage() {
     title: string
     company: string
     industry: string
+    otherIndustry: string; // New field for 'Other' industry
     experience: string
     expertise: string
     about: string
@@ -85,6 +87,7 @@ export default function BecomeExpertPage() {
     title: "",
     company: "",
     industry: "",
+    otherIndustry: "", // Initialize new field
     experience: "",
     expertise: "",
     about: "",
@@ -337,6 +340,7 @@ export default function BecomeExpertPage() {
         country: mentorFormData.countryId,
         state: mentorFormData.stateId,
         city: mentorFormData.cityId,
+        industry: mentorFormData.industry === 'Other' ? mentorFormData.otherIndustry : mentorFormData.industry,
       });
 
       const formData = new FormData();
@@ -616,7 +620,10 @@ export default function BecomeExpertPage() {
                     <Label htmlFor="industry">Primary Industry <span className="text-red-500">*</span></Label>
                     <Select
                       value={mentorFormData.industry}
-                      onValueChange={value => setMentorFormData(prev => ({ ...prev, industry: value }))}
+                      onValueChange={value => {
+                        setMentorFormData(prev => ({ ...prev, industry: value }));
+                        setShowOtherIndustryInput(value === 'Other');
+                      }}
                       required
                     >
                       <SelectTrigger id="industry">
@@ -635,6 +642,17 @@ export default function BecomeExpertPage() {
                         <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                     </Select>
+                    {showOtherIndustryInput && (
+                      <Input
+                        id="otherIndustry"
+                        type="text"
+                        value={mentorFormData.otherIndustry}
+                        onChange={e => setMentorFormData(prev => ({ ...prev, otherIndustry: e.target.value }))}
+                        placeholder="Please specify your industry"
+                        className="mt-2"
+                        required
+                      />
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="experience">Years of Professional Experience <span className="text-red-500">*</span></Label>
