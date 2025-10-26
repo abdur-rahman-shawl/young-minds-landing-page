@@ -38,7 +38,11 @@ import {
   RotateCcw,
   ShieldQuestion,
   XCircle,
+  Phone,
+  Github,
+  Mail,
 } from 'lucide-react';
+import Image from 'next/image';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -71,7 +75,10 @@ type Mentor = {
   isAvailable: boolean | null;
   resumeUrl: string | null;
   linkedinUrl: string | null;
+  githubUrl: string | null;
   websiteUrl: string | null;
+  profileImageUrl: string | null;
+  phone: string | null;
   location: string;
   city: string | null;
   state: string | null;
@@ -804,35 +811,51 @@ export function AdminMentors() {
               aria-labelledby='mentor-overview-heading'
               className='flex flex-col gap-4 md:flex-row md:items-start md:justify-between'
             >
-              <div className='space-y-3'>
-                <h3
-                  id='mentor-overview-heading'
-                  className='text-xl font-semibold text-foreground'
-                >
-                  {selectedMentor.name || selectedMentor.fullName || 'Mentor'}
-                </h3>
-                {selectedMentor.headline && (
-                  <p className='text-sm text-muted-foreground'>
-                    {selectedMentor.headline}
-                  </p>
+              <div className='flex items-center gap-4'>
+                {selectedMentor.profileImageUrl ? (
+                  <Image
+                    src={selectedMentor.profileImageUrl}
+                    alt={selectedMentor.fullName || 'Mentor profile picture'}
+                    width={96}
+                    height={96}
+                    className='h-24 w-24 rounded-full object-cover'
+                  />
+                ) : (
+                  <div className='flex h-24 w-24 items-center justify-center rounded-full bg-gray-200 text-2xl font-semibold text-gray-600'>
+                    {selectedMentor.fullName?.charAt(0) ||
+                      selectedMentor.email?.charAt(0).toUpperCase()}
+                  </div>
                 )}
-                <div className='flex flex-wrap items-center gap-2'>
-                  <Badge
-                    variant='outline'
-                    className={cn(
-                      'border-transparent text-xs capitalize',
-                      statusBadgeClass[selectedMentor.verificationStatus],
-                    )}
+                <div className='space-y-1'>
+                  <h3
+                    id='mentor-overview-heading'
+                    className='text-xl font-semibold text-foreground'
                   >
-                    {statusCopy[selectedMentor.verificationStatus]}
-                  </Badge>
-                  {renderAvailabilityBadge(selectedMentor.isAvailable)}
-                  {selectedMentor.location && (
-                    <span className='inline-flex items-center gap-1 text-xs text-muted-foreground'>
-                      <MapPin className='h-3 w-3' />
-                      {selectedMentor.location}
-                    </span>
+                    {selectedMentor.name || selectedMentor.fullName || 'Mentor'}
+                  </h3>
+                  {selectedMentor.headline && (
+                    <p className='text-sm text-muted-foreground'>
+                      {selectedMentor.headline}
+                    </p>
                   )}
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <Badge
+                      variant='outline'
+                      className={cn(
+                        'border-transparent text-xs capitalize',
+                        statusBadgeClass[selectedMentor.verificationStatus],
+                      )}
+                    >
+                      {statusCopy[selectedMentor.verificationStatus]}
+                    </Badge>
+                    {renderAvailabilityBadge(selectedMentor.isAvailable)}
+                    {selectedMentor.location && (
+                      <span className='inline-flex items-center gap-1 text-xs text-muted-foreground'>
+                        <MapPin className='h-3 w-3' />
+                        {selectedMentor.location}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className='flex flex-wrap gap-2'>
@@ -845,6 +868,18 @@ export function AdminMentors() {
                     >
                       <ExternalLink className='h-3 w-3' />
                       LinkedIn
+                    </a>
+                  </Button>
+                )}
+                {selectedMentor.githubUrl && (
+                  <Button variant='outline' size='sm' className='gap-1.5' asChild>
+                    <a
+                      href={selectedMentor.githubUrl}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                    >
+                      <Github className='h-3 w-3' />
+                      GitHub
                     </a>
                   </Button>
                 )}
@@ -935,14 +970,28 @@ export function AdminMentors() {
                 >
                   Contact
                 </h4>
-                <div className='mt-3 space-y-2 text-sm text-muted-foreground'>
+                <div className='mt-3 flex flex-col space-y-2 text-sm text-muted-foreground'>
                   {selectedMentor.email && (
-                    <a
-                      href={`mailto:${selectedMentor.email}`}
-                      className='font-medium text-primary hover:underline'
-                    >
-                      {selectedMentor.email}
-                    </a>
+                    <div className='inline-flex items-center gap-1'>
+                      <Mail className='h-3 w-3' />
+                      <a
+                        href={`mailto:${selectedMentor.email}`}
+                        className='font-medium text-primary hover:underline'
+                      >
+                        {selectedMentor.email}
+                      </a>
+                    </div>
+                  )}
+                  {selectedMentor.phone && (
+                    <div className='inline-flex items-center gap-1'>
+                      <Phone className='h-3 w-3' />
+                      <a
+                        href={`tel:${selectedMentor.phone}`}
+                        className='font-medium text-primary hover:underline'
+                      >
+                        {selectedMentor.phone}
+                      </a>
+                    </div>
                   )}
                   {selectedMentor.city && (
                     <p>
