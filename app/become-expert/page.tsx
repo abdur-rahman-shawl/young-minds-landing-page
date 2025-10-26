@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { countryPhoneCodes } from "@/lib/country-phone-codes"
+import { Combobox } from "@/components/ui/combobox"
 
 export default function BecomeExpertPage() {
   const [showMentorForm, setShowMentorForm] = useState(false)
@@ -33,6 +34,26 @@ export default function BecomeExpertPage() {
     states: false,
     cities: false,
   });
+
+  const phoneCodeOptions = countryPhoneCodes.map(country => ({
+    value: country.code,
+    label: `+${country.code} (${country.name})`,
+  }));
+
+  const countryOptions = countries.map(country => ({
+    value: country.id.toString(),
+    label: country.name,
+  }));
+
+  const stateOptions = states.map(state => ({
+    value: state.id.toString(),
+    label: state.name,
+  }));
+
+  const cityOptions = cities.map(city => ({
+    value: city.id.toString(),
+    label: city.name,
+  }));
 
   const [mentorFormData, setMentorFormData] = useState<{
     fullName: string
@@ -499,20 +520,14 @@ export default function BecomeExpertPage() {
                 <div>
                   <Label htmlFor="phone">Phone Number <span className="text-red-500">*</span></Label>
                   <div className="flex items-center space-x-2">
-                    <Select
+                    <Combobox
+                      options={phoneCodeOptions}
                       value={mentorFormData.phoneCountryCode}
                       onValueChange={value => setMentorFormData(prev => ({ ...prev, phoneCountryCode: value }))}
-                      required
-                    >
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue placeholder="Code" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {countryPhoneCodes.map(country => (
-                          <SelectItem key={country.name} value={country.code}>+{country.code} ({country.name})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select Code"
+                      searchPlaceholder="Search codes..."
+                      className="w-[80%]"
+                    />
                     <Input
                       id="phone"
                       type="tel"
@@ -538,56 +553,40 @@ export default function BecomeExpertPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="country">Country <span className="text-red-500">*</span></Label>
-                    <Select
+                    <Combobox
+                      options={countryOptions}
                       value={mentorFormData.countryId}
                       onValueChange={value => setMentorFormData(prev => ({ ...prev, countryId: value }))}
-                      required
-                    >
-                      <SelectTrigger id="country">
-                        <SelectValue placeholder="Select Country..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {countries.map(country => (
-                          <SelectItem key={country.id} value={country.id.toString()}>{country.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select Country..."
+                      searchPlaceholder="Search countries..."
+                      className="w-full"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="state">State <span className="text-red-500">*</span></Label>
-                    <Select
+                    <Combobox
+                      options={stateOptions}
                       value={mentorFormData.stateId}
                       onValueChange={value => setMentorFormData(prev => ({ ...prev, stateId: value }))}
-                      required
+                      placeholder={locationsLoading.states ? "Loading..." : "Select State..."}
+                      searchPlaceholder="Search states..."
+                      className="w-full"
+                      emptyMessage="No state found."
                       disabled={locationsLoading.states || states.length === 0}
-                    >
-                      <SelectTrigger id="state">
-                        <SelectValue placeholder={locationsLoading.states ? "Loading..." : "Select State..."} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {states.map(state => (
-                          <SelectItem key={state.id} value={state.id.toString()}>{state.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
                   <div>
                     <Label htmlFor="city">City <span className="text-red-500">*</span></Label>
-                    <Select
+                    <Combobox
+                      options={cityOptions}
                       value={mentorFormData.cityId}
                       onValueChange={value => setMentorFormData(prev => ({ ...prev, cityId: value }))}
-                      required
+                      placeholder={locationsLoading.cities ? "Loading..." : "Select City..."}
+                      searchPlaceholder="Search cities..."
+                      className="w-full"
+                      emptyMessage="No city found."
                       disabled={locationsLoading.cities || cities.length === 0}
-                    >
-                      <SelectTrigger id="city">
-                        <SelectValue placeholder={locationsLoading.cities ? "Loading..." : "Select City..."} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {cities.map(city => (
-                          <SelectItem key={city.id} value={city.id.toString()}>{city.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
