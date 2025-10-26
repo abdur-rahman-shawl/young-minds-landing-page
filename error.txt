@@ -1,21 +1,48 @@
-Import trace for requested module:
-./app/api/admin/mentors/route.ts
- ⨯ ./lib/db/audit.ts:1:1
-Module not found: Can't resolve './db'
-> 1 | import { db } from './db';
-    | ^
-  2 | import { adminAuditTrail } from './schema/admin-audit-trail';
-  3 |
-  4 | interface LogAdminActionParams {
-
-https://nextjs.org/docs/messages/module-not-found
-
-Import trace for requested module:
-./app/api/admin/mentors/route.ts
- ⨯ ./lib/db/audit.ts:1:1
-Module not found: Can't resolve './db'
-> 1 | import { db } from './db';
-    | ^
-  2 | import { adminAuditTrail } from './schema/admin-audit-trail';
-  3 |
-  4 | interface LogAdminActionParams {
+Error updating user profile: Error: Failed query: insert into "mentees_profile_audit" ("audit_id", "mentee_id", "user_id", "changed_at", "old_profile_data", "new_profile_data", "source_of_change") values (default, $1, $2, default, $3, $4, $5)
+params: ca33a29f-2ffd-4d37-98f8-fb6b0bbbcc2e,DYvwwt2c5omECG6ASsBe865k0J6BzzUg,{"id":"ca33a29f-2ffd-4d37-98f8-fb6b0bbbcc2e","userId":"DYvwwt2c5omECG6ASsBe865k0J6BzzUg","currentRole":null,"currentCompany":null,"education":null,"careerGoals":null,"interests":null,"skillsToLearn":null,"currentSkills":null,"learningStyle":null,"preferredMeetingFrequency":null,"createdAt":"2025-08-07T06:29:54.557Z","updatedAt":"2025-08-07T06:29:54.557Z"},{"id":"ca33a29f-2ffd-4d37-98f8-fb6b0bbbcc2e","userId":"DYvwwt2c5omECG6ASsBe865k0J6BzzUg","currentRole":"Student","currentCompany":"MIT","education":null,"careerGoals":"Gold Medal","interests":null,"skillsToLearn":null,"currentSkills":null,"learningStyle":null,"preferredMeetingFrequency":null,"createdAt":"2025-08-07T06:29:54.557Z","updatedAt":"2025-10-26T10:24:23.110Z"},mentee-profile-update     
+    at async POST (app\api\user\profile\route.ts:145:9)
+  143 |
+  144 |         // Add to audit trail
+> 145 |         await db.insert(menteesProfileAudit).values({
+      |         ^
+  146 |           menteeId: existingMentee.id,
+  147 |           userId: userId,
+  148 |           oldProfileData: existingMentee, {
+  query: 'insert into "mentees_profile_audit" ("audit_id", "mentee_id", "user_id", "changed_at", "old_profile_data", "new_profile_data", "source_of_change") values (default, $1, $2, default, $3, $4, $5)',
+  params: [Array],
+  [cause]: [Error [PostgresError]: invalid input syntax for type uuid: "DYvwwt2c5omECG6ASsBe865k0J6BzzUg"] {
+    severity_local: 'ERROR',
+    severity: 'ERROR',
+    code: '22P02',
+    where: "unnamed portal parameter $2 = '...'",
+    file: 'uuid.c',
+    line: '138',
+    routine: 'string_to_uuid'
+  }
+}
+ POST /api/user/profile 500 in 390ms
+ GET /api/notifications?limit=10 200 in 332ms
+ GET /api/messaging/threads?userId=DYvwwt2c5omECG6ASsBe865k0J6BzzUg 200 in 159ms
+Error updating user profile: Error: Failed query: insert into "mentees_profile_audit" ("audit_id", "mentee_id", "user_id", "changed_at", "old_profile_data", "new_profile_data", "source_of_change") values (default, $1, $2, default, $3, $4, $5)
+params: ca33a29f-2ffd-4d37-98f8-fb6b0bbbcc2e,DYvwwt2c5omECG6ASsBe865k0J6BzzUg,{"id":"ca33a29f-2ffd-4d37-98f8-fb6b0bbbcc2e","userId":"DYvwwt2c5omECG6ASsBe865k0J6BzzUg","currentRole":"Student","currentCompany":"MIT","education":null,"careerGoals":"Gold Medal","interests":null,"skillsToLearn":null,"currentSkills":null,"learningStyle":null,"preferredMeetingFrequency":null,"createdAt":"2025-08-07T06:29:54.557Z","updatedAt":"2025-10-26T10:24:23.110Z"},{"id":"ca33a29f-2ffd-4d37-98f8-fb6b0bbbcc2e","userId":"DYvwwt2c5omECG6ASsBe865k0J6BzzUg","currentRole":"Student","currentCompany":"MIT","education":null,"careerGoals":"Gold Medal","interests":null,"skillsToLearn":null,"currentSkills":null,"learningStyle":null,"preferredMeetingFrequency":null,"createdAt":"2025-08-07T06:29:54.557Z","updatedAt":"2025-10-26T10:24:36.431Z"},mentee-profile-update
+    at async POST (app\api\user\profile\route.ts:145:9)
+  143 |
+  144 |         // Add to audit trail
+> 145 |         await db.insert(menteesProfileAudit).values({
+      |         ^
+  146 |           menteeId: existingMentee.id,
+  147 |           userId: userId,
+  148 |           oldProfileData: existingMentee, {
+  query: 'insert into "mentees_profile_audit" ("audit_id", "mentee_id", "user_id", "changed_at", "old_profile_data", "new_profile_data", "source_of_change") values (default, $1, $2, default, $3, $4, $5)',
+  params: [Array],
+  [cause]: [Error [PostgresError]: invalid input syntax for type uuid: "DYvwwt2c5omECG6ASsBe865k0J6BzzUg"] {
+    severity_local: 'ERROR',
+    severity: 'ERROR',
+    code: '22P02',
+    where: "unnamed portal parameter $2 = '...'",
+    file: 'uuid.c',
+    line: '138',
+    routine: 'string_to_uuid'
+  }
+}
+ POST /api/user/profile 500 in 321ms

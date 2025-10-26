@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,33 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { countryPhoneCodes } from "@/lib/country-phone-codes"
 import { Combobox } from "@/components/ui/combobox"
 
+const INDUSTRY_OPTIONS = new Set(['ITSoftware','Marketing','Finance','Education','Healthcare','Entrepreneurship','Design','Sales','HR','Other']);
+
+function parseExpertiseValue(value?: string | null) {
+  if (!value) return '';
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item) => typeof item === 'string').join(', ');
+    }
+  } catch (error) {
+    // ignore JSON parse issues and fall back to raw string
+  }
+  return value;
+}
+
+function splitPhoneParts(value?: string | null) {
+  if (!value) {
+    return { code: '', number: '' };
+  }
+  const trimmed = value.trim();
+  const withoutPlus = trimmed.startsWith('+') ? trimmed.slice(1) : trimmed;
+  const parts = withoutPlus.split(/[-\s]/).filter(Boolean);
+  const code = parts.length > 0 ? parts[0] : '';
+  const number = parts.slice(1).join('') || '';
+  return { code, number };
+}
+
 export default function BecomeExpertPage() {
   const [showMentorForm, setShowMentorForm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -35,6 +62,10 @@ export default function BecomeExpertPage() {
     states: false,
     cities: false,
   });
+
+  const pendingLocationRef = useRef<{ stateName?: string | null; cityName?: string | null }>({});
+  const [prefillMentorData, setPrefillMentorData] = useState<any | null>(null);
+  const [isReverificationFlow, setIsReverificationFlow] = useState(false);
 
   const phoneCodeOptions = countryPhoneCodes.map(country => ({
     value: country.code,
@@ -120,44 +151,66 @@ export default function BecomeExpertPage() {
   }, []);
 
   useEffect(() => {
-    if (mentorFormData.countryId) {
-      const fetchStates = async () => {
-        setLocationsLoading(prev => ({ ...prev, states: true }));
-        setStates([]);
-        setCities([]);
-        setMentorFormData(prev => ({ ...prev, stateId: "", cityId: "" }));
-        try {
-          const response = await fetch(`/api/locations/states?countryId=${mentorFormData.countryId}`);
-          const data = await response.json();
-          setStates(data);
-        } catch (error) {
-          console.error("Failed to fetch states", error);
-        } finally {
-          setLocationsLoading(prev => ({ ...prev, states: false }));
-        }
-      };
-      fetchStates();
+    if (!mentorFormData.countryId) {
+      return;
     }
+
+    const fetchStates = async () => {
+      setLocationsLoading(prev => ({ ...prev, states: true }));
+      setStates([]);
+      setCities([]);
+      setMentorFormData(prev => ({ ...prev, stateId: '', cityId: '' }));
+      try {
+        const response = await fetch(`/api/locations/states?countryId=${mentorFormData.countryId}`);
+        const data = await response.json();
+        setStates(data);
+        const pendingStateName = pendingLocationRef.current.stateName?.toLowerCase();
+        if (pendingStateName) {
+          const matchedState = data.find((state: { name: string; id: number }) => state.name.toLowerCase() === pendingStateName);
+          if (matchedState) {
+            pendingLocationRef.current.stateName = undefined;
+            setMentorFormData(prev => ({ ...prev, stateId: matchedState.id.toString() }));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch states', error);
+      } finally {
+        setLocationsLoading(prev => ({ ...prev, states: false }));
+      }
+    };
+
+    fetchStates();
   }, [mentorFormData.countryId]);
 
   useEffect(() => {
-    if (mentorFormData.stateId) {
-      const fetchCities = async () => {
-        setLocationsLoading(prev => ({ ...prev, cities: true }));
-        setCities([]);
-        setMentorFormData(prev => ({ ...prev, cityId: "" }));
-        try {
-          const response = await fetch(`/api/locations/cities?stateId=${mentorFormData.stateId}`);
-          const data = await response.json();
-          setCities(data);
-        } catch (error) {
-          console.error("Failed to fetch cities", error);
-        } finally {
-          setLocationsLoading(prev => ({ ...prev, cities: false }));
-        }
-      };
-      fetchCities();
+    if (!mentorFormData.stateId) {
+      return;
     }
+
+    const fetchCities = async () => {
+      setLocationsLoading(prev => ({ ...prev, cities: true }));
+      setCities([]);
+      setMentorFormData(prev => ({ ...prev, cityId: '' }));
+      try {
+        const response = await fetch(`/api/locations/cities?stateId=${mentorFormData.stateId}`);
+        const data = await response.json();
+        setCities(data);
+        const pendingCityName = pendingLocationRef.current.cityName?.toLowerCase();
+        if (pendingCityName) {
+          const matchedCity = data.find((city: { name: string; id: number }) => city.name.toLowerCase() === pendingCityName);
+          if (matchedCity) {
+            pendingLocationRef.current.cityName = undefined;
+            setMentorFormData(prev => ({ ...prev, cityId: matchedCity.id.toString() }));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch cities', error);
+      } finally {
+        setLocationsLoading(prev => ({ ...prev, cities: false }));
+      }
+    };
+
+    fetchCities();
   }, [mentorFormData.stateId]);
 
   const [otp, setOtp] = useState("")
@@ -291,13 +344,10 @@ export default function BecomeExpertPage() {
           if (result.success) {
             const { data } = result;
             if (data.verificationStatus === 'REVERIFICATION') {
-              setMentorFormData({
-                ...mentorFormData,
-                ...data,
-                countryId: data.country,
-                stateId: data.state,
-                cityId: data.city,
-              });
+              setIsReverificationFlow(true);
+              setPrefillMentorData(data);
+            } else {
+              setIsReverificationFlow(false);
             }
           }
         } catch (error) {
@@ -308,6 +358,66 @@ export default function BecomeExpertPage() {
       fetchMentorApplication();
     }
   }, [session, showMentorForm])
+
+  useEffect(() => {
+    if (!prefillMentorData || countries.length === 0) return;
+
+    const { code: phoneCode, number: phoneNumber } = splitPhoneParts(prefillMentorData.phone);
+    const expertiseValue = parseExpertiseValue(prefillMentorData.expertise);
+
+    const rawIndustry = prefillMentorData.industry ?? '';
+    const industryValue = rawIndustry && INDUSTRY_OPTIONS.has(rawIndustry) ? rawIndustry : rawIndustry ? 'Other' : '';
+    const otherIndustryValue = industryValue === 'Other' ? rawIndustry : '';
+
+    const normalizedCountry = prefillMentorData.country?.toString().trim().toLowerCase();
+    const matchedCountry = normalizedCountry
+      ? countries.find((country) => country.name.toLowerCase() === normalizedCountry)
+      : undefined;
+    const countryId = matchedCountry ? matchedCountry.id.toString() : '';
+
+    setMentorFormData((prev) => ({
+      ...prev,
+      fullName: prefillMentorData.fullName ?? '',
+      email: prefillMentorData.email ?? '',
+      phoneCountryCode: phoneCode,
+      phone: phoneNumber,
+      title: prefillMentorData.title ?? '',
+      company: prefillMentorData.company ?? '',
+      industry: industryValue || '',
+      otherIndustry: otherIndustryValue,
+      experience: prefillMentorData.experience != null ? String(prefillMentorData.experience) : '',
+      expertise: expertiseValue,
+      about: prefillMentorData.about ?? '',
+      linkedinUrl: prefillMentorData.linkedinUrl ?? '',
+      availability: prefillMentorData.availability ?? '',
+      profilePicture: null,
+      resume: null,
+      termsAccepted: true,
+      countryId,
+      stateId: '',
+      cityId: '',
+    }));
+
+    setShowOtherIndustryInput(industryValue === 'Other');
+    setProfilePicturePreview(prefillMentorData.profileImageUrl ?? null);
+
+    const normalizedState = prefillMentorData.state?.toString().trim() ?? null;
+    const normalizedCity = prefillMentorData.city?.toString().trim() ?? null;
+
+    pendingLocationRef.current = {
+      stateName: normalizedState,
+      cityName: normalizedCity,
+    };
+
+    setIsEmailVerified(true);
+    setShowOtpInput(false);
+    setOtp('');
+    setOtpError(null);
+    setIsCountingDown(false);
+    setCountdown(0);
+
+    setPrefillMentorData(null);
+  }, [prefillMentorData, countries]);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
@@ -342,13 +452,21 @@ export default function BecomeExpertPage() {
       const submittedState = selectedState?.name || mentorFormData.stateId;
       const submittedCity = selectedCity?.name || mentorFormData.cityId;
 
-      const validatedData = mentorApplicationSchema.parse({
+      const schema = isReverificationFlow
+        ? mentorApplicationSchema.extend({
+            profilePicture: mentorApplicationSchema.shape.profilePicture.optional(),
+          })
+        : mentorApplicationSchema;
+
+      const validatedData = schema.parse({
         ...mentorFormData,
         phone: `+${mentorFormData.phoneCountryCode}-${mentorFormData.phone}`,
         country: submittedCountry,
         state: submittedState,
         city: submittedCity,
         industry: mentorFormData.industry === 'Other' ? mentorFormData.otherIndustry : mentorFormData.industry,
+        profilePicture: mentorFormData.profilePicture ?? undefined,
+        resume: mentorFormData.resume ?? undefined,
       });
 
       const formData = new FormData();
@@ -367,11 +485,14 @@ export default function BecomeExpertPage() {
       formData.append('about', validatedData.about || '');
       formData.append('linkedinUrl', validatedData.linkedinUrl);
       formData.append('availability', validatedData.availability);
-      formData.append('profilePicture', validatedData.profilePicture);
-      if (validatedData.resume) {
-        formData.append('resume', validatedData.resume)
+      if (validatedData.profilePicture instanceof File) {
+        formData.append('profilePicture', validatedData.profilePicture);
       }
-      
+      if (validatedData.resume instanceof File) {
+        formData.append('resume', validatedData.resume);
+      }
+
+
       const res = await fetch('/api/mentors/apply', {
         method: 'POST',
         body: formData,

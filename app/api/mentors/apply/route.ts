@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { users, mentors, userRoles, roles } from '@/lib/db/schema';
+import { users, mentors, userRoles, roles, mentorsFormAuditTrail } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { uploadProfilePicture, uploadResume } from '@/lib/storage';
@@ -29,40 +29,46 @@ async function sendNotification(userId: string, type: string, title: string, mes
 }
 
 export async function POST(request: NextRequest) {
-  console.log('🚀 === MENTOR APPLICATION API CALLED ===');
+  console.log('ðŸš€ === MENTOR APPLICATION API CALLED ===');
   
   try {
-    const formData = await request.formData();
-    console.log('📋 FormData received with entries:', Array.from(formData.entries()));
+    const submittedFormData = await request.formData();
+    console.log('ðŸ“‹ FormData received with entries:', Array.from(submittedFormData.entries()));
+    const rawFormSnapshot: Record<string, unknown> = {};
+    for (const [key, value] of submittedFormData.entries()) {
+      rawFormSnapshot[key] = value instanceof File
+        ? (value.size > 0 ? { name: value.name, size: value.size, type: value.type } : null)
+        : value;
+    }
     
-    const userId = formData.get('userId') as string;
-    const title = formData.get('title') as string;
-    const company = formData.get('company') as string;
-    const industry = formData.get('industry') as string;
-    const expertise = formData.get('expertise') as string;
-    const experience = formData.get('experience') as string;
-    const hourlyRate = formData.get('hourlyRate') as string;
-    const currency = formData.get('currency') as string;
-    const headline = formData.get('headline') as string;
-    const about = formData.get('about') as string;
-    const linkedinUrl = formData.get('linkedinUrl') as string;
-    const githubUrl = formData.get('githubUrl') as string;
-    const websiteUrl = formData.get('websiteUrl') as string;
-    const isAvailable = formData.get('isAvailable') as string;
-    const fullName = formData.get('fullName') as string;
-    const email = formData.get('email') as string;
-    const phone = formData.get('phone') as string;
-    const city = formData.get('city') as string;
-    const country = formData.get('country') as string;
-    const state = formData.get('state') as string;
-    const availability = formData.get('availability') as string;
-    const profilePicture = formData.get('profilePicture') as File;
-    const resume = formData.get('resume') as File | null;
+    const userId = submittedFormData.get('userId') as string;
+    const title = submittedFormData.get('title') as string;
+    const company = submittedFormData.get('company') as string;
+    const industry = submittedFormData.get('industry') as string;
+    const expertise = submittedFormData.get('expertise') as string;
+    const experience = submittedFormData.get('experience') as string;
+    const hourlyRate = submittedFormData.get('hourlyRate') as string;
+    const currency = submittedFormData.get('currency') as string;
+    const headline = submittedFormData.get('headline') as string;
+    const about = submittedFormData.get('about') as string;
+    const linkedinUrl = submittedFormData.get('linkedinUrl') as string;
+    const githubUrl = submittedFormData.get('githubUrl') as string;
+    const websiteUrl = submittedFormData.get('websiteUrl') as string;
+    const isAvailable = submittedFormData.get('isAvailable') as string;
+    const fullName = submittedFormData.get('fullName') as string;
+    const email = submittedFormData.get('email') as string;
+    const phone = submittedFormData.get('phone') as string;
+    const city = submittedFormData.get('city') as string;
+    const country = submittedFormData.get('country') as string;
+    const state = submittedFormData.get('state') as string;
+    const availability = submittedFormData.get('availability') as string;
+    const profilePicture = submittedFormData.get('profilePicture') as File | null;
+    const resume = submittedFormData.get('resume') as File | null;
 
-    console.log('👤 Extracted userId:', userId);
+    console.log('ðŸ‘¤ Extracted userId:', userId);
 
     if (!userId) {
-      console.error('❌ VALIDATION FAILED: No user ID provided');
+      console.error('âŒ VALIDATION FAILED: No user ID provided');
       return NextResponse.json(
         { success: false, error: 'User ID is required' },
         { status: 400 }
@@ -77,7 +83,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user exists
-    console.log('🔍 Step 1: Checking if user exists in database...');
+    console.log('ðŸ” Step 1: Checking if user exists in database...');
     const [user] = await db
       .select()
       .from(users)
@@ -85,27 +91,27 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (!user) {
-      console.error('❌ USER NOT FOUND in users table for ID:', userId);
+      console.error('âŒ USER NOT FOUND in users table for ID:', userId);
       return NextResponse.json(
         { success: false, error: 'User not found' },
         { status: 404 }
       );
     }
     
-    console.log('✅ User found:', { id: user.id, name: user.name, email: user.email });
+    console.log('âœ… User found:', { id: user.id, name: user.name, email: user.email });
 
     // Upload profile picture and resume
-    console.log('🖼️  Step 2: Uploading profile picture and resume...');
+    console.log('ðŸ–¼ï¸  Step 2: Uploading profile picture and resume...');
     let profileImageUrl = null;
     let resumeUrl = null;
     
-    if (profilePicture && profilePicture.size > 0) {
+    if (profilePicture instanceof File && profilePicture.size > 0) {
       try {
         const uploadResult = await uploadProfilePicture(profilePicture, userId);
         profileImageUrl = uploadResult.url;
-        console.log('✅ Profile picture uploaded:', profileImageUrl);
+        console.log('âœ… Profile picture uploaded:', profileImageUrl);
       } catch (uploadError) {
-        console.error('❌ Profile picture upload failed:', uploadError);
+        console.error('âŒ Profile picture upload failed:', uploadError);
         return NextResponse.json(
           { success: false, error: 'Failed to upload profile picture' },
           { status: 400 }
@@ -113,13 +119,13 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    if (resume && resume.size > 0) {
+    if (resume instanceof File && resume.size > 0) {
       try {
         const uploadResult = await uploadResume(resume, userId);
         resumeUrl = uploadResult.url;
-        console.log('✅ Resume uploaded successfully');
+        console.log('âœ… Resume uploaded successfully');
       } catch (uploadError) {
-        console.error('❌ Resume upload failed:', uploadError);
+        console.error('âŒ Resume upload failed:', uploadError);
         return NextResponse.json(
           { success: false, error: `Failed to upload resume: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}` },
           { status: 400 }
@@ -128,7 +134,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if mentor profile already exists
-    console.log('🔍 Step 3: Checking if mentor profile already exists...');
+    console.log('ðŸ” Step 3: Checking if mentor profile already exists...');
     const [existingMentor] = await db
       .select()
       .from(mentors)
@@ -158,18 +164,42 @@ export async function POST(request: NextRequest) {
       country: country || null,
       state: state || null,
       availability: availability || null,
-      profileImageUrl: profileImageUrl,
-      resumeUrl: resumeUrl,
+      profileImageUrl: profileImageUrl ?? existingMentor?.profileImageUrl ?? null,
+      resumeUrl: resumeUrl ?? existingMentor?.resumeUrl ?? null,
       updatedAt: new Date(),
     };
 
+    const sanitizedAuditProfile = {
+      ...mentorProfileData,
+      updatedAt: mentorProfileData.updatedAt.toISOString(),
+    };
+
+    const recordAuditEntry = async (mentorRecordId: string, submissionType: 'CREATE' | 'UPDATE') => {
+      try {
+        await db.insert(mentorsFormAuditTrail).values({
+          mentorId: mentorRecordId,
+          userId,
+          submissionType,
+          verificationStatus: mentorProfileData.verificationStatus,
+          formData: {
+            sanitized: sanitizedAuditProfile,
+            raw: rawFormSnapshot,
+          },
+        });
+      } catch (auditError) {
+        console.error('Failed to record mentor form audit trail:', auditError);
+      }
+    };
+
     if (existingMentor) {
-      console.log('✅ Existing mentor profile found, updating...');
+      console.log('âœ… Existing mentor profile found, updating...');
       const [updatedMentor] = await db
         .update(mentors)
         .set(mentorProfileData)
         .where(eq(mentors.id, existingMentor.id))
         .returning({ id: mentors.id });
+
+      await recordAuditEntry(existingMentor.id, 'UPDATE');
 
       const adminId = await getAdminUserId();
       if (adminId) {
@@ -188,15 +218,17 @@ export async function POST(request: NextRequest) {
         data: { id: updatedMentor.id, userId, status: 'RESUBMITTED' }
       });
     } else {
-      console.log('✅ No existing mentor profile found, creating new one...');
+      console.log('âœ… No existing mentor profile found, creating new one...');
       const mentorId = randomUUID();
       const [newMentor] = await db
         .insert(mentors)
         .values({ ...mentorProfileData, id: mentorId, verificationStatus: 'IN_PROGRESS' })
         .returning();
 
+      await recordAuditEntry(newMentor.id, 'CREATE');
+
       // Assign mentor role to user
-      console.log('👤 Step 5: Assigning mentor role to user...');
+      console.log('ðŸ‘¤ Step 5: Assigning mentor role to user...');
       try {
         const [mentorRole] = await db
           .select()
@@ -205,7 +237,7 @@ export async function POST(request: NextRequest) {
           .limit(1);
 
         if (mentorRole) {
-          console.log('📋 Found mentor role in database:', mentorRole);
+          console.log('ðŸ“‹ Found mentor role in database:', mentorRole);
           
           const roleAssignment = {
             userId,
@@ -213,24 +245,24 @@ export async function POST(request: NextRequest) {
             assignedBy: userId
           };
           
-          console.log('👤 Assigning role with data:', roleAssignment);
+          console.log('ðŸ‘¤ Assigning role with data:', roleAssignment);
           
           await db
             .insert(userRoles)
             .values(roleAssignment)
             .onConflictDoNothing();
             
-          console.log('✅ Mentor role successfully assigned');
+          console.log('âœ… Mentor role successfully assigned');
         } else {
-          console.error('❌ Mentor role NOT FOUND in roles table');
+          console.error('âŒ Mentor role NOT FOUND in roles table');
         }
       } catch (roleError) {
-        console.error('❌ Error during role assignment:', roleError);
+        console.error('âŒ Error during role assignment:', roleError);
       }
 
       await sendApplicationReceivedEmail(email, fullName);
 
-      console.log('🎉 === MENTOR APPLICATION COMPLETED SUCCESSFULLY ===');
+      console.log('ðŸŽ‰ === MENTOR APPLICATION COMPLETED SUCCESSFULLY ===');
       
       return NextResponse.json({
         success: true,
@@ -240,7 +272,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('❌ === FATAL ERROR IN MENTOR APPLICATION ===');
+    console.error('âŒ === FATAL ERROR IN MENTOR APPLICATION ===');
     console.error('Error details:', error);
     console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace available');
     
@@ -252,3 +284,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
+

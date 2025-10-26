@@ -1,4 +1,4 @@
-// Export all schema files
+﻿// Export all schema files
 export * from './users';
 export * from './roles';
 export * from './user-roles';
