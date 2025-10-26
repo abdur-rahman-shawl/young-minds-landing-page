@@ -17,6 +17,7 @@ import { z } from "zod"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { countryPhoneCodes } from "@/lib/country-phone-codes"
 
 export default function BecomeExpertPage() {
   const [showMentorForm, setShowMentorForm] = useState(false)
@@ -24,7 +25,7 @@ export default function BecomeExpertPage() {
   const [errors, setErrors] = useState<z.ZodError | null>(null)
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null)
   
-  const [countries, setCountries] = useState<{ id: number; name: string; phone_code: string }[]>([])
+  const [countries, setCountries] = useState<{ id: number; name: string }[]>([])
   const [states, setStates] = useState<{ id: number; name: string }[]>([]);
   const [cities, setCities] = useState<{ id: number; name: string }[]>([]);
   const [locationsLoading, setLocationsLoading] = useState({
@@ -507,8 +508,8 @@ export default function BecomeExpertPage() {
                         <SelectValue placeholder="Code" />
                       </SelectTrigger>
                       <SelectContent>
-                        {countries.map(country => (
-                          country.phone_code ? <SelectItem key={country.id} value={country.phone_code}>+{country.phone_code}</SelectItem> : <SelectItem key={91} value="91">+91</SelectItem>
+                        {countryPhoneCodes.map(country => (
+                          <SelectItem key={country.name} value={country.code}>+{country.code} ({country.name})</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
