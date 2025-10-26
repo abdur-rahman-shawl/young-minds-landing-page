@@ -334,12 +334,20 @@ export default function BecomeExpertPage() {
         return
       }
 
+      const selectedCountry = countries.find((country) => country.id.toString() === mentorFormData.countryId);
+      const selectedState = states.find((state) => state.id.toString() === mentorFormData.stateId);
+      const selectedCity = cities.find((city) => city.id.toString() === mentorFormData.cityId);
+
+      const submittedCountry = selectedCountry?.name || mentorFormData.countryId;
+      const submittedState = selectedState?.name || mentorFormData.stateId;
+      const submittedCity = selectedCity?.name || mentorFormData.cityId;
+
       const validatedData = mentorApplicationSchema.parse({
         ...mentorFormData,
         phone: `+${mentorFormData.phoneCountryCode}-${mentorFormData.phone}`,
-        country: mentorFormData.countryId,
-        state: mentorFormData.stateId,
-        city: mentorFormData.cityId,
+        country: submittedCountry,
+        state: submittedState,
+        city: submittedCity,
         industry: mentorFormData.industry === 'Other' ? mentorFormData.otherIndustry : mentorFormData.industry,
       });
 
@@ -348,9 +356,9 @@ export default function BecomeExpertPage() {
       formData.append('fullName', validatedData.fullName);
       formData.append('email', validatedData.email);
       formData.append('phone', validatedData.phone);
-      formData.append('countryId', validatedData.country);
-      formData.append('stateId', validatedData.state);
-      formData.append('cityId', validatedData.city);
+      formData.append('country', validatedData.country);
+      formData.append('state', validatedData.state);
+      formData.append('city', validatedData.city);
       formData.append('title', validatedData.title);
       formData.append('company', validatedData.company);
       formData.append('industry', validatedData.industry);
