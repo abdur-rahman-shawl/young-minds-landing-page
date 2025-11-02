@@ -162,7 +162,6 @@ export async function POST(request: NextRequest) {
     const parsedState = toNullableString(updateData.state);
     const parsedCountry = toNullableString(updateData.country);
     const parsedCity = toNullableString(updateData.city);
-    const parsedVerificationStatus = toNullableString(updateData.verificationStatus) || existingMentor.verificationStatus || 'IN_PROGRESS';
     const parsedVerificationNotes = toNullableString(updateData.verificationNotes);
     const parseBooleanFlag = (value: unknown, fallback: boolean) => {
       if (typeof value === 'boolean') return value;
@@ -198,7 +197,7 @@ export async function POST(request: NextRequest) {
       maxMentees: parsedMaxMentees,
       profileImageUrl: newProfileImageUrl,
       resumeUrl: newResumeUrl,
-      verificationStatus: parsedVerificationStatus,
+      verificationStatus: 'UPDATED_PROFILE',
       verificationNotes: parsedVerificationNotes,
       isAvailable: parsedIsAvailable
     };

@@ -5,11 +5,12 @@ import { users } from './users';
 // Define verification status enum
 export const verificationStatusEnum = pgEnum('verification_status', [
   'YET_TO_APPLY',
-  'IN_PROGRESS', 
+  'IN_PROGRESS',
   'VERIFIED',
   'REJECTED',
   'REVERIFICATION',
-  'RESUBMITTED'
+  'RESUBMITTED',
+  'UPDATED_PROFILE'
 ]);
 
 export const mentors = pgTable('mentors', {

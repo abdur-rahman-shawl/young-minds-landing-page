@@ -22,8 +22,8 @@ type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
 const mentorSelectFields = {
   id: mentors.id,
   userId: mentors.userId,
-  name: users.name,
-  email: users.email,
+  name: mentors.fullName,
+  email: mentors.email,
   image: users.image,
   title: mentors.title,
   company: mentors.company,

@@ -52,6 +52,7 @@ const pendingStatuses = new Set([
   "YET_TO_APPLY",
   "IN_PROGRESS",
   "REVERIFICATION",
+  "UPDATED_PROFILE",
 ]);
 
 const formatNumber = (value: number) =>
@@ -59,7 +60,7 @@ const formatNumber = (value: number) =>
 
 const formatPercentage = (value: number | null) =>
   value === null
-    ? "–"
+    ? "ï¿½"
     : new Intl.NumberFormat(undefined, {
         style: "percent",
         maximumFractionDigits: 1,
@@ -180,7 +181,7 @@ export function AdminDashboard() {
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading dashboard metrics…</p>
+        <p className="text-sm text-muted-foreground">Loading dashboard metricsï¿½</p>
       </div>
     );
   }
@@ -343,7 +344,7 @@ export function AdminDashboard() {
                                 <SelectValue placeholder="Status" />
                               </SelectTrigger>
                               <SelectContent>
-                                {["YET_TO_APPLY", "IN_PROGRESS", "VERIFIED", "REJECTED", "REVERIFICATION"].map(
+                                {["YET_TO_APPLY", "IN_PROGRESS", "VERIFIED", "REJECTED", "REVERIFICATION", "UPDATED_PROFILE"].map(
                                   (status) => (
                                     <SelectItem key={status} value={status}>
                                       {status}
