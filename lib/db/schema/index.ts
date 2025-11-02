@@ -20,6 +20,8 @@ export * from './notifications';
 export * from './mentor-availability';
 export * from './reviews';
 export * from './livekit';
+export * from './mentors-form-audit-trail';
+export * from './mentors-profile-audit';
 
 // Temporary empty export to prevent TypeScript errors
-export {}; 
+export {};

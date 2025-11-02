@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { mentors } from '@/lib/db/schema';
+import { mentors, mentorsProfileAudit, type Mentor } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { uploadProfilePicture, uploadResume, storage } from '@/lib/storage';
 
@@ -63,6 +63,14 @@ export async function POST(request: NextRequest) {
     }
     
     console.log('✅ Existing mentor profile found:', existingMentor.id);
+
+    const serializeMentorRecord = (record: Mentor) => ({
+      ...record,
+      createdAt: record.createdAt instanceof Date ? record.createdAt.toISOString() : record.createdAt,
+      updatedAt: record.updatedAt instanceof Date ? record.updatedAt.toISOString() : record.updatedAt,
+    });
+
+    const previousProfileSnapshot = serializeMentorRecord(existingMentor);
 
     // Handle file uploads
     let newProfileImageUrl = existingMentor.profileImageUrl;
@@ -135,28 +143,64 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare update data
+    const toNullableNumber = (value: unknown) => {
+      if (value === undefined || value === null || value === '') return null;
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const toNullableString = (value: unknown) => {
+      if (value === undefined || value === null) return null;
+      const str = String(value).trim();
+      return str.length === 0 ? null : str;
+    };
+
+    const parsedExperience = toNullableNumber(updateData.experience);
+    const parsedHourlyRate = toNullableString(updateData.hourlyRate);
+    const parsedMaxMentees = toNullableNumber(updateData.maxMentees);
+    const parsedAvailability = toNullableString(updateData.availability);
+    const parsedState = toNullableString(updateData.state);
+    const parsedCountry = toNullableString(updateData.country);
+    const parsedCity = toNullableString(updateData.city);
+    const parsedVerificationStatus = toNullableString(updateData.verificationStatus) || existingMentor.verificationStatus || 'IN_PROGRESS';
+    const parsedVerificationNotes = toNullableString(updateData.verificationNotes);
+    const parseBooleanFlag = (value: unknown, fallback: boolean) => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'string') {
+        const lowered = value.toLowerCase();
+        if (lowered === 'true') return true;
+        if (lowered === 'false') return false;
+      }
+      return fallback;
+    };
+    const parsedIsAvailable = parseBooleanFlag(updateData.isAvailable, existingMentor.isAvailable !== false);
+
     const mentorUpdateData = {
-      fullName: updateData.fullName || null,
-      email: updateData.email || null,
-      phone: updateData.phone || null,
-      title: updateData.title || null,
-      company: updateData.company || null,
-      city: updateData.city || null,
-      country: updateData.country || null,
-      industry: updateData.industry || null,
-      expertise: updateData.expertise || null,
-      experience: updateData.experience || null,
-      about: updateData.about || null,
-      linkedinUrl: updateData.linkedinUrl || null,
-      githubUrl: updateData.githubUrl || null,
-      websiteUrl: updateData.websiteUrl || null,
-      hourlyRate: updateData.hourlyRate?.toString() || null,
-      currency: updateData.currency || 'USD',
-      availability: updateData.availability || null,
-      headline: updateData.headline || null,
-      maxMentees: updateData.maxMentees || null,
+      fullName: toNullableString(updateData.fullName),
+      email: toNullableString(updateData.email),
+      phone: toNullableString(updateData.phone),
+      title: toNullableString(updateData.title),
+      company: toNullableString(updateData.company),
+      city: parsedCity,
+      state: parsedState,
+      country: parsedCountry,
+      industry: toNullableString(updateData.industry),
+      expertise: toNullableString(updateData.expertise),
+      experience: parsedExperience,
+      about: toNullableString(updateData.about),
+      linkedinUrl: toNullableString(updateData.linkedinUrl),
+      githubUrl: toNullableString(updateData.githubUrl),
+      websiteUrl: toNullableString(updateData.websiteUrl),
+      hourlyRate: parsedHourlyRate,
+      currency: toNullableString(updateData.currency) || existingMentor.currency || 'USD',
+      availability: parsedAvailability,
+      headline: toNullableString(updateData.headline),
+      maxMentees: parsedMaxMentees,
       profileImageUrl: newProfileImageUrl,
-      resumeUrl: newResumeUrl
+      resumeUrl: newResumeUrl,
+      verificationStatus: parsedVerificationStatus,
+      verificationNotes: parsedVerificationNotes,
+      isAvailable: parsedIsAvailable
     };
     
     console.log('📝 Step 2: Updating mentor profile with data:', JSON.stringify(mentorUpdateData, null, 2));
@@ -168,6 +212,18 @@ export async function POST(request: NextRequest) {
         .where(eq(mentors.userId, userId))
         .returning();
         
+      try {
+        await db.insert(mentorsProfileAudit).values({
+          mentorId: updatedMentor.id,
+          userId,
+          previousData: previousProfileSnapshot,
+          updatedData: serializeMentorRecord(updatedMentor),
+          changedAt: new Date(),
+        });
+      } catch (auditError) {
+        console.error('Failed to record mentor profile audit:', auditError);
+      }
+
       console.log('🎉 SUCCESS: Mentor profile updated in database:', updatedMentor);
       
       return NextResponse.json({

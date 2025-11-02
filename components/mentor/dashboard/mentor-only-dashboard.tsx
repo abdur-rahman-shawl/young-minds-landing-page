@@ -144,7 +144,10 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
                 
                 {(mentorProfile?.verificationStatus === 'REJECTED' || mentorProfile?.verificationStatus === 'REVERIFICATION') && (
                   <div className="mt-4">
-                    <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Button 
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={() => router.push('/become-expert')}
+                    >
                       Reapply Now
                     </Button>
                   </div>

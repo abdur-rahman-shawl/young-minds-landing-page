@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -20,6 +21,7 @@ import {
   User, 
   Camera,
   CheckCircle2,
+  ShieldQuestion,
   Briefcase,
   MapPin,
   Phone,
@@ -54,6 +56,7 @@ export function MentorProfileEdit() {
     title: '',
     company: '',
     city: '',
+    state: '',
     country: '',
     industry: '',
     expertise: '',
@@ -68,8 +71,16 @@ export function MentorProfileEdit() {
     headline: '',
     maxMentees: '10',
     profileImageUrl: '',
-    resumeUrl: ''
+    resumeUrl: '',
+    verificationStatus: 'IN_PROGRESS',
+    verificationNotes: '',
+    isAvailable: true
   })
+
+  const [mentorMeta, setMentorMeta] = useState({
+    createdAt: '',
+    updatedAt: ''
+  });
 
   // Load mentor profile data only when not editing to avoid losing unsaved form state
   useEffect(() => {
@@ -87,6 +98,7 @@ export function MentorProfileEdit() {
         title: mentorProfile.title || '',
         company: mentorProfile.company || '',
         city: mentorProfile.city || '',
+        state: mentorProfile.state || '',
         country: mentorProfile.country || '',
         industry: mentorProfile.industry || '',
         expertise: mentorProfile.expertise || '',
@@ -101,8 +113,16 @@ export function MentorProfileEdit() {
         headline: mentorProfile.headline || '',
         maxMentees: mentorProfile.maxMentees?.toString() || '10',
         profileImageUrl: mentorProfile.profileImageUrl || '',
-        resumeUrl: mentorProfile.resumeUrl || ''
+        resumeUrl: mentorProfile.resumeUrl || '',
+        verificationStatus: mentorProfile.verificationStatus || 'IN_PROGRESS',
+        verificationNotes: mentorProfile.verificationNotes || '',
+        isAvailable: mentorProfile.isAvailable !== false
       })
+
+    setMentorMeta({
+      createdAt: mentorProfile.createdAt || '',
+      updatedAt: mentorProfile.updatedAt || ''
+    });
 
     // Show image after profile loads
     setTimeout(() => setShowImage(true), 100)
@@ -245,6 +265,13 @@ export function MentorProfileEdit() {
         setSuccess('Profile updated successfully!')
         setIsEditing(false)
         setTimeout(() => setSuccess(null), 3000)
+
+        if (result.data?.updatedAt) {
+          setMentorMeta(prev => ({
+            createdAt: result.data.createdAt || prev.createdAt,
+            updatedAt: result.data.updatedAt || prev.updatedAt,
+          }));
+        }
         
         // Refresh user roles to update all components
         refreshUserData()
@@ -270,10 +297,14 @@ export function MentorProfileEdit() {
     "Human Resources", "Other"
   ]
 
+  const currencyOptions = ['USD', 'EUR', 'GBP', 'INR', 'AUD', 'CAD'];
+
   const availabilityOptions = [
     "Weekly (e.g., 1 hour/week)", "Bi-weekly (e.g., 1 hour/bi-week)", 
     "Monthly (e.g., 1 hour/month)", "As needed (flexible)"
   ]
+
+  const verificationStatuses = ['YET_TO_APPLY', 'IN_PROGRESS', 'VERIFIED', 'REJECTED', 'REVERIFICATION', 'RESUBMITTED'];
 
   // Calculate profile completion percentage
   const calculateCompletion = () => {
@@ -517,6 +548,21 @@ export function MentorProfileEdit() {
                     value={mentorData.city}
                     onChange={(e) => setMentorData(prev => ({ ...prev, city: e.target.value }))}
                     disabled={!isEditing}
+                    className="transition-all focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="state" className="flex items-center gap-2 font-medium">
+                    <MapPin className="h-4 w-4" />
+                    State / Province
+                  </Label>
+                  <Input
+                    id="state"
+                    value={mentorData.state}
+                    onChange={(e) => setMentorData(prev => ({ ...prev, state: e.target.value }))}
+                    disabled={!isEditing}
+                    placeholder="State or Province"
                     className="transition-all focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -818,7 +864,7 @@ export function MentorProfileEdit() {
               <div className="space-y-2">
                 <Label htmlFor="hourlyRate" className="flex items-center gap-2 font-medium">
                   <DollarSign className="h-4 w-4" />
-                  Hourly Rate (USD)
+                  Hourly Rate
                 </Label>
                 <Input
                   id="hourlyRate"
@@ -831,6 +877,29 @@ export function MentorProfileEdit() {
                   placeholder="50.00"
                   className="transition-all focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="currency" className="flex items-center gap-2 font-medium">
+                  <DollarSign className="h-4 w-4" />
+                  Currency
+                </Label>
+                <Select
+                  value={mentorData.currency}
+                  onValueChange={(value) => setMentorData(prev => ({ ...prev, currency: value }))}
+                  disabled={!isEditing}
+                >
+                  <SelectTrigger className="transition-all focus:ring-2 focus:ring-blue-500">
+                    <SelectValue placeholder="Select currency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currencyOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -876,6 +945,79 @@ export function MentorProfileEdit() {
             </CardContent>
           </Card>
         
+          {/* Verification & Availability */}
+          <Card>
+            <CardHeader className="border-b bg-gray-50">
+              <CardTitle className="flex items-center gap-2 text-gray-900">
+                <ShieldQuestion className="h-5 w-5" />
+                Verification & Availability
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="verificationStatus" className="flex items-center gap-2 font-medium">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Verification Status
+                </Label>
+                <Select
+                  value={mentorData.verificationStatus}
+                  onValueChange={(value) => setMentorData(prev => ({ ...prev, verificationStatus: value as typeof prev.verificationStatus }))}
+                  disabled={!isEditing}
+                >
+                  <SelectTrigger className="transition-all focus:ring-2 focus:ring-blue-500">
+                    <SelectValue placeholder="Select verification status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {verificationStatuses.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="verificationNotes" className="flex items-center gap-2 font-medium">
+                  <FileText className="h-4 w-4" />
+                  Verification Notes
+                </Label>
+                <Textarea
+                  id="verificationNotes"
+                  value={mentorData.verificationNotes}
+                  onChange={(e) => setMentorData(prev => ({ ...prev, verificationNotes: e.target.value }))}
+                  disabled={!isEditing}
+                  placeholder="Notes from reviewers or context for your updates"
+                  rows={4}
+                  className="transition-all focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3 shadow-sm">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Accepting new mentees</p>
+                  <p className="text-xs text-gray-500">Toggle your availability across the platform.</p>
+                </div>
+                <Switch
+                  checked={mentorData.isAvailable}
+                  onCheckedChange={(checked) => setMentorData(prev => ({ ...prev, isAvailable: checked }))}
+                  disabled={!isEditing}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
+                <div>
+                  <span className="font-medium text-gray-900">Created:</span> {mentorMeta.createdAt ? new Date(mentorMeta.createdAt).toLocaleString() : 'N/A'}
+                </div>
+                <div>
+                  <span className="font-medium text-gray-900">Last updated:</span> {mentorMeta.updatedAt ? new Date(mentorMeta.updatedAt).toLocaleString() : 'N/A'}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Save Button */}
           {isEditing && (
             <div className="pt-6 border-t">
