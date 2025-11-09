@@ -30,6 +30,17 @@ interface RecentSession {
   };
 }
 
+interface SessionToReview {
+  sessionId: string;
+  sessionTitle: string;
+  sessionEndedAt: string;
+  mentee: {
+    id: string;
+    name: string;
+    avatar?: string | null;
+  }
+}
+
 interface RecentMessage {
   id: string;
   content: string;
@@ -84,6 +95,31 @@ export function useMentorRecentSessions(limit: number = 5) {
     sessions: data?.sessions || [],
     count: data?.count || 0,
     isLoading,
+    error,
+    mutate,
+  };
+}
+
+export function useMentorPendingReviews(user: any) {
+  // THE FIX: The key for SWR is now conditional.
+  // If a user exists, the key is the API URL.
+  // If there is no user, the key is `null`, which tells SWR *not* to make a request.
+  const key = user?.id ? '/api/sessions/needs-review' : null;
+
+  const { data, error, isLoading, mutate } = useSWR<{ success: boolean, data: SessionToReview[] }>(
+    key, // Use the conditional key here
+    fetcher,
+    {
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+    }
+  );
+
+  return {
+    // If data exists, return the 'data' property from the API response, otherwise return an empty array.
+    sessionsToReview: data?.data || [],
+    // If the key is null (no user), we are not loading.
+    isLoading: user?.id ? isLoading : false,
     error,
     mutate,
   };

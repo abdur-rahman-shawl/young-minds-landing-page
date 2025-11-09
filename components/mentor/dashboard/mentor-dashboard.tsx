@@ -9,14 +9,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, Users, Calendar, MessageSquare, CheckCircle, AlertCircle } from "lucide-react";
 import { ErrorBoundary, AuthErrorBoundary } from "@/components/common/error-boundary";
-
+import Link from "next/link"
+import { useMentorPendingReviews } from "@/hooks/use-mentor-dashboard";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { format, formatDistanceToNow } from "date-fns"
+import { Skeleton } from "@/components/ui/skeleton"
 interface MentorDashboardProps {
   user: any;
 }
 
 export function MentorDashboard({ user }: MentorDashboardProps) {
   const [mentorStatus, setMentorStatus] = useState<"pending" | "approved" | "rejected">("pending");
-
+ 
+  
   useEffect(() => {
     // In a real app, you'd fetch this from your database
     // For now, we'll simulate the verification status
@@ -175,6 +180,8 @@ export function MentorDashboard({ user }: MentorDashboardProps) {
                       <p className="text-sm text-muted-foreground">No upcoming sessions scheduled</p>
                     </CardContent>
                   </Card>
+
+                    
 
                   <Card>
                     <CardHeader>

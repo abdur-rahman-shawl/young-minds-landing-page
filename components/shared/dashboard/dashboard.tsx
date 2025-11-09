@@ -30,6 +30,8 @@ export function Dashboard({ onMentorSelect, onSectionChange }: DashboardProps) {
   // Get upcoming sessions (first 3)
   const upcomingSessions = sessions.slice(0, 3)
 
+
+
   // Build stats array with real data
   const stats = dashboardStats ? [
     {
