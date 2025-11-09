@@ -1,47 +1,26 @@
 import { useState, useEffect } from 'react';
+import { DateRange } from 'react-day-picker';
 
-// 1. Define the shape of the data we expect from our new API endpoint.
-// This helps with autocompletion and prevents bugs.
-export interface MentorAnalyticsData {
-  kpis: {
-    totalCompletedSessions: number;
-    totalEarnings: number;
-    periodEarnings: number;
-    averageRating: number | null;
-    unreadMessages: number;
-  };
-  earningsOverTime: { month: string; earnings: number }[];
-  upcomingSessions: {
-    sessionId: string;
-    menteeName: string;
-    title: string;
-    scheduledAt: string;
-  }[];
-  recentReviews: {
-    reviewId: string;
-    menteeName: string;
-    rating: number;
-    feedback: string;
-  }[];
-}
+// ... (Keep the MentorAnalyticsData interface as is)
+export interface MentorAnalyticsData { /* ... */ }
 
-// 2. This is our custom hook function.
-export function useMentorAnalytics() {
-  // 3. Set up state variables to hold our data, loading status, and any errors.
+// 1. The hook now accepts a dateRange object as an argument
+export function useMentorAnalytics(dateRange: DateRange | undefined) {
   const [data, setData] = useState<MentorAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 4. Use the useEffect hook to fetch data when the component using this hook is first loaded.
+  // 2. The useEffect now depends on dateRange
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchData = async (from: Date, to: Date) => {
+      setIsLoading(true);
+      setError(null);
       try {
-        // Reset states before fetching
-        setIsLoading(true);
-        setError(null);
-
-        // Call our new API endpoint
-        const response = await fetch('/api/analytics/mentor');
+        const params = new URLSearchParams({
+          startDate: from.toISOString(), // This is now 100% safe
+          endDate: to.toISOString(),     // This is now 100% safe
+        });
+        const response = await fetch(`/api/analytics/mentor?${params.toString()}`);
 
         if (!response.ok) {
           const errorData = await response.json();
@@ -49,18 +28,26 @@ export function useMentorAnalytics() {
         }
 
         const result: MentorAnalyticsData = await response.json();
-        setData(result); // Store the successful response in our state
-
+        setData(result);
       } catch (err: any) {
-        setError(err.message); // Store any error message
+        setError(err.message);
+        setData(null);
       } finally {
-        setIsLoading(false); // Always stop loading, whether it succeeded or failed
+        setIsLoading(false);
       }
     };
 
-    fetchData();
-  }, []); // The empty array [] ensures this code runs only once.
+    // This is the main logic block.
+    // We check if the dates are valid first.
+    if (dateRange && dateRange.from && dateRange.to) {
+      // If they are valid, we call our safe async function.
+      fetchData(dateRange.from, dateRange.to);
+    } else {
+      // If the date range is incomplete, we ensure we are not stuck in a loading state.
+      setIsLoading(false);
+      setData(null);
+    }
+  }, [dateRange]); // Re-run this effect whenever dateRange changes
 
-  // 5. Return the state variables so the component can use them.
   return { data, isLoading, error };
 }
