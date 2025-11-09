@@ -10,10 +10,10 @@ const caseStudies = [
 
 export function CaseStudySection() {
   return (
-    <section className="py-16">
-      <div className="flex flex-col lg:flex-row items-center gap-12">
-        <div className="lg:w-1/2">
-          <div className="flex items-center gap-4 mb-8">
+    <section className="py-16 px-4 sm:px-6">
+      <div className="flex flex-col lg:flex-row items-center gap-12 text-center lg:text-left">
+        <div className="w-full lg:w-1/2">
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
             {caseStudies.map((study, index) => (
               <div key={study.id} className="flex items-center">
                 <div className="relative">
@@ -39,8 +39,8 @@ export function CaseStudySection() {
           </div>
         </div>
 
-        <div className="lg:w-1/2">
-          <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+        <div className="w-full lg:w-1/2">
+          <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4 text-center lg:text-left">
             Browse our
             <br />
             Case Study

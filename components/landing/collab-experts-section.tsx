@@ -24,18 +24,18 @@ const expertCategories = [
 
 export function CollabExpertsSection() {
   return (
-    <section className="py-16">
+    <section className="py-16 px-4 sm:px-6">
       <div className="text-center mb-12">
         <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Collab eXperts</h2>
         <p className="text-xl text-gray-600 dark:text-gray-300">Our Top Mentors for you</p>
       </div>
 
-      <div className="flex items-center justify-between mb-8">
-        <Button variant="outline" size="icon">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
+        <Button variant="outline" size="icon" className="hidden md:inline-flex">
           <ChevronLeft className="w-4 h-4" />
         </Button>
 
-        <div className="flex gap-6 overflow-x-auto">
+        <div className="flex gap-6 overflow-x-auto w-full pb-2">
           {expertCategories.map((category, index) => (
             <div key={index} className="text-center min-w-[200px]">
               <Badge variant="outline" className="mb-4 px-4 py-2">
@@ -55,7 +55,7 @@ export function CollabExpertsSection() {
           ))}
         </div>
 
-        <Button variant="outline" size="icon">
+        <Button variant="outline" size="icon" className="hidden md:inline-flex">
           <ChevronRight className="w-4 h-4" />
         </Button>
       </div>

@@ -7,12 +7,12 @@ import { useState, useRef } from "react"
 
 export function ChatSection() {
   return (
-    <section className="py-12">
+    <section className="py-12 px-4 sm:px-6">
       <div className="flex flex-col lg:flex-row gap-8">
-        <div className="lg:w-1/2">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Chat live now with tech eXpert.</h2>
+        <div className="w-full lg:w-1/2">
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-6 text-center lg:text-left">Chat live now with tech eXpert.</h2>
 
-          <Card className="p-6 max-w-md">
+          <Card className="p-6 w-full max-w-md mx-auto lg:mx-0">
             <div className="space-y-4">
               {/* Chat Messages */}
               <div className="space-y-3">
@@ -66,8 +66,8 @@ export function ChatSection() {
           </Card>
         </div>
 
-        <div className="lg:w-1/2 flex justify-center">
-          <div className="w-80 h-80 rounded-full overflow-hidden">
+        <div className="w-full lg:w-1/2 flex justify-center">
+          <div className="w-full max-w-xs sm:max-w-sm h-[260px] sm:h-[320px] rounded-full overflow-hidden">
             <Image
               src="/placeholder.svg?height=320&width=320"
               alt="Tech expert"

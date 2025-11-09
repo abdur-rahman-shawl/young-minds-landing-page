@@ -416,7 +416,7 @@ export function HeroSection() {
 
   return (
     <>
-      <section ref={heroRef} className="relative px-6 sm:px-8 lg:px-12 xl:px-16 py-16 lg:py-24">
+      <section ref={heroRef} className="relative px-4 sm:px-6 lg:px-12 xl:px-16 py-12 sm:py-16 lg:py-24">
         {/* Background Shape */}
         <div className="absolute top-0 left-0 right-0 bottom-0 bg-gray-50 dark:bg-gray-700/20 rounded-br-[160px] -z-10"></div>
 
@@ -425,16 +425,16 @@ export function HeroSection() {
           <div className="w-full h-full bg-gradient-to-b from-gray-400 to-transparent bg-[radial-gradient(circle,_#d1d5db_1.5px,_transparent_1.5px)] bg-[length:18px_18px]"></div>
         </div>
 
-        <div className="relative flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
-          <div className="lg:w-3/5">
+        <div className="relative flex flex-col lg:flex-row items-center lg:items-start gap-10 lg:gap-12 text-center lg:text-left">
+          <div className="w-full lg:w-3/5">
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 dark:text-white mb-6 leading-tight">
               What's on your mind?
             </h1>
-            <p className="text-gray-600 dark:text-gray-300 mb-12 text-lg lg:text-xl">
+            <p className="text-gray-600 dark:text-gray-300 mb-12 text-lg sm:text-xl max-w-2xl mx-auto lg:mx-0">
               Our AI intelligence will connect with your mind & download your thoughts
             </p>
 
-            <div className="w-full max-w-4xl">
+            <div className="w-full max-w-4xl mx-auto lg:mx-0">
               {/* Chat Container */}
               <div 
                 className={`group relative overflow-hidden rounded-3xl bg-white dark:bg-gray-900 transition-all duration-700 ease-out cursor-text ${ 
@@ -443,7 +443,7 @@ export function HeroSection() {
                     : isHovered
                       ? 'shadow-xl shadow-black/5 dark:shadow-black/20 scale-[1.01]'
                       : 'shadow-lg shadow-black/5 dark:shadow-black/10'
-                } ${isChatExpanded ? 'h-[600px]' : 'h-auto'}`}
+                } ${isChatExpanded ? 'max-h-[70vh] sm:max-h-[75vh] lg:max-h-none lg:h-[600px]' : 'h-auto'}`}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
                 onClick={handleContainerClick}
@@ -648,8 +648,8 @@ export function HeroSection() {
           </div>
 
           {/* Hero image stays next to chat only */}
-          <div className="lg:w-2/5 flex justify-center lg:justify-end">
-            <div className="relative w-80 h-80 lg:w-96 lg:h-96">
+          <div className="w-full lg:w-2/5 flex justify-center lg:justify-end">
+            <div className="relative w-full max-w-xs sm:max-w-sm h-[260px] sm:h-[320px] lg:w-96 lg:h-96">
               <Image
                 src="https://img.freepik.com/free-photo/smiley-man-working-laptop-from-home_23-2148306647.jpg"
                 alt="Person working on a laptop"
@@ -663,10 +663,10 @@ export function HeroSection() {
 
       {/* Mentor Recommendations Section (REAL data) */}
       {showMentors && (
-        <section ref={mentorsSectionRef} className="w-full px-0 lg:px-0 xl:px-0 py-8 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
-          <div className="max-w-screen-xl mx-auto">
+        <section ref={mentorsSectionRef} className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-8 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
+          <div className="max-w-screen-xl mx-auto w-full">
             <Card className="bg-white dark:bg-gray-900 rounded-2xl p-4 md:p-6 border shadow-sm">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Mentors</h2>
                 <div className="flex items-center gap-2">
                   <Button
