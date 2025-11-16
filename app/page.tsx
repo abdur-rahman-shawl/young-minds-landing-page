@@ -45,6 +45,7 @@ import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { Courses } from "@/components/shared/dashboard/courses"
 import { MyLearning } from "@/components/mentee/dashboard/my-learning"
+import { MentorAnalyticsSection } from "@/components/mentor/dashboard/mentor-analytics-section"
 
 function PageContent() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -164,6 +165,8 @@ function PageContent() {
           )
         case "content":
           return <MentorContent />
+        case "analytics":
+          return <MentorAnalyticsSection />
         case "profile":
           return isMentor ? <MentorProfileEdit /> : <MenteeProfile />
         default:
