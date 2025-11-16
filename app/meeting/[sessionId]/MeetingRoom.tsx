@@ -276,7 +276,7 @@ export default function MeetingRoom({
    */
   const handleDisconnect = () => {
     console.log('👋 User disconnected from meeting');
-    router.push('/dashboard');
+    router.push(`/review-session/${sessionId}`);
   };
 
   /**

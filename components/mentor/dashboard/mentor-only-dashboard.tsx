@@ -401,44 +401,71 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
 
 
           {sessionsToReview && sessionsToReview.length > 0 && (
-                    <Card className="border-l-4 border-l-blue-500">
-                      <CardHeader>
-                        <CardTitle>You have {sessionsToReview.length} pending review{sessionsToReview.length > 1 ? 's' : ''}</CardTitle>
-                        <CardDescription>Your feedback is valuable for mentees and the community.</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {reviewsLoading ? (
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-3"><Skeleton className="h-10 w-10 rounded-full" /><div className="flex-1"><Skeleton className="h-4 w-32 mb-2" /><Skeleton className="h-3 w-24" /></div></div>
-                          </div>
-                        ) : reviewsError ? (
-                          <div className="text-center py-4 text-red-500"><p>Error: {reviewsError}</p></div>
-                        ) : (
-                          <div className="space-y-3">
-                            {sessionsToReview.map((session) => (
-                              <div key={session.sessionId} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                                <div className="flex items-center gap-3">
-                                  <Avatar className="h-10 w-10">
-                                    <AvatarImage src={session.mentee.avatar || undefined} />
-                                    <AvatarFallback>{session.mentee.name?.charAt(0).toUpperCase()}</AvatarFallback>
-                                  </Avatar>
-                                  <div>
-                                    <p className="font-medium text-sm">{session.mentee.name}</p>
-                                    <p className="text-xs text-gray-500">
-                                      Session ended {formatDistanceToNow(new Date(session.sessionEndedAt), { addSuffix: true })}
-                                    </p>
-                                  </div>
-                                </div>
-                                <Button asChild size="sm">
-                                  <Link href={`/session/${session.sessionId}`}>Rate Now</Link>
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
+  <Card className="border-l-4 border-l-blue-500">
+    <CardHeader>
+      <CardTitle>
+        You have {sessionsToReview.length} pending review
+        {sessionsToReview.length > 1 ? "s" : ""}
+      </CardTitle>
+      <CardDescription>
+        Your feedback is valuable for mentees and the community.
+      </CardDescription>
+    </CardHeader>
+    <CardContent>
+      {reviewsLoading ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="flex-1">
+              <Skeleton className="h-4 w-32 mb-2" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          </div>
+        </div>
+      ) : reviewsError ? (
+        <div className="text-center py-4 text-red-500">
+          <p>Error: {reviewsError}</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {sessionsToReview.map((session) => {
+            // Ensure sessionEndedAt is valid
+            const sessionEndedAt = session.sessionEndedAt
+              ? new Date(session.sessionEndedAt)
+              : null;
+
+            return (
+              <div
+                key={session.sessionId}
+                className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={session.mentee.avatar || undefined} />
+                    <AvatarFallback>
+                      {session.mentee.name?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium text-sm">{session.mentee.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {sessionEndedAt && !isNaN(sessionEndedAt.getTime())
+                        ? `Session ended ${formatDistanceToNow(sessionEndedAt, { addSuffix: true })}`
+                        : "Session ended recently."}
+                    </p>
+                  </div>
+                </div>
+                <Button asChild size="sm">
+                  <Link href={`/review-session/${session.sessionId}`}>Rate Now</Link>
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </CardContent>
+  </Card>
+)}
 
 
 
