@@ -3,6 +3,7 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import dynamic from "next/dynamic"
 import { useAuth } from "@/contexts/auth-context"
 import { Header } from "@/components/layout/header"
 import { UserSidebar } from "@/components/mentee/sidebars/user-sidebar"
@@ -46,6 +47,11 @@ import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { Courses } from "@/components/shared/dashboard/courses"
 import { MyLearning } from "@/components/mentee/dashboard/my-learning"
 import { MentorAnalyticsSection } from "@/components/mentor/dashboard/mentor-analytics-section"
+
+const AdminAnalytics = dynamic(() => import("@/app/admins/analytics/page"), {
+  ssr: false,
+  loading: () => <div className="p-6 text-center">Loading analytics...</div>,
+});
 
 function PageContent() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -105,6 +111,7 @@ function PageContent() {
       switch(activeSection){
         case 'mentors': return <AdminMentors />;
         case 'mentees': return <AdminMentees />;
+        case 'analytics': return <AdminAnalytics />;
         default: return <AdminOverview />;
       }
     }
