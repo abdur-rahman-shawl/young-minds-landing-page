@@ -1,24 +1,43 @@
 import { useState, useEffect } from 'react';
 import { DateRange } from 'react-day-picker';
 
-// ... (Keep the MentorAnalyticsData interface as is)
-export interface MentorAnalyticsData { /* ... */ }
+export interface MentorAnalyticsData {
+  kpis: {
+    totalCompletedSessions: number;
+    totalEarnings: number;
+    periodEarnings: number;
+    averageRating: number | null;
+    unreadMessages: number;
+  };
+  earningsOverTime: { month: string; earnings: number }[];
+  upcomingSessions: {
+    sessionId: string;
+    menteeName: string;
+    title: string;
+    scheduledAt: string;
+  }[];
+  recentReviews: {
+    reviewId: string;
+    menteeName: string;
+    rating: number;
+    feedback: string;
+  }[];
+}
 
-// 1. The hook now accepts a dateRange object as an argument
 export function useMentorAnalytics(dateRange: DateRange | undefined) {
   const [data, setData] = useState<MentorAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 2. The useEffect now depends on dateRange
+  // This useEffect block now has the correct, working logic
   useEffect(() => {
     const fetchData = async (from: Date, to: Date) => {
       setIsLoading(true);
       setError(null);
       try {
         const params = new URLSearchParams({
-          startDate: from.toISOString(), // This is now 100% safe
-          endDate: to.toISOString(),     // This is now 100% safe
+          startDate: from.toISOString(),
+          endDate: to.toISOString(),
         });
         const response = await fetch(`/api/analytics/mentor?${params.toString()}`);
 
@@ -37,17 +56,15 @@ export function useMentorAnalytics(dateRange: DateRange | undefined) {
       }
     };
 
-    // This is the main logic block.
-    // We check if the dates are valid first.
+    // Main logic: check for valid dates and then fetch
     if (dateRange && dateRange.from && dateRange.to) {
-      // If they are valid, we call our safe async function.
       fetchData(dateRange.from, dateRange.to);
     } else {
-      // If the date range is incomplete, we ensure we are not stuck in a loading state.
+      // If dates are not valid, ensure we don't get stuck loading
       setIsLoading(false);
       setData(null);
     }
-  }, [dateRange]); // Re-run this effect whenever dateRange changes
+  }, [dateRange]);
 
   return { data, isLoading, error };
 }
