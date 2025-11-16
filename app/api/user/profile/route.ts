@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { users, mentees, mentors, userRoles, roles } from '@/lib/db/schema';
+import { menteesProfileAudit } from '@/lib/db/schema/mentee-profile-audit';
 import { eq } from 'drizzle-orm';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
 
@@ -139,6 +140,16 @@ export async function POST(request: NextRequest) {
           .returning();
         
         result = updatedMentee;
+
+        // Add to audit trail
+        await db.insert(menteesProfileAudit).values({
+          menteeId: existingMentee.id,
+          userId: userId,
+          oldProfileData: existingMentee,
+          newProfileData: updatedMentee,
+          sourceOfChange: 'mentee-profile-update',
+        });
+
       } else {
         // Create new mentee profile
         const [newMentee] = await db
@@ -158,6 +169,14 @@ export async function POST(request: NextRequest) {
           .returning();
 
         result = newMentee;
+
+        // Add to audit trail
+        await db.insert(menteesProfileAudit).values({
+          menteeId: newMentee.id,
+          userId: userId,
+          newProfileData: newMentee,
+          sourceOfChange: 'mentee-profile-create',
+        });
 
         // Create mentee role if not exists (only for new profiles)
         try {

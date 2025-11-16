@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, uuid, decimal, integer } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, uuid, decimal, integer, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { users } from './users';
 
@@ -39,6 +39,11 @@ export const sessions = pgTable('sessions', {
   rescheduledFrom: uuid('rescheduled_from').references(() => sessions.id),
   noShowMarkedBy: text('no_show_marked_by'), // 'mentor' | 'system'
   noShowMarkedAt: timestamp('no_show_marked_at'),
+
+  // Recording configuration
+  recordingConfig: jsonb('recording_config')
+    .default({ enabled: true, resolution: '1280x720', fps: 30 })
+    .notNull(),
 
   isReviewedByMentor: boolean('is_reviewed_by_mentor').default(false).notNull(),
   isReviewedByMentee: boolean('is_reviewed_by_mentee').default(false).notNull(),

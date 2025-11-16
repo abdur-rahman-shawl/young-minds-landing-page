@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to Next.js",
+      "type": "node",
+      "request": "attach",
+      "port": 9230, // The port that we know works for you
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true // This is still needed to tell VS Code to look for maps
+    }
+  ]
+}

@@ -29,19 +29,19 @@ const mentors = [
 
 export function MentorSection() {
   return (
-    <section className="py-20">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+    <section className="py-16 px-4 sm:px-6 lg:py-20">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 w-full">
         <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-0">Mentor Search</h2>
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Input
             placeholder="Search mentors..."
-            className="w-80 lg:w-96 border-2 border-red-400 focus-visible:ring-red-400 pr-10 h-12"
+            className="w-full sm:w-80 lg:w-96 border-2 border-red-400 focus-visible:ring-red-400 pr-10 h-12"
           />
           <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-red-400" />
         </div>
       </div>
 
-      <p className="text-gray-600 dark:text-gray-300 mb-12 text-lg">
+      <p className="text-gray-600 dark:text-gray-300 mb-8 text-base sm:text-lg text-center sm:text-left">
         Search human intelligence by Name, Profession or Experience
       </p>
 

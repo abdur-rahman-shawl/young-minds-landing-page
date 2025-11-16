@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import * as schema from './schema';
 
 // Ensure this only runs on server-side
 if (typeof window !== 'undefined') {
@@ -28,10 +29,12 @@ function initializeDatabase() {
 
   // Create the connection
   const connectionString = process.env.DATABASE_URL;
-  
+
   // Disable prefetch as it's not supported for "Transaction" pool mode
   clientInstance = postgres(connectionString, { prepare: false });
-  dbInstance = drizzle(clientInstance);
+
+  // CRITICAL: Pass schema to enable query API (db.query.*)
+  dbInstance = drizzle(clientInstance, { schema });
 
   return { db: dbInstance, client: clientInstance };
 }

@@ -20,6 +20,22 @@ const MENTOR_ROUTES = [
   '/mentor/profile',
 ];
 
+const SESSION_COOKIE_NAMES = [
+  'better-auth.session_token',
+  '__Secure-better-auth.session_token',
+];
+
+function getSessionCookie(request: NextRequest) {
+  for (const name of SESSION_COOKIE_NAMES) {
+    const cookie = request.cookies.get(name);
+    if (cookie) {
+      return cookie;
+    }
+  }
+
+  return null;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -41,7 +57,7 @@ async function handleApiProtection(request: NextRequest) {
   }
 
   // Check for session cookie
-  const sessionCookie = request.cookies.get('better-auth.session_token');
+  const sessionCookie = getSessionCookie(request);
   
   if (!sessionCookie) {
     return NextResponse.json(
@@ -52,27 +68,8 @@ async function handleApiProtection(request: NextRequest) {
 
   // For admin API routes, basic auth check - role verification in route handlers
   if (pathname.startsWith('/api/admin/')) {
-    try {
-      const session = await auth.api.getSession({
-        headers: request.headers,
-      });
-
-      if (!session?.user) {
-        return NextResponse.json(
-          { success: false, error: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-      
-      // Role verification moved to individual API route handlers to avoid Edge Runtime issues
-      // Each admin API route will verify admin role using database helpers
-    } catch (error) {
-      console.error('Session check failed:', error);
-      return NextResponse.json(
-        { success: false, error: 'Authentication failed' },
-        { status: 500 }
-      );
-    }
+    // Rely on cookie presence; individual admin routes verify the session & role.
+    return NextResponse.next();
   }
 
   return NextResponse.next();
@@ -97,7 +94,7 @@ async function handlePageProtection(request: NextRequest) {
   }
 
   // Check session
-  const sessionCookie = request.cookies.get('better-auth.session_token');
+  const sessionCookie = getSessionCookie(request);
   
   if (!sessionCookie) {
     const loginUrl = new URL('/auth', request.url);
@@ -121,8 +118,11 @@ async function handlePageProtection(request: NextRequest) {
       // Role verification moved to page components via AuthContext to avoid Edge Runtime issues
       // Pages will handle role-based redirects using client-side auth state
     } catch (error) {
-      console.error('Session check failed:', error);
-      return NextResponse.redirect(new URL('/auth?error=verification-failed', request.url));
+      console.warn('Page session lookup failed, redirecting to login:', error);
+      const loginUrl = new URL('/auth', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      loginUrl.searchParams.set('error', 'authentication-required');
+      return NextResponse.redirect(loginUrl);
     }
   }
 

@@ -45,6 +45,7 @@ import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { Courses } from "@/components/shared/dashboard/courses"
 import { MyLearning } from "@/components/mentee/dashboard/my-learning"
+import { MentorAnalyticsSection } from "@/components/mentor/dashboard/mentor-analytics-section"
 
 function PageContent() {
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -164,6 +165,8 @@ function PageContent() {
           )
         case "content":
           return <MentorContent />
+        case "analytics":
+          return <MentorAnalyticsSection />
         case "profile":
           return isMentor ? <MentorProfileEdit /> : <MenteeProfile />
         default:
@@ -210,7 +213,7 @@ function PageContent() {
     if (activeSection === "home") {
       // Show landing page content
       return (
-        <div className="flex-1 min-w-0 max-w-6xl mx-auto">
+        <div className="flex-1 min-w-0 w-full max-w-6xl mx-auto">
           <HeroSection />
           <div className="px-6 sm:px-8 lg:px-12 xl:px-16">
             <StatsSection />
@@ -278,9 +281,9 @@ function PageContent() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
-      <main className="flex pt-24">
+      <main className="flex flex-col gap-8 pt-24 pb-10 px-4 sm:px-6 lg:px-8 xl:flex-row xl:items-start">
         {/* Main Content */}
-        <div className="flex-1 min-w-0 max-w-6xl mx-auto">
+        <div className="flex-1 min-w-0 w-full max-w-6xl mx-auto">
           <HeroSection />
           <div className="px-6 sm:px-8 lg:px-12 xl:px-16">
             <StatsSection />

@@ -1,171 +1,29 @@
- ○ Compiling /api/mentors/[id]/availability ...
- ✓ Compiled /api/mentors/[id]/availability in 1999ms (4322 modules)
-[dotenv@17.2.1] injecting env (0) from .env.local -- tip: ⚙️  override existing env vars with { override: true }
-[dotenv@17.2.1] injecting env (0) from .env.local -- tip: ⚙️  write to custom object with { processEnv: myObject }
-Error: Route "/api/mentors/[id]/availability" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
-    at GET (app\api\mentors\[id]\availability\route.ts:77:39)
-  75 |       .select()
-  76 |       .from(mentors)
-> 77 |       .where(eq(mentors.userId, params.id))
-     |                                       ^
-  78 |       .limit(1);
-  79 |
-  80 |     if (!mentor.length) {
-Get availability error: Error: Failed query: select "id", "user_id", "title", "company", "industry", "expertise", "experience_years", "hourly_rate", "currency", "availability", "max_mentees", "headline", 
-"about", "linkedin_url", "github_url", "website_url", "full_name", "email", "phone", "city", "state", "country", "country_id", "state_id", "city_id", "profile_image_url", "resume_url", "verification_status", "verification_notes", "is_available", "created_at", "updated_at" from "mentors" where "mentors"."user_id" = $1 limit $2
-params: 38zBxsjqO39NIGOFGzlpVm19cup6UinQ,1
-    at async GET (app\api\mentors\[id]\availability\route.ts:74:19)
-  72 |
-  73 |     // Verify the mentor exists
-> 74 |     const mentor = await db
-     |                   ^
-  75 |       .select()
-  76 |       .from(mentors)
-  77 |       .where(eq(mentors.userId, params.id)) {
-  query: 'select "id", "user_id", "title", "company", "industry", "expertise", "experience_years", "hourly_rate", "currency", "availability", "max_mentees", "headline", "about", "linkedin_url", "github_url", "website_url", "full_name", "email", "phone", "city", "state", "country", "country_id", "state_id", "city_id", "profile_image_url", "resume_url", "verification_status", "verification_notes", "is_available", "created_at", "updated_at" from "mentors" where "mentors"."user_id" = $1 limit $2',
-  params: [Array],
-  [cause]: [Error [PostgresError]: column "country_id" does not exist] {
-    severity_local: 'ERROR',
-    severity: 'ERROR',
-    code: '42703',
-    hint: 'Perhaps you meant to reference the column "mentors.country".',
-    position: '273',
-    file: 'parse_relation.c',
-    line: '3723',
-    routine: 'errorMissingColumn'
-  }
-}
- GET /api/mentors/38zBxsjqO39NIGOFGzlpVm19cup6UinQ/availability 500 in 4288ms
-Error: Route "/api/mentors/[id]/availability" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
-    at GET (app\api\mentors\[id]\availability\route.ts:77:39)
-  75 |       .select()
-  76 |       .from(mentors)
-> 77 |       .where(eq(mentors.userId, params.id))
-     |                                       ^
-  78 |       .limit(1);
-  79 |
-  80 |     if (!mentor.length) {
-Get availability error: Error: Failed query: select "id", "user_id", "title", "company", "industry", "expertise", "experience_years", "hourly_rate", "currency", "availability", "max_mentees", "headline", 
-"about", "linkedin_url", "github_url", "website_url", "full_name", "email", "phone", "city", "state", "country", "country_id", "state_id", "city_id", "profile_image_url", "resume_url", "verification_status", "verification_notes", "is_available", "created_at", "updated_at" from "mentors" where "mentors"."user_id" = $1 limit $2
-params: 38zBxsjqO39NIGOFGzlpVm19cup6UinQ,1
-    at async GET (app\api\mentors\[id]\availability\route.ts:74:19)
-  72 |
-  73 |     // Verify the mentor exists
-> 74 |     const mentor = await db
-     |                   ^
-  75 |       .select()
-  76 |       .from(mentors)
-  77 |       .where(eq(mentors.userId, params.id)) {
-  query: 'select "id", "user_id", "title", "company", "industry", "expertise", "experience_years", "hourly_rate", "currency", "availability", "max_mentees", "headline", "about", "linkedin_url", "github_url", "website_url", "full_name", "email", "phone", "city", "state", "country", "country_id", "state_id", "city_id", "profile_image_url", "resume_url", "verification_status", "verification_notes", "is_available", "created_at", "updated_at" from "mentors" where "mentors"."user_id" = $1 limit $2',
-  params: [Array],
-  [cause]: [Error [PostgresError]: column "country_id" does not exist] {
-    severity_local: 'ERROR',
-    severity: 'ERROR',
-    code: '42703',
-    hint: 'Perhaps you meant to reference the column "mentors.country".',
-    position: '273',
-    file: 'parse_relation.c',
-    line: '3723',
-    routine: 'errorMissingColumn'
-  }
-}
- GET /api/mentors/38zBxsjqO39NIGOFGzlpVm19cup6UinQ/availability 500 in 428ms
-[dotenv@17.2.1] injecting env (0) from .env.local -- tip: ⚙️  suppress all logs with { quiet: true }
- GET /api/messaging/threads?userId=38zBxsjqO39NIGOFGzlpVm19cup6UinQ 200 in 93ms
- ○ Compiling /_not-found ...
- ✓ Compiled /_not-found in 2.7s (4326 modules)
- GET /.well-known/appspecific/com.chrome.devtools.json 404 in 2991ms
-[dotenv@17.2.1] injecting env (0) from .env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
- GET /api/mentor/dashboard-stats 200 in 504ms
- GET /api/messaging/sse?userId=38zBxsjqO39NIGOFGzlpVm19cup6UinQ 200 in 1941394ms
- GET /?section=availability 200 in 756ms
- GET /.well-known/appspecific/com.chrome.devtools.json 404 in 69ms
- GET /api/auth/session-with-roles 200 in 208ms
- ○ Compiling /api/messaging/requests ...
- ✓ Compiled /api/messaging/requests in 650ms (2494 modules)
- GET /api/mentor/dashboard-stats 200 in 727ms
- ✓ Compiled /api/messaging/sse in 0ms (2498 modules)
- ✓ Compiled in 1ms (2500 modules)
- ✓ Compiled in 1ms (2500 modules)
-[dotenv@17.2.1] injecting env (0) from .env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
- GET /api/messaging/threads?userId=38zBxsjqO39NIGOFGzlpVm19cup6UinQ 200 in 4997ms
-Error: Route "/api/mentors/[id]/availability" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
-    at GET (app\api\mentors\[id]\availability\route.ts:77:39)
-  75 |       .select()
-  76 |       .from(mentors)
-> 77 |       .where(eq(mentors.userId, params.id))
-     |                                       ^
-  78 |       .limit(1);
-  79 |
-  80 |     if (!mentor.length) {
- ✓ Compiled in 0ms (2500 modules)
-[dotenv@17.2.1] injecting env (0) from .env.local -- tip: ⚙️  write to custom object with { processEnv: myObject }
-Get availability error: Error: Failed query: select "id", "user_id", "title", "company", "industry", "expertise", "experience_years", "hourly_rate", "currency", "availability", "max_mentees", "headline", 
-"about", "linkedin_url", "github_url", "website_url", "full_name", "email", "phone", "city", "state", "country", "country_id", "state_id", "city_id", "profile_image_url", "resume_url", "verification_status", "verification_notes", "is_available", "created_at", "updated_at" from "mentors" where "mentors"."user_id" = $1 limit $2
-params: 38zBxsjqO39NIGOFGzlpVm19cup6UinQ,1
-    at async GET (app\api\mentors\[id]\availability\route.ts:74:19)
-  72 |
-  73 |     // Verify the mentor exists
-> 74 |     const mentor = await db
-     |                   ^
-  75 |       .select()
-  76 |       .from(mentors)
-  77 |       .where(eq(mentors.userId, params.id)) {
-  query: 'select "id", "user_id", "title", "company", "industry", "expertise", "experience_years", "hourly_rate", "currency", "availability", "max_mentees", "headline", "about", "linkedin_url", "github_url", "website_url", "full_name", "email", "phone", "city", "state", "country", "country_id", "state_id", "city_id", "profile_image_url", "resume_url", "verification_status", "verification_notes", "is_available", "created_at", "updated_at" from "mentors" where "mentors"."user_id" = $1 limit $2',
-  params: [Array],
-  [cause]: [Error [PostgresError]: column "country_id" does not exist] {
-    severity_local: 'ERROR',
-    severity: 'ERROR',
-    code: '42703',
-    hint: 'Perhaps you meant to reference the column "mentors.country".',
-    position: '273',
-    file: 'parse_relation.c',
-    line: '3723',
-    routine: 'errorMissingColumn'
-  }
-}
- GET /api/mentors/38zBxsjqO39NIGOFGzlpVm19cup6UinQ/availability 500 in 5238ms
- GET /api/mentor/recent-sessions?limit=5 200 in 5625ms
-[dotenv@17.2.1] injecting env (0) from .env.local -- tip: ⚙️  enable debug logging with { debug: true }
- GET /api/messaging/requests?userId=38zBxsjqO39NIGOFGzlpVm19cup6UinQ&type=received&status=pending 200 in 6084ms
- ✓ Compiled in 1ms (2500 modules)
-[dotenv@17.2.1] injecting env (0) from .env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
- GET /api/mentor/recent-messages?limit=5 200 in 6519ms
-[dotenv@17.2.1] injecting env (0) from .env.local -- tip: ⚙️  write to custom object with { processEnv: myObject }
-Error: Route "/api/mentors/[id]/availability" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
-    at GET (app\api\mentors\[id]\availability\route.ts:77:39)
-  75 |       .select()
-  76 |       .from(mentors)
-> 77 |       .where(eq(mentors.userId, params.id))
-     |                                       ^
-  78 |       .limit(1);
-  79 |
-  80 |     if (!mentor.length) {
-Get availability error: Error: Failed query: select "id", "user_id", "title", "company", "industry", "expertise", "experience_years", "hourly_rate", "currency", "availability", "max_mentees", "headline", 
-"about", "linkedin_url", "github_url", "website_url", "full_name", "email", "phone", "city", "state", "country", "country_id", "state_id", "city_id", "profile_image_url", "resume_url", "verification_status", "verification_notes", "is_available", "created_at", "updated_at" from "mentors" where "mentors"."user_id" = $1 limit $2
-params: 38zBxsjqO39NIGOFGzlpVm19cup6UinQ,1
-    at async GET (app\api\mentors\[id]\availability\route.ts:74:19)
-  72 |
-  73 |     // Verify the mentor exists
-> 74 |     const mentor = await db
-     |                   ^
-  75 |       .select()
-  76 |       .from(mentors)
-  77 |       .where(eq(mentors.userId, params.id)) {
-  query: 'select "id", "user_id", "title", "company", "industry", "expertise", "experience_years", "hourly_rate", "currency", "availability", "max_mentees", "headline", "about", "linkedin_url", "github_url", "website_url", "full_name", "email", "phone", "city", "state", "country", "country_id", "state_id", "city_id", "profile_image_url", "resume_url", "verification_status", "verification_notes", "is_available", "created_at", "updated_at" from "mentors" where "mentors"."user_id" = $1 limit $2',
-  params: [Array],
-  [cause]: [Error [PostgresError]: column "country_id" does not exist] {
-    severity_local: 'ERROR',
-    severity: 'ERROR',
-    code: '42703',
-    hint: 'Perhaps you meant to reference the column "mentors.country".',
-    position: '273',
-    file: 'parse_relation.c',
-    line: '3723',
-    routine: 'errorMissingColumn'
-  }
-}
- GET /api/mentors/38zBxsjqO39NIGOFGzlpVm19cup6UinQ/availability 500 in 2213ms
-[dotenv@17.2.1] injecting env (0) from .env.local -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
- GET /api/notifications?limit=10 200 in 200ms
- 
+ubuntu@instance-20250914-2351:/home$ ls
+opc  ubuntu
+ubuntu@instance-20250914-2351:/home$ cd ..
+ubuntu@instance-20250914-2351:/$ cd tmp/
+ubuntu@instance-20250914-2351:/tmp$ cd egress/
+ubuntu@instance-20250914-2351:/tmp/egress$ ls
+sessions
+ubuntu@instance-20250914-2351:/tmp/egress$ cd sessions/
+ubuntu@instance-20250914-2351:/tmp/egress/sessions$ ls
+1f769d1d-d026-4a6c-9b80-c65ceccf1c6c
+ubuntu@instance-20250914-2351:/tmp/egress/sessions$ cd 
+ubuntu@instance-20250914-2351:~$ ls
+get-docker.sh  livekit
+ubuntu@instance-20250914-2351:~$ cd ~
+ubuntu@instance-20250914-2351:~$ ls
+get-docker.sh  livekit
+ubuntu@instance-20250914-2351:~$ cd ..
+ubuntu@instance-20250914-2351:/home$ cd ..
+ubuntu@instance-20250914-2351:/$ ls
+bin  boot  dev  etc  home  lib  lib32  lib64  libx32  lost+found  media  mnt  opt  proc  root  run  sbin  snap  srv  swapfile  sys  tmp  usr  var
+ubuntu@instance-20250914-2351:/$ cd tmp
+ubuntu@instance-20250914-2351:/tmp$ cd egress/
+ubuntu@instance-20250914-2351:/tmp/egress$ cd sessions/
+ubuntu@instance-20250914-2351:/tmp/egress/sessions$ ls
+1f769d1d-d026-4a6c-9b80-c65ceccf1c6c
+ubuntu@instance-20250914-2351:/tmp/egress/sessions$ cd 1f769d1d-d026-4a6c-9b80-c65ceccf1c6c/
+ubuntu@instance-20250914-2351:/tmp/egress/sessions/1f769d1d-d026-4a6c-9b80-c65ceccf1c6c$ ls
+2025-10-20T141848.ogg  EG_Qywgj8Zmyi5q.json
+ubuntu@instance-20250914-2351:/tmp/egress/sessions/1f769d1d-d026-4a6c-9b80-c65ceccf1c6c$

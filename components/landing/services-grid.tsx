@@ -36,7 +36,7 @@ const services = [
 
 export function ServicesGrid() {
   return (
-    <section className="py-20">
+    <section className="py-16 px-4 sm:px-6 lg:py-20">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10">
         {services.map((service, index) => (
           <Card key={index} className={`p-8 hover:shadow-lg transition-shadow cursor-pointer ${service.color}`}>

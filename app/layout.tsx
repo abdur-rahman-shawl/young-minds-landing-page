@@ -1,7 +1,8 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import "./globals.css"
+import "@livekit/components-styles" // Import LiveKit's default styles FIRST
+import "./globals.css" // Our custom overrides load AFTER (higher priority)
 import { ThemeProvider } from "next-themes"
 import { AuthProvider } from "@/contexts/auth-context"
 import { ErrorBoundary } from "@/components/common/error-boundary"

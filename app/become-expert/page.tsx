@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -17,14 +17,44 @@ import { z } from "zod"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { countryPhoneCodes } from "@/lib/country-phone-codes"
+import { Combobox } from "@/components/ui/combobox"
+
+const INDUSTRY_OPTIONS = new Set(['ITSoftware','Marketing','Finance','Education','Healthcare','Entrepreneurship','Design','Sales','HR','Other']);
+
+function parseExpertiseValue(value?: string | null) {
+  if (!value) return '';
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item) => typeof item === 'string').join(', ');
+    }
+  } catch (error) {
+    // ignore JSON parse issues and fall back to raw string
+  }
+  return value;
+}
+
+function splitPhoneParts(value?: string | null) {
+  if (!value) {
+    return { code: '', number: '' };
+  }
+  const trimmed = value.trim();
+  const withoutPlus = trimmed.startsWith('+') ? trimmed.slice(1) : trimmed;
+  const parts = withoutPlus.split(/[-\s]/).filter(Boolean);
+  const code = parts.length > 0 ? parts[0] : '';
+  const number = parts.slice(1).join('') || '';
+  return { code, number };
+}
 
 export default function BecomeExpertPage() {
   const [showMentorForm, setShowMentorForm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<z.ZodError | null>(null)
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null)
+  const [showOtherIndustryInput, setShowOtherIndustryInput] = useState(false);
   
-  const [countries, setCountries] = useState<{ id: number; name: string }[]>([]);
+  const [countries, setCountries] = useState<{ id: number; name: string }[]>([])
   const [states, setStates] = useState<{ id: number; name: string }[]>([]);
   const [cities, setCities] = useState<{ id: number; name: string }[]>([]);
   const [locationsLoading, setLocationsLoading] = useState({
@@ -33,34 +63,62 @@ export default function BecomeExpertPage() {
     cities: false,
   });
 
+  const pendingLocationRef = useRef<{ stateName?: string | null; cityName?: string | null }>({});
+  const [prefillMentorData, setPrefillMentorData] = useState<any | null>(null);
+  const [isReverificationFlow, setIsReverificationFlow] = useState(false);
+
+  const phoneCodeOptions = countryPhoneCodes.map(country => ({
+    value: country.code,
+    label: `+${country.code} (${country.name})`,
+  }));
+
+  const countryOptions = countries.map(country => ({
+    value: country.id.toString(),
+    label: country.name,
+  }));
+
+  const stateOptions = states.map(state => ({
+    value: state.id.toString(),
+    label: state.name,
+  }));
+
+  const cityOptions = cities.map(city => ({
+    value: city.id.toString(),
+    label: city.name,
+  }));
+
   const [mentorFormData, setMentorFormData] = useState<{
-    fullName: string;
-    email: string;
-    phone: string;
-    countryId: string;
-    stateId: string;
-    cityId: string;
-    title: string;
-    company: string;
-    industry: string;
-    experience: string;
-    expertise: string;
-    about: string;
-    linkedinUrl: string;
-    profilePicture: File | null;
-    resume: File | null;
-    termsAccepted: boolean;
-    availability: string;
+    fullName: string
+    email: string
+    phone: string
+    phoneCountryCode: string
+    countryId: string
+    stateId: string
+    cityId: string
+    title: string
+    company: string
+    industry: string
+    otherIndustry: string; // New field for 'Other' industry
+    experience: string
+    expertise: string
+    about: string
+    linkedinUrl: string
+    profilePicture: File | null
+    resume: File | null
+    termsAccepted: boolean
+    availability: string
   }>({
     fullName: "",
     email: "",
     phone: "",
+    phoneCountryCode: "",
     countryId: "",
     stateId: "",
     cityId: "",
     title: "",
     company: "",
     industry: "",
+    otherIndustry: "", // Initialize new field
     experience: "",
     expertise: "",
     about: "",
@@ -93,44 +151,66 @@ export default function BecomeExpertPage() {
   }, []);
 
   useEffect(() => {
-    if (mentorFormData.countryId) {
-      const fetchStates = async () => {
-        setLocationsLoading(prev => ({ ...prev, states: true }));
-        setStates([]);
-        setCities([]);
-        setMentorFormData(prev => ({ ...prev, stateId: "", cityId: "" }));
-        try {
-          const response = await fetch(`/api/locations/states?countryId=${mentorFormData.countryId}`);
-          const data = await response.json();
-          setStates(data);
-        } catch (error) {
-          console.error("Failed to fetch states", error);
-        } finally {
-          setLocationsLoading(prev => ({ ...prev, states: false }));
-        }
-      };
-      fetchStates();
+    if (!mentorFormData.countryId) {
+      return;
     }
+
+    const fetchStates = async () => {
+      setLocationsLoading(prev => ({ ...prev, states: true }));
+      setStates([]);
+      setCities([]);
+      setMentorFormData(prev => ({ ...prev, stateId: '', cityId: '' }));
+      try {
+        const response = await fetch(`/api/locations/states?countryId=${mentorFormData.countryId}`);
+        const data = await response.json();
+        setStates(data);
+        const pendingStateName = pendingLocationRef.current.stateName?.toLowerCase();
+        if (pendingStateName) {
+          const matchedState = data.find((state: { name: string; id: number }) => state.name.toLowerCase() === pendingStateName);
+          if (matchedState) {
+            pendingLocationRef.current.stateName = undefined;
+            setMentorFormData(prev => ({ ...prev, stateId: matchedState.id.toString() }));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch states', error);
+      } finally {
+        setLocationsLoading(prev => ({ ...prev, states: false }));
+      }
+    };
+
+    fetchStates();
   }, [mentorFormData.countryId]);
 
   useEffect(() => {
-    if (mentorFormData.stateId) {
-      const fetchCities = async () => {
-        setLocationsLoading(prev => ({ ...prev, cities: true }));
-        setCities([]);
-        setMentorFormData(prev => ({ ...prev, cityId: "" }));
-        try {
-          const response = await fetch(`/api/locations/cities?stateId=${mentorFormData.stateId}`);
-          const data = await response.json();
-          setCities(data);
-        } catch (error) {
-          console.error("Failed to fetch cities", error);
-        } finally {
-          setLocationsLoading(prev => ({ ...prev, cities: false }));
-        }
-      };
-      fetchCities();
+    if (!mentorFormData.stateId) {
+      return;
     }
+
+    const fetchCities = async () => {
+      setLocationsLoading(prev => ({ ...prev, cities: true }));
+      setCities([]);
+      setMentorFormData(prev => ({ ...prev, cityId: '' }));
+      try {
+        const response = await fetch(`/api/locations/cities?stateId=${mentorFormData.stateId}`);
+        const data = await response.json();
+        setCities(data);
+        const pendingCityName = pendingLocationRef.current.cityName?.toLowerCase();
+        if (pendingCityName) {
+          const matchedCity = data.find((city: { name: string; id: number }) => city.name.toLowerCase() === pendingCityName);
+          if (matchedCity) {
+            pendingLocationRef.current.cityName = undefined;
+            setMentorFormData(prev => ({ ...prev, cityId: matchedCity.id.toString() }));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch cities', error);
+      } finally {
+        setLocationsLoading(prev => ({ ...prev, cities: false }));
+      }
+    };
+
+    fetchCities();
   }, [mentorFormData.stateId]);
 
   const [otp, setOtp] = useState("")
@@ -256,8 +336,88 @@ export default function BecomeExpertPage() {
   useEffect(() => {
     if (session?.user && !showMentorForm) {
       setShowMentorForm(true)
+
+      const fetchMentorApplication = async () => {
+        try {
+          const response = await fetch('/api/mentors/application');
+          const result = await response.json();
+          if (result.success) {
+            const { data } = result;
+            if (data.verificationStatus === 'REVERIFICATION') {
+              setIsReverificationFlow(true);
+              setPrefillMentorData(data);
+            } else {
+              setIsReverificationFlow(false);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching mentor application:', error);
+        }
+      };
+
+      fetchMentorApplication();
     }
   }, [session, showMentorForm])
+
+  useEffect(() => {
+    if (!prefillMentorData || countries.length === 0) return;
+
+    const { code: phoneCode, number: phoneNumber } = splitPhoneParts(prefillMentorData.phone);
+    const expertiseValue = parseExpertiseValue(prefillMentorData.expertise);
+
+    const rawIndustry = prefillMentorData.industry ?? '';
+    const industryValue = rawIndustry && INDUSTRY_OPTIONS.has(rawIndustry) ? rawIndustry : rawIndustry ? 'Other' : '';
+    const otherIndustryValue = industryValue === 'Other' ? rawIndustry : '';
+
+    const normalizedCountry = prefillMentorData.country?.toString().trim().toLowerCase();
+    const matchedCountry = normalizedCountry
+      ? countries.find((country) => country.name.toLowerCase() === normalizedCountry)
+      : undefined;
+    const countryId = matchedCountry ? matchedCountry.id.toString() : '';
+
+    setMentorFormData((prev) => ({
+      ...prev,
+      fullName: prefillMentorData.fullName ?? '',
+      email: prefillMentorData.email ?? '',
+      phoneCountryCode: phoneCode,
+      phone: phoneNumber,
+      title: prefillMentorData.title ?? '',
+      company: prefillMentorData.company ?? '',
+      industry: industryValue || '',
+      otherIndustry: otherIndustryValue,
+      experience: prefillMentorData.experience != null ? String(prefillMentorData.experience) : '',
+      expertise: expertiseValue,
+      about: prefillMentorData.about ?? '',
+      linkedinUrl: prefillMentorData.linkedinUrl ?? '',
+      availability: prefillMentorData.availability ?? '',
+      profilePicture: null,
+      resume: null,
+      termsAccepted: true,
+      countryId,
+      stateId: '',
+      cityId: '',
+    }));
+
+    setShowOtherIndustryInput(industryValue === 'Other');
+    setProfilePicturePreview(prefillMentorData.profileImageUrl ?? null);
+
+    const normalizedState = prefillMentorData.state?.toString().trim() ?? null;
+    const normalizedCity = prefillMentorData.city?.toString().trim() ?? null;
+
+    pendingLocationRef.current = {
+      stateName: normalizedState,
+      cityName: normalizedCity,
+    };
+
+    setIsEmailVerified(true);
+    setShowOtpInput(false);
+    setOtp('');
+    setOtpError(null);
+    setIsCountingDown(false);
+    setCountdown(0);
+
+    setPrefillMentorData(null);
+  }, [prefillMentorData, countries]);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
@@ -284,11 +444,29 @@ export default function BecomeExpertPage() {
         return
       }
 
-      const validatedData = mentorApplicationSchema.parse({
+      const selectedCountry = countries.find((country) => country.id.toString() === mentorFormData.countryId);
+      const selectedState = states.find((state) => state.id.toString() === mentorFormData.stateId);
+      const selectedCity = cities.find((city) => city.id.toString() === mentorFormData.cityId);
+
+      const submittedCountry = selectedCountry?.name || mentorFormData.countryId;
+      const submittedState = selectedState?.name || mentorFormData.stateId;
+      const submittedCity = selectedCity?.name || mentorFormData.cityId;
+
+      const schema = isReverificationFlow
+        ? mentorApplicationSchema.extend({
+            profilePicture: mentorApplicationSchema.shape.profilePicture.optional(),
+          })
+        : mentorApplicationSchema;
+
+      const validatedData = schema.parse({
         ...mentorFormData,
-        country: mentorFormData.countryId,
-        state: mentorFormData.stateId,
-        city: mentorFormData.cityId,
+        phone: `+${mentorFormData.phoneCountryCode}-${mentorFormData.phone}`,
+        country: submittedCountry,
+        state: submittedState,
+        city: submittedCity,
+        industry: mentorFormData.industry === 'Other' ? mentorFormData.otherIndustry : mentorFormData.industry,
+        profilePicture: mentorFormData.profilePicture ?? undefined,
+        resume: mentorFormData.resume ?? undefined,
       });
 
       const formData = new FormData();
@@ -296,20 +474,25 @@ export default function BecomeExpertPage() {
       formData.append('fullName', validatedData.fullName);
       formData.append('email', validatedData.email);
       formData.append('phone', validatedData.phone);
-      formData.append('countryId', validatedData.country);
-      formData.append('stateId', validatedData.state);
-      formData.append('cityId', validatedData.city);
+      formData.append('country', validatedData.country);
+      formData.append('state', validatedData.state);
+      formData.append('city', validatedData.city);
       formData.append('title', validatedData.title);
       formData.append('company', validatedData.company);
       formData.append('industry', validatedData.industry);
       formData.append('expertise', validatedData.expertise);
-      formData.append('experience', validatedData.experience);
-      formData.append('about', validatedData.about);
+      formData.append('experience', validatedData.experience.toString());
+      formData.append('about', validatedData.about || '');
       formData.append('linkedinUrl', validatedData.linkedinUrl);
       formData.append('availability', validatedData.availability);
-      formData.append('profilePicture', validatedData.profilePicture);
-      formData.append('resume', validatedData.resume);
-      
+      if (validatedData.profilePicture instanceof File) {
+        formData.append('profilePicture', validatedData.profilePicture);
+      }
+      if (validatedData.resume instanceof File) {
+        formData.append('resume', validatedData.resume);
+      }
+
+
       const res = await fetch('/api/mentors/apply', {
         method: 'POST',
         body: formData,
@@ -466,86 +649,77 @@ export default function BecomeExpertPage() {
                     {isEmailVerified && <p className="text-sm text-green-500 dark:text-green-400 mt-1">Email verified successfully.</p>}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="phone">Phone Number <span className="text-red-500">*</span></Label>
+                {/* Phone */}
+                <div>
+                  <Label htmlFor="phone">Phone Number <span className="text-red-500">*</span></Label>
+                  <div className="flex items-center space-x-2">
+                    <Combobox
+                      options={phoneCodeOptions}
+                      value={mentorFormData.phoneCountryCode}
+                      onValueChange={value => setMentorFormData(prev => ({ ...prev, phoneCountryCode: value }))}
+                      placeholder="Select Code"
+                      searchPlaceholder="Search codes..."
+                      className="w-[80%]"
+                    />
                     <Input
                       id="phone"
                       type="tel"
                       value={mentorFormData.phone}
                       onChange={e => setMentorFormData(prev => ({ ...prev, phone: e.target.value }))}
-                      placeholder="+91-XXXXXXXXXX"
-                      pattern="^\+91-\d{10}$"
-                      title="Format: +91-XXXXXXXXXX"
+                      placeholder="Enter your phone number"
                       required
                     />
                   </div>
+                  {errors?.errors.find(e => e.path[0] === 'phone') && <p className="text-sm text-red-500 mt-1">{errors.errors.find(e => e.path[0] === 'phone')?.message}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="resume">Resume <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="linkedinUrl">LinkedIn Profile URL <span className="text-red-500">*</span></Label>
                   <Input
-                    id="resume"
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    onChange={e => setMentorFormData(prev => ({ ...prev, resume: e.target.files?.[0] || null }))}
+                    id="linkedinUrl"
+                    type="text"
+                    value={mentorFormData.linkedinUrl}
+                    onChange={e => setMentorFormData(prev => ({ ...prev, linkedinUrl: e.target.value }))}
+                    placeholder="https://linkedin.com/in/yourprofile"
                     required
                   />
-                  <span className="text-xs text-muted-foreground">Upload your resume in PDF, DOC, or DOCX format (max 10MB)</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="country">Country <span className="text-red-500">*</span></Label>
-                    <Select
+                    <Combobox
+                      options={countryOptions}
                       value={mentorFormData.countryId}
                       onValueChange={value => setMentorFormData(prev => ({ ...prev, countryId: value }))}
-                      required
-                      disabled
-                    >
-                      <SelectTrigger id="country">
-                        <SelectValue placeholder="Select Country..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {countries.map(country => (
-                          <SelectItem key={country.id} value={country.id.toString()}>{country.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select Country..."
+                      searchPlaceholder="Search countries..."
+                      className="w-full"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="state">State <span className="text-red-500">*</span></Label>
-                    <Select
+                    <Combobox
+                      options={stateOptions}
                       value={mentorFormData.stateId}
                       onValueChange={value => setMentorFormData(prev => ({ ...prev, stateId: value }))}
-                      required
+                      placeholder={locationsLoading.states ? "Loading..." : "Select State..."}
+                      searchPlaceholder="Search states..."
+                      className="w-full"
+                      emptyMessage="No state found."
                       disabled={locationsLoading.states || states.length === 0}
-                    >
-                      <SelectTrigger id="state">
-                        <SelectValue placeholder={locationsLoading.states ? "Loading..." : "Select State..."} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {states.map(state => (
-                          <SelectItem key={state.id} value={state.id.toString()}>{state.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
                   <div>
                     <Label htmlFor="city">City <span className="text-red-500">*</span></Label>
-                    <Select
+                    <Combobox
+                      options={cityOptions}
                       value={mentorFormData.cityId}
                       onValueChange={value => setMentorFormData(prev => ({ ...prev, cityId: value }))}
-                      required
+                      placeholder={locationsLoading.cities ? "Loading..." : "Select City..."}
+                      searchPlaceholder="Search cities..."
+                      className="w-full"
+                      emptyMessage="No city found."
                       disabled={locationsLoading.cities || cities.length === 0}
-                    >
-                      <SelectTrigger id="city">
-                        <SelectValue placeholder={locationsLoading.cities ? "Loading..." : "Select City..."} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {cities.map(city => (
-                          <SelectItem key={city.id} value={city.id.toString()}>{city.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -575,7 +749,10 @@ export default function BecomeExpertPage() {
                     <Label htmlFor="industry">Primary Industry <span className="text-red-500">*</span></Label>
                     <Select
                       value={mentorFormData.industry}
-                      onValueChange={value => setMentorFormData(prev => ({ ...prev, industry: value }))}
+                      onValueChange={value => {
+                        setMentorFormData(prev => ({ ...prev, industry: value }));
+                        setShowOtherIndustryInput(value === 'Other');
+                      }}
                       required
                     >
                       <SelectTrigger id="industry">
@@ -594,6 +771,17 @@ export default function BecomeExpertPage() {
                         <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                     </Select>
+                    {showOtherIndustryInput && (
+                      <Input
+                        id="otherIndustry"
+                        type="text"
+                        value={mentorFormData.otherIndustry}
+                        onChange={e => setMentorFormData(prev => ({ ...prev, otherIndustry: e.target.value }))}
+                        placeholder="Please specify your industry"
+                        className="mt-2"
+                        required
+                      />
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="experience">Years of Professional Experience <span className="text-red-500">*</span></Label>
@@ -615,15 +803,27 @@ export default function BecomeExpertPage() {
                     id="expertise"
                     value={mentorFormData.expertise}
                     onChange={e => setMentorFormData(prev => ({ ...prev, expertise: e.target.value }))}
-                    placeholder="List skills you can mentor in (e.g., Python, Digital Marketing, Leadership, Career Transitions). Minimum 100 characters, maximum 500 characters."
+                    placeholder="List at least 5 skills you can mentor in, separated by commas (e.g., Python, Digital Marketing, Leadership)."
                     required
                     maxLength={500}
                   />
                   <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    <span>Minimum 100 characters. Be specific! This helps mentees find you. Use commas to separate multiple areas.</span>
+                    <span>Minimum 5 skills, comma-separated.</span>
                     <span>{mentorFormData.expertise.length} / 500</span>
                   </div>
                 </div>
+                <div>
+                  <Label htmlFor="about">About You</Label>
+                  <Textarea
+                    id="about"
+                    value={mentorFormData.about}
+                    onChange={e => setMentorFormData(prev => ({ ...prev, about: e.target.value }))}
+                    placeholder="Tell us a bit about yourself, your journey, and what you're passionate about."
+                    rows={4}
+                  />
+                  {errors?.errors.find(e => e.path[0] === 'about') && <p className="text-sm text-red-500 mt-1">{errors.errors.find(e => e.path[0] === 'about')?.message}</p>}
+                </div>
+
                 <div>
                   <Label htmlFor="availability">Preferred Mentorship Availability <span className="text-red-500">*</span></Label>
                   <Select
@@ -643,15 +843,14 @@ export default function BecomeExpertPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="linkedinUrl">LinkedIn Profile URL <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="resume">Resume (Optional)</Label>
                   <Input
-                    id="linkedinUrl"
-                    type="text"
-                    value={mentorFormData.linkedinUrl}
-                    onChange={e => setMentorFormData(prev => ({ ...prev, linkedinUrl: e.target.value }))}
-                    placeholder="https://linkedin.com/in/yourprofile"
-                    required
+                    id="resume"
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={e => setMentorFormData(prev => ({ ...prev, resume: e.target.files?.[0] || null }))}
                   />
+                  <span className="text-xs text-muted-foreground">Upload your resume in PDF, DOC, or DOCX format (max 5MB)</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox

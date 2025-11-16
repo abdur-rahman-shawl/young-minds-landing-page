@@ -20,7 +20,7 @@ const stats = [
 
 export function StatsSection() {
   return (
-    <section className="py-20">
+    <section className="py-16 px-4 sm:px-6 lg:py-20">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16 text-center">
         {stats.map((stat, index) => (
           <div key={index} className="flex flex-col items-center">

@@ -60,7 +60,7 @@ export function SignInPopup({ isOpen, onClose, callbackUrl = "/" }: SignInPopupP
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center text-2xl font-bold">
-            Welcome to Sharing Minds
+            Welcome to SharingMinds
           </DialogTitle>
         </DialogHeader>
         

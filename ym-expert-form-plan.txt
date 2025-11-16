@@ -1,0 +1,68 @@
+Young Minds Expert Form Update Plan
+===================================
+
+Objective
+---------
+Adapt the `/become-expert` mentor application flow to mirror the stronger validation and UX from `sm-expert-landing-page`, while keeping mentee-only access and ensuring parity between frontend expectations and backend processing.
+
+Planned Workstream Overview
+---------------------------
+1. Frontend form updates (`app/become-expert/page.tsx`)
+2. Validation schema alignment (`lib/validations/mentor.ts`)
+3. Storage helper review (confirm no change needed unless interfaces differ)
+4. Mentor application API adjustments (`app/api/mentors/apply/route.ts`)
+5. Email notification support (new `lib/emails.ts` + environment expectations)
+6. Light regression pass (manual + lint/build checks if feasible)
+
+Detailed Steps
+--------------
+1. Frontend – Session-driven defaults & email UX
+   - When the Better Auth session resolves, populate `mentorFormData.email` and `fullName` from `session.user` (keep existing name when absent) and set `isEmailVerified` to `true` so OTP prompts never show for authenticated mentees.
+   - Render the email input as read-only with a “Verified” badge (mirroring sm implementation) and remove/disable Verify/OTP controls for signed-in users.
+   - Preserve existing gating that redirects unauthenticated users to the sign-in card.
+
+2. Frontend – Phone number experience
+   - Extend local form state with `phoneCountryCode` and initialise it to `'91'`.
+   - During country fetch, derive `phoneCountryCode` for India (hardcode `'91'` because the current `countries` table lacks a dial-code column) and fall back to `'91'` for any other country until multi-country support arrives.
+   - Replace the single `phone` input with a `Select` for country code + text input for the subscriber number, composing the `+{code}-{number}` string at submit time just like sm.
+
+3. Frontend – Validation & data shaping before submit
+   - Mirror the sm validation checklist client-side: require five comma-separated skills, enforce the `^\+91-\d{10}$` pattern, mark `about` optional, and tolerate a missing resume.
+   - Track the selected `country`, `state`, and `city` objects so both their IDs and display names are available when assembling `FormData`.
+   - Ensure the submit handler appends: `countryId/stateId/cityId` (for compatibility) plus `countryName/stateName/cityName` strings for the API, the formatted phone value, and the optional resume only when provided.
+
+4. Validation schema (`lib/validations/mentor.ts`)
+   - Update Zod definitions to match sm’s rules: optional `about`, resume optional with =5?MB size limit, LinkedIn URL must include `linkedin.com`, expertise requires =5 comma-separated entries and =500 chars, phone regex locked to the `+code-number` format, and `termsAccepted` true.
+   - Export any derived TypeScript types needed by the form if signatures change.
+
+5. API – `POST /api/mentors/apply`
+   - Accept both location IDs and names; if only IDs arrive, look up the names using the existing locations tables before persisting (similar to sm’s Supabase lookup but implemented with Drizzle).
+   - Treat `resume` as optional: skip the earlier hard failure, guard the upload call, and persist `null` when absent.
+   - Accept the pre-formatted phone string and store it directly.
+   - Honor optional `about` and updated expertise expectations; leave existing additional fields (`hourlyRate`, etc.) intact but tolerant of `null` if not provided.
+   - After successful insert and role assignment, invoke `sendApplicationReceivedEmail(email, fullName ?? email)` and swallow/log any email failure rather than aborting the request.
+
+6. Email helper introduction
+   - Add `lib/emails.ts` mirroring sm’s `sendApplicationReceivedEmail` implementation (Gmail transporter, templated acknowledgement).
+   - Confirm no name collisions in exports and ensure the API imports from this new helper.
+   - Document the expectation for `GMAIL_APP_USER`/`GMAIL_APP_PASSWORD` env vars (already used by OTP flow, so no new secrets should be necessary).
+
+7. Resume & profile picture uploads
+   - Reuse existing storage helper APIs; ensure TypeScript types allow `undefined` resume and do not attempt upload when absent.
+   - Validate front-end file size/type before sending to align with schema (block immediately if profile picture exceeds 5?MB or resume >5?MB when present).
+
+8. Post-submit UX
+   - Maintain the current redirect to `/auth/mentor-verification` unless otherwise requested, but surface a toast or inline success message if practical once the API call resolves.
+
+9. Testing & verification steps (post-implementation)
+   - Manual: create test mentee account, load `/become-expert`, verify auto-filled email + disabled OTP + phone code selector behaviour; submit with and without resume, confirm database and uploads look correct where feasible.
+   - Automated: run `npm run lint` / `npm run build` if project setup allows, focusing on files touched.
+   - Ensure email helper compiles by running TypeScript build or `tsc --noEmit` if script available.
+
+Open Questions / Assumptions
+----------------------------
+- Countries dataset lacks dial codes; hardcoding `91` meets the “stuck to India” constraint for now.
+- Existing mentee role gating remains unchanged; no additional checks needed server-side.
+- Redirect to `/auth/mentor-verification` is acceptable; no alternative success flow required.
+
+Once this plan is approved, I will proceed with implementation following the sequence above.
