@@ -26,7 +26,7 @@ export async function sendVerificationOtp(email: string) {
     });
 
     await transporter.sendMail({
-      from: `"Sharing Minds" <${process.env.GMAIL_APP_USER}>`,
+      from: `"SharingMinds" <${process.env.GMAIL_APP_USER}>`,
       to: email,
       subject: 'Your Verification Code',
       html: `

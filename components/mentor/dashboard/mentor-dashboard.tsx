@@ -19,8 +19,12 @@ import {
   type LucideIcon,
   Users,
 } from 'lucide-react';
-import { ErrorBoundary, AuthErrorBoundary } from '@/components/common/error-boundary';
-
+import { ErrorBoundary, AuthErrorBoundary } from "@/components/common/error-boundary";
+import Link from "next/link"
+import { useMentorPendingReviews } from "@/hooks/use-mentor-dashboard";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { format, formatDistanceToNow } from "date-fns"
+import { Skeleton } from "@/components/ui/skeleton"
 interface MentorDashboardProps {
   user: { name?: string | null } | null;
 }

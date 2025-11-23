@@ -43,6 +43,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const {id} = params;
   try {
     // Get query parameters
     const startDate = req.nextUrl.searchParams.get('startDate');
@@ -61,7 +62,7 @@ export async function GET(
     const mentor = await db
       .select()
       .from(mentors)
-      .where(eq(mentors.userId, params.id))
+      .where(eq(mentors.userId, id))
       .limit(1);
 
     if (!mentor.length) {
@@ -112,7 +113,7 @@ export async function GET(
       .from(sessions)
       .where(
         and(
-          eq(sessions.mentorId, params.id),
+          eq(sessions.mentorId, id),
           gte(sessions.scheduledAt, new Date(startDate)),
           lte(sessions.scheduledAt, new Date(endDate)),
           or(

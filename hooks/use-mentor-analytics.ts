@@ -29,15 +29,15 @@ export function useMentorAnalytics(dateRange: DateRange | undefined) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // This useEffect block now has the correct, working logic
+  // 2. The useEffect now depends on dateRange
   useEffect(() => {
     const fetchData = async (from: Date, to: Date) => {
       setIsLoading(true);
       setError(null);
       try {
         const params = new URLSearchParams({
-          startDate: from.toISOString(),
-          endDate: to.toISOString(),
+          startDate: from.toISOString(), // This is now 100% safe
+          endDate: to.toISOString(),     // This is now 100% safe
         });
         const response = await fetch(`/api/analytics/mentor?${params.toString()}`);
 
@@ -56,15 +56,17 @@ export function useMentorAnalytics(dateRange: DateRange | undefined) {
       }
     };
 
-    // Main logic: check for valid dates and then fetch
+    // This is the main logic block.
+    // We check if the dates are valid first.
     if (dateRange && dateRange.from && dateRange.to) {
+      // If they are valid, we call our safe async function.
       fetchData(dateRange.from, dateRange.to);
     } else {
-      // If dates are not valid, ensure we don't get stuck loading
+      // If the date range is incomplete, we ensure we are not stuck in a loading state.
       setIsLoading(false);
       setData(null);
     }
-  }, [dateRange]);
+  }, [dateRange]); // Re-run this effect whenever dateRange changes
 
   return { data, isLoading, error };
 }
