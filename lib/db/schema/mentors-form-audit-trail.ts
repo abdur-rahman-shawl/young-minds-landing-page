@@ -1,5 +1,6 @@
 ﻿import { pgTable, uuid, text, timestamp, jsonb, pgEnum } from 'drizzle-orm/pg-core';
-import { mentors, users, verificationStatusEnum } from './mentors';
+import { mentors, verificationStatusEnum } from './mentors';
+import { users } from './users';
 
 export const mentorFormSubmissionTypeEnum = pgEnum('mentor_form_submission_type', ['CREATE', 'UPDATE']);
 

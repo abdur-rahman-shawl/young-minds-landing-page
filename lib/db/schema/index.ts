@@ -16,6 +16,7 @@ export * from './mentor-content';
 export * from './course-enrollment';
 export * from './learning-analytics';
 export * from './ai-chatbot-messages';
+export * from './ai-chatbot-message-insights';
 export * from './notifications';
 export * from './mentor-availability';
 export * from './reviews';
