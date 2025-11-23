@@ -26,6 +26,7 @@ import {
 import { useMentorDashboardStats, useMentorRecentSessions, useMentorRecentMessages, useMentorPendingReviews } from "@/hooks/use-mentor-dashboard"
 import { format, formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
+import { MentorAnalyticsSection } from './mentor-analytics-section';
 import Link from "next/link"
 
 interface MentorOnlyDashboardProps {

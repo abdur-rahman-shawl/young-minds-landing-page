@@ -74,7 +74,14 @@ export async function getAdminMentorLeaderboard(limit: number = 5) {
         .leftJoin(sessions, and(eq(users.id, sessions.mentorId), eq(sessions.status, 'completed')))
         .leftJoin(reviews, and(eq(users.id, reviews.revieweeId), eq(reviews.reviewerRole, 'mentee')))
         .groupBy(users.id, users.name)
-        .orderBy(desc(sql<number>`COUNT(DISTINCT ${sessions.id})`))
+        // === THIS IS THE CORRECTED RANKING LOGIC ===
+        .orderBy(
+            // 1. Sort by session count first (descending)
+            desc(sql<number>`COUNT(DISTINCT ${sessions.id})`),
+            // 2. Then, sort by average rating as a tie-breaker (descending)
+            // COALESCE is used to treat mentors with no reviews (NULL rating) as 0 for sorting purposes.
+            desc(sql<number>`COALESCE(AVG(${reviews.finalScore}), 0)`)
+        )
         .limit(limit);
 }
 

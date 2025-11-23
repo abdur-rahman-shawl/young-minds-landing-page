@@ -1,10 +1,29 @@
 import { useState, useEffect } from 'react';
 import { DateRange } from 'react-day-picker';
 
-// ... (Keep the MentorAnalyticsData interface as is)
-export interface MentorAnalyticsData { /* ... */ }
+export interface MentorAnalyticsData {
+  kpis: {
+    totalCompletedSessions: number;
+    totalEarnings: number;
+    periodEarnings: number;
+    averageRating: number | null;
+    unreadMessages: number;
+  };
+  earningsOverTime: { month: string; earnings: number }[];
+  upcomingSessions: {
+    sessionId: string;
+    menteeName: string;
+    title: string;
+    scheduledAt: string;
+  }[];
+  recentReviews: {
+    reviewId: string;
+    menteeName: string;
+    rating: number;
+    feedback: string;
+  }[];
+}
 
-// 1. The hook now accepts a dateRange object as an argument
 export function useMentorAnalytics(dateRange: DateRange | undefined) {
   const [data, setData] = useState<MentorAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
