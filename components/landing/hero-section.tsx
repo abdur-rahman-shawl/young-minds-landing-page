@@ -110,9 +110,10 @@ export function HeroSection() {
 
   // Save message helper
   const saveMessageToDB = async (
-    senderType: 'user' | 'ai',
+    senderType: 'user' | 'ai' | 'system',
     content: string,
-    responseToMessageId: string | null = null
+    responseToMessageId: string | null = null,
+    metadata: Record<string, any> = {}
   ) => {
     if (!chatSessionId) return;
     const latestUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
@@ -125,9 +126,20 @@ export function HeroSection() {
         senderType,
         content,
         responseToMessageId,
-        metadata: {},
+        metadata,
       }),
     });
+  };
+
+  const logMentorExposure = async (mentorIds: string[]) => {
+    try {
+      await saveMessageToDB('system', 'Mentor recommendations shown', null, {
+        eventType: 'mentors_shown',
+        mentorIds,
+      });
+    } catch (error) {
+      console.error('Failed to log mentor exposure:', error);
+    }
   };
 
   const placeholderQueries = [
@@ -249,7 +261,10 @@ export function HeroSection() {
 
       // If the tool call was detected during the stream, execute it now.
       if (toolCallDetected) {
-        await fetchMentorsFromApi();
+        const mentors = await fetchMentorsFromApi();
+        if (mentors && mentors.length) {
+          await logMentorExposure(mentors.map((mentor) => mentor.id));
+        }
       }
 
     } catch (err) {
@@ -268,7 +283,7 @@ export function HeroSection() {
   };
 
   // Fetch real mentors from your public route
-  const fetchMentorsFromApi = async () => {
+  const fetchMentorsFromApi = async (): Promise<DbMentor[] | null> => {
     try {
       setIsSearchingMentors(true)
 
@@ -285,6 +300,7 @@ export function HeroSection() {
       setDbMentors(list)
       setShowMentors(true)
       setCurrentMentorIndex(0)
+      return list
     } catch (e) {
       console.error('Error fetching mentors:', e)
       setMessages(prev => [
@@ -296,6 +312,7 @@ export function HeroSection() {
           timestamp: new Date(),
         },
       ])
+      return null
     } finally {
       setIsSearchingMentors(false)
     }
