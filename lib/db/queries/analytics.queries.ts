@@ -85,6 +85,48 @@ export async function getAdminMentorLeaderboard(limit: number = 5) {
         .limit(limit);
 }
 
+export async function getTopUniversitiesSearched(startDate: Date, endDate: Date, limit: number = 5) {
+  const rows = await db.execute(sql`
+    SELECT
+      university,
+      COUNT(*) AS mentions
+    FROM (
+      SELECT unnest(universities) AS university, created_at
+      FROM ai_chatbot_message_insights
+      WHERE universities IS NOT NULL
+    ) sub
+    WHERE sub.created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
+    GROUP BY university
+    ORDER BY mentions DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((row: any) => ({
+    name: row.university as string,
+    mentions: Number(row.mentions ?? 0),
+  }));
+}
+
+export async function getTopMenteeQuestions(startDate: Date, endDate: Date, limit: number = 5) {
+  const rows = await db.execute(sql`
+    SELECT
+      question_text AS query,
+      COUNT(*) AS mentions
+    FROM ai_chatbot_message_insights
+    WHERE is_question = true
+      AND question_text IS NOT NULL
+      AND created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
+    GROUP BY question_hash, question_text
+    ORDER BY mentions DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((row: any) => ({
+    query: row.query as string,
+    mentions: Number(row.mentions ?? 0),
+  }));
+}
+
 
 // =================================================================
 // MENTOR DASHBOARD QUERIES (Scoped to a single Mentor)
