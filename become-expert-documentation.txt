@@ -1,0 +1,190 @@
+# Low-Level Documentation: Become an Expert Form
+
+This document provides a detailed, low-level explanation of the "Become an Expert" registration form, covering the frontend implementation, backend API, and database schema.
+
+## 1. Overview
+
+The "Become an Expert" feature is a multi-step process that allows users to apply to become mentors on the platform. It involves:
+1.  User authentication via Google OAuth or email OTP.
+2.  A detailed application form to collect professional information.
+3.  File uploads for a profile picture and an optional resume.
+4.  Backend processing to validate and store the application.
+5.  Assigning a "mentor" role to the user.
+6.  Email notifications to confirm receipt of the application.
+
+---
+
+## 2. Frontend (Client-Side)
+
+### **File:** `app/become-expert/page.tsx`
+
+This file contains the main React component for the entire "Become an Expert" flow.
+
+### **Authentication**
+
+-   **Session Check:** The component uses the `useSession` hook from `@/lib/auth-client` to check if a user is already logged in.
+-   **Sign-in Prompt:** If the user is not logged in, it displays a simple UI prompting them to "Continue with Google".
+-   **Google Sign-In:** The `handleGoogleSignIn` function, using the `useAuth` context, initiates the Google OAuth flow. Upon successful sign-in, the user is redirected back to the `/become-expert` page, where the main application form is then displayed.
+-   **Email Verification:** For new users or users without a verified email, an OTP (One-Time Password) verification flow is implemented.
+    -   `handleSendOtp`: Sends a POST request to `/api/auth/send-otp` with the user's email.
+    -   `handleVerifyOtp`: Sends a POST request to `/api/auth/verify-otp` with the email and the entered OTP.
+    -   The UI conditionally renders an input field for the OTP and provides a resend option with a countdown timer. The main form submission button is disabled until the email is verified.
+
+### **Form Fields & State Management**
+
+The component uses the `useState` hook to manage the state of the form in a single object, `mentorFormData`.
+
+-   **`profilePicture`**:
+    -   **UI:** An `<Avatar>` component for preview and a hidden `<input type="file">`. A button triggers the file input.
+    -   **State:** `profilePicturePreview` (string) for the image preview URL, `mentorFormData.profilePicture` (File) for the actual file object.
+    -   **Handler:** `handleProfilePictureChange` reads the selected file and uses `FileReader` to create a data URL for the preview.
+-   **`fullName`**:
+    -   **UI:** `<Input type="text">`
+    -   **State:** `mentorFormData.fullName` (string)
+-   **`email`**:
+    -   **UI:** `<Input type="email">`, disabled after successful OTP verification.
+    -   **State:** `mentorFormData.email` (string)
+-   **`phone`**:
+    -   **UI:** A composite component using `<Combobox>` for the country code and `<Input type="tel">` for the number.
+    -   **State:** `mentorFormData.phoneCountryCode` (string), `mentorFormData.phone` (string)
+-   **`linkedinUrl`**:
+    -   **UI:** `<Input type="text">`
+    -   **State:** `mentorFormData.linkedinUrl` (string)
+-   **Location Fields (`country`, `state`, `city`)**:
+    -   **UI:** Three dependent `<Combobox>` components.
+    -   **State:** `mentorFormData.countryId`, `mentorFormData.stateId`, `mentorFormData.cityId` (strings representing IDs).
+    -   **Logic:** `useEffect` hooks trigger API calls to `/api/locations/*` to fetch dependent data (e.g., fetching states when `countryId` changes).
+-   **`title`, `company`**:
+    -   **UI:** `<Input type="text">`
+    -   **State:** `mentorFormData.title`, `mentorFormData.company` (strings)
+-   **`industry`**:
+    -   **UI:** A `<Select>` component with a predefined list of options. An additional `<Input>` appears if "Other" is selected.
+    -   **State:** `mentorFormData.industry`, `mentorFormData.otherIndustry` (strings)
+-   **`experience`**:
+    -   **UI:** `<Input type="number">`
+    -   **State:** `mentorFormData.experience` (string)
+-   **`expertise`**:
+    -   **UI:** `<Textarea>`
+    -   **State:** `mentorFormData.expertise` (string)
+-   **`about`**:
+    -   **UI:** `<Textarea>`
+    -   **State:** `mentorFormData.about` (string)
+-   **`availability`**:
+    -   **UI:** `<Select>`
+    -   **State:** `mentorFormData.availability` (string)
+-   **`resume`**:
+    -   **UI:** `<Input type="file">`
+    -   **State:** `mentorFormData.resume` (File)
+-   **`termsAccepted`**:
+    -   **UI:** `<Checkbox>`
+    -   **State:** `mentorFormData.termsAccepted` (boolean)
+
+### **Validation (`lib/validations/mentor.ts`)**
+
+-   **Schema:** `mentorApplicationSchema` is a Zod object schema that defines the validation rules for the entire form.
+-   **Rules:**
+    -   Most fields are required strings (`.min(1)`).
+    -   `email`: Must be a valid email format.
+    -   `phone`: A regex (`/^\+\d{1,4}-\d{6,15}$/`) validates the combined country code and number.
+    -   `experience`: Preprocessed to parse the string to an integer and must be at least `2`.
+    -   `expertise`: Must contain at least 5 comma-separated values.
+    -   `linkedinUrl`: Must be a valid LinkedIn profile URL.
+    -   `profilePicture`: Must be present.
+    -   `resume`: Optional, but if present, must be under 5MB.
+    -   `termsAccepted`: Must be `true`.
+    -   `superRefine`: A custom refinement checks that if `industry` is "Other", `otherIndustry` is not empty.
+
+### **API Interaction**
+
+-   **Function:** `handleMentorFormSubmit`
+-   **Process:**
+    1.  Prevents default form submission.
+    2.  Checks if the user is logged in (`session?.user?.id`).
+    3.  **Validation:** It runs the `mentorApplicationSchema.parse()` on the form data. If validation fails, it catches the `z.ZodError` and updates the `errors` state to display error messages.
+    4.  **FormData Creation:** It creates a `FormData` object to handle the multipart/form-data, which is necessary for file uploads.
+    5.  **Appending Data:** All validated form fields, including the `userId` and file objects, are appended to the `FormData` object.
+    6.  **API Call:** It makes a `POST` request to `/api/mentors/apply` with the `FormData` object as the body.
+    7.  **Redirection:** Upon a successful API response, it redirects the user to the `/auth/mentor-verification` page.
+
+---
+
+## 3. Backend (Server-Side)
+
+### **API Endpoint:** `POST /api/mentors/apply`
+### **File:** `app/api/mentors/apply/route.ts`
+
+This route handles the logic for creating or updating a mentor application.
+
+### **Data Processing**
+
+1.  **FormData Parsing:** The handler receives the `NextRequest` and retrieves the `FormData` using `request.formData()`.
+2.  **Field Extraction:** It extracts all expected fields from the `FormData` object.
+3.  **User ID Check:** It immediately validates that `userId` is present, returning a 400 error if not.
+
+### **File Uploads**
+
+-   **Storage Helpers:** It uses helper functions `uploadProfilePicture` and `uploadResume` from `@/lib/storage`.
+-   **Process:**
+    -   If a `profilePicture` file is present and has a size greater than 0, it calls `uploadProfilePicture`.
+    -   If a `resume` file is present and has a size greater than 0, it calls `uploadResume`.
+    -   These helpers are responsible for uploading the files to the configured storage provider (e.g., a cloud storage bucket) and returning the public URL.
+    -   The returned URLs are stored in `profileImageUrl` and `resumeUrl` variables.
+
+### **Database Operations**
+
+The backend uses the Drizzle ORM for all database interactions.
+
+1.  **Check for Existing User:** It first queries the `users` table to ensure the `userId` from the form corresponds to a real user.
+2.  **Check for Existing Mentor Profile:** It then queries the `mentors` table to see if a profile for this `userId` already exists.
+3.  **Update vs. Create Logic:**
+    -   **If `existingMentor` is found:**
+        -   It updates the existing record in the `mentors` table with the new data.
+        -   The `verificationStatus` is set to `'RESUBMITTED'`.
+        -   It sends a notification to an admin about the update.
+    -   **If no `existingMentor` is found:**
+        -   It generates a new UUID for the mentor record.
+        -   It inserts a new record into the `mentors` table with the application data and a `verificationStatus` of `'IN_PROGRESS'`.
+        -   **Role Assignment:** It finds the `id` of the 'mentor' role from the `roles` table and inserts a new entry into the `userRoles` join table, linking the `userId` to the `mentor` role.
+        -   It calls `sendApplicationReceivedEmail` to notify the user.
+4.  **Audit Trail:**
+    -   The `recordAuditEntry` function is called in both create and update scenarios.
+    -   It inserts a record into the `mentorsFormAuditTrail` table, storing a snapshot of the sanitized form data, the raw form data, the submission type (`CREATE` or `UPDATE`), and the `verificationStatus`.
+
+---
+
+## 4. Database Schema
+
+### **`users` (`lib/db/schema/users.ts`)**
+
+-   Stores fundamental user information.
+-   **Key Fields:** `id` (primary key), `email`, `name`, `image`.
+-   This table is the source of truth for user identity.
+
+### **`mentors` (`lib/db/schema/mentors.ts`)**
+
+-   The central table for all mentor-specific data collected from the application form.
+-   **Key Fields:**
+    -   `id`: Primary key (UUID).
+    -   `userId`: A foreign key to `users.id`, establishing a one-to-one relationship.
+    -   `title`, `company`, `industry`, `expertise`, `experience`: Professional background.
+    -   `fullName`, `email`, `phone`, `city`, `state`, `country`: Contact and location details from the form.
+    -   `profileImageUrl`, `resumeUrl`: URLs to the uploaded files.
+    -   `verificationStatus`: An enum (`'IN_PROGRESS'`, `'VERIFIED'`, etc.) to track the application status.
+    -   `createdAt`, `updatedAt`: Timestamps.
+
+### **`roles` (`lib/db/schema/roles.ts`)**
+
+-   A simple lookup table for user roles.
+-   **Key Fields:** `id`, `name` (e.g., 'admin', 'mentor'), `displayName`.
+
+### **`user_roles` (`lib/db/schema/user-roles.ts`)**
+
+-   A join table that connects users to roles, creating a many-to-many relationship.
+-   **Key Fields:** `userId`, `roleId` (composite primary key).
+-   This table is used to grant the "mentor" role to a user upon successful application.
+
+### **`mentorsFormAuditTrail`** (defined in `app/api/mentors/apply/route.ts` context)
+
+-   Although the schema is not in a separate file in the provided context, its usage is clear. It logs every submission to the mentor application form.
+-   **Purpose:** To maintain a history of changes and submissions for administrative and debugging purposes.
+-   **Key Fields:** `mentorId`, `userId`, `submissionType`, `verificationStatus`, `formData` (a JSONB column containing both raw and sanitized snapshots of the submitted data).

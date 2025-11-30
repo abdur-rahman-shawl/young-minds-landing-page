@@ -1,0 +1,219 @@
+This document explains how the AI chatbot on this website works.
+
+## The AI Chatbot: "Aria"
+
+The chatbot is named "Aria" and is designed to be a "mentorship concierge." Its goal is to help users find mentors on the platform. It's not a general-purpose chatbot; it's a specialist.
+
+## How it Works: A Step-by-Step Guide
+
+The chatbot works by following a carefully designed conversation flow. This flow is defined in a "system prompt" that acts as the chatbot's brain.
+
+### 1. The Conversation Starts
+
+When you start a chat, the frontend (the part of the website you see and interact with) sends your message to the backend (the server).
+
+### 2. The Backend Talks to the AI
+
+The backend code does the following:
+
+*   **It gives the AI its personality:** It tells the AI that it is "Aria," a friendly and professional mentorship guide.
+*   **It gives the AI a goal:** The main goal is to guide you to a mentor, but not right away. The AI is instructed to first build trust with you.
+*   **It sets the rules:** The AI is told to follow a specific "Trust-Building Funnel":
+    1.  **Welcome and Understand:** Aria first greets you and tries to understand what you're looking for.
+    2.  **Ask Questions:** It asks you a couple of questions to get more details about your goals.
+    3.  **Provide Value:** Before suggesting a mentor, Aria gives you a small piece of useful information, like a short guide or a checklist. This is to show you that it's helpful.
+    4.  **Suggest Mentorship:** Only after providing some value does Aria suggest that you might want to talk to a mentor.
+    5.  **Find Mentors:** If you agree, Aria then looks for mentors for you.
+
+### 3. The "find_mentors" Tool
+
+This is the most important part of the agent's functionality. The AI has access to a "tool" called `find_mentors`.
+
+*   **What is a tool?** A tool is a function that the AI can decide to use to get information or perform an action. In this case, the `find_mentors` tool allows the AI to search for mentors in the website's database.
+
+*   **How does the AI decide to use the tool?** The backend code tells the AI about the `find_mentors` tool and what it does. The AI is smart enough to understand that when you say "yes, I'd like to see some mentors," it should use this tool.
+
+*   **How does it work in practice?**
+    1.  The AI decides it's time to find mentors.
+    2.  Instead of just saying "Okay, I'll find mentors," the AI sends a special message back to the backend that says, "I need to use the `find_mentors` tool."
+    3.  The backend sends this message to the frontend.
+    4.  The frontend code sees this special message and knows it needs to take action. It then makes a request to the website's API to get a list of mentors.
+    5.  Once the frontend gets the list of mentors, it displays them to you.
+
+### 4. Streaming the Response
+
+You might notice that the AI's response appears on the screen word by word. This is called "streaming." The AI doesn't generate the whole response at once. It sends it in small chunks, which makes the conversation feel more natural and responsive.
+
+## Summary
+
+The AI chatbot is an "agent" that has:
+
+*   **A persona:** A defined personality and role.
+*   **A goal:** A clear objective to achieve.
+*   **A set of rules:** Constraints on its behavior.
+*   **Access to tools:** The ability to interact with the website's features (like searching for mentors).
+
+This combination of a powerful language model (Google's Gemini), a well-designed prompt, and the ability to use tools makes the chatbot a helpful and intelligent guide for users of the platform.
+
+---
+
+## Technical Deep Dive: How Tool Calls Work
+
+The "tool calling" feature is powered by a combination of the AI model's capabilities and the `ai` library (specifically, the `streamObject` function). Here's a breakdown of the technical implementation.
+
+### Backend: `app/api/chat/route.ts`
+
+1.  **`streamObject` Function**: This is the core function that enables structured, streamable responses from the AI. Instead of just getting a raw text stream, we can define a specific JSON schema that we want the AI to follow.
+
+2.  **Zod Schema**: We use the `zod` library to define this schema. In the code, you'll see:
+
+    ```typescript
+    schema: z.object({
+      text: z.string().describe('The response text to the user.'),
+      tool_call: z
+        .object({
+          name: z.literal('find_mentors'),
+          arguments: z.object({
+            query: z.string().optional().describe('The user\'s primary goal or query.'),
+          }),
+        })
+        .optional()
+        .describe('The tool to call to find and display mentors to the user.'),
+    })
+    ```
+
+    *   `z.object({...})`: We're telling the AI that the entire response should be a JSON object.
+    *   `text: z.string()`: This object must have a `text` property containing a string. The `.describe()` part gives the AI a hint about what this property is for.
+    *   `tool_call: z.object({...}).optional()`: We define a `tool_call` property, which is another object. It's `.optional()` because the AI doesn't have to call a tool in every response.
+    *   `name: z.literal('find_mentors')`: If the `tool_call` object is present, it *must* have a `name` property with the exact value `'find_mentors'`.
+    *   `arguments: z.object({...})`: The `tool_call` can also have arguments. This is useful for passing parameters to the tool.
+
+3.  **System Prompt**: The system prompt is crucial. It explicitly tells the AI about the `find_mentors` tool and gives it instructions on *when* and *how* to use it. The AI uses this information, along with the schema definition, to decide when to generate the `tool_call` object in its response.
+
+### Frontend: `components/landing/hero-section.tsx`
+
+1.  **Streaming Response Handling**: The `simulateAiResponse` function handles the streaming data from the backend.
+
+    ```typescript
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let partialJson = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      partialJson += decoder.decode(value, { stream: true });
+      // ... parsing logic ...
+    }
+    ```
+
+2.  **Parsing Partial JSON**: As the JSON object streams in, it's incomplete. The code cleverly uses a `try...catch` block to continuously try parsing the `partialJson`.
+    *   It extracts the `text` field in real-time to update the UI, which creates the typing effect.
+    *   It checks if the parsed JSON contains `finalJson.tool_call && finalJson.tool_call.name === 'find_mentors'`. If it does, a `toolCallDetected` flag is set to `true`.
+
+3.  **Executing the Tool**: After the stream is complete and the full AI response has been rendered, the code checks the flag:
+
+    ```typescript
+    if (toolCallDetected) {
+      await fetchMentorsFromApi();
+    }
+    ```
+
+    This is where the frontend actually executes the "tool" by calling the `fetchMentorsFromApi` function, which in turn makes a `GET` request to the `/api/public-mentors` endpoint.
+
+## How to Add a New Tool Call
+
+Let's say you want to add a new tool called `get_course_details` that takes a `courseName` as an argument.
+
+### Step 1: Update the Backend Schema (`app/api/chat/route.ts`)
+
+You need to modify the Zod schema to include the new tool. You can use `z.union` to allow for multiple tool definitions.
+
+```typescript
+// ... inside streamObject call
+schema: z.object({
+  text: z.string().describe('The response text to the user.'),
+  tool_call: z
+    .union([
+      // Existing find_mentors tool
+      z.object({
+        name: z.literal('find_mentors'),
+        arguments: z.object({
+          query: z.string().optional().describe('The user\'s primary goal or query.'),
+        }),
+      }),
+      // Your new get_course_details tool
+      z.object({
+        name: z.literal('get_course_details'),
+        arguments: z.object({
+          courseName: z.string().describe('The name of the course the user is interested in.'),
+        }),
+      }),
+    ])
+    .optional()
+    .describe('The tool to call. Only use one tool at a time.'),
+})
+```
+
+### Step 2: Update the System Prompt
+
+You must inform the AI about its new capability. Add a description of the `get_course_details` tool to the `SYSTEM_PROMPT`, explaining what it does and when to use it.
+
+For example:
+"You also have a tool called `get_course_details`. Use this tool when a user asks for specific information about a course. It takes a `courseName` as an argument."
+
+### Step 3: Handle the New Tool on the Frontend (`components/landing/hero-section.tsx`)
+
+In the `simulateAiResponse` function, you'll need to handle the new tool call.
+
+1.  **Detect the new tool**:
+
+    ```typescript
+    // ... inside the streaming while loop, after parsing finalJson
+    let toolName: string | null = null;
+    let toolArgs: any = null;
+
+    if (finalJson.tool_call) {
+        toolName = finalJson.tool_call.name;
+        toolArgs = finalJson.tool_call.arguments;
+    }
+
+    // ...
+    // After the stream is complete
+    if (toolName === 'find_mentors') {
+      await fetchMentorsFromApi();
+    } else if (toolName === 'get_course_details') {
+      // Assuming you create a function to handle this
+      await fetchCourseDetailsFromApi(toolArgs.courseName);
+    }
+    ```
+
+2.  **Implement the tool execution function**:
+
+    ```typescript
+    const fetchCourseDetailsFromApi = async (courseName: string) => {
+      // Set some loading state, e.g., setIsFetchingCourse(true)
+      try {
+        const res = await fetch(`/api/courses?name=${encodeURIComponent(courseName)}`);
+        const courseData = await res.json();
+        // Do something with the data, e.g., display it in the chat
+        const courseMessage = {
+          id: uuidv4(),
+          type: 'ai',
+          content: `Here are the details for ${courseData.name}: ${courseData.description}`,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, courseMessage]);
+      } catch (error) {
+        // Handle error
+      } finally {
+        // Unset loading state
+      }
+    };
+    ```
+
+### Step 4: Create the Backend API for the Tool (if needed)
+
+If you don't already have an API endpoint to get course details, you'll need to create one (e.g., `app/api/courses/route.ts`). This endpoint would query your database for the course and return the details as JSON.
+
