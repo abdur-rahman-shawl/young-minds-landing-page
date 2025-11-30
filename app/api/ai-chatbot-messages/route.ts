@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { aiChatbotMessages } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { recordChatInsight } from '@/lib/chatbot/insights';
 
 // GET: fetch all messages for a chat session
 export async function GET(request: NextRequest) {
@@ -53,6 +54,18 @@ export async function POST(request: NextRequest) {
         ipAddress,
       })
       .returning();
+
+    if (newMessage && senderType === 'user') {
+      recordChatInsight({
+        messageId: newMessage.id,
+        chatSessionId,
+        userId: userId || null,
+        content: newMessage.content,
+      }).catch((error) => {
+        console.error('[chatbot-insights] recording failed', error);
+      });
+    }
+
     return NextResponse.json({ success: true, data: newMessage });
   } catch (error) {
     return NextResponse.json({ success: false, error: 'Failed to save message' }, { status: 500 });

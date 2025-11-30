@@ -98,13 +98,18 @@ export default function AdminAnalyticsPage() {
     }],
   };
 
-  const uniPieData = {
-    labels: data.topUniversities.map((u: any) => u.name),
-    datasets: [{
-      data: data.topUniversities.map((u: any) => u.mentions),
-      backgroundColor: ['#60a5fa', '#7dd3fc', '#34d399', '#fbbf24', '#c7d2fe'],
-    }],
-  };
+  const hasUniversities = Array.isArray(data.topUniversities) && data.topUniversities.length > 0;
+  const hasQuestions = Array.isArray(data.topMenteeQuestions) && data.topMenteeQuestions.length > 0;
+
+  const uniPieData = hasUniversities
+    ? {
+        labels: data.topUniversities.map((u: any) => u.name),
+        datasets: [{
+          data: data.topUniversities.map((u: any) => u.mentions),
+          backgroundColor: ['#60a5fa', '#7dd3fc', '#34d399', '#fbbf24', '#c7d2fe'],
+        }],
+      }
+    : null;
 
   return (
     <div className="p-6 max-w-full mx-auto">
@@ -152,23 +157,31 @@ export default function AdminAnalyticsPage() {
             <Line data={sessionsChartData} options={{ plugins: { legend: { display: false } } }} height={120} />
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-lg font-medium mb-3">Top Mentee Questions (Mock Data)</h3>
-            <ul className="space-y-2 text-sm text-gray-700">
-              {data.topMenteeQuestions.map((q: any, i: number) => (
-                <li key={i} className="p-2 border-b">
-                  <div className="flex justify-between">
-                    <div>{q.query}</div>
-                    <div className="text-xs text-gray-400">{q.mentions} mentions</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <h3 className="text-lg font-medium mb-3">Top Mentee Questions</h3>
+            {hasQuestions ? (
+              <ul className="space-y-2 text-sm text-gray-700">
+                {data.topMenteeQuestions.map((q: any, i: number) => (
+                  <li key={i} className="p-2 border-b">
+                    <div className="flex justify-between">
+                      <div>{q.query}</div>
+                      <div className="text-xs text-gray-400">{q.mentions} mentions</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-500">Not enough chat data for this range.</p>
+            )}
           </div>
         </div>
         <div className="space-y-6">
           <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-lg font-medium mb-2">Top Universities Searched (Mock Data)</h3>
-            <Doughnut data={uniPieData} options={{ plugins: { legend: { position: 'bottom' } } }} height={200} />
+            <h3 className="text-lg font-medium mb-2">Top Universities Searched</h3>
+            {hasUniversities && uniPieData ? (
+              <Doughnut data={uniPieData} options={{ plugins: { legend: { position: 'bottom' } } }} height={200} />
+            ) : (
+              <p className="text-sm text-gray-500">Not enough university searches in this period.</p>
+            )}
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
             <h3 className="text-lg font-medium mb-2">Mentor Leaderboard</h3>

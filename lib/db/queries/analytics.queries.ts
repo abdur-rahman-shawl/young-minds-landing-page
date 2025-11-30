@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { sessions, users, userRoles, roles, reviews, messages } from '@/lib/db/schema';
 import { and, eq, gte, lte, desc, sql, count, avg, sum, isNull } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 // =================================================================
 // ADMIN DASHBOARD QUERIES (Platform-Wide)
@@ -14,23 +15,115 @@ const getPreviousDateRange = (startDate: Date, endDate: Date) => {
   return { prevStartDate, prevEndDate };
 };
 
+const buildActiveMenteesCountSQL = (startDate: Date, endDate: Date) => sql`
+  SELECT COUNT(*) FROM (
+    -- Registered or recently logged-in mentees
+    SELECT DISTINCT u.id
+    FROM users u
+    INNER JOIN user_roles ur ON ur.user_id = u.id
+    INNER JOIN roles r ON r.id = ur.role_id AND r.name = 'mentee'
+    WHERE u.is_blocked = false
+      AND (
+        (u.created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()})
+        OR (u.updated_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()})
+      )
+
+    UNION
+
+    -- Mentees who chatted with the AI assistant
+    SELECT DISTINCT chat_user.id
+    FROM ai_chatbot_messages m
+    INNER JOIN users chat_user ON chat_user.id = m.user_id
+    INNER JOIN user_roles chat_ur ON chat_ur.user_id = chat_user.id
+    INNER JOIN roles chat_roles ON chat_roles.id = chat_ur.role_id AND chat_roles.name = 'mentee'
+    WHERE m.sender_type = 'user'
+      AND m.user_id IS NOT NULL
+      AND chat_user.is_blocked = false
+      AND m.created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
+
+    UNION
+
+    -- Mentees who scheduled or completed sessions
+    SELECT DISTINCT mentee_user.id
+    FROM sessions s
+    INNER JOIN users mentee_user ON mentee_user.id = s.mentee_id
+    INNER JOIN user_roles mentee_ur ON mentee_ur.user_id = mentee_user.id
+    INNER JOIN roles mentee_roles ON mentee_roles.id = mentee_ur.role_id AND mentee_roles.name = 'mentee'
+    INNER JOIN users mentor_user ON mentor_user.id = s.mentor_id
+    WHERE s.status IN ('scheduled', 'in_progress', 'completed')
+      AND mentee_user.is_blocked = false
+      AND mentor_user.is_blocked = false
+      AND s.created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
+  ) AS active_mentees_window
+`;
+
+const buildMentorExposureStats = (startDate: Date, endDate: Date) => {
+  const exposuresSubquery = sql`
+    SELECT DISTINCT m.user_id
+    FROM ai_chatbot_messages m
+    INNER JOIN users u ON u.id = m.user_id
+    WHERE m.user_id IS NOT NULL
+      AND u.is_blocked = false
+      AND COALESCE(m.metadata->>'eventType', '') = 'mentors_shown'
+      AND m.created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
+  `;
+
+  const exposuresCount = sql`
+    SELECT COUNT(*) FROM (${exposuresSubquery}) mentor_exposures
+  `;
+
+  const conversionsCount = sql`
+    SELECT COUNT(DISTINCT s.mentee_id)
+    FROM sessions s
+    INNER JOIN (${exposuresSubquery}) mentor_exposures ON mentor_exposures.user_id = s.mentee_id
+    INNER JOIN users mentor ON mentor.id = s.mentor_id AND mentor.is_blocked = false
+    WHERE s.status IN ('scheduled', 'in_progress', 'completed')
+      AND s.created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
+  `;
+
+  return { exposuresCount, conversionsCount };
+};
+
 export async function getAdminDashboardKpis(startDate: Date, endDate: Date) {
   const { prevStartDate, prevEndDate } = getPreviousDateRange(startDate, endDate);
+  const currentActiveMenteesSql = buildActiveMenteesCountSQL(startDate, endDate);
+  const previousActiveMenteesSql = buildActiveMenteesCountSQL(prevStartDate, prevEndDate);
+  const { exposuresCount: mentorExposureCountSql, conversionsCount: mentorConversionCountSql } =
+    buildMentorExposureStats(startDate, endDate);
 
   // The fix is to add .toISOString() to every date variable in the query.
   const [kpiResult] = await db.execute(sql`
     SELECT
-      (SELECT COUNT(DISTINCT s.mentee_id) FROM sessions s WHERE s.status = 'completed' AND s.created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}) AS "currentActiveMentees",
-      (SELECT COUNT(DISTINCT s.mentee_id) FROM sessions s WHERE s.status = 'completed' AND s.created_at BETWEEN ${prevStartDate.toISOString()} AND ${prevEndDate.toISOString()}) AS "previousActiveMentees",
-      (SELECT COUNT(id) FROM sessions WHERE created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}) AS "currentSessions",
-      (SELECT COUNT(id) FROM sessions WHERE created_at BETWEEN ${prevStartDate.toISOString()} AND ${prevEndDate.toISOString()}) AS "previousSessions",
-      (SELECT AVG(r.final_score) FROM reviews r JOIN sessions s ON r.session_id = s.id WHERE r.reviewer_role = 'mentee' AND s.created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}) AS "averageRating",
-      (SELECT COUNT(id) FROM sessions WHERE created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()} AND rate > 0) AS "paidSessions"
+      (${currentActiveMenteesSql}) AS "currentActiveMentees",
+      (${previousActiveMenteesSql}) AS "previousActiveMentees",
+      (SELECT COUNT(s.id)
+        FROM sessions s
+        JOIN users mentee ON mentee.id = s.mentee_id AND mentee.is_blocked = false
+        JOIN users mentor ON mentor.id = s.mentor_id AND mentor.is_blocked = false
+        WHERE s.created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
+      ) AS "currentSessions",
+      (SELECT COUNT(s.id)
+        FROM sessions s
+        JOIN users mentee ON mentee.id = s.mentee_id AND mentee.is_blocked = false
+        JOIN users mentor ON mentor.id = s.mentor_id AND mentor.is_blocked = false
+        WHERE s.created_at BETWEEN ${prevStartDate.toISOString()} AND ${prevEndDate.toISOString()}
+      ) AS "previousSessions",
+      (SELECT AVG(r.final_score)
+        FROM reviews r
+        JOIN sessions s ON r.session_id = s.id
+        JOIN users mentee ON mentee.id = s.mentee_id AND mentee.is_blocked = false
+        JOIN users mentor ON mentor.id = s.mentor_id AND mentor.is_blocked = false
+        WHERE r.reviewer_role = 'mentee' AND s.created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
+      ) AS "averageRating",
+      (${mentorExposureCountSql}) AS "mentorExposureCount",
+      (${mentorConversionCountSql}) AS "mentorConversionCount"
   `);
 
   const currentSessions = Number(kpiResult.currentSessions ?? 0);
-  const paidSessions = Number(kpiResult.paidSessions ?? 0);
-  const paidConversionRate = currentSessions > 0 ? (paidSessions / currentSessions) * 100 : 0;
+  const mentorExposureCount = Number(kpiResult.mentorExposureCount ?? 0);
+  const mentorConversionCount = Number(kpiResult.mentorConversionCount ?? 0);
+  const mentorConversionRate =
+    mentorExposureCount > 0 ? (mentorConversionCount / mentorExposureCount) * 100 : 0;
 
   return {
     activeMentees: {
@@ -42,20 +135,30 @@ export async function getAdminDashboardKpis(startDate: Date, endDate: Date) {
       previous: Number(kpiResult.previousSessions ?? 0),
     },
     averageSessionRating: parseFloat(kpiResult.averageRating ?? '0'),
-    paidConversionRate: parseFloat(paidConversionRate.toFixed(1)),
+    paidConversionRate: parseFloat(mentorConversionRate.toFixed(1)),
   };
 }
 
 export async function getAdminSessionsOverTime(startDate: Date, endDate: Date) {
+  const mentorUser = alias(users, 'sessions_mentor');
+  const menteeUser = alias(users, 'sessions_mentee');
+
   const result = await db
     .select({
-      date: sql<string>`DATE(created_at)`.as('date'),
+      date: sql<string>`DATE(${sessions.createdAt})`.as('date'),
       sessions: count(sessions.id),
     })
     .from(sessions)
-    .where(and(gte(sessions.createdAt, startDate), lte(sessions.createdAt, endDate)))
-    .groupBy(sql`DATE(created_at)`)
-    .orderBy(sql`DATE(created_at)`);
+    .innerJoin(mentorUser, eq(sessions.mentorId, mentorUser.id))
+    .innerJoin(menteeUser, eq(sessions.menteeId, menteeUser.id))
+    .where(and(
+      gte(sessions.createdAt, startDate),
+      lte(sessions.createdAt, endDate),
+      eq(mentorUser.isBlocked, false),
+      eq(menteeUser.isBlocked, false),
+    ))
+    .groupBy(sql`DATE(${sessions.createdAt})`)
+    .orderBy(sql`DATE(${sessions.createdAt})`);
 
   return result.map((r: { date: string | number | Date; }) => ({ ...r, date: new Date(r.date).toISOString().split('T')[0] }));
 }
@@ -73,9 +176,59 @@ export async function getAdminMentorLeaderboard(limit: number = 5) {
         .innerJoin(roles, and(eq(userRoles.roleId, roles.id), eq(roles.name, 'mentor')))
         .leftJoin(sessions, and(eq(users.id, sessions.mentorId), eq(sessions.status, 'completed')))
         .leftJoin(reviews, and(eq(users.id, reviews.revieweeId), eq(reviews.reviewerRole, 'mentee')))
+        .where(eq(users.isBlocked, false))
         .groupBy(users.id, users.name)
-        .orderBy(desc(sql<number>`COUNT(DISTINCT ${sessions.id})`))
+        // === THIS IS THE CORRECTED RANKING LOGIC ===
+        .orderBy(
+            // 1. Sort by session count first (descending)
+            desc(sql<number>`COUNT(DISTINCT ${sessions.id})`),
+            // 2. Then, sort by average rating as a tie-breaker (descending)
+            // COALESCE is used to treat mentors with no reviews (NULL rating) as 0 for sorting purposes.
+            desc(sql<number>`COALESCE(AVG(${reviews.finalScore}), 0)`)
+        )
         .limit(limit);
+}
+
+export async function getTopUniversitiesSearched(startDate: Date, endDate: Date, limit: number = 5) {
+  const rows = await db.execute(sql`
+    SELECT
+      university,
+      COUNT(*) AS mentions
+    FROM (
+      SELECT unnest(universities) AS university, created_at
+      FROM ai_chatbot_message_insights
+      WHERE universities IS NOT NULL
+    ) sub
+    WHERE sub.created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
+    GROUP BY university
+    ORDER BY mentions DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((row: any) => ({
+    name: row.university as string,
+    mentions: Number(row.mentions ?? 0),
+  }));
+}
+
+export async function getTopMenteeQuestions(startDate: Date, endDate: Date, limit: number = 5) {
+  const rows = await db.execute(sql`
+    SELECT
+      question_text AS query,
+      COUNT(*) AS mentions
+    FROM ai_chatbot_message_insights
+    WHERE is_question = true
+      AND question_text IS NOT NULL
+      AND created_at BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
+    GROUP BY question_hash, question_text
+    ORDER BY mentions DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((row: any) => ({
+    query: row.query as string,
+    mentions: Number(row.mentions ?? 0),
+  }));
 }
 
 

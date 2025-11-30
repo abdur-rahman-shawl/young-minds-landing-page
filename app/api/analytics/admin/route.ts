@@ -3,6 +3,8 @@ import {
   getAdminDashboardKpis,
   getAdminSessionsOverTime,
   getAdminMentorLeaderboard,
+  getTopMenteeQuestions,
+  getTopUniversitiesSearched,
 } from '@/lib/db/queries/analytics.queries';
 
 // Helper to calculate percentage change
@@ -17,10 +19,12 @@ export async function GET(request: Request) {
     const endDate = new Date(searchParams.get('endDate') || new Date().toISOString());
     const startDate = new Date(searchParams.get('startDate') || new Date(new Date().setDate(endDate.getDate() - 29)).toISOString());
     
-    const [kpiData, sessionsData, mentorData] = await Promise.all([
+    const [kpiData, sessionsData, mentorData, topQuestions, topUniversities] = await Promise.all([
       getAdminDashboardKpis(startDate, endDate),
       getAdminSessionsOverTime(startDate, endDate),
       getAdminMentorLeaderboard(5),
+      getTopMenteeQuestions(startDate, endDate, 5),
+      getTopUniversitiesSearched(startDate, endDate, 5),
     ]);
 
     const responsePayload = {
@@ -44,15 +48,8 @@ export async function GET(request: Request) {
         averageRating: m.averageRating ? parseFloat(m.averageRating.toFixed(1)) : 0
       })),
 
-      // Mock Data for Deferred Features
-      topMenteeQuestions: [
-        { query: 'Top universities for MS in Computer Science (USA)', mentions: 512 },
-        { query: 'Cost & scholarships for MBA in UK', mentions: 430 },
-      ],
-      topUniversities: [
-        { name: 'University A', mentions: 320 },
-        { name: 'University B', mentions: 210 },
-      ],
+      topMenteeQuestions: topQuestions,
+      topUniversities,
       courseInsights: [
         { name: 'MS Computer Science', avgDuration: '2 yrs', avgFees: '$25k-$45k', interestPercentage: 38 },
       ],
