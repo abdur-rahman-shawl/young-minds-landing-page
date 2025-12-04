@@ -51,11 +51,12 @@ const mentorSelectFields = {
   updatedAt: mentors.updatedAt,
   couponCode: mentors.couponCode,
   isCouponCodeEnabled: mentors.isCouponCodeEnabled,
+  paymentStatus: mentors.paymentStatus,
 };
 
 const COUPON_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-function generateCouponCode(length = 6) {
+export function generateCouponCode(length = 6) {
   let code = '';
   for (let i = 0; i < length; i++) {
     const index = Math.floor(Math.random() * COUPON_CHARSET.length);
@@ -130,6 +131,7 @@ const formatMentorRecord = (raw: Awaited<ReturnType<typeof fetchMentorRows>>[num
     updatedAt: raw.updatedAt ? raw.updatedAt.toISOString() : null,
     couponCode: raw.couponCode,
     isCouponCodeEnabled: raw.isCouponCodeEnabled,
+    paymentStatus: raw.paymentStatus,
   };
 };
 
@@ -146,7 +148,7 @@ async function fetchMentorRows(mentorId?: string) {
   return await query;
 }
 
-async function ensureAdmin(request: NextRequest) {
+export async function ensureAdmin(request: NextRequest) {
   try {
     const session = await auth.api.getSession({
       headers: request.headers,

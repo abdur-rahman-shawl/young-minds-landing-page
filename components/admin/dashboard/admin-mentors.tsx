@@ -94,6 +94,7 @@ type Mentor = {
   updatedAt: string | null;
   couponCode?: string | null;
   isCouponCodeEnabled?: boolean | null;
+  paymentStatus?: 'PENDING' | 'COMPLETED' | 'FAILED' | null;
 };
 
 type MentorAction = Extract<
@@ -189,6 +190,11 @@ export function AdminMentors() {
   const [auditData, setAuditData] = useState<any | null>(null);
   const [isAuditLoading, setIsAuditLoading] = useState(false);
   const [couponToggles, setCouponToggles] = useState<Record<string, boolean>>({});
+  const [sendingCouponId, setSendingCouponId] = useState<string | null>(null);
+  const [verifiedFilters, setVerifiedFilters] = useState({
+    paymentPending: false,
+    couponEnabled: false,
+  });
 
   const fetchMentors = async () => {
     setLoading(true);
@@ -245,6 +251,21 @@ export function AdminMentors() {
     () => mentors.filter((mentor) => mentor.verificationStatus === 'VERIFIED'),
     [mentors],
   );
+
+  const filteredVerifiedMentors = useMemo(() => {
+    if (!verifiedFilters.paymentPending && !verifiedFilters.couponEnabled) {
+      return verifiedMentors;
+    }
+    return verifiedMentors.filter((mentor) => {
+      if (verifiedFilters.paymentPending && mentor.paymentStatus !== 'PENDING') {
+        return false;
+      }
+      if (verifiedFilters.couponEnabled && !mentor.isCouponCodeEnabled) {
+        return false;
+      }
+      return true;
+    });
+  }, [verifiedMentors, verifiedFilters]);
 
   const rejectedMentors = useMemo(
     () => mentors.filter((mentor) => mentor.verificationStatus === 'REJECTED'),
@@ -377,6 +398,44 @@ export function AdminMentors() {
 
   const handleCouponToggle = (mentorId: string, checked: boolean) => {
     setCouponToggles((prev) => ({ ...prev, [mentorId]: checked }));
+  };
+  const getCouponButtonClasses = (isResend: boolean) =>
+    isResend
+      ? 'bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500'
+      : 'bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:ring-indigo-500';
+
+  const handleSendCouponCode = async (mentorId: string) => {
+    setSendingCouponId(mentorId);
+    try {
+      const res = await fetch('/api/admin/mentors/coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ mentorId }),
+      });
+      const json = await res
+        .json()
+        .catch(() => ({ success: false, error: 'Unable to parse response' }));
+
+      if (!res.ok || !json?.success) {
+        const message = json?.error || 'Unable to send coupon code';
+        if (res.status === 401 || res.status === 403) {
+          toast.error('Authentication required', { description: message });
+          return;
+        }
+        toast.error('Failed to send coupon code', { description: message });
+        return;
+      }
+
+      toast.success('Coupon code sent successfully');
+      await fetchMentors();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Something went wrong';
+      toast.error('Failed to send coupon code', { description: message });
+    } finally {
+      setSendingCouponId(null);
+    }
   };
 
   const renderMentorList = (rows: Mentor[], options?: { showCouponToggle?: boolean }) => {
@@ -655,6 +714,29 @@ export function AdminMentors() {
                     )}
                     {mentor.verificationStatus === 'VERIFIED' && (
                       <>
+                        {mentor.paymentStatus === 'PENDING' && (
+                          <Button
+                            variant='secondary'
+                            size='sm'
+                            className={cn(
+                              'gap-1.5',
+                              getCouponButtonClasses(Boolean(mentor.isCouponCodeEnabled)),
+                            )}
+                            onClick={handleButtonClick(() =>
+                              handleSendCouponCode(mentor.id),
+                            )}
+                            disabled={sendingCouponId === mentor.id}
+                          >
+                            {sendingCouponId === mentor.id ? (
+                              <Loader2 className='h-4 w-4 animate-spin' />
+                            ) : (
+                              <Send className='h-4 w-4' />
+                            )}
+                            {mentor.isCouponCodeEnabled
+                              ? 'Re-send coupon code'
+                              : 'Send coupon code'}
+                          </Button>
+                        )}
                         <Button
                           variant='destructive'
                           size='sm'
@@ -783,7 +865,33 @@ export function AdminMentors() {
               {renderMentorList(pendingMentors, { showCouponToggle: true })}
             </TabsContent>
             <TabsContent value='verified'>
-              {renderMentorList(verifiedMentors)}
+              <div className='mb-4 flex flex-wrap gap-4 rounded-md border border-border/60 bg-muted/30 p-3 text-sm'>
+                <label className='inline-flex items-center gap-2'>
+                  <Checkbox
+                    checked={verifiedFilters.paymentPending}
+                    onCheckedChange={(checked) =>
+                      setVerifiedFilters((prev) => ({
+                        ...prev,
+                        paymentPending: Boolean(checked),
+                      }))
+                    }
+                  />
+                  <span>Payment pending</span>
+                </label>
+                <label className='inline-flex items-center gap-2'>
+                  <Checkbox
+                    checked={verifiedFilters.couponEnabled}
+                    onCheckedChange={(checked) =>
+                      setVerifiedFilters((prev) => ({
+                        ...prev,
+                        couponEnabled: Boolean(checked),
+                      }))
+                    }
+                  />
+                  <span>Coupon code enabled</span>
+                </label>
+              </div>
+              {renderMentorList(filteredVerifiedMentors)}
             </TabsContent>
             <TabsContent value='all'>
               {renderMentorList(mentors)}
@@ -1223,6 +1331,27 @@ export function AdminMentors() {
                 )}
                 {selectedMentor.verificationStatus === 'VERIFIED' && (
                   <>
+                    {selectedMentor.paymentStatus === 'PENDING' && (
+                      <Button
+                        variant='secondary'
+                        size='sm'
+                        className={cn(
+                          'gap-1.5',
+                          getCouponButtonClasses(Boolean(selectedMentor.isCouponCodeEnabled)),
+                        )}
+                        onClick={() => handleSendCouponCode(selectedMentor.id)}
+                        disabled={sendingCouponId === selectedMentor.id}
+                      >
+                        {sendingCouponId === selectedMentor.id ? (
+                          <Loader2 className='h-4 w-4 animate-spin' />
+                        ) : (
+                          <Send className='h-4 w-4' />
+                        )}
+                        {selectedMentor.isCouponCodeEnabled
+                          ? 'Re-send coupon code'
+                          : 'Send coupon code'}
+                      </Button>
+                    )}
                     <Button
                       variant='destructive'
                       size='sm'
