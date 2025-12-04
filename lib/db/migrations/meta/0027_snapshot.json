@@ -1,6 +1,6 @@
 {
-  "id": "d277962e-d69f-4a5f-9424-7e963ebb7d49",
-  "prevId": "b134ddfd-4b34-46bc-b339-997eb079b76a",
+  "id": "94fdb259-a370-4e18-8481-3d2190edf203",
+  "prevId": "d277962e-d69f-4a5f-9424-7e963ebb7d49",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -75,6 +75,117 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.ai_chatbot_message_insights": {
+      "name": "ai_chatbot_message_insights",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "message_id": {
+          "name": "message_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chat_session_id": {
+          "name": "chat_session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "intent": {
+          "name": "intent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'general'"
+        },
+        "question_text": {
+          "name": "question_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "question_hash": {
+          "name": "question_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_question": {
+          "name": "is_question",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "universities": {
+          "name": "universities",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'heuristic'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "ai_chatbot_message_insights_message_id_ai_chatbot_messages_id_fk": {
+          "name": "ai_chatbot_message_insights_message_id_ai_chatbot_messages_id_fk",
+          "tableFrom": "ai_chatbot_message_insights",
+          "tableTo": "ai_chatbot_messages",
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ai_chatbot_message_insights_user_id_users_id_fk": {
+          "name": "ai_chatbot_message_insights_user_id_users_id_fk",
+          "tableFrom": "ai_chatbot_message_insights",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.ai_chatbot_messages": {
       "name": "ai_chatbot_messages",
       "schema": "",
@@ -135,66 +246,6 @@
         "ai_chatbot_messages_user_id_users_id_fk": {
           "name": "ai_chatbot_messages_user_id_users_id_fk",
           "tableFrom": "ai_chatbot_messages",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ai_chatbot_question_logs": {
-      "name": "ai_chatbot_question_logs",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "question": {
-          "name": "question",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "category": {
-          "name": "category",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'question'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "ai_chatbot_question_logs_user_id_users_id_fk": {
-          "name": "ai_chatbot_question_logs_user_id_users_id_fk",
-          "tableFrom": "ai_chatbot_question_logs",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
@@ -2153,6 +2204,26 @@
           "primaryKey": false,
           "notNull": false,
           "default": true
+        },
+        "payment_status": {
+          "name": "payment_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
+        },
+        "coupon_code": {
+          "name": "coupon_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_coupon_code_enabled": {
+          "name": "is_coupon_code_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",

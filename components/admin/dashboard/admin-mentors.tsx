@@ -93,6 +93,7 @@ type Mentor = {
   createdAt: string | null;
   updatedAt: string | null;
   couponCode?: string | null;
+  isCouponCodeEnabled?: boolean | null;
 };
 
 type MentorAction = Extract<
@@ -210,7 +211,14 @@ export function AdminMentors() {
         return;
       }
 
-      setMentors(json.data ?? []);
+      const data: Mentor[] = json.data ?? [];
+      setMentors(data);
+      setCouponToggles(
+        data.reduce<Record<string, boolean>>((acc, mentor) => {
+          acc[mentor.id] = Boolean(mentor.isCouponCodeEnabled);
+          return acc;
+        }, {}),
+      );
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Something went wrong';
@@ -364,7 +372,7 @@ export function AdminMentors() {
   );
 
   const selectedMentorCouponEnabled = selectedMentor
-    ? couponToggles[selectedMentor.id] ?? false
+    ? couponToggles[selectedMentor.id] ?? Boolean(selectedMentor.isCouponCodeEnabled)
     : false;
 
   const handleCouponToggle = (mentorId: string, checked: boolean) => {
@@ -404,7 +412,7 @@ export function AdminMentors() {
               };
 
             const couponEnabled = options?.showCouponToggle
-              ? couponToggles[mentor.id] ?? false
+              ? couponToggles[mentor.id] ?? Boolean(mentor.isCouponCodeEnabled)
               : false;
 
             return (

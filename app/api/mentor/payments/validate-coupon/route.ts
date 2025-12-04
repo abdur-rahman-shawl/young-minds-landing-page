@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
         userId: mentors.userId,
         couponCode: mentors.couponCode,
         paymentStatus: mentors.paymentStatus,
+        isCouponCodeEnabled: mentors.isCouponCodeEnabled,
       })
       .from(mentors)
       .where(eq(mentors.userId, session.user.id))
@@ -60,6 +61,13 @@ export async function POST(request: NextRequest) {
     if (!mentor.couponCode) {
       return NextResponse.json(
         { success: false, error: 'No coupon code assigned to this account' },
+        { status: 400 }
+      );
+    }
+
+    if (!mentor.isCouponCodeEnabled) {
+      return NextResponse.json(
+        { success: false, error: 'Coupon code is not active for this account' },
         { status: 400 }
       );
     }

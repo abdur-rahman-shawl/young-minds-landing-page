@@ -183,6 +183,13 @@
       "when": 1760862863214,
       "tag": "0026_useful_sunset_bain",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1764849252456,
+      "tag": "0027_long_steel_serpent",
+      "breakpoints": true
     }
   ]
 }

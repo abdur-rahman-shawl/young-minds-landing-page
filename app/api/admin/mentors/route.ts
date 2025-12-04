@@ -50,6 +50,7 @@ const mentorSelectFields = {
   createdAt: mentors.createdAt,
   updatedAt: mentors.updatedAt,
   couponCode: mentors.couponCode,
+  isCouponCodeEnabled: mentors.isCouponCodeEnabled,
 };
 
 const COUPON_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -128,6 +129,7 @@ const formatMentorRecord = (raw: Awaited<ReturnType<typeof fetchMentorRows>>[num
     createdAt: raw.createdAt ? raw.createdAt.toISOString() : null,
     updatedAt: raw.updatedAt ? raw.updatedAt.toISOString() : null,
     couponCode: raw.couponCode,
+    isCouponCodeEnabled: raw.isCouponCodeEnabled,
   };
 };
 
@@ -224,18 +226,17 @@ export async function PATCH(request: NextRequest) {
 
     const { mentorId, status, notes, enableCoupon } = parsed.data;
     const noteToStore = notes && notes.length > 0 ? notes : null;
-    const shouldGenerateCoupon = status === 'VERIFIED' && Boolean(enableCoupon);
-    const couponCode = shouldGenerateCoupon ? generateCouponCode() : null;
+    const shouldEnableCoupon = status === 'VERIFIED' && Boolean(enableCoupon);
+    const couponCode = shouldEnableCoupon ? generateCouponCode() : null;
 
     const updateData: Record<string, any> = {
       verificationStatus: status,
       verificationNotes: noteToStore,
       updatedAt: new Date(),
+      isCouponCodeEnabled: shouldEnableCoupon,
     };
 
-    if (couponCode) {
-      updateData.couponCode = couponCode;
-    }
+    updateData.couponCode = couponCode;
 
     const [updatedMentor] = await db
       .update(mentors)

@@ -53,6 +53,7 @@ export const mentors = pgTable('mentors', {
   isAvailable: boolean('is_available').default(true),
   paymentStatus: text('payment_status').default('PENDING').notNull(),
   couponCode: text('coupon_code'),
+  isCouponCodeEnabled: boolean('is_coupon_code_enabled').default(false).notNull(),
   
   // Timestamps
   createdAt: timestamp('created_at').defaultNow().notNull(),
