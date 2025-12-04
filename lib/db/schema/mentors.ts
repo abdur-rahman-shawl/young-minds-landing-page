@@ -51,6 +51,8 @@ export const mentors = pgTable('mentors', {
   verificationStatus: verificationStatusEnum('verification_status').default('YET_TO_APPLY').notNull(),
   verificationNotes: text('verification_notes'), // Admin notes for rejected/reverification requests
   isAvailable: boolean('is_available').default(true),
+  paymentStatus: text('payment_status').default('PENDING').notNull(),
+  couponCode: text('coupon_code'),
   
   // Timestamps
   createdAt: timestamp('created_at').defaultNow().notNull(),

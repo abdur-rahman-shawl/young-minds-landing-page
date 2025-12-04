@@ -1,0 +1,2 @@
+ALTER TABLE "mentors"
+ADD COLUMN IF NOT EXISTS "payment_status" text DEFAULT 'PENDING' NOT NULL;

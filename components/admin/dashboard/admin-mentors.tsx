@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   CheckCircle2,
   ExternalLink,
@@ -91,6 +92,7 @@ type Mentor = {
   country: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  couponCode?: string | null;
 };
 
 type MentorAction = Extract<
@@ -185,9 +187,7 @@ export function AdminMentors() {
   const [activeTab, setActiveTab] = useState<string>('pending');
   const [auditData, setAuditData] = useState<any | null>(null);
   const [isAuditLoading, setIsAuditLoading] = useState(false);
-  const [vipInviteMentor, setVipInviteMentor] = useState<Mentor | null>(null);
-  const [isVipSending, setIsVipSending] = useState(false);
-  const [vipSentIds, setVipSentIds] = useState<string[]>([]);
+  const [couponToggles, setCouponToggles] = useState<Record<string, boolean>>({});
 
   const fetchMentors = async () => {
     setLoading(true);
@@ -256,6 +256,7 @@ export function AdminMentors() {
     mentorId: string,
     status: MentorAction,
     notes?: string | null,
+    options?: { enableCoupon?: boolean }
   ): Promise<boolean> => {
     setPendingAction({ id: mentorId, status });
     try {
@@ -263,7 +264,7 @@ export function AdminMentors() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ mentorId, status, notes }),
+        body: JSON.stringify({ mentorId, status, notes, enableCoupon: options?.enableCoupon ?? false }),
       });
       const json = await res.json();
 
@@ -362,30 +363,15 @@ export function AdminMentors() {
     [selectedMentor],
   );
 
-  const hasSentVipInvite = (mentorId: string) => vipSentIds.includes(mentorId);
+  const selectedMentorCouponEnabled = selectedMentor
+    ? couponToggles[selectedMentor.id] ?? false
+    : false;
 
-  const openVipDialog = (mentor: Mentor) => {
-    setVipInviteMentor(mentor);
+  const handleCouponToggle = (mentorId: string, checked: boolean) => {
+    setCouponToggles((prev) => ({ ...prev, [mentorId]: checked }));
   };
 
-  const handleVipSend = async () => {
-    if (!vipInviteMentor) return;
-    const mentorId = vipInviteMentor.id;
-    const mentorName =
-      vipInviteMentor.name || vipInviteMentor.fullName || 'this mentor';
-    setIsVipSending(true);
-    await new Promise((resolve) => setTimeout(resolve, 750));
-    setVipSentIds((prev) =>
-      prev.includes(mentorId) ? prev : [...prev, mentorId],
-    );
-    toast.success('VIP invitation sent', {
-      description: `A premium invitation has been marked as sent to ${mentorName}.`,
-    });
-    setIsVipSending(false);
-    setVipInviteMentor(null);
-  };
-
-  const renderMentorList = (rows: Mentor[]) => {
+  const renderMentorList = (rows: Mentor[], options?: { showCouponToggle?: boolean }) => {
     if (!rows.length) {
       return (
         <div className='flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 py-12 text-sm text-muted-foreground'>
@@ -416,6 +402,10 @@ export function AdminMentors() {
                 event.stopPropagation();
                 void action();
               };
+
+            const couponEnabled = options?.showCouponToggle
+              ? couponToggles[mentor.id] ?? false
+              : false;
 
             return (
               <article
@@ -583,14 +573,29 @@ export function AdminMentors() {
                     </div>
                   </div>
 
-                  <div className='flex flex-wrap justify-start gap-2 md:justify-end'>
-                    {(mentor.verificationStatus === 'IN_PROGRESS' || mentor.verificationStatus === 'RESUBMITTED' || mentor.verificationStatus === 'UPDATED_PROFILE') && (
-                      <>
+                  <div className='flex flex-1 flex-col gap-3 md:items-end'>
+                    {options?.showCouponToggle && (
+                      <label className='inline-flex items-center gap-2 text-sm text-muted-foreground'>
+                        <Checkbox
+                          checked={couponEnabled}
+                          onCheckedChange={(checked) =>
+                            handleCouponToggle(mentor.id, Boolean(checked))
+                          }
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                        <span>Enable coupon code</span>
+                      </label>
+                    )}
+                    <div className='flex flex-wrap justify-start gap-2 md:justify-end'>
+                      {(mentor.verificationStatus === 'IN_PROGRESS' || mentor.verificationStatus === 'RESUBMITTED' || mentor.verificationStatus === 'UPDATED_PROFILE') && (
+                        <>
                         <Button
                           size='sm'
                           className='gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700'
                           onClick={handleButtonClick(() =>
-                            handleStatusChange(mentor.id, 'VERIFIED'),
+                            handleStatusChange(mentor.id, 'VERIFIED', '', {
+                              enableCoupon: couponEnabled,
+                            }),
                           )}
                           disabled={isProcessing(mentor.id)}
                         >
@@ -667,7 +672,9 @@ export function AdminMentors() {
                           size='sm'
                           className='gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700'
                           onClick={handleButtonClick(() =>
-                            handleStatusChange(mentor.id, 'VERIFIED'),
+                            handleStatusChange(mentor.id, 'VERIFIED', '', {
+                              enableCoupon: couponEnabled,
+                            }),
                           )}
                           disabled={isProcessing(mentor.id)}
                         >
@@ -681,26 +688,7 @@ export function AdminMentors() {
                         </Button>
                       </>
                     )}
-                    {mentor.verificationStatus !== 'VERIFIED' && (
-                      <Button
-                        size='sm'
-                        variant='default'
-                        className='gap-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-300 text-slate-900 shadow-[0_10px_30px_rgba(250,204,21,0.35)] hover:from-amber-400 hover:via-yellow-300 hover:to-amber-200'
-                        onClick={handleButtonClick(() => openVipDialog(mentor))}
-                        disabled={isVipSending}
-                      >
-                        <Sparkles className='h-4 w-4' />
-                        {hasSentVipInvite(mentor.id)
-                          ? 'VIP invite marked sent'
-                          : 'Send VIP invitation code'}
-                      </Button>
-                    )}
-                    {hasSentVipInvite(mentor.id) && (
-                      <span className='inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 shadow-inner'>
-                        <Crown className='h-3 w-3' />
-                        VIP invite marked sent
-                      </span>
-                    )}
+                    </div>
                   </div>
                 </div>
               </article>
@@ -784,7 +772,7 @@ export function AdminMentors() {
               <TabsTrigger value='all'>All ({mentors.length})</TabsTrigger>
             </TabsList>
             <TabsContent value='pending'>
-              {renderMentorList(pendingMentors)}
+              {renderMentorList(pendingMentors, { showCouponToggle: true })}
             </TabsContent>
             <TabsContent value='verified'>
               {renderMentorList(verifiedMentors)}
@@ -863,75 +851,6 @@ export function AdminMentors() {
                 Submit
               </Button>
             </DialogFooter>
-          </DialogContent>
-        )}
-      </Dialog>
-      <Dialog open={!!vipInviteMentor} onOpenChange={(open) => !open && setVipInviteMentor(null)}>
-        {vipInviteMentor && (
-          <DialogContent className='inset-0 left-0 top-0 flex translate-x-0 translate-y-0 items-center justify-center border-none bg-transparent p-4 sm:p-6 [&>button:last-of-type]:hidden'>
-            <div className='relative w-[min(94vw,960px)] max-h-[85vh] overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-slate-950 via-[#0b1426] to-black text-amber-50 shadow-[0_25px_80px_rgba(0,0,0,0.55)]'>
-              <DialogClose className='absolute right-4 top-4 rounded-full border border-white/10 bg-white/10 p-2 text-amber-50 opacity-80 transition hover:border-white/20 hover:bg-white/20 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-amber-400/60 focus:ring-offset-2 focus:ring-offset-slate-950'>
-                <XCircle className='h-4 w-4' />
-                <span className='sr-only'>Close VIP dialog</span>
-              </DialogClose>
-              <div className='pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.12),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(16,185,129,0.08),transparent_30%)]' />
-              <div className='relative max-h-[68vh] overflow-y-auto p-6 space-y-4'>
-                <DialogHeader className='relative space-y-2'>
-                  <div className='inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-wide text-amber-200'>
-                    <Sparkles className='h-3 w-3' />
-                    VIP Invitation
-                  </div>
-                  <DialogTitle className='text-xl font-semibold tracking-tight text-amber-50'>
-                    Send an exclusive VIP invitation code
-                  </DialogTitle>
-                  <DialogDescription className='text-sm text-amber-100/80'>
-                    Are you sure you want to share a premium invitation with{' '}
-                    <span className='font-semibold text-amber-50'>
-                      {vipInviteMentor.name || vipInviteMentor.fullName || 'this mentor'}
-                    </span>
-                    ? This will mark the invite as sent for internal tracking.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className='relative space-y-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4'>
-                  <div className='flex items-center gap-3 text-amber-100/90'>
-                    <Crown className='h-5 w-5 text-amber-300' />
-                    <p className='text-sm'>
-                      VIP invitations unlock priority onboarding and white-glove support. Use this sparingly.
-                    </p>
-                  </div>
-                  {hasSentVipInvite(vipInviteMentor.id) && (
-                    <div className='flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100'>
-                      <CheckCircle2 className='h-4 w-4' />
-                      Already marked as sent
-                    </div>
-                  )}
-                </div>
-              </div>
-              <DialogFooter className='relative flex flex-col-reverse gap-2 border-t border-white/5 bg-black/20 px-6 py-4 sm:flex-row sm:justify-end'>
-                <Button
-                  type='button'
-                  variant='secondary'
-                  className='border-amber-500/30 bg-transparent text-amber-100 hover:border-amber-400 hover:bg-amber-500/10'
-                  onClick={() => setVipInviteMentor(null)}
-                  disabled={isVipSending}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type='button'
-                  className='gap-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-200 text-slate-900 shadow-[0_10px_30px_rgba(250,204,21,0.35)] hover:from-amber-400 hover:via-yellow-300 hover:to-amber-100'
-                  onClick={handleVipSend}
-                  disabled={isVipSending}
-                >
-                  {isVipSending ? (
-                    <Loader2 className='h-4 w-4 animate-spin' />
-                  ) : (
-                    <Send className='h-4 w-4' />
-                  )}
-                  {isVipSending ? 'Sending...' : 'Send VIP code'}
-                </Button>
-              </DialogFooter>
-            </div>
           </DialogContent>
         )}
       </Dialog>
@@ -1248,7 +1167,11 @@ export function AdminMentors() {
                     <Button
                       size='sm'
                       className='gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700'
-                      onClick={() => handleStatusChange(selectedMentor.id, 'VERIFIED')}
+                      onClick={() =>
+                        handleStatusChange(selectedMentor.id, 'VERIFIED', '', {
+                          enableCoupon: selectedMentorCouponEnabled,
+                        })
+                      }
                       disabled={isProcessing(selectedMentor.id)}
                     >
                       {isProcessing(selectedMentor.id) && pendingAction?.status === 'VERIFIED' ? (
@@ -1313,7 +1236,11 @@ export function AdminMentors() {
                     <Button
                       size='sm'
                       className='gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700'
-                      onClick={() => handleStatusChange(selectedMentor.id, 'VERIFIED')}
+                      onClick={() =>
+                        handleStatusChange(selectedMentor.id, 'VERIFIED', '', {
+                          enableCoupon: selectedMentorCouponEnabled,
+                        })
+                      }
                       disabled={isProcessing(selectedMentor.id)}
                     >
                       {isProcessing(selectedMentor.id) && pendingAction?.status === 'VERIFIED' ? (
@@ -1325,27 +1252,6 @@ export function AdminMentors() {
                     </Button>
                   </>
                 )}
-                {selectedMentor.verificationStatus !== 'VERIFIED' && (
-                  <Button
-                    size='sm'
-                    variant='default'
-                    className='gap-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-300 text-slate-900 shadow-[0_10px_30px_rgba(250,204,21,0.35)] hover:from-amber-400 hover:via-yellow-300 hover:to-amber-200'
-                    onClick={() => openVipDialog(selectedMentor)}
-                    disabled={isVipSending}
-                  >
-                    <Sparkles className='h-4 w-4' />
-                    {hasSentVipInvite(selectedMentor.id)
-                      ? 'VIP invite marked sent'
-                      : 'Send VIP invitation code'}
-                  </Button>
-                )}
-                {selectedMentor.verificationStatus !== 'VERIFIED' &&
-                  hasSentVipInvite(selectedMentor.id) && (
-                    <span className='inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 shadow-inner'>
-                      <Crown className='h-3 w-3' />
-                      VIP invite sent
-                    </span>
-                  )}
               </section>
             </DialogFooter>
           </DialogContent>
@@ -1354,4 +1260,3 @@ export function AdminMentors() {
     </div>
   );
 }
-

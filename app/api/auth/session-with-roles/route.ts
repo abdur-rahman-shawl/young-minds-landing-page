@@ -63,7 +63,9 @@ export async function GET(request: NextRequest) {
           headline: mentors.headline,
           maxMentees: mentors.maxMentees,
           profileImageUrl: mentors.profileImageUrl,
-          resumeUrl: mentors.resumeUrl
+          resumeUrl: mentors.resumeUrl,
+          paymentStatus: mentors.paymentStatus,
+          couponCode: mentors.couponCode,
         })
         .from(mentors)
         .where(eq(mentors.userId, session.user.id))

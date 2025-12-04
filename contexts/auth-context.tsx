@@ -34,6 +34,8 @@ interface MentorProfile {
   availability?: string;
   headline?: string;
   maxMentees?: number;
+  paymentStatus?: 'PENDING' | 'COMPLETED' | 'FAILED';
+  couponCode?: string | null;
 }
 
 interface AuthState {

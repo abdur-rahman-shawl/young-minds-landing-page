@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Input } from "@/components/ui/input"
 import { 
   Users, 
   Calendar, 
@@ -21,25 +22,31 @@ import {
   MessageSquare,
   TrendingDown,
   Video,
-  ArrowRight
+  ArrowRight,
+  CreditCard,
+  Lock,
+  ShieldCheck
 } from "lucide-react"
 import { useMentorDashboardStats, useMentorRecentSessions, useMentorRecentMessages, useMentorPendingReviews } from "@/hooks/use-mentor-dashboard"
 import { format, formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
 import { MentorAnalyticsSection } from './mentor-analytics-section';
 import Link from "next/link"
+import { useState, useCallback } from "react"
 
 interface MentorOnlyDashboardProps {
   user: any
 }
 
 export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
-  const { mentorProfile, isLoading: profileLoading } = useAuth()
+  const { mentorProfile, isLoading: profileLoading, refreshUserData } = useAuth()
   const { stats, isLoading: statsLoading, error: statsError } = useMentorDashboardStats()
   const { sessions, isLoading: sessionsLoading } = useMentorRecentSessions(5)
   const { messages, isLoading: messagesLoading } = useMentorRecentMessages(5)
    const { sessionsToReview, isLoading: reviewsLoading, error: reviewsError } = useMentorPendingReviews(user)
   const router = useRouter()
+  const paymentStatus = mentorProfile?.paymentStatus ?? 'PENDING'
+  const isPaymentComplete = paymentStatus === 'COMPLETED'
 
   const getVerificationStatusInfo = (status: string) => {
     switch (status) {
@@ -88,6 +95,10 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
     }
   }
 
+  const handlePaymentComplete = useCallback(async () => {
+    await refreshUserData()
+  }, [refreshUserData])
+
   if (profileLoading || statsLoading) {
     return (
       <div className="space-y-6">
@@ -101,6 +112,16 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
           ))}
         </div>
       </div>
+    )
+  }
+
+  if (!isPaymentComplete) {
+    return (
+      <PaymentRequiredScreen 
+        name={user?.name}
+        email={mentorProfile?.email || user?.email}
+        onPaymentComplete={handlePaymentComplete}
+      />
     )
   }
 
@@ -538,7 +559,7 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
 
       {/* Profile Summary */}
       {mentorProfile && (
-        <Card>
+      <Card>
           <CardHeader>
             <CardTitle>Profile Summary</CardTitle>
             <CardDescription>Your mentor profile information</CardDescription>
@@ -572,6 +593,201 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
           </CardContent>
         </Card>
       )}
+    </div>
+  )
+}
+
+function PaymentRequiredScreen({ name, email, onPaymentComplete }: { name?: string; email?: string; onPaymentComplete?: () => Promise<void> | void }) {
+  const firstName = name?.split(' ')[0] || 'Mentor'
+  const [couponCode, setCouponCode] = useState('')
+  const [couponApplied, setCouponApplied] = useState(false)
+  const [isApplying, setIsApplying] = useState(false)
+  const [applyError, setApplyError] = useState<string | null>(null)
+  const [validationMessage, setValidationMessage] = useState<string | null>(null)
+  const [isCompleting, setIsCompleting] = useState(false)
+
+  const handleApplyCoupon = async () => {
+    const normalizedCode = couponCode.trim().toUpperCase()
+    if (!normalizedCode) {
+      setApplyError('Enter a coupon code to continue')
+      return
+    }
+
+    setIsApplying(true)
+    setApplyError(null)
+    setValidationMessage(null)
+
+    try {
+      const response = await fetch('/api/mentor/payments/validate-coupon', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ couponCode: normalizedCode }),
+      })
+
+      const data = await response.json().catch(() => ({ success: false, error: 'Invalid response from server' }))
+
+      if (!response.ok || !data?.success) {
+        const message = data?.error || 'Invalid coupon code. Please try again.'
+        throw new Error(message)
+      }
+
+      setCouponApplied(true)
+      setValidationMessage(data?.message || 'Coupon accepted — you can now continue without payment.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to validate coupon code'
+      setCouponApplied(false)
+      setApplyError(message)
+    } finally {
+      setIsApplying(false)
+    }
+  }
+
+  const handleContinueWithoutPayment = async () => {
+    if (!couponApplied || isCompleting) return
+    setIsCompleting(true)
+    try {
+      await onPaymentComplete?.()
+    } finally {
+      setIsCompleting(false)
+    }
+  }
+
+  return (
+    <div className="min-h-[70vh] flex items-center justify-center py-12">
+      <Card className="w-full max-w-3xl border-t-4 border-t-blue-600 shadow-xl">
+        <CardHeader className="space-y-4">
+          <div className="flex items-center gap-3">
+            <CreditCard className="h-10 w-10 text-blue-600" />
+            <div>
+              <CardTitle>Complete your mentor activation</CardTitle>
+              <CardDescription>
+                Access to the mentor workspace requires a one-time onboarding payment.
+              </CardDescription>
+            </div>
+          </div>
+          <Badge className="w-fit bg-yellow-100 text-yellow-800">Payment pending</Badge>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-5 flex gap-3 text-blue-900">
+            <Lock className="h-5 w-5 mt-1 text-blue-600" />
+            <div className="space-y-1 text-sm">
+              <p className="font-semibold">Hi {firstName},</p>
+              <p>Your dashboard is locked until we confirm your mentor subscription payment.</p>
+              <p className="text-blue-800">
+                Once payment is completed you'll regain access to mentee requests, scheduling, and payouts.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-4">
+              <div className="rounded-2xl border bg-white p-5 shadow-sm">
+                <p className="text-sm text-gray-500">Mentor onboarding fee</p>
+                <p className="text-4xl font-bold text-gray-900 mt-2">₹5K</p>
+                <p className="text-xs text-gray-500">One-time payment • refundable if we can't activate your account</p>
+                <div className="mt-4 space-y-2 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-green-600" />
+                    <span>Priority profile verification</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-green-600" />
+                    <span>Mentor success onboarding kit</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-green-600" />
+                    <span>Marketplace visibility boost</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border bg-gray-50 p-5">
+                <p className="text-sm text-gray-600">We'll send the receipt and instructions to</p>
+                <p className="text-lg font-semibold text-gray-900">{email || 'your registered email'}</p>
+                <p className="text-sm text-gray-600 mt-2">
+                  Need an invoice for bookkeeping? Reply to that email and our finance team will help you within 24 hours.
+                </p>
+                <div className="mt-6 space-y-2 text-sm">
+                  <div className="flex items-center gap-2 text-gray-700">
+                    <ShieldCheck className="h-4 w-4 text-green-600" />
+                    <span>Secure payments powered by Stripe</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-700">
+                    <Lock className="h-4 w-4 text-blue-600" />
+                    <span>Refund guarantee if activation fails</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-5">
+            <p className="text-sm font-semibold text-gray-800">Have a coupon code?</p>
+            <p className="text-sm text-gray-600 mt-1">Enter your mentor coupon to skip the onboarding payment.</p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <Input
+                placeholder="Enter coupon code"
+                value={couponCode}
+                onChange={(event) => {
+                  setCouponCode(event.target.value.toUpperCase())
+                  setCouponApplied(false)
+                  setApplyError(null)
+                  setValidationMessage(null)
+                }}
+                className="flex-1 uppercase"
+              />
+              <Button 
+                variant="outline" 
+                onClick={handleApplyCoupon} 
+                className="sm:w-auto"
+                disabled={isApplying}
+              >
+                {isApplying ? 'Applying...' : 'Apply coupon'}
+              </Button>
+            </div>
+            {applyError && (
+              <p className="mt-3 text-xs text-red-600">{applyError}</p>
+            )}
+            {couponApplied && validationMessage ? (
+              <div className="mt-3 flex items-center gap-2 rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">
+                <CheckCircle className="h-4 w-4" />
+                <span>{validationMessage}</span>
+              </div>
+            ) : (
+              !applyError && (
+                <p className="mt-3 text-xs text-gray-500">Valid coupons waive the onboarding fee instantly.</p>
+              )
+            )}
+          </div>
+
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <p className="text-sm text-gray-500">
+              You'll be redirected to our secure payment partner. Completing payment instantly unlocks your access.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                Proceed to payment
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+              <Button 
+                variant="secondary" 
+                disabled={!couponApplied || isCompleting}
+                className={`sm:w-auto ${!couponApplied || isCompleting ? 'cursor-not-allowed opacity-70' : ''}`}
+                onClick={handleContinueWithoutPayment}
+              >
+                {isCompleting ? 'Continuing...' : 'Continue without payment'}
+              </Button>
+              <Button variant="outline" className="border-dashed">
+                Contact support
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

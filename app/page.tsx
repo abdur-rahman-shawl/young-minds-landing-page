@@ -66,7 +66,8 @@ function PageContent() {
     isAdmin,
     isMentor,
     isMentee,
-    isMentorWithIncompleteProfile 
+    isMentorWithIncompleteProfile,
+    mentorProfile
   } = useAuth()
 
   useEffect(() => {
@@ -118,6 +119,13 @@ function PageContent() {
 
     // Mentor dashboard (regardless of whether they also have mentee role)
     if (isMentor) {
+      const mentorPaymentStatus = mentorProfile?.paymentStatus ?? 'PENDING'
+      const isPaymentComplete = mentorPaymentStatus === 'COMPLETED'
+
+      if (!isPaymentComplete) {
+        return <MentorOnlyDashboard user={session?.user} />
+      }
+
       switch (activeSection) {
         case "dashboard":
           return <MentorOnlyDashboard user={session?.user} />

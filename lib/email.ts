@@ -51,14 +51,25 @@ export async function sendApplicationReceivedEmail(email: string, name: string) 
   }
 }
 
-export async function sendMentorApplicationApprovedEmail(email: string, name: string) {
+export async function sendMentorApplicationApprovedEmail(email: string, name: string, couponCode?: string) {
   try {
     const subject = 'Congratulations! Your SharingMinds Mentor Application is Approved';
+    const couponSection = couponCode
+      ? `
+        <div style="margin-top: 20px; padding: 16px; border: 1px dashed #0f62fe; border-radius: 8px; background-color: #f4f8ff;">
+          <p style="margin: 0 0 8px 0; font-weight: 600; color: #0f62fe;">Onboarding coupon unlocked</p>
+          <p style="margin: 0;">Use the code below on your payment screen to skip the mentor onboarding fee:</p>
+          <p style="font-size: 24px; letter-spacing: 4px; font-weight: bold; margin: 12px 0;">${couponCode}</p>
+          <p style="margin: 0; font-size: 14px; color: #4b5563;">Keep this code safe. It can be used once to waive your activation payment.</p>
+        </div>
+      `
+      : '';
     const html = `
         <div style="font-family: sans-serif; padding: 20px; color: #333;">
           <h2 style="color: #0056b3;">Congratulations, ${name}!</h2>
           <p>We are excited to welcome you to the SharingMinds community of mentors. Your application has been approved!</p>
           <p>You can now access your mentor dashboard to set up your availability and start connecting with mentees.</p>
+          ${couponSection}
           <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Go to Dashboard</a>
           <p>Best regards,</p>
           <p><strong>The SharingMinds Team</strong></p>

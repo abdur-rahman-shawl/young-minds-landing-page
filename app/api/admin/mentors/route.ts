@@ -49,7 +49,19 @@ const mentorSelectFields = {
   city: mentors.city,
   createdAt: mentors.createdAt,
   updatedAt: mentors.updatedAt,
+  couponCode: mentors.couponCode,
 };
+
+const COUPON_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateCouponCode(length = 6) {
+  let code = '';
+  for (let i = 0; i < length; i++) {
+    const index = Math.floor(Math.random() * COUPON_CHARSET.length);
+    code += COUPON_CHARSET[index];
+  }
+  return code;
+}
 
 const updateMentorSchema = z.object({
   mentorId: z.string().uuid('Invalid mentor identifier'),
@@ -59,6 +71,7 @@ const updateMentorSchema = z.object({
     .trim()
     .max(1000, 'Notes must be 1000 characters or fewer')
     .optional(),
+  enableCoupon: z.boolean().optional(),
 });
 
 const parseJsonList = (value: string | null | undefined): string[] => {
@@ -114,6 +127,7 @@ const formatMentorRecord = (raw: Awaited<ReturnType<typeof fetchMentorRows>>[num
     country: raw.country,
     createdAt: raw.createdAt ? raw.createdAt.toISOString() : null,
     updatedAt: raw.updatedAt ? raw.updatedAt.toISOString() : null,
+    couponCode: raw.couponCode,
   };
 };
 
@@ -208,16 +222,24 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { mentorId, status, notes } = parsed.data;
+    const { mentorId, status, notes, enableCoupon } = parsed.data;
     const noteToStore = notes && notes.length > 0 ? notes : null;
+    const shouldGenerateCoupon = status === 'VERIFIED' && Boolean(enableCoupon);
+    const couponCode = shouldGenerateCoupon ? generateCouponCode() : null;
+
+    const updateData: Record<string, any> = {
+      verificationStatus: status,
+      verificationNotes: noteToStore,
+      updatedAt: new Date(),
+    };
+
+    if (couponCode) {
+      updateData.couponCode = couponCode;
+    }
 
     const [updatedMentor] = await db
       .update(mentors)
-      .set({
-        verificationStatus: status,
-        verificationNotes: noteToStore,
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(mentors.id, mentorId))
       .returning({ id: mentors.id, userId: mentors.userId, fullName: mentors.fullName, email: mentors.email });
 
@@ -230,13 +252,13 @@ export async function PATCH(request: NextRequest) {
       action: 'MENTOR_VERIFICATION_STATUS_CHANGED',
       targetId: updatedMentor.userId,
       targetType: 'mentor',
-      details: { newStatus: status, notes },
+      details: { newStatus: status, notes, couponIssued: couponCode ?? undefined },
     });
 
     const { userId, fullName, email } = updatedMentor;
 
     if (status === 'VERIFIED') {
-      await sendMentorApplicationApprovedEmail(email!, fullName! );
+      await sendMentorApplicationApprovedEmail(email!, fullName!, couponCode ?? undefined);
       await sendNotification(
         userId,
         'MENTOR_APPLICATION_APPROVED',
@@ -274,4 +296,3 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Failed to update mentor' }, { status: 500 });
   }
 }
-
