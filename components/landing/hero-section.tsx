@@ -843,7 +843,7 @@ export function HeroSection() {
       <SignInPopup 
         isOpen={showSignInPopup} 
         onClose={() => setShowSignInPopup(false)} 
-        callbackUrl="/?section=explore"
+        callbackUrl="/dashboard?section=explore"
       />
     </>
   )

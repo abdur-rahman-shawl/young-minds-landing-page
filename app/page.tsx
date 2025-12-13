@@ -1,13 +1,5 @@
-// @ts-nocheck
-"use client"
-
-import { useState, useEffect, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import dynamic from "next/dynamic"
-import { useAuth } from "@/contexts/auth-context"
+import { Suspense } from "react"
 import { Header } from "@/components/layout/header"
-import { UserSidebar } from "@/components/mentee/sidebars/user-sidebar"
-import { MentorSidebar } from "@/components/mentor/sidebars/mentor-sidebar"
 import { HeroSection } from "@/components/landing/hero-section"
 import { StatsSection } from "@/components/landing/stats-section"
 import { MentorSection } from "@/components/landing/mentor-section"
@@ -293,12 +285,13 @@ function PageContent() {
     )
   }
 
+
+function LandingContent() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
       <main className="flex flex-col gap-8 pt-24 pb-10 px-4 sm:px-6 lg:px-8 xl:flex-row xl:items-start">
-        {/* Main Content */}
-        <div className="flex-1 min-w-0 w-full max-w-6xl mx-auto">
+        <div className="mx-auto flex-1 min-w-0 w-full max-w-6xl">
           <HeroSection />
           <div className="px-6 sm:px-8 lg:px-12 xl:px-16">
             <StatsSection />
@@ -311,7 +304,6 @@ function PageContent() {
           </div>
         </div>
 
-        {/* Right Sidebar */}
         <div className="hidden xl:block xl:w-80 flex-shrink-0">
           <RightSidebar />
         </div>
@@ -323,7 +315,7 @@ function PageContent() {
 export default function Page() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <PageContent />
+      <LandingContent />
     </Suspense>
   )
 }

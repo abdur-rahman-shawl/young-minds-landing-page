@@ -1,20 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { messages, users } from '@/lib/db/schema';
-import { eq, and, or, desc } from 'drizzle-orm';
+import { eq, and, or, desc, inArray } from 'drizzle-orm';
+import { auth } from '@/lib/auth';
+
+async function requireSession(request: NextRequest) {
+  const session = await auth.api.getSession({
+    headers: request.headers
+  });
+
+  if (!session?.user?.id) {
+    return null;
+  }
+
+  return session.user.id;
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    const conversationWith = searchParams.get('conversationWith');
-
-    if (!userId) {
+    const currentUserId = await requireSession(request);
+    if (!currentUserId) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
+
+    const { searchParams } = new URL(request.url);
+    const conversationWith = searchParams.get('conversationWith');
 
     if (conversationWith) {
       // Get messages between two specific users
@@ -34,8 +47,8 @@ export async function GET(request: NextRequest) {
         .leftJoin(users, eq(messages.senderId, users.id))
         .where(
           or(
-            and(eq(messages.senderId, userId), eq(messages.receiverId, conversationWith)),
-            and(eq(messages.senderId, conversationWith), eq(messages.receiverId, userId))
+            and(eq(messages.senderId, currentUserId), eq(messages.receiverId, conversationWith)),
+            and(eq(messages.senderId, conversationWith), eq(messages.receiverId, currentUserId))
           )
         )
         .orderBy(messages.createdAt);
@@ -62,14 +75,14 @@ export async function GET(request: NextRequest) {
         .from(messages)
         .leftJoin(users, 
           or(
-            and(eq(messages.senderId, users.id), eq(messages.receiverId, userId)),
-            and(eq(messages.receiverId, users.id), eq(messages.senderId, userId))
+            and(eq(messages.senderId, users.id), eq(messages.receiverId, currentUserId)),
+            and(eq(messages.receiverId, users.id), eq(messages.senderId, currentUserId))
           )
         )
         .where(
           or(
-            eq(messages.senderId, userId),
-            eq(messages.receiverId, userId)
+            eq(messages.senderId, currentUserId),
+            eq(messages.receiverId, currentUserId)
           )
         )
         .orderBy(desc(messages.createdAt));
@@ -91,13 +104,28 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const currentUserId = await requireSession(request);
+    if (!currentUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
-    const { senderId, receiverId, content, action } = body;
+    const { receiverId, content, action, messageIds } = body;
 
     if (action === 'send') {
-      if (!senderId || !receiverId || !content) {
+      if (!receiverId || !content) {
         return NextResponse.json(
-          { success: false, error: 'Sender ID, Receiver ID, and content are required' },
+          { success: false, error: 'Receiver ID and content are required' },
+          { status: 400 }
+        );
+      }
+
+      if (receiverId === currentUserId) {
+        return NextResponse.json(
+          { success: false, error: 'Cannot send messages to yourself' },
           { status: 400 }
         );
       }
@@ -106,7 +134,7 @@ export async function POST(request: NextRequest) {
       const [newMessage] = await db
         .insert(messages)
         .values({
-          senderId,
+          senderId: currentUserId,
           receiverId,
           content: content.trim(),
           isRead: false,
@@ -122,9 +150,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'markAsRead') {
-      const { messageIds } = body;
-
-      if (!messageIds || !Array.isArray(messageIds)) {
+      if (!messageIds || !Array.isArray(messageIds) || messageIds.length === 0) {
         return NextResponse.json(
           { success: false, error: 'Message IDs array is required' },
           { status: 400 }
@@ -135,7 +161,12 @@ export async function POST(request: NextRequest) {
       await db
         .update(messages)
         .set({ isRead: true })
-        .where(eq(messages.receiverId, receiverId));
+        .where(
+          and(
+            eq(messages.receiverId, currentUserId),
+            inArray(messages.id, messageIds)
+          )
+        );
 
       return NextResponse.json({
         success: true,
@@ -155,4 +186,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

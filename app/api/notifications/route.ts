@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { notifications, NewNotification } from '@/lib/db/schema';
@@ -10,7 +9,7 @@ import { z } from 'zod';
 export async function GET(req: NextRequest) {
   try {
     const session = await auth.api.getSession({
-      headers: await headers()
+      headers: req.headers
     });
 
     if (!session) {
@@ -89,10 +88,28 @@ const createNotificationSchema = z.object({
 export async function POST(req: NextRequest) {
   console.log('🚀 === CREATE NOTIFICATION API CALLED ===');
   try {
+    const session = await auth.api.getSession({
+      headers: req.headers
+    });
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Please log in' },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     console.log('📋 Request body:', body);
     const validatedData = createNotificationSchema.parse(body);
     console.log('✅ Validated data:', validatedData);
+
+    if (validatedData.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'You can only create notifications for yourself' },
+        { status: 403 }
+      );
+    }
 
     const [newNotification] = await db
       .insert(notifications)

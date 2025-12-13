@@ -33,14 +33,12 @@ Entry: Become Expert – Auth Integration
 - After success: router.replace('/become-expert') + router.refresh().
 
 Entry: Dashboard Route Refactor
-- app/dashboard/page.tsx refactored to use AuthContext (useAuth()).
-  - If not authenticated → router.replace('/auth').
-  - If authenticated → router.replace('/?section=dashboard') + router.refresh().
-  - Keeps a minimal skeleton while resolving state.
+- app/dashboard/page.tsx now renders the dashboard (AuthContext-powered); unauthenticated users are redirected to /auth.
+- Dashboard sections live under /dashboard?section=..., keeping the home page purely for landing content.
 
 Notes
 - All sign-in/out flows now drive session via AuthContext + React Query to avoid stale UI and manual refreshes.
-- Main route '/' is the single source for dashboard rendering based on isAuthenticated.
+- Home (/) is landing-only; dashboards live at /dashboard with section query params.
 
 Entry: Fix SignInPopup reference error on Home Page
 - components/auth/sign-in-popup.tsx: replaced `session?.user` check with `isAuthenticated` from AuthContext.

@@ -77,11 +77,11 @@ export default function MentorAvailabilityPage() {
               activeSection="availability"
               onSectionChange={(section) => {
                 if (section === 'availability') return;
-                router.push(`/?section=${section}`);
+                router.push(`/dashboard?section=${section}`);
               }}
             />
             <SidebarInset className="flex flex-col flex-1">
-              <Header />
+              <Header showSidebarTrigger />
               <main className="flex-1 p-6">
                 <div className="max-w-4xl mx-auto">
                   <Card className="border-l-4 border-l-amber-500">
@@ -129,11 +129,11 @@ export default function MentorAvailabilityPage() {
             activeSection="availability"
             onSectionChange={(section) => {
               if (section === 'availability') return;
-              router.push(`/?section=${section}`);
+              router.push(`/dashboard?section=${section}`);
             }}
           />
           <SidebarInset className="flex flex-col flex-1">
-            <Header />
+            <Header showSidebarTrigger />
             <main className="flex-1 p-6">
               <div className="max-w-6xl mx-auto">
                 <MentorAvailabilityManager />

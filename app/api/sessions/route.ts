@@ -1,20 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { sessions, mentors, users } from '@/lib/db/schema';
-import { eq, and, or } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
+import { auth } from '@/lib/auth';
+
+async function requireSessionUser(request: NextRequest) {
+  const session = await auth.api.getSession({
+    headers: request.headers
+  });
+
+  return session?.user?.id || null;
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    const type = searchParams.get('type'); // 'upcoming', 'past', 'all'
-
-    if (!userId) {
+    const currentUserId = await requireSessionUser(request);
+    if (!currentUserId) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
+
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get('type'); // 'upcoming', 'past', 'all'
 
     // Fetch user's sessions (as mentee or mentor)
     const rawSessions = await db
@@ -28,8 +37,6 @@ export async function GET(request: NextRequest) {
         duration: sessions.duration,
         status: sessions.status,
         meetingType: sessions.meetingType,
-        mentorRating: sessions.mentorRating,
-        menteeRating: sessions.menteeRating,
         // Mentor info
         mentorName: users.name,
         mentorTitle: mentors.title,
@@ -40,8 +47,8 @@ export async function GET(request: NextRequest) {
       .leftJoin(users, eq(mentors.userId, users.id))
       .where(
         or(
-          eq(sessions.menteeId, userId),
-          eq(sessions.mentorId, userId)
+          eq(sessions.menteeId, currentUserId),
+          eq(sessions.mentorId, currentUserId)
         )
       )
       .orderBy(sessions.scheduledAt);
@@ -78,10 +85,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const currentUserId = await requireSessionUser(request);
+    if (!currentUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { 
       mentorId, 
-      menteeId, 
       scheduledAt, 
       duration, 
       title,
@@ -90,9 +104,16 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (action === 'book') {
-      if (!mentorId || !menteeId || !scheduledAt) {
+      if (!mentorId || !scheduledAt) {
         return NextResponse.json(
-          { success: false, error: 'Mentor ID, Mentee ID, and scheduled time are required' },
+          { success: false, error: 'Mentor ID and scheduled time are required' },
+          { status: 400 }
+        );
+      }
+
+      if (mentorId === currentUserId) {
+        return NextResponse.json(
+          { success: false, error: 'You cannot book a session with yourself' },
           { status: 400 }
         );
       }
@@ -102,7 +123,7 @@ export async function POST(request: NextRequest) {
         .insert(sessions)
         .values({
           mentorId,
-          menteeId,
+          menteeId: currentUserId,
           title: title || 'Mentoring Session',
           description: description || null,
           scheduledAt: new Date(scheduledAt),
@@ -125,6 +146,31 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { success: false, error: 'Session ID is required' },
           { status: 400 }
+        );
+      }
+
+      const sessionRecord = await db
+        .select({
+          id: sessions.id,
+          mentorId: sessions.mentorId,
+          menteeId: sessions.menteeId,
+        })
+        .from(sessions)
+        .where(eq(sessions.id, sessionId))
+        .limit(1);
+
+      if (!sessionRecord.length) {
+        return NextResponse.json(
+          { success: false, error: 'Session not found' },
+          { status: 404 }
+        );
+      }
+
+      const ownsSession = [sessionRecord[0].mentorId, sessionRecord[0].menteeId].includes(currentUserId);
+      if (!ownsSession) {
+        return NextResponse.json(
+          { success: false, error: 'You are not authorized to cancel this session' },
+          { status: 403 }
         );
       }
 

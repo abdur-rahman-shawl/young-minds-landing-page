@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { 
   messageReactions,
@@ -12,7 +13,6 @@ import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
 
 const reactionSchema = z.object({
-  userId: z.string().min(1),
   emoji: z.string().emoji().min(1).max(4),
 });
 
@@ -90,13 +90,13 @@ export async function GET(
 ) {
   try {
     const messageId = params.id;
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
@@ -156,10 +156,20 @@ export async function POST(
     reactionRateLimit.check(request);
 
     const messageId = params.id;
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     
     const validatedData = reactionSchema.parse(body);
-    const { userId, emoji } = validatedData;
+    const { emoji } = validatedData;
 
     // Check permissions
     await checkUserPermission(messageId, userId);
@@ -260,13 +270,21 @@ export async function DELETE(
 ) {
   try {
     const messageId = params.id;
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
     const emoji = searchParams.get('emoji');
 
-    if (!userId || !emoji) {
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID and emoji are required' },
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    if (!emoji) {
+      return NextResponse.json(
+        { success: false, error: 'Emoji is required' },
         { status: 400 }
       );
     }

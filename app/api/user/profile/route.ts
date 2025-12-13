@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { users, mentees, mentors, userRoles, roles } from '@/lib/db/schema';
 import { menteesProfileAudit } from '@/lib/db/schema/mentee-profile-audit';
@@ -7,13 +8,13 @@ import { getUserWithRoles } from '@/lib/db/user-helpers';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
@@ -100,13 +101,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
     const body = await request.json();
-    const { userId, action, profileData } = body;
+    const { action, profileData } = body;
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
 

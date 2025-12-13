@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { aiChatbotMessages } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -26,8 +27,11 @@ export async function GET(request: NextRequest) {
 // POST: save a new message
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id || null;
+
     const body = await request.json();
-    const { chatSessionId, userId, senderType, content, metadata } = body;
+    const { chatSessionId, senderType, content, metadata } = body;
     if (!chatSessionId || !senderType || !content) {
       return NextResponse.json({ success: false, error: 'chatSessionId, senderType, and content are required' }, { status: 400 });
     }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { mentors, users } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -14,13 +15,13 @@ import { eq, and } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
@@ -57,12 +58,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, mentorId, action } = body;
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
 
-    if (!userId || !mentorId) {
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID and Mentor ID are required' },
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { mentorId, action } = body;
+
+    if (!mentorId) {
+      return NextResponse.json(
+        { success: false, error: 'Mentor ID is required' },
         { status: 400 }
       );
     }

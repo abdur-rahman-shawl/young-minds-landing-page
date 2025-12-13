@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { 
   messages,
@@ -13,7 +14,6 @@ import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
 
 const sendMessageSchema = z.object({
-  userId: z.string().min(1),
   content: z.string().min(1).max(5000),
   replyToId: z.string().uuid().optional(),
   attachmentUrl: z.string().url().optional(),
@@ -79,11 +79,21 @@ export async function POST(
   try {
     messageRateLimit.check(request);
 
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const { id: threadId } = await params;
     const body = await request.json();
     
     const validatedData = sendMessageSchema.parse(body);
-    const { userId, content, ...messageData } = validatedData;
+    const { content, ...messageData } = validatedData;
 
     await checkAndUpdateMessageQuota(userId);
 

@@ -72,11 +72,7 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
     }
     
     console.log('🚀 Updating URL for section:', section);
-    // Update URL without causing a full page reload
-    const url = new URL(window.location.href);
-    url.searchParams.set("section", section);
-    url.searchParams.delete("mentor");
-    window.history.pushState({}, "", url.toString());
+    router.push(`/dashboard?section=${section}`);
   };
 
   const handleMentorSelect = (mentorId: string) => {
@@ -91,7 +87,7 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
     console.log('🚀 Setting selectedMentor to:', mentorId);
     
     // Update URL using Next.js router
-    const newUrl = `/?section=mentor-detail&mentor=${mentorId}`;
+    const newUrl = `/dashboard?section=mentor-detail&mentor=${mentorId}`;
     console.log('🚀 New URL will be:', newUrl);
     
     router.replace(newUrl, undefined, { shallow: true });
@@ -105,7 +101,7 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
     setActiveSection("explore");
     
     // Update URL using Next.js router
-    const newUrl = `/?section=explore`;
+    const newUrl = `/dashboard?section=explore`;
     console.log('🚀 Navigating back to:', newUrl);
     router.replace(newUrl, undefined, { shallow: true });
   };
@@ -148,7 +144,7 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
             userRole="mentee"
           />
           <SidebarInset className="flex flex-col flex-1">
-            <Header />
+            <Header showSidebarTrigger />
             <main className="flex-1 p-6">
               {renderContent()}
             </main>

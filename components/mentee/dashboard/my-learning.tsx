@@ -450,7 +450,7 @@ export function MyLearning() {
           <p className="text-muted-foreground mb-6 max-w-md mx-auto">
             Discover courses from industry experts and build skills that matter for your career.
           </p>
-          <Button onClick={() => router.push('/?section=courses')} size="lg">
+          <Button onClick={() => router.push('/dashboard?section=courses')} size="lg">
             <BookOpen className="w-4 h-4 mr-2" />
             Browse Courses
           </Button>
@@ -604,7 +604,7 @@ export function MyLearning() {
               <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h4 className="text-lg font-medium mb-2">No courses in progress</h4>
               <p className="text-muted-foreground mb-4">Start a new course to see it here.</p>
-              <Button onClick={() => router.push('/?section=courses')}>
+              <Button onClick={() => router.push('/dashboard?section=courses')}>
                 Browse Courses
               </Button>
             </div>

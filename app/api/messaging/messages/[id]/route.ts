@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { messages, messageThreads } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 
 const editMessageSchema = z.object({
-  userId: z.string().min(1),
   content: z.string().min(1).max(5000),
 });
 
@@ -18,10 +18,20 @@ export async function PATCH(
 ) {
   try {
     const messageId = params.id;
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     
     const validatedData = editMessageSchema.parse(body);
-    const { userId, content } = validatedData;
+    const { content } = validatedData;
 
     // Fetch the message
     const [message] = await db
@@ -160,13 +170,13 @@ export async function DELETE(
 ) {
   try {
     const messageId = params.id;
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { 
   messageRequests, 
@@ -14,7 +15,6 @@ import { z } from 'zod';
 const responseSchema = z.object({
   action: z.enum(['accept', 'reject', 'cancel']),
   responseMessage: z.string().optional(),
-  userId: z.string().min(1)
 });
 
 async function createMessagingPermission(requesterId: string, recipientId: string, requestId: string) {
@@ -149,6 +149,16 @@ export async function PATCH(
 ) {
   try {
     const { id: requestId } = await params;
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     
     const validatedData = responseSchema.parse(body);
@@ -173,8 +183,8 @@ export async function PATCH(
       );
     }
 
-    const isRecipient = messageRequest.recipientId === validatedData.userId;
-    const isRequester = messageRequest.requesterId === validatedData.userId;
+    const isRecipient = messageRequest.recipientId === userId;
+    const isRequester = messageRequest.requesterId === userId;
 
     if (validatedData.action === 'cancel') {
       if (!isRequester) {

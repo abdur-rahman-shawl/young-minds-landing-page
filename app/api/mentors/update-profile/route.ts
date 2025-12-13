@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { mentors, mentorsProfileAudit, type Mentor } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -8,6 +9,16 @@ export async function POST(request: NextRequest) {
   console.log('🚀 === MENTOR PROFILE UPDATE API CALLED ===');
   
   try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    const sessionUserId = session?.user?.id;
+
+    if (!sessionUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     // Try to get FormData first, fall back to JSON for backward compatibility
     let userId: string;
     let updateData: any = {};
@@ -43,6 +54,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'User ID is required' },
         { status: 400 }
+      );
+    }
+
+    if (userId !== sessionUserId) {
+      return NextResponse.json(
+        { success: false, error: 'You can only update your own mentor profile' },
+        { status: 403 }
       );
     }
 

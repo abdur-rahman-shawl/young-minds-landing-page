@@ -21,7 +21,7 @@ export default function SignInPageClient() {
   const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') || '/'
+  const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
   const { signIn } = useAuth()
 
   const form = useForm<z.infer<typeof signInSchema>>({

@@ -15,7 +15,7 @@ interface SignInPopupProps {
   callbackUrl?: string
 }
 
-export function SignInPopup({ isOpen, onClose, callbackUrl = "/" }: SignInPopupProps) {
+export function SignInPopup({ isOpen, onClose, callbackUrl = "/dashboard" }: SignInPopupProps) {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { isAuthenticated, signIn } = useAuth()
@@ -36,7 +36,7 @@ export function SignInPopup({ isOpen, onClose, callbackUrl = "/" }: SignInPopupP
         prompt: 'select_account',
       })
       onClose()
-      router.replace('/')
+      router.replace('/dashboard')
       router.refresh()
     } catch (error) {
       console.error("Sign in error:", error)
@@ -57,14 +57,14 @@ export function SignInPopup({ isOpen, onClose, callbackUrl = "/" }: SignInPopupP
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-center text-2xl font-bold">
+      <DialogContent className="w-[92vw] max-w-lg rounded-xl p-5 sm:p-6">
+        <DialogHeader className="space-y-1">
+          <DialogTitle className="text-center text-xl sm:text-2xl font-bold">
             Welcome to SharingMinds
           </DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Default User Sign In */}
           <Card className="border-2 border-primary/20 bg-primary/5">
             <CardHeader className="pb-3">
@@ -133,8 +133,8 @@ export function SignInPopup({ isOpen, onClose, callbackUrl = "/" }: SignInPopupP
           </Card>
         </div>
 
-        <div className="text-center pt-4">
-          <p className="text-xs text-gray-500">
+        <div className="text-center pt-2 sm:pt-4">
+          <p className="text-xs text-gray-500 leading-relaxed">
             By continuing, you agree to our Terms of Service and Privacy Policy
           </p>
         </div>

@@ -298,7 +298,7 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
               : 'Manage your mentees and track your mentoring progress'}
           </p>
         </div>
-        <Button onClick={() => router.push('/?section=mentees')}>
+        <Button onClick={() => router.push('/dashboard?section=mentees')}>
           View All Mentees
         </Button>
       </div>
@@ -345,7 +345,7 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
               size="sm" 
               variant="outline" 
               className="border-blue-300 hover:bg-blue-100"
-              onClick={() => router.push('/?section=messages')}
+              onClick={() => router.push('/dashboard?section=messages')}
             >
               View Messages
             </Button>
@@ -364,7 +364,7 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => router.push('/?section=schedule')}
+              onClick={() => router.push('/dashboard?section=schedule')}
             >
               View All
             </Button>
@@ -501,7 +501,7 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => router.push('/?section=messages')}
+              onClick={() => router.push('/dashboard?section=messages')}
             >
               View All
             </Button>
@@ -585,7 +585,7 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => router.push('/?section=profile')}
+                onClick={() => router.push('/dashboard?section=profile')}
               >
                 Edit Profile
               </Button>

@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { 
   messageThreads,
   messagingPermissions,
-  users,
-  messages
+  users
 } from '@/lib/db/schema';
-import { eq, and, or, desc, ne, sql } from 'drizzle-orm';
+import { eq, and, or, desc, sql } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await auth.api.getSession({ headers: request.headers });
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const userId = session?.user?.id;
     const includeArchived = searchParams.get('includeArchived') === 'true';
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
@@ -131,12 +132,29 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, recipientId } = body;
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
 
-    if (!userId || !recipientId) {
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID and Recipient ID are required' },
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { recipientId } = body;
+
+    if (!recipientId) {
+      return NextResponse.json(
+        { success: false, error: 'Recipient ID is required' },
+        { status: 400 }
+      );
+    }
+
+    if (recipientId === userId) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot create a thread with yourself' },
         { status: 400 }
       );
     }

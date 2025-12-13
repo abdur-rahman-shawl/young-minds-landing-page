@@ -18,7 +18,7 @@ export default function SignInForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const roleParam = searchParams.get("role") as UserRole
-  const callbackUrlParam = searchParams.get('callbackUrl') || '/'
+  const callbackUrlParam = searchParams.get('callbackUrl') || '/dashboard'
 
   useEffect(() => {
     if (roleParam && (roleParam === "mentee" || roleParam === "mentor")) {

@@ -488,7 +488,7 @@ export function MentorDashboard({ user }: MentorDashboardProps) {
           <SidebarProvider defaultOpen={true}>
             <div className='flex min-h-screen w-full'>
               <SidebarInset className='flex flex-col flex-1'>
-                <Header />
+                <Header showSidebarTrigger />
                 <main className='flex-1 p-6'>
                   <div className='space-y-6'>
                     <div>

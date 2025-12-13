@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { 
   messageThreads,
@@ -11,7 +12,6 @@ import { z } from 'zod';
 
 const updateThreadSchema = z.object({
   action: z.enum(['archive', 'unarchive', 'mute', 'unmute', 'delete', 'markAsRead']),
-  userId: z.string().min(1),
   muteDuration: z.number().optional()
 });
 
@@ -21,15 +21,16 @@ export async function GET(
 ) {
   try {
     const { id: threadId } = await params;
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
@@ -174,10 +175,20 @@ export async function PATCH(
 ) {
   try {
     const { id: threadId } = await params;
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     
     const validatedData = updateThreadSchema.parse(body);
-    const { action, userId, muteDuration } = validatedData;
+    const { action, muteDuration } = validatedData;
 
     const [thread] = await db
       .select()

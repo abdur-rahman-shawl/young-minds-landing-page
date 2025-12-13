@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { 
   messageRequests, 
@@ -115,15 +116,16 @@ async function checkExistingRequest(requesterId: string, recipientId: string) {
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await auth.api.getSession({ headers: request.headers });
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const userId = session?.user?.id;
     const type = searchParams.get('type') || 'all';
     const status = searchParams.get('status') || 'pending';
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
@@ -174,17 +176,26 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth.api.getSession({ headers: request.headers });
     const body = await request.json();
-    const { userId, ...requestData } = body;
+    const { recipientId, ...requestData } = body;
+    const userId = session?.user?.id;
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'User ID is required' },
+        { success: false, error: 'Authentication required' },
         { status: 401 }
       );
     }
 
-    const validatedData = createRequestSchema.parse(requestData);
+    const validatedData = createRequestSchema.parse({ recipientId, ...requestData });
+
+    if (validatedData.recipientId === userId) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot send a message request to yourself' },
+        { status: 400 }
+      );
+    }
 
     await checkAndUpdateQuota(userId);
 

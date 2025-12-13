@@ -81,7 +81,7 @@ export function MentorMentees() {
           <h1 className="text-3xl font-bold">My Mentees</h1>
           <p className="text-gray-600 mt-1">View and manage your mentees from booked sessions</p>
         </div>
-        <Button onClick={() => router.push("/?section=schedule")}>
+        <Button onClick={() => router.push("/dashboard?section=schedule")}>
           <Calendar className="mr-2 h-4 w-4" />
           View Schedule
         </Button>
@@ -218,9 +218,9 @@ export function MentorMentees() {
                 <SessionMenteeCard
                   key={mentee.menteeId}
                   mentee={mentee}
-                  onMessage={() => router.push(`/?section=messages`)}
-                  onSchedule={() => router.push(`/?section=schedule`)}
-                  onViewSessions={() => router.push(`/?section=sessions`)}
+                  onMessage={() => router.push(`/dashboard?section=messages`)}
+                  onSchedule={() => router.push(`/dashboard?section=schedule`)}
+                  onViewSessions={() => router.push(`/dashboard?section=sessions`)}
                 />
               ))}
             </div>
@@ -241,7 +241,7 @@ export function MentorMentees() {
                     : "No past mentees"}
                 </p>
                 {!searchTerm && activeTab === "all" && (
-                  <Button onClick={() => router.push("/?section=schedule")}>
+                  <Button onClick={() => router.push("/dashboard?section=schedule")}>
                     View Your Schedule
                   </Button>
                 )}

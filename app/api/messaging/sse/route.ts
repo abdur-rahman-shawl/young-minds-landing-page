@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { 
   messages,
-  messageThreads,
   messageRequests,
   notifications,
-  messagingPermissions
 } from '@/lib/db/schema';
-import { eq, and, or, gt, desc } from 'drizzle-orm';
+import { eq, and, gt } from 'drizzle-orm';
+import { auth } from '@/lib/auth';
 
 const activeConnections = new Map<string, { 
   controller: ReadableStreamDefaultController;
@@ -29,15 +28,22 @@ function createSSEMessage(data: any, eventType: string = 'message', id?: string)
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const userId = searchParams.get('userId');
-  const lastEventId = searchParams.get('lastEventId') || new Date().toISOString();
+  const providedLastEventId = searchParams.get('lastEventId');
+
+  const session = await auth.api.getSession({ headers: request.headers });
+
+  const userId = session?.user?.id;
 
   if (!userId) {
     return NextResponse.json(
-      { success: false, error: 'User ID is required' },
-      { status: 400 }
+      { success: false, error: 'Authentication required' },
+      { status: 401 }
     );
   }
+
+  const lastEventId = providedLastEventId && !isNaN(Date.parse(providedLastEventId))
+    ? providedLastEventId
+    : new Date().toISOString();
 
   const encoder = new TextEncoder();
   
@@ -76,14 +82,17 @@ export async function GET(request: NextRequest) {
               data: message,
               timestamp: message.createdAt.toISOString()
             };
+            const eventId = message.createdAt
+              ? message.createdAt.toISOString()
+              : new Date().toISOString();
             
             controller.enqueue(
               encoder.encode(
-                createSSEMessage(eventData, 'message', message.id)
+                createSSEMessage(eventData, 'message', eventId)
               )
             );
             
-            connection.lastEventId = message.createdAt.toISOString();
+            connection.lastEventId = eventId;
           }
 
           // Note: Message reactions feature can be added here later if needed
@@ -106,12 +115,16 @@ export async function GET(request: NextRequest) {
               data: request,
               timestamp: request.createdAt.toISOString()
             };
+            const eventId = request.createdAt
+              ? request.createdAt.toISOString()
+              : new Date().toISOString();
             
             controller.enqueue(
               encoder.encode(
-                createSSEMessage(eventData, 'request', request.id)
+                createSSEMessage(eventData, 'request', eventId)
               )
             );
+            connection.lastEventId = eventId;
           }
 
           const newNotifications = await db
@@ -132,12 +145,16 @@ export async function GET(request: NextRequest) {
               data: notification,
               timestamp: notification.createdAt.toISOString()
             };
+            const eventId = notification.createdAt
+              ? notification.createdAt.toISOString()
+              : new Date().toISOString();
             
             controller.enqueue(
               encoder.encode(
-                createSSEMessage(eventData, 'notification', notification.id)
+                createSSEMessage(eventData, 'notification', eventId)
               )
             );
+            connection.lastEventId = eventId;
           }
 
         } catch (error) {

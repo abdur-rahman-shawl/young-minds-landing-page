@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { notifications } from '@/lib/db/schema';
@@ -17,7 +16,7 @@ const bulkUpdateSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const session = await auth.api.getSession({
-      headers: await headers()
+      headers: req.headers
     });
 
     if (!session) {
