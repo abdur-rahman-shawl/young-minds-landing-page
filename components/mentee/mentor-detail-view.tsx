@@ -50,6 +50,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>("overview")
+  const isMessageMentorEnabled = false;
 
   const handleBookSession = () => {
     if (!session) {
@@ -526,7 +527,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                 </CardContent>
               </Card>
 
-              <Card className="mt-4 border border-gray-200 dark:border-gray-800 shadow-sm rounded-xl">
+              {isMessageMentorEnabled && (<Card className="mt-4 border border-gray-200 dark:border-gray-800 shadow-sm rounded-xl">
                 <CardContent className="p-6">
                   <div className="flex flex-col gap-3">
                     <h4 className="font-bold text-gray-900 dark:text-white text-md">Have a quick question?</h4>
@@ -539,7 +540,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                     </Button>
                   </div>
                 </CardContent>
-              </Card>
+              </Card>)}
             </div>
 
           </div>
