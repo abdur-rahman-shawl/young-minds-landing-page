@@ -193,9 +193,9 @@ export async function getTopUniversitiesSearched(startDate: Date, endDate: Date,
   const rows = await db.execute(sql`
     SELECT
       university,
-      COUNT(*) AS mentions
+      SUM(frequency) AS mentions
     FROM (
-      SELECT unnest(universities) AS university, created_at
+      SELECT unnest(universities) AS university, frequency, created_at
       FROM ai_chatbot_message_insights
       WHERE universities IS NOT NULL
     ) sub
@@ -215,7 +215,7 @@ export async function getTopMenteeQuestions(startDate: Date, endDate: Date, limi
   const rows = await db.execute(sql`
     SELECT
       question_text AS query,
-      COUNT(*) AS mentions
+      SUM(frequency) AS mentions
     FROM ai_chatbot_message_insights
     WHERE is_question = true
       AND question_text IS NOT NULL
