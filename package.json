@@ -74,7 +74,7 @@
     "livekit-server-sdk": "^2.14.0",
     "lucide-react": "^0.454.0",
     "media-chrome": "^4.12.0",
-    "next": "^15.5.2",
+    "next": "15.5.9",
     "next-themes": "latest",
     "nodemailer": "^7.0.9",
     "postgres": "^3.4.7",
