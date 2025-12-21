@@ -859,6 +859,9 @@ export function AdminMentors() {
               <TabsTrigger value='verified'>
                 Verified ({verifiedMentors.length})
               </TabsTrigger>
+              <TabsTrigger value='rejected'>
+                Rejected ({rejectedMentors.length})
+              </TabsTrigger>
               <TabsTrigger value='all'>All ({mentors.length})</TabsTrigger>
             </TabsList>
             <TabsContent value='pending'>
@@ -892,6 +895,9 @@ export function AdminMentors() {
                 </label>
               </div>
               {renderMentorList(filteredVerifiedMentors)}
+            </TabsContent>
+            <TabsContent value='rejected'>
+              {renderMentorList(rejectedMentors)}
             </TabsContent>
             <TabsContent value='all'>
               {renderMentorList(mentors)}
@@ -968,85 +974,6 @@ export function AdminMentors() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        )}
-      </Dialog>
-      <Dialog open={!!vipInviteMentor} onOpenChange={(open) => !open && setVipInviteMentor(null)}>
-        {vipInviteMentor && (
-          <DialogContent className='fixed inset-0 left-0 top-0 flex h-screen w-screen max-w-none translate-x-0 translate-y-0 items-center justify-center border-none bg-transparent p-4 shadow-none sm:max-w-none sm:p-6 [&>button:last-of-type]:hidden'>
-  <div className='relative w-full max-w-[440px] overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-slate-950 via-[#0b1426] to-black text-amber-50 shadow-[0_25px_80px_rgba(0,0,0,0.55)]'>
-    
-    {/* Decorative Background Pattern */}
-    <div className='pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(251,191,36,0.15),transparent_45%)]' />
-    
-    <div className='relative p-6 space-y-6'>
-      <DialogHeader className='relative space-y-4 text-center'>
-        <div className='mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 shadow-[0_0_15px_rgba(245,158,11,0.2)]'>
-          <Crown className='h-6 w-6 text-amber-300' />
-        </div>
-        
-        <div className='space-y-2'>
-          <DialogTitle className='text-2xl font-semibold tracking-tight text-amber-50'>
-            Grant VIP Access
-          </DialogTitle>
-          <DialogDescription className='text-sm leading-relaxed text-slate-400'>
-            You are generating a premium invite for{' '}
-            <span className='font-semibold text-amber-100'>
-              {vipInviteMentor.name || vipInviteMentor.fullName || 'this mentor'}
-            </span>
-            .
-          </DialogDescription>
-        </div>
-      </DialogHeader>
-
-      {/* Value Proposition Box */}
-      <div className='relative overflow-hidden rounded-xl border border-amber-500/20 bg-gradient-to-b from-amber-500/10 to-transparent p-4 text-center'>
-        <div className='space-y-1'>
-          <p className='text-xs font-medium uppercase tracking-wider text-amber-400/80'>
-            Exclusive Benefit
-          </p>
-          <p className='text-lg font-medium text-amber-100'>
-            Waives ₹5,000 Onboarding Fee
-          </p>
-          <p className='text-xs text-slate-400'>
-            + Priority white-glove support included
-          </p>
-        </div>
-      </div>
-
-      {hasSentVipInvite(vipInviteMentor.id) && (
-        <div className='flex items-center justify-center gap-2 rounded-lg bg-emerald-500/10 py-2 text-xs font-medium text-emerald-400 border border-emerald-500/20'>
-          <CheckCircle2 className='h-3.5 w-3.5' />
-          Invitation previously sent
-        </div>
-      )}
-    </div>
-
-    <DialogFooter className='relative grid grid-cols-2 gap-3 border-t border-white/5 bg-black/40 p-4'>
-      <Button
-        type='button'
-        variant='secondary'
-        className='w-full border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
-        onClick={() => setVipInviteMentor(null)}
-        disabled={isVipSending}
-      >
-        Cancel
-      </Button>
-      <Button
-        type='button'
-        className='w-full gap-2 bg-gradient-to-r from-amber-600 to-amber-500 text-white shadow-lg shadow-amber-500/20 hover:from-amber-500 hover:to-amber-400'
-        onClick={handleVipSend}
-        disabled={isVipSending}
-      >
-        {isVipSending ? (
-          <Loader2 className='h-4 w-4 animate-spin' />
-        ) : (
-          <Sparkles className='h-4 w-4 fill-white/20' />
-        )}
-        {isVipSending ? 'Sending...' : 'Send Code'}
-      </Button>
-    </DialogFooter>
-  </div>
-</DialogContent>
         )}
       </Dialog>
       <Dialog
