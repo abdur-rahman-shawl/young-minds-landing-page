@@ -988,9 +988,18 @@ export function AdminMentors() {
           <DialogContent className="max-w-4xl">
             <div className="max-h-[80vh] overflow-y-auto p-6 space-y-6">
               {isAuditLoading ? (
-                <div className="flex h-[50vh] items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
+                <>
+                  {/* FIX: Added Header/Title here to satisfy accessibility requirements during loading */}
+                  <DialogHeader>
+                    <DialogTitle>Loading details</DialogTitle>
+                    <DialogDescription>
+                      Fetching mentor information...
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="flex h-[50vh] items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                </>
               ) : auditData && selectedMentor.verificationStatus === 'UPDATED_PROFILE' ? (
                 <>
                   <DialogHeader>
