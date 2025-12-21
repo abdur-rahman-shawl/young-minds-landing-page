@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
 import { users } from './users';
 import { aiChatbotMessages } from './ai-chatbot-messages';
 
@@ -15,6 +15,7 @@ export const aiChatbotMessageInsights = pgTable('ai_chatbot_message_insights', {
   isQuestion: boolean('is_question').notNull().default(false),
   universities: text('universities').array(),
   source: text('source').default('heuristic').notNull(),
+  frequency: integer('frequency').notNull().default(1),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

@@ -83,7 +83,6 @@ export async function POST(request: NextRequest) {
       .update(mentors)
       .set({
         paymentStatus: 'COMPLETED',
-        couponCode: null,
         updatedAt: new Date(),
       })
       .where(eq(mentors.id, mentor.id));
