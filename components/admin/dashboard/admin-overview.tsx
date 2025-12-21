@@ -9,12 +9,13 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import {
+  AlertTriangle,
+  CalendarClock,
+  Inbox,
+  PieChart,
   Users,
   UserCheck,
   UserPlus,
-  CalendarClock,
-  AlertTriangle,
-  PieChart,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
@@ -59,20 +60,23 @@ const toRecentCount = (items: { createdAt: string | null }[]) => {
 export function AdminOverview() {
   const [mentors, setMentors] = useState<MentorItem[]>([]);
   const [mentees, setMentees] = useState<MenteeItem[]>([]);
+  const [enquiryCount, setEnquiryCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<string>("");
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [mentorResponse, menteeResponse] = await Promise.all([
+        const [mentorResponse, menteeResponse, enquiryResponse] = await Promise.all([
           fetch("/api/admin/mentors", { credentials: "include" }),
           fetch("/api/admin/mentees", { credentials: "include" }),
+          fetch("/api/admin/enquiries", { credentials: "include" }),
         ]);
 
-        const [mentorJson, menteeJson] = await Promise.all([
+        const [mentorJson, menteeJson, enquiryJson] = await Promise.all([
           mentorResponse.json().catch(() => ({ success: false })),
           menteeResponse.json().catch(() => ({ success: false })),
+          enquiryResponse.json().catch(() => ({ success: false })),
         ]);
 
         if (mentorResponse.ok && mentorJson?.success) {
@@ -93,6 +97,10 @@ export function AdminOverview() {
               createdAt: mentee.createdAt ?? null,
             })),
           );
+        }
+
+        if (enquiryResponse.ok && enquiryJson?.success && Array.isArray(enquiryJson.data)) {
+          setEnquiryCount(enquiryJson.data.length);
         }
 
         setLastRefreshed(new Date().toLocaleTimeString());
@@ -168,6 +176,12 @@ export function AdminOverview() {
       value: formatNumber(stats.totalMentees),
       description: `${formatNumber(stats.menteesThisWeek)} joined this week`,
       icon: UserPlus,
+    },
+    {
+      title: "Total enquiries",
+      value: formatNumber(enquiryCount),
+      description: "Contact form submissions",
+      icon: Inbox,
     },
   ];
 

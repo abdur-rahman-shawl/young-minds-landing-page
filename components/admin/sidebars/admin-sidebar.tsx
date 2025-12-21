@@ -11,7 +11,7 @@ import {
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/auth-context";
-import { LayoutDashboard, Users, GraduationCap, Settings, BarChart3 } from "lucide-react";
+import { LayoutDashboard, Users, GraduationCap, Settings, BarChart3, Inbox } from "lucide-react";
 
 interface AdminSidebarProps {
   active: string;
@@ -26,6 +26,7 @@ export function AdminSidebar({ active, onChange }: AdminSidebarProps) {
     { key: "mentors", title: "Mentors", icon: GraduationCap },
     { key: "mentees", title: "Mentees", icon: Users },
     { key: "analytics", title: "Analytics", icon: BarChart3 },
+    { key: "enquiries", title: "Enquiries", icon: Inbox },
     { key: "settings", title: "Settings", icon: Settings },
   ];
 

@@ -26,6 +26,7 @@ import { MyLearning } from "@/components/mentee/dashboard/my-learning"
 import { AdminMentors } from "@/components/admin/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/admin/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
+import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { useAuth } from "@/contexts/auth-context"
 import { AlertTriangle } from "lucide-react"
@@ -116,6 +117,8 @@ export function DashboardShell() {
           return <AdminMentees />
         case "analytics":
           return <AdminAnalytics />
+        case "enquiries":
+          return <AdminEnquiries />
         default:
           return <AdminOverview />
       }
