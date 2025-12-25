@@ -7,6 +7,7 @@ import { LiveSessionUI } from "@/components/booking/LiveSessionUI"
 import { SessionRating } from "@/components/booking/SessionRating"
 import { CheckCircle, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { logConsentEvents } from "@/lib/consent-client"
 
 interface SessionUser {
   id: string
@@ -122,9 +123,24 @@ export default function SessionPage() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true })
       setMediaStream(stream)
       setIsCameraOn(true)
+      logConsentEvents({
+        consentType: "camera",
+        action: "granted",
+        source: "browser_prompt",
+        context: { location: "session-page" },
+      })
     } catch (err) {
       console.error("Error accessing camera:", err)
       setIsCameraOn(false)
+      logConsentEvents({
+        consentType: "camera",
+        action: "denied",
+        source: "browser_prompt",
+        context: {
+          location: "session-page",
+          error: err instanceof Error ? err.message : "unknown_error",
+        },
+      })
     }
   }
 
@@ -213,5 +229,3 @@ export default function SessionPage() {
     </div>
   )
 }
-
-

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { SessionLobby } from "./SessionLobby"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
+import { logConsentEvents } from "@/lib/consent-client"
 
 interface SessionParticipant {
   id: string
@@ -79,9 +80,24 @@ export function SessionLobbyModal({ sessionId, isOpen, viewerRole, onClose }: Se
       const stream = await navigator.mediaDevices.getUserMedia({ video: true })
       setMediaStream(stream)
       setIsCameraOn(true)
+      logConsentEvents({
+        consentType: "camera",
+        action: "granted",
+        source: "browser_prompt",
+        context: { location: "session-lobby-modal" },
+      })
     } catch (err) {
       console.error("Error accessing camera:", err)
       setIsCameraOn(false)
+      logConsentEvents({
+        consentType: "camera",
+        action: "denied",
+        source: "browser_prompt",
+        context: {
+          location: "session-lobby-modal",
+          error: err instanceof Error ? err.message : "unknown_error",
+        },
+      })
     }
   }
 
@@ -160,4 +176,3 @@ export function SessionLobbyModal({ sessionId, isOpen, viewerRole, onClose }: Se
     </Dialog>
   )
 }
-

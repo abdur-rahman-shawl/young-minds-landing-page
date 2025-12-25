@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation"
 import { FcGoogle } from "react-icons/fc"
 import { ArrowLeft, UserCheck, User } from "lucide-react"
 import { mentorApplicationSchema } from "@/lib/validations/mentor"
+import { logConsentEvents } from "@/lib/consent-client"
 import { z } from "zod"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -468,6 +469,16 @@ export default function BecomeExpertPage() {
         profilePicture: mentorFormData.profilePicture ?? undefined,
         resume: mentorFormData.resume ?? undefined,
       });
+
+      logConsentEvents({
+        consentType: "terms_and_conditions",
+        action: "granted",
+        source: "ui",
+        context: {
+          location: "become-expert-form",
+          flow: isReverificationFlow ? "reverification" : "application",
+        },
+      })
 
       const formData = new FormData();
       formData.append('userId', session.user.id);
