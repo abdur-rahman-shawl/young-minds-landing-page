@@ -8,6 +8,7 @@ import { LiveSessionUI } from "./LiveSessionUI"
 import { SessionRating } from "./SessionRating"
 import { CheckCircle } from "lucide-react"
 import { Button } from "../ui/button"
+import { logConsentEvents } from "@/lib/consent-client"
 
 interface Session {
   id: string
@@ -34,9 +35,24 @@ export function SessionViewModal({ session, isOpen, onClose }: SessionViewModalP
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       setMediaStream(stream);
       setIsCameraOn(true);
+      logConsentEvents({
+        consentType: "camera",
+        action: "granted",
+        source: "browser_prompt",
+        context: { location: "session-view-modal" },
+      })
     } catch (err) {
       console.error("Error accessing camera:", err);
       setIsCameraOn(false);
+      logConsentEvents({
+        consentType: "camera",
+        action: "denied",
+        source: "browser_prompt",
+        context: {
+          location: "session-view-modal",
+          error: err instanceof Error ? err.message : "unknown_error",
+        },
+      })
     }
   };
 
