@@ -39,6 +39,8 @@ import { AdminSidebar } from "@/components/admin/sidebars/admin-sidebar"
 import { AdminMentors } from "@/components/admin/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/admin/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
+import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
+import { AdminSubscriptions } from "@/components/admin/dashboard/admin-subscriptions"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { Courses } from "@/components/shared/dashboard/courses"
 import { MyLearning } from "@/components/mentee/dashboard/my-learning"
@@ -131,6 +133,10 @@ export function PageContent() {
           return <AdminMentees />
         case "analytics":
           return <AdminAnalytics />
+        case "enquiries":
+          return <AdminEnquiries />
+        case "subscriptions":
+          return <AdminSubscriptions />
         default:
           return <AdminOverview />
       }
