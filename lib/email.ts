@@ -1,14 +1,19 @@
 
 import nodemailer from 'nodemailer';
+import { recordEmailEvent } from '@/lib/audit';
 
 async function sendEmail({
   to,
   subject,
   html,
+  auditAction,
+  auditDetails,
 }: {
   to: string;
   subject: string;
   html: string;
+  auditAction: string;
+  auditDetails: Record<string, any>;
 }) {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -17,6 +22,19 @@ async function sendEmail({
       pass: process.env.GMAIL_APP_PASSWORD,
     },
   });
+
+  try {
+    await recordEmailEvent({
+      action: auditAction,
+      to,
+      subject,
+      template: auditDetails.template,
+      actorType: 'system',
+      details: auditDetails,
+    });
+  } catch (error) {
+    console.error('Failed to record email audit event:', error);
+  }
 
   await transporter.sendMail({
     from: `"SharingMinds" <${process.env.GMAIL_APP_USER}>`,
@@ -42,7 +60,18 @@ export async function sendApplicationReceivedEmail(email: string, name: string) 
         </div>
       `;
 
-    await sendEmail({ to: email, subject, html });
+    await sendEmail({
+      to: email,
+      subject,
+      html,
+      auditAction: 'email.application.received',
+      auditDetails: {
+        to: email,
+        subject,
+        template: 'application-received',
+        recipientName: name,
+      },
+    });
 
     return { success: true, message: 'Application received email sent successfully' };
   } catch (error) {
@@ -51,7 +80,15 @@ export async function sendApplicationReceivedEmail(email: string, name: string) 
   }
 }
 
-export async function sendMentorApplicationApprovedEmail(email: string, name: string, couponCode?: string) {
+export async function sendMentorApplicationApprovedEmail(
+  email: string,
+  name: string,
+  couponCode?: string,
+  options?: {
+    auditAction?: string;
+    auditDetails?: Record<string, any>;
+  }
+) {
   try {
     const subject = 'Congratulations! Your SharingMinds Mentor Application is Approved';
     const couponSection = couponCode
@@ -76,7 +113,23 @@ export async function sendMentorApplicationApprovedEmail(email: string, name: st
         </div>
       `;
 
-    await sendEmail({ to: email, subject, html });
+    const auditDetails = {
+      to: email,
+      subject,
+      template: 'mentor-approved',
+      recipientName: name,
+      couponCodeProvided: Boolean(couponCode),
+      ...(couponCode ? { couponCode } : {}),
+      ...(options?.auditDetails ?? {}),
+    };
+
+    await sendEmail({
+      to: email,
+      subject,
+      html,
+      auditAction: options?.auditAction ?? 'email.mentor.approved',
+      auditDetails,
+    });
 
     return { success: true, message: 'Mentor application approved email sent successfully' };
   } catch (error) {
@@ -100,7 +153,19 @@ export async function sendMentorApplicationRejectedEmail(email: string, name: st
         </div>
       `;
 
-    await sendEmail({ to: email, subject, html });
+    await sendEmail({
+      to: email,
+      subject,
+      html,
+      auditAction: 'email.mentor.rejected',
+      auditDetails: {
+        to: email,
+        subject,
+        template: 'mentor-rejected',
+        recipientName: name,
+        notesProvided: Boolean(notes),
+      },
+    });
 
     return { success: true, message: 'Mentor application rejected email sent successfully' };
   } catch (error) {
@@ -125,7 +190,19 @@ export async function sendMentorApplicationReverificationRequestEmail(email: str
         </div>
       `;
 
-    await sendEmail({ to: email, subject, html });
+    await sendEmail({
+      to: email,
+      subject,
+      html,
+      auditAction: 'email.mentor.reverification_requested',
+      auditDetails: {
+        to: email,
+        subject,
+        template: 'mentor-reverification-requested',
+        recipientName: name,
+        notesProvided: Boolean(notes),
+      },
+    });
 
     return { success: true, message: 'Mentor application reverification request email sent successfully' };
   } catch (error) {

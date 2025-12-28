@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const wasCouponEnabled = Boolean(mentor.isCouponCodeEnabled && mentor.couponCode);
     const couponCode = generateCouponCode();
 
     await db
@@ -86,6 +87,11 @@ export async function POST(request: NextRequest) {
       mentor.email,
       mentor.fullName ?? 'Mentor',
       couponCode,
+      {
+        auditAction: wasCouponEnabled
+          ? 'email.mentor.approved.resend.couponcode'
+          : 'email.mentor.approved.send.couponcode',
+      }
     );
 
     await logAdminAction({

@@ -2,12 +2,20 @@ import { db } from "@/lib/db";
 import { emailVerifications } from "@/lib/db/schema/email-verifications";
 import nodemailer from 'nodemailer';
 import { randomInt } from 'crypto';
+import { recordEmailEvent } from '@/lib/audit';
+import { eq } from 'drizzle-orm';
 
 export async function sendVerificationOtp(email: string) {
   try {
     const otp = randomInt(100000, 999999);
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 mins from now
+
+    const existingVerification = await db
+      .select({ email: emailVerifications.email })
+      .from(emailVerifications)
+      .where(eq(emailVerifications.email, email))
+      .limit(1);
 
     await db
       .insert(emailVerifications)
@@ -24,6 +32,25 @@ export async function sendVerificationOtp(email: string) {
         pass: process.env.GMAIL_APP_PASSWORD,
       },
     });
+
+    try {
+      const action = existingVerification.length > 0
+        ? 'email.auth.otp.resend'
+        : 'email.auth.otp';
+
+      await recordEmailEvent({
+        action,
+        to: email,
+        subject: 'Your Verification Code',
+        template: 'auth-otp',
+        actorType: 'system',
+        details: {
+          otp,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to record OTP email audit event:', error);
+    }
 
     await transporter.sendMail({
       from: `"SharingMinds" <${process.env.GMAIL_APP_USER}>`,
