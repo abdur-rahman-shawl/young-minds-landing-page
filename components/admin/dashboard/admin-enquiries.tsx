@@ -5,9 +5,9 @@ import { formatDistanceToNow } from "date-fns";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
+  CardTitle, // Removed CardDescription import if not used, or keep if used
+  CardDescription, 
 } from "@/components/ui/card";
 import {
   Table,
@@ -24,25 +24,21 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
-  Inbox,
   Loader2,
   Search,
-  ShieldCheck,
-  ShieldX,
   Eye,
   Mail,
   Calendar,
   Monitor,
-  Globe,
   CheckCircle2,
+  RotateCcw,
 } from "lucide-react";
 
 interface Enquiry {
@@ -63,6 +59,7 @@ type StatusFilter = "all" | "open" | "resolved";
 export function AdminEnquiries() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [selectedEnquiry, setSelectedEnquiry] = useState<Enquiry | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -72,9 +69,9 @@ export function AdminEnquiries() {
     try {
       const res = await fetch("/api/admin/enquiries");
       const json = await res.json().catch(() => ({ success: false }));
-      if (!res.ok || !json?.success) throw new Error(json?.error || "Error");
-      setEnquiries(json.data ?? []);
+      setEnquiries(json.data ?? []); 
     } catch (err) {
+      console.error(err);
       toast.error("Failed to load enquiries");
     } finally {
       setLoading(false);
@@ -84,6 +81,45 @@ export function AdminEnquiries() {
   useEffect(() => {
     fetchEnquiries();
   }, []);
+
+  // --- DB DRIVEN STATUS TOGGLE ---
+  const toggleStatus = async (id: string, currentStatus: boolean) => {
+    setUpdatingId(id);
+    const newStatus = !currentStatus;
+
+    try {
+      // API call to update the DB
+      const res = await fetch(`/api/admin/enquiries/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ isResolved: newStatus }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to update status");
+      }
+
+      // If DB update succeeds, update local state
+      setEnquiries((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, isResolved: newStatus } : e))
+      );
+
+      // Also update the open sheet view if needed
+      if (selectedEnquiry && selectedEnquiry.id === id) {
+        setSelectedEnquiry({ ...selectedEnquiry, isResolved: newStatus });
+      }
+
+      toast.success(newStatus ? "Marked as resolved" : "Issue reopened");
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Something went wrong");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const filteredEnquiries = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -97,7 +133,6 @@ export function AdminEnquiries() {
     });
   }, [enquiries, search, statusFilter]);
 
-  // Helper to get initials for Avatar
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -118,7 +153,6 @@ export function AdminEnquiries() {
 
   return (
     <div className="space-y-6 p-6">
-      {/* Header Section */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Enquiries</h2>
@@ -127,7 +161,6 @@ export function AdminEnquiries() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* Status Filters */}
           <div className="flex items-center rounded-lg border bg-background p-1 shadow-sm">
             {(["all", "open", "resolved"] as const).map((status) => (
               <Button
@@ -251,7 +284,6 @@ export function AdminEnquiries() {
         </CardContent>
       </Card>
 
-      {/* READING PANE (SHEET) */}
       <Sheet
         open={!!selectedEnquiry}
         onOpenChange={(open) => !open && setSelectedEnquiry(null)}
@@ -259,7 +291,6 @@ export function AdminEnquiries() {
         <SheetContent className="sm:max-w-xl w-full flex flex-col gap-0 p-0">
           {selectedEnquiry && (
             <>
-              {/* Header */}
               <SheetHeader className="px-6 py-6 border-b bg-muted/10">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
@@ -288,7 +319,6 @@ export function AdminEnquiries() {
 
               <ScrollArea className="flex-1">
                 <div className="p-6 space-y-8">
-                  {/* Sender Card */}
                   <div className="flex items-center gap-4 rounded-lg border p-4 bg-card shadow-sm">
                     <Avatar className="h-12 w-12">
                       <AvatarFallback className="text-lg">
@@ -309,7 +339,6 @@ export function AdminEnquiries() {
                     </div>
                   </div>
 
-                  {/* The Actual Message - Focused Readability */}
                   <div className="space-y-3">
                     <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                       Message
@@ -319,7 +348,6 @@ export function AdminEnquiries() {
                     </div>
                   </div>
 
-                  {/* Metadata Section */}
                   <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
                     <h3 className="text-sm font-medium flex items-center gap-2">
                       <Monitor className="h-4 w-4" /> Technical Details
@@ -363,14 +391,43 @@ export function AdminEnquiries() {
                 </div>
               </ScrollArea>
 
-              {/* Footer Actions */}
               <div className="p-6 border-t bg-background mt-auto flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setSelectedEnquiry(null)}>
                   Close
                 </Button>
-                <Button>
-                  <Mail className="mr-2 h-4 w-4" /> Reply via Email
-                </Button>
+
+                {selectedEnquiry.isResolved ? (
+                  <Button
+                    variant="outline"
+                    className="gap-2 border-amber-200 hover:bg-amber-50 text-amber-700 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950"
+                    onClick={() =>
+                      toggleStatus(selectedEnquiry.id, selectedEnquiry.isResolved)
+                    }
+                    disabled={updatingId === selectedEnquiry.id}
+                  >
+                    {updatingId === selectedEnquiry.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4" />
+                    )}
+                    Reopen Issue
+                  </Button>
+                ) : (
+                  <Button
+                    className="gap-2"
+                    onClick={() =>
+                      toggleStatus(selectedEnquiry.id, selectedEnquiry.isResolved)
+                    }
+                    disabled={updatingId === selectedEnquiry.id}
+                  >
+                    {updatingId === selectedEnquiry.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    Mark as Resolved
+                  </Button>
+                )}
               </div>
             </>
           )}

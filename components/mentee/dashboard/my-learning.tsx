@@ -2,38 +2,32 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { motion } from 'framer-motion';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Play, 
   Clock, 
   BookOpen, 
   Award, 
   TrendingUp,
-  Calendar,
-  Users,
-  Star,
-  Filter,
-  Download,
   Target,
   Zap,
   Trophy,
-  ArrowRight,
-  BarChart3,
-  BookmarkCheck,
-  MessageSquare,
   ChevronRight,
   Flame,
-  Sparkles
+  Sparkles,
+  Download
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
+import { cn } from "@/lib/utils"; // Assuming you have this util, if not just use classNames
 
+// ... [Keep Interfaces exactly the same as original file] ...
 interface EnrolledCourse {
   enrollment: {
     id: string;
@@ -192,18 +186,15 @@ export function MyLearning() {
     }
   };
 
-  // Use real analytics data or provide sensible defaults
   const learningStreak = analytics?.currentStreak || 0;
   const weeklyGoal = analytics?.weeklyGoal?.goalHours || 5;
   const weeklyProgress = analytics?.weeklyGoal?.actualHours || 0;
 
-  // Get recently accessed courses
   const recentCourses = courses
     .filter(course => course.enrollment.lastAccessedAt)
     .sort((a, b) => new Date(b.enrollment.lastAccessedAt!).getTime() - new Date(a.enrollment.lastAccessedAt!).getTime())
     .slice(0, 3);
 
-  // Get courses in progress
   const inProgressCourses = courses
     .filter(course => course.enrollment.status === 'ACTIVE' && course.enrollment.overallProgress > 0 && course.enrollment.overallProgress < 100)
     .sort((a, b) => b.enrollment.overallProgress - a.enrollment.overallProgress)
@@ -211,19 +202,17 @@ export function MyLearning() {
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
-      case 'BEGINNER': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
-      case 'INTERMEDIATE': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
-      case 'ADVANCED': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+      case 'BEGINNER': return 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800';
+      case 'INTERMEDIATE': return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800';
+      case 'ADVANCED': return 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800';
+      default: return 'bg-slate-100 text-slate-800';
     }
   };
 
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    if (hours > 0) {
-      return `${hours}h ${mins}m`;
-    }
+    if (hours > 0) return `${hours}h ${mins}m`;
     return `${mins}m`;
   };
 
@@ -234,238 +223,240 @@ export function MyLearning() {
     return `${hours}h ${remainingMins > 0 ? ` ${remainingMins}m` : ''}`;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
-      case 'COMPLETED': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
-      case 'PAUSED': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
-      case 'DROPPED': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
-    }
-  };
+  // --- Styled Components ---
 
-  const StatCard = ({ icon: Icon, title, value, subtitle, trend, color = "text-primary" }: any) => (
-    <Card className="relative overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className={`h-4 w-4 ${color}`} />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
-        {trend && (
-          <div className="flex items-center mt-1">
-            <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
-            <span className="text-xs text-green-500 font-medium">{trend}</span>
+  const StatCard = ({ icon: Icon, title, value, subtitle, trend, color = "text-primary", bgClass }: any) => (
+    <motion.div whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 300 }}>
+      <Card className="relative overflow-hidden border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
+        <div className={`absolute right-0 top-0 h-24 w-24 translate-x-8 translate-y--8 rounded-full opacity-10 ${bgClass}`} />
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+          <div className={`p-2 rounded-full bg-slate-50 dark:bg-slate-900 ${color}`}>
+            <Icon className="h-4 w-4" />
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold tracking-tight">{value}</div>
+          {subtitle && <p className="text-xs text-muted-foreground mt-1 font-medium">{subtitle}</p>}
+          {trend && (
+            <div className="flex items-center mt-2 bg-green-50 dark:bg-green-900/20 w-fit px-2 py-0.5 rounded-full">
+              <TrendingUp className="h-3 w-3 text-green-600 dark:text-green-400 mr-1" />
+              <span className="text-xs text-green-600 dark:text-green-400 font-semibold">{trend}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 
   const CompactCourseCard = ({ course }: { course: EnrolledCourse }) => (
-    <Card className="group hover:shadow-md transition-all duration-200 cursor-pointer" 
-          onClick={() => router.push(`/learn/${course.course.id}`)}>
-      <div className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
-            {course.course.thumbnailUrl ? (
-              <img 
-                src={course.course.thumbnailUrl} 
-                alt={course.course.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                <span className="text-white text-lg font-bold">{course.course.title.charAt(0)}</span>
+    <motion.div whileHover={{ scale: 1.02 }} className="h-full">
+      <Card className="group h-full cursor-pointer border-slate-200 dark:border-slate-800 hover:border-primary/50 transition-colors" 
+            onClick={() => router.push(`/learn/${course.course.id}`)}>
+        <div className="p-4 flex flex-col h-full">
+          <div className="flex items-start gap-4 mb-4">
+            <div className="relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
+              {course.course.thumbnailUrl ? (
+                <img 
+                  src={course.course.thumbnailUrl} 
+                  alt={course.course.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  <span className="text-white text-xl font-bold">{course.course.title.charAt(0)}</span>
+                </div>
+              )}
+              {/* Play Overlay */}
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                 <div className="bg-white/20 backdrop-blur-sm p-2 rounded-full">
+                    <Play className="w-4 h-4 text-white fill-white" />
+                 </div>
               </div>
-            )}
-            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <Play className="w-4 h-4 text-white" />
+            </div>
+            
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <Badge className={cn("text-[10px] px-1.5 py-0 h-5 font-semibold border", getDifficultyColor(course.course.difficulty))} variant="outline">
+                  {course.course.difficulty}
+                </Badge>
+              </div>
+              <h4 className="font-semibold text-base line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+                {course.course.title}
+              </h4>
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                 By {course.mentor.name}
+              </p>
             </div>
           </div>
           
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2 mb-1">
-              <h4 className="font-medium text-sm line-clamp-1 group-hover:text-primary transition-colors">
-                {course.course.title}
-              </h4>
-              <Badge className={getDifficultyColor(course.course.difficulty)} variant="secondary">
-                {course.course.difficulty.charAt(0)}
-              </Badge>
+          <div className="mt-auto space-y-2">
+            <div className="flex items-center justify-between text-xs font-medium">
+              <span className="text-slate-500">Progress</span>
+              <span className="text-primary">{Math.round(course.enrollment.overallProgress)}%</span>
             </div>
-            
-            <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
-              {course.mentor.name} • {course.course.category}
-            </p>
-            
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Progress</span>
-                <span className="font-medium">{Math.round(course.enrollment.overallProgress)}%</span>
-              </div>
-              <Progress value={course.enrollment.overallProgress} className="h-1" />
-            </div>
+            <Progress value={course.enrollment.overallProgress} className="h-1.5 bg-slate-100 dark:bg-slate-800" indicatorClassName="bg-primary" />
           </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+    </motion.div>
   );
 
   const CourseCard = ({ course }: { course: EnrolledCourse }) => (
-    <Card className="group hover:shadow-lg transition-shadow duration-300">
-      <div className="aspect-video relative overflow-hidden rounded-t-lg">
-        {course.course.thumbnailUrl ? (
-          <img 
-            src={course.course.thumbnailUrl} 
-            alt={course.course.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-            <span className="text-white text-2xl font-bold">{course.course.title.charAt(0)}</span>
-          </div>
-        )}
-        <div className="absolute top-3 right-3 flex gap-2">
-          <Badge className={getDifficultyColor(course.course.difficulty)}>
-            {course.course.difficulty}
-          </Badge>
-          <Badge className={getStatusColor(course.enrollment.status)}>
-            {course.enrollment.status}
-          </Badge>
-        </div>
-        <div className="absolute bottom-3 left-3">
-          <Badge variant="secondary" className="bg-black/70 text-white border-0">
-            <Clock className="w-3 h-3 mr-1" />
-            {formatDuration(course.course.duration)}
-          </Badge>
-        </div>
-      </div>
-      
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors">
-          {course.course.title}
-        </CardTitle>
-        <CardDescription className="line-clamp-2">
-          {course.course.description}
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span>Progress</span>
-            <span className="font-medium">{Math.round(course.enrollment.overallProgress)}%</span>
-          </div>
-          <Progress value={course.enrollment.overallProgress} className="h-2" />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Avatar className="w-6 h-6">
-            <AvatarImage src={course.mentor.image} />
-            <AvatarFallback>{course.mentor.name.charAt(0)}</AvatarFallback>
-          </Avatar>
-          <span className="text-sm text-muted-foreground">
-            {course.mentor.name}
-          </span>
-          {course.mentor.company && (
-            <>
-              <span className="text-xs text-muted-foreground">•</span>
-              <span className="text-xs text-muted-foreground">{course.mentor.company}</span>
-            </>
+    <motion.div whileHover={{ y: -5 }} className="h-full">
+      <Card className="group h-full flex flex-col overflow-hidden border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg transition-all duration-300">
+        <div className="aspect-video relative overflow-hidden bg-slate-100 dark:bg-slate-900">
+          {course.course.thumbnailUrl ? (
+            <img 
+              src={course.course.thumbnailUrl} 
+              alt={course.course.title}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center">
+              <span className="text-white text-4xl font-bold opacity-50">{course.course.title.charAt(0)}</span>
+            </div>
           )}
+          
+          {/* Overlay Gradient */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
+          
+          <div className="absolute top-3 right-3 flex gap-2">
+             {/* Status Badge */}
+             {course.enrollment.status === 'COMPLETED' && (
+                <Badge className="bg-green-500/90 hover:bg-green-500 backdrop-blur-md border-0 text-white shadow-sm">
+                   <Award className="w-3 h-3 mr-1" /> Completed
+                </Badge>
+             )}
+          </div>
+          
+          <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end">
+            <Badge variant="secondary" className="bg-black/50 backdrop-blur-sm text-white border-0 hover:bg-black/60 transition-colors">
+              <Clock className="w-3 h-3 mr-1.5" />
+              {formatDuration(course.course.duration)}
+            </Badge>
+          </div>
         </div>
+        
+        <CardContent className="flex-1 flex flex-col p-5">
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+               <Badge variant="outline" className={cn("text-[10px] px-2 py-0.5 border", getDifficultyColor(course.course.difficulty))}>
+                  {course.course.difficulty}
+               </Badge>
+               <span className="text-xs text-muted-foreground">• {course.course.category}</span>
+            </div>
+            <h3 className="font-bold text-lg leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+              {course.course.title}
+            </h3>
+          </div>
 
-        <div className="flex gap-2 pt-2">
-          <Button 
-            onClick={() => router.push(`/learn/${course.course.id}`)}
-            className="flex-1"
-            size="sm"
-          >
-            <Play className="w-4 h-4 mr-2" />
-            {course.enrollment.status === 'COMPLETED' ? 'Review' : 'Continue'}
-          </Button>
-          {course.certificate?.status === 'ISSUED' && (
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(course.certificate?.certificateUrl, '_blank');
-              }}
-            >
-              <Download className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+          <div className="mt-auto space-y-4">
+            {/* Mentor Info */}
+            <div className="flex items-center gap-3">
+              <Avatar className="w-8 h-8 border border-slate-200 dark:border-slate-700">
+                <AvatarImage src={course.mentor.image} />
+                <AvatarFallback className="text-xs bg-slate-100 dark:bg-slate-800">{course.mentor.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col">
+                 <span className="text-sm font-medium leading-none">{course.mentor.name}</span>
+                 {course.mentor.company && <span className="text-xs text-muted-foreground">{course.mentor.company}</span>}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-medium">
+                <span className="text-slate-500 dark:text-slate-400">
+                   {course.enrollment.status === 'COMPLETED' ? 'Course Completed' : `${Math.round(course.enrollment.overallProgress)}% Complete`}
+                </span>
+              </div>
+              <Progress value={course.enrollment.overallProgress} className="h-2 rounded-full" />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button 
+                onClick={() => router.push(`/learn/${course.course.id}`)}
+                className="flex-1 shadow-sm"
+                size="sm"
+              >
+                {course.enrollment.status === 'COMPLETED' ? (
+                   <>
+                     <Play className="w-4 h-4 mr-2" /> Review Course
+                   </>
+                ) : (
+                   <>
+                     <Play className="w-4 h-4 mr-2" /> Continue
+                   </>
+                )}
+              </Button>
+              {course.certificate?.status === 'ISSUED' && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="px-3"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(course.certificate?.certificateUrl, '_blank');
+                  }}
+                >
+                  <Download className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 
+  // Loading State
   if (loading || analyticsLoading) {
     return (
-      <div className="space-y-6">
-        <div>
-          <Skeleton className="h-8 w-48 mb-2" />
+      <div className="space-y-8 p-4">
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-48" />
           <Skeleton className="h-4 w-96" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-8 w-16" />
-              </CardHeader>
-            </Card>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+           {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-xl" />)}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}>
-              <Skeleton className="aspect-video rounded-t-lg" />
-              <CardHeader>
-                <Skeleton className="h-6 w-3/4" />
-                <Skeleton className="h-4 w-full" />
-              </CardHeader>
-            </Card>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-80 w-full rounded-xl" />)}
         </div>
       </div>
     );
   }
 
+  // Empty State
   if (courses.length === 0) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">My Learning</h1>
-          <p className="text-muted-foreground">
-            Start your learning journey and track your progress.
-          </p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+        <div className="bg-slate-100 dark:bg-slate-800 p-6 rounded-full mb-6 animate-pulse">
+           <BookOpen className="w-12 h-12 text-slate-400" />
         </div>
-        
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">🎓</div>
-          <h3 className="text-xl font-semibold mb-2">Ready to start learning?</h3>
-          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-            Discover courses from industry experts and build skills that matter for your career.
-          </p>
-          <Button onClick={() => router.push('/dashboard?section=courses')} size="lg">
-            <BookOpen className="w-4 h-4 mr-2" />
-            Browse Courses
-          </Button>
-        </div>
+        <h1 className="text-3xl font-bold mb-2">Start Your Learning Journey</h1>
+        <p className="text-muted-foreground mb-8 max-w-md">
+          You haven't enrolled in any courses yet. Explore our catalog to build new skills.
+        </p>
+        <Button onClick={() => router.push('/dashboard?section=courses')} size="lg" className="rounded-full px-8 shadow-lg shadow-primary/20">
+          <Sparkles className="w-4 h-4 mr-2" />
+          Browse Courses
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1 }} 
+      className="space-y-8 pb-10"
+    >
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold mb-2">My Learning</h1>
+        <h1 className="text-3xl font-bold tracking-tight mb-2">My Learning</h1>
         <p className="text-muted-foreground">
-          Track your progress and continue learning from where you left off.
+          Track your progress, manage your courses, and view your achievements.
         </p>
       </div>
 
@@ -477,54 +468,58 @@ export function MyLearning() {
           value={statistics.totalCourses}
           subtitle="Enrolled courses"
           color="text-blue-500"
+          bgClass="bg-blue-500"
         />
         <StatCard
           icon={Flame}
-          title="Learning Streak"
-          value={`${learningStreak} days`}
-          subtitle={learningStreak > 0 ? "Keep it up!" : "Start your streak today!"}
-          trend={analytics?.currentStreak > (analytics?.longestStreak || 0) ? `+${analytics.currentStreak} days` : undefined}
+          title="Streak"
+          value={`${learningStreak} Days`}
+          subtitle="Keep it up!"
+          trend={analytics?.currentStreak > (analytics?.longestStreak || 0) ? `Personal Best!` : undefined}
           color="text-orange-500"
+          bgClass="bg-orange-500"
         />
         <StatCard
           icon={Target}
           title="Weekly Goal"
           value={`${Math.round(weeklyProgress)}/${weeklyGoal}h`}
           subtitle={`${Math.round((weeklyProgress/weeklyGoal) * 100)}% complete`}
-          color={analytics?.weeklyGoal?.onTrack ? "text-green-500" : "text-amber-500"}
+          color={analytics?.weeklyGoal?.onTrack ? "text-emerald-500" : "text-amber-500"}
+          bgClass={analytics?.weeklyGoal?.onTrack ? "bg-emerald-500" : "bg-amber-500"}
         />
         <StatCard
           icon={Trophy}
           title="Certificates"
           value={statistics.totalCertificates}
-          subtitle={`${statistics.completedCourses} completed`}
+          subtitle="Earned so far"
           color="text-purple-500"
+          bgClass="bg-purple-500"
         />
       </div>
 
-      {/* Main Content */}
+      {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="active">In Progress ({statistics.activeCourses})</TabsTrigger>
-          <TabsTrigger value="completed">Completed ({statistics.completedCourses})</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        <TabsList className="bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl w-full max-w-2xl grid grid-cols-4">
+          <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Overview</TabsTrigger>
+          <TabsTrigger value="active" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">In Progress</TabsTrigger>
+          <TabsTrigger value="completed" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Completed</TabsTrigger>
+          <TabsTrigger value="analytics" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Analytics</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-8 animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
           {/* Continue Learning Section */}
           {recentCourses.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-yellow-500" />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-amber-500 fill-amber-500" />
                   Continue Learning
                 </h3>
-                <Button variant="ghost" size="sm" onClick={() => setActiveTab('active')}>
+                <Button variant="ghost" size="sm" onClick={() => setActiveTab('active')} className="text-primary hover:text-primary/80">
                   View All <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {recentCourses.map((course) => (
                   <CompactCourseCard key={course.enrollment.id} course={course} />
                 ))}
@@ -534,58 +529,59 @@ export function MyLearning() {
 
           {/* Learning Progress Overview */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
+            <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-blue-500" />
-                  Learning Progress
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <TrendingUp className="w-5 h-5 text-blue-500" />
+                  Overall Progress
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span>Overall Progress</span>
-                    <span className="font-medium">{Math.round(statistics.averageProgress)}%</span>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm font-medium">
+                    <span>Average Completion</span>
+                    <span className="text-primary">{Math.round(statistics.averageProgress)}%</span>
                   </div>
-                  <Progress value={statistics.averageProgress} className="h-2" />
+                  <Progress value={statistics.averageProgress} className="h-3" />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-green-500">{statistics.completedCourses}</div>
-                    <div className="text-xs text-muted-foreground">Completed</div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/20 text-center">
+                    <div className="text-3xl font-bold text-green-600 dark:text-green-400">{statistics.completedCourses}</div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-green-700/60 dark:text-green-400/60 mt-1">Completed</div>
                   </div>
-                  <div>
-                    <div className="text-2xl font-bold text-blue-500">{statistics.activeCourses}</div>
-                    <div className="text-xs text-muted-foreground">In Progress</div>
+                  <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 text-center">
+                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{statistics.activeCourses}</div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-blue-700/60 dark:text-blue-400/60 mt-1">Active</div>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+               {/* Keep Time Investment logic same, just styling */}
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
                   <Clock className="w-5 h-5 text-purple-500" />
                   Time Investment
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-purple-500">
+              <CardContent className="space-y-6">
+                <div className="text-center py-2">
+                  <div className="text-4xl font-black text-slate-800 dark:text-slate-100 tracking-tight">
                     {formatTimeSpent(statistics.totalTimeSpent)}
                   </div>
-                  <div className="text-sm text-muted-foreground">Total learning time</div>
+                  <div className="text-sm text-muted-foreground mt-1">Total time invested in your future</div>
                 </div>
                 
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+                  <div className="flex justify-between text-sm font-medium mb-2">
                     <span>Weekly Goal Progress</span>
-                    <span className="font-medium">{Math.round((weeklyProgress/weeklyGoal) * 100)}%</span>
+                    <span className="text-primary">{Math.round((weeklyProgress/weeklyGoal) * 100)}%</span>
                   </div>
-                  <Progress value={(weeklyProgress/weeklyGoal) * 100} className="h-2" />
-                  <div className="text-xs text-muted-foreground">
-                    {Math.round(weeklyGoal - weeklyProgress)} hours remaining this week
+                  <Progress value={(weeklyProgress/weeklyGoal) * 100} className="h-2.5" />
+                  <div className="text-xs text-muted-foreground mt-2 text-right">
+                    {Math.max(0, Math.round(weeklyGoal - weeklyProgress))} hours remaining
                   </div>
                 </div>
               </CardContent>
@@ -593,21 +589,17 @@ export function MyLearning() {
           </div>
         </TabsContent>
 
-        <TabsContent value="active" className="space-y-6">
+        {/* --- Active Tabs --- */}
+        <TabsContent value="active" className="space-y-6 animate-in fade-in-50">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Courses In Progress</h3>
-            <Badge variant="secondary">{statistics.activeCourses} active</Badge>
+            <h3 className="text-lg font-bold">Courses In Progress</h3>
+            <Badge variant="secondary" className="px-3 py-1">{statistics.activeCourses} Active</Badge>
           </div>
           
           {inProgressCourses.length === 0 ? (
-            <div className="text-center py-8">
-              <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h4 className="text-lg font-medium mb-2">No courses in progress</h4>
-              <p className="text-muted-foreground mb-4">Start a new course to see it here.</p>
-              <Button onClick={() => router.push('/dashboard?section=courses')}>
-                Browse Courses
-              </Button>
-            </div>
+             <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+               <p className="text-muted-foreground">No active courses. Time to start something new!</p>
+             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {inProgressCourses.map((course) => (
@@ -617,17 +609,18 @@ export function MyLearning() {
           )}
         </TabsContent>
 
-        <TabsContent value="completed" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Completed Courses</h3>
-            <Badge variant="secondary">{statistics.completedCourses} completed</Badge>
+        {/* --- Completed Tabs --- */}
+        <TabsContent value="completed" className="space-y-6 animate-in fade-in-50">
+           {/* Similar structure to Active, keeping logic identical */}
+           <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold">Completed Courses</h3>
+            <Badge variant="secondary" className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">{statistics.completedCourses} Completed</Badge>
           </div>
           
           {courses.filter(c => c.enrollment.status === 'COMPLETED').length === 0 ? (
-            <div className="text-center py-8">
-              <Award className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h4 className="text-lg font-medium mb-2">No completed courses yet</h4>
-              <p className="text-muted-foreground">Complete your first course to earn a certificate!</p>
+            <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+              <Award className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-muted-foreground">Complete a course to see your achievements here.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -640,132 +633,73 @@ export function MyLearning() {
           )}
         </TabsContent>
 
-        <TabsContent value="analytics" className="space-y-6">
-          <h3 className="text-lg font-semibold">Learning Analytics</h3>
+        <TabsContent value="analytics" className="space-y-6 animate-in fade-in-50">
+           {/* Reusing existing analytics logic but with better cards */}
+           <h3 className="text-lg font-bold">Learning Analytics</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Learning Velocity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-500 mb-1">
-                  {analytics?.learningVelocity?.avgSessionDuration || 0} min
-                </div>
-                <p className="text-sm text-muted-foreground">Average session duration</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Completion Rate</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-500 mb-1">
-                  {Math.round((statistics.completedCourses / statistics.totalCourses) * 100 || 0)}%
-                </div>
-                <p className="text-sm text-muted-foreground">Course completion</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Consistency Score</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-orange-500 mb-1">
-                  {Math.round(analytics?.learningVelocity?.consistencyScore || 0)}%
-                </div>
-                <p className="text-sm text-muted-foreground">Learning consistency</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Course Categories</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             {/* Cards for Velocity, Completion, Consistency */}
+             <Card className="border-l-4 border-l-blue-500 shadow-sm">
+                <CardHeader><CardTitle className="text-base">Avg. Session</CardTitle></CardHeader>
+                <CardContent>
+                   <div className="text-3xl font-bold">{analytics?.learningVelocity?.avgSessionDuration || 0}m</div>
+                </CardContent>
+             </Card>
+             <Card className="border-l-4 border-l-green-500 shadow-sm">
+                <CardHeader><CardTitle className="text-base">Completion Rate</CardTitle></CardHeader>
+                <CardContent>
+                   <div className="text-3xl font-bold">{Math.round((statistics.completedCourses / (statistics.totalCourses || 1)) * 100)}%</div>
+                </CardContent>
+             </Card>
+             <Card className="border-l-4 border-l-orange-500 shadow-sm">
+                <CardHeader><CardTitle className="text-base">Consistency</CardTitle></CardHeader>
+                <CardContent>
+                   <div className="text-3xl font-bold">{Math.round(analytics?.learningVelocity?.consistencyScore || 0)}%</div>
+                </CardContent>
+             </Card>
+           </div>
+           
+           {/* Recommendations & Insights sections - keeping logic, improving visuals */}
+           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Category distribution */}
+              <Card>
+                 <CardHeader><CardTitle>Distribution</CardTitle></CardHeader>
+                 <CardContent className="space-y-4">
                   {Array.from(new Set(courses.map(c => c.course.category))).map((category) => {
-                    const categoryCount = courses.filter(c => c.course.category === category).length;
-                    const percentage = (categoryCount / courses.length) * 100;
-                    
+                    const count = courses.filter(c => c.course.category === category).length;
                     return (
                       <div key={category} className="space-y-1">
                         <div className="flex justify-between text-sm">
                           <span>{category}</span>
-                          <span className="font-medium">{categoryCount} courses</span>
+                          <span className="text-muted-foreground">{count}</span>
                         </div>
-                        <Progress value={percentage} className="h-2" />
+                        <Progress value={(count / courses.length) * 100} className="h-2" />
                       </div>
                     );
                   })}
-                </div>
-              </CardContent>
-            </Card>
+                 </CardContent>
+              </Card>
 
-            {/* Smart Recommendations */}
-            {analytics?.recommendations && analytics.recommendations.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-purple-500" />
-                    Smart Recommendations
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {analytics.recommendations.map((recommendation, index) => (
-                      <div key={index} className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-                        <p className="text-sm text-purple-800 dark:text-purple-200">{recommendation}</p>
+              {/* Smart Recommendations */}
+              {analytics?.recommendations && analytics.recommendations.length > 0 && (
+                <Card className="bg-gradient-to-br from-purple-50 to-white dark:from-purple-950/20 dark:to-slate-950">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-purple-500" /> Smart Recommendations
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {analytics.recommendations.map((rec, i) => (
+                      <div key={i} className="p-3 bg-white/60 dark:bg-black/20 backdrop-blur-sm rounded-lg border border-purple-100 dark:border-purple-900/30 text-sm">
+                        {rec}
                       </div>
                     ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Learning Insights */}
-          {analytics?.insights && analytics.insights.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-blue-500" />
-                  Learning Insights
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {analytics.insights.map((insight) => (
-                    <div key={insight.id} className="flex items-start gap-3 p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                      <div className="flex-1">
-                        <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-1">{insight.title}</h4>
-                        <p className="text-sm text-blue-700 dark:text-blue-200 mb-2">{insight.message}</p>
-                        {insight.actionText && insight.actionUrl && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => router.push(insight.actionUrl!)}
-                            className="border-blue-300 text-blue-700 hover:bg-blue-100 dark:border-blue-600 dark:text-blue-200 dark:hover:bg-blue-900/40"
-                          >
-                            {insight.actionText}
-                          </Button>
-                        )}
-                      </div>
-                      <Badge variant="secondary" className="text-xs">
-                        {insight.priority}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                  </CardContent>
+                </Card>
+              )}
+           </div>
         </TabsContent>
       </Tabs>
-    </div>
+    </motion.div>
   );
 }

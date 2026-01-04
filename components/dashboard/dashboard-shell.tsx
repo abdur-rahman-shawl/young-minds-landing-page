@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react"
 import dynamic from "next/dynamic"
 import { useRouter, useSearchParams } from "next/navigation"
+import { AnimatePresence, motion } from "framer-motion" // Import for animations
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Header } from "@/components/layout/header"
@@ -29,12 +30,21 @@ import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { useAuth } from "@/contexts/auth-context"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, Sparkles } from "lucide-react"
+import { cn } from "@/lib/utils"
 
-// Lazy-load heavier dashboard widgets to reduce the initial bundle
+// --- UI Components for smoother loading ---
+const WidgetLoader = ({ text }: { text: string }) => (
+  <div className="flex h-64 w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-slate-400 dark:border-slate-800 dark:bg-slate-900/50">
+    <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500" />
+    <span className="mt-3 text-sm font-medium">{text}</span>
+  </div>
+)
+
+// Lazy-load heavier dashboard widgets
 const AdminAnalytics = dynamic(() => import("@/app/admins/analytics/page"), {
   ssr: false,
-  loading: () => <div className="p-6 text-center">Loading analytics...</div>,
+  loading: () => <WidgetLoader text="Loading analytics..." />,
 })
 
 const MentorBookingsCalendar = dynamic(
@@ -42,7 +52,7 @@ const MentorBookingsCalendar = dynamic(
     import("@/components/booking/mentor-bookings-calendar").then(
       (mod) => mod.MentorBookingsCalendar
     ),
-  { ssr: false, loading: () => <div className="p-6 text-center">Loading calendar...</div> }
+  { ssr: false, loading: () => <WidgetLoader text="Loading calendar..." /> }
 )
 
 const MentorAvailabilityManager = dynamic(
@@ -50,7 +60,7 @@ const MentorAvailabilityManager = dynamic(
     import("@/components/mentor/availability/mentor-availability-manager").then(
       (mod) => mod.MentorAvailabilityManager
     ),
-  { ssr: false, loading: () => <div className="p-6 text-center">Loading availability...</div> }
+  { ssr: false, loading: () => <WidgetLoader text="Loading availability..." /> }
 )
 
 const MentorAnalyticsSection = dynamic(
@@ -58,7 +68,7 @@ const MentorAnalyticsSection = dynamic(
     import("@/components/mentor/dashboard/mentor-analytics-section").then(
       (mod) => mod.MentorAnalyticsSection
     ),
-  { ssr: false, loading: () => <div className="p-6 text-center">Loading analytics...</div> }
+  { ssr: false, loading: () => <WidgetLoader text="Loading analytics..." /> }
 )
 
 export function DashboardShell() {
@@ -108,70 +118,98 @@ export function DashboardShell() {
     router.push(`/dashboard?section=mentor-detail&mentor=${mentorId}`, { scroll: false })
   }
 
+  // --- Animation Configuration ---
+  const pageVariants = {
+    initial: { opacity: 0, y: 10 },
+    in: { opacity: 1, y: 0 },
+    out: { opacity: 0, y: -10 },
+  }
+
+  const pageTransition = {
+    type: "tween",
+    ease: "circOut",
+    duration: 0.3,
+  }
+
   const renderDashboardContent = () => {
+    let content
+
     if (isAdmin) {
       switch (activeSection) {
         case "mentors":
-          return <AdminMentors />
+          content = <AdminMentors />
+          break
         case "mentees":
-          return <AdminMentees />
+          content = <AdminMentees />
+          break
         case "analytics":
-          return <AdminAnalytics />
+          content = <AdminAnalytics />
+          break
         case "enquiries":
-          return <AdminEnquiries />
+          content = <AdminEnquiries />
+          break
         default:
-          return <AdminOverview />
+          content = <AdminOverview />
       }
-    }
-
-    if (isMentor) {
+    } else if (isMentor) {
       switch (activeSection) {
         case "dashboard":
-          return <MentorOnlyDashboard user={session?.user} />
+          content = <MentorOnlyDashboard user={session?.user} />
+          break
         case "mentees":
-          return (
-            <div className="p-8">
+          content = (
+            <div className="p-4 md:p-8">
               <div className="mx-auto max-w-7xl">
                 <MentorMentees />
               </div>
             </div>
           )
+          break
         case "schedule":
-          return (
-            <div className="p-8">
+          content = (
+            <div className="p-4 md:p-8">
               <div className="mx-auto max-w-7xl">
                 <MentorBookingsCalendar />
               </div>
             </div>
           )
+          break
         case "availability":
-          return (
-            <div className="p-8">
+          content = (
+            <div className="p-4 md:p-8">
               <div className="mx-auto max-w-6xl">
                 <MentorAvailabilityManager />
               </div>
             </div>
           )
+          break
         case "explore":
-          return <ExploreMentors onMentorSelect={handleMentorSelect} />
+          content = <ExploreMentors onMentorSelect={handleMentorSelect} />
+          break
         case "saved":
-          return <SavedItems onMentorSelect={handleMentorSelect} />
+          content = <SavedItems onMentorSelect={handleMentorSelect} />
+          break
         case "mentors":
-          return <Mentors onMentorSelect={handleMentorSelect} />
+          content = <Mentors onMentorSelect={handleMentorSelect} />
+          break
         case "courses":
-          return <Courses />
+          content = <Courses />
+          break
         case "my-courses":
-          return <MyLearning />
+          content = <MyLearning />
+          break
         case "messages":
-          return <Messages />
+          content = <Messages />
+          break
         case "sessions":
-          return (
+          content = (
             <div className="flex h-full flex-1 flex-col">
               <Sessions />
             </div>
           )
+          break
         case "mentor-detail":
-          return (
+          content = (
             <MentorDetailView
               mentorId={selectedMentor}
               onBack={() => {
@@ -181,59 +219,97 @@ export function DashboardShell() {
               }}
             />
           )
+          break
         case "content":
-          return <MentorContent />
+          content = <MentorContent />
+          break
         case "analytics":
-          return <MentorAnalyticsSection />
+          content = <MentorAnalyticsSection />
+          break
         case "profile":
-          return <MentorProfileEdit />
+          content = <MentorProfileEdit />
+          break
         default:
-          return <MentorOnlyDashboard user={session?.user} />
+          content = <MentorOnlyDashboard user={session?.user} />
+      }
+    } else {
+      switch (activeSection) {
+        case "dashboard":
+          content = (
+            <Dashboard
+              onMentorSelect={handleMentorSelect}
+              onSectionChange={handleSectionChange}
+            />
+          )
+          break
+        case "explore":
+          content = <ExploreMentors onMentorSelect={handleMentorSelect} />
+          break
+        case "saved":
+          content = <SavedItems onMentorSelect={handleMentorSelect} />
+          break
+        case "mentors":
+          content = <Mentors onMentorSelect={handleMentorSelect} />
+          break
+        case "courses":
+          content = <Courses />
+          break
+        case "my-courses":
+          content = <MyLearning />
+          break
+        case "messages":
+          content = <Messages />
+          break
+        case "sessions":
+          content = (
+            <div className="flex h-full flex-1 flex-col">
+              <Sessions />
+            </div>
+          )
+          break
+        case "mentor-detail":
+          content = (
+            <MentorDetailView
+              mentorId={selectedMentor}
+              onBack={() => {
+                setActiveSection("explore")
+                setSelectedMentor(null)
+                router.push("/dashboard?section=explore", { scroll: false })
+              }}
+            />
+          )
+          break
+        case "profile":
+          content = <MenteeProfile />
+          break
+        default:
+          content = (
+            <Dashboard
+              onMentorSelect={handleMentorSelect}
+              onSectionChange={handleSectionChange}
+            />
+          )
       }
     }
 
-    switch (activeSection) {
-      case "dashboard":
-        return <Dashboard onMentorSelect={handleMentorSelect} onSectionChange={handleSectionChange} />
-      case "explore":
-        return <ExploreMentors onMentorSelect={handleMentorSelect} />
-      case "saved":
-        return <SavedItems onMentorSelect={handleMentorSelect} />
-      case "mentors":
-        return <Mentors onMentorSelect={handleMentorSelect} />
-      case "courses":
-        return <Courses />
-      case "my-courses":
-        return <MyLearning />
-      case "messages":
-        return <Messages />
-      case "sessions":
-        return (
-          <div className="flex h-full flex-1 flex-col">
-            <Sessions />
-          </div>
-        )
-      case "mentor-detail":
-        return (
-          <MentorDetailView
-            mentorId={selectedMentor}
-            onBack={() => {
-              setActiveSection("explore")
-              setSelectedMentor(null)
-              router.push("/dashboard?section=explore", { scroll: false })
-            }}
-          />
-        )
-      case "profile":
-        return <MenteeProfile />
-      default:
-        return <Dashboard onMentorSelect={handleMentorSelect} onSectionChange={handleSectionChange} />
-    }
+    return (
+      <motion.div
+        key={activeSection + (selectedMentor || "")}
+        initial="initial"
+        animate="in"
+        exit="out"
+        variants={pageVariants}
+        transition={pageTransition}
+        className="flex h-full flex-1 flex-col"
+      >
+        {content}
+      </motion.div>
+    )
   }
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-gray-50 dark:bg-gray-900">
+      <div className="flex min-h-screen w-full bg-slate-50/50 dark:bg-[#0B0D13]">
         {isAdmin ? (
           <AdminSidebar active={activeSection} onChange={handleSectionChange} />
         ) : isMentor ? (
@@ -242,24 +318,39 @@ export function DashboardShell() {
           <UserSidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
         )}
 
-        <SidebarInset className="flex-1">
+        <SidebarInset className="relative flex flex-1 flex-col overflow-hidden">
           <Header showSidebarTrigger onSearchClick={() => handleSectionChange("explore")} />
-          <main className="flex flex-1 flex-col px-4 pb-4 pt-24">
-            {isMentorWithIncompleteProfile && (
-              <Alert className="mb-6 border-amber-200 bg-amber-50">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-amber-800">
-                  <strong>Complete your mentor profile!</strong> Your application is in progress.
-                  <button
-                    onClick={() => router.push("/auth/mentor-verification")}
-                    className="ml-2 underline hover:no-underline"
-                  >
-                    Complete now →
-                  </button>
-                </AlertDescription>
-              </Alert>
-            )}
-            {renderDashboardContent()}
+          
+          <main className="flex flex-1 flex-col px-4 pb-6 pt-20 md:px-6 md:pt-24 lg:px-8">
+            <AnimatePresence mode="wait">
+              {isMentorWithIncompleteProfile && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-8"
+                >
+                  <Alert className="relative overflow-hidden border-amber-200 bg-amber-50/80 backdrop-blur-sm dark:border-amber-900/50 dark:bg-amber-900/20">
+                    <div className="absolute inset-y-0 left-0 w-1 bg-amber-500" />
+                    <AlertTriangle className="h-5 w-5 text-amber-600" />
+                    <AlertDescription className="ml-2 text-amber-900 dark:text-amber-100">
+                      <span className="font-semibold">Action Required:</span> Complete your mentor
+                      profile to start accepting bookings.
+                      <button
+                        onClick={() => router.push("/auth/mentor-verification")}
+                        className="group ml-3 inline-flex items-center font-medium text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
+                      >
+                        Complete now 
+                        <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
+                      </button>
+                    </AlertDescription>
+                  </Alert>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence mode="wait">
+              {renderDashboardContent()}
+            </AnimatePresence>
           </main>
         </SidebarInset>
       </div>

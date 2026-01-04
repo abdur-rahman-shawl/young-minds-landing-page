@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,10 +12,27 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Eye, Users, Video, Bookmark, Users2, Mail, Calendar, LayoutDashboard, Home, User, GraduationCap, BookOpen } from "lucide-react"
+import { 
+  Eye, 
+  Users, 
+  Video, 
+  Bookmark, 
+  Users2, 
+  Mail, 
+  Calendar, 
+  LayoutDashboard, 
+  Home, 
+  User, 
+  GraduationCap, 
+  BookOpen,
+  Sparkles,
+  ChevronRight
+} from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useMessaging } from "@/hooks/use-messaging-v2"
 import { Badge } from "@/components/ui/badge"
+import { motion, AnimatePresence } from "framer-motion"
+import { cn } from "@/lib/utils"
 
 interface UserSidebarProps {
   activeSection: string
@@ -26,110 +44,64 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
   const { session, primaryRole, isLoading } = useAuth()
   const { totalUnreadCount } = useMessaging(session?.user?.id)
   
-  const menuItems = [
-    {
-      title: "Home",
-      icon: Home,
-      key: "home"
-    },
-    {
-      title: "Dashboard",
-      icon: LayoutDashboard,
-      key: "dashboard"
-    },
-    {
-      title: "Explore Mentors",
-      icon: Users,
-      key: "explore"
-    },
-    {
-      title: "Saved Items",
-      icon: Bookmark,
-      key: "saved"
-    },
-    {
-      title: "My Mentors",
-      icon: Users2,
-      key: "mentors"
-    },
-    {
-      title: "Courses",
-      icon: GraduationCap,
-      key: "courses"
-    },
-    {
-      title: "My Learning",
-      icon: BookOpen,
-      key: "my-courses"
-    },
-    {
-      title: "Messages",
-      icon: Mail,
-      key: "messages"
-    },
-    {
-      title: "Sessions",
-      icon: Calendar,
-      key: "sessions"
-    },
-    {
-      title: "Profile",
-      icon: User,
-      key: "profile"
-    }
-  ]
+  const menuItems = useMemo(() => [
+    { title: "Home", icon: Home, key: "home" },
+    { title: "Dashboard", icon: LayoutDashboard, key: "dashboard" },
+    { title: "Explore Mentors", icon: Users, key: "explore" },
+    { title: "Saved Items", icon: Bookmark, key: "saved" },
+    { title: "My Mentors", icon: Users2, key: "mentors" },
+    { title: "Courses", icon: GraduationCap, key: "courses" },
+    { title: "My Learning", icon: BookOpen, key: "my-courses" },
+    { title: "Messages", icon: Mail, key: "messages" },
+    { title: "Sessions", icon: Calendar, key: "sessions" },
+    { title: "Profile", icon: User, key: "profile" }
+  ], [])
 
   return (
-    <Sidebar className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 mt-16">
+    <Sidebar className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200 dark:border-slate-800 mt-16 z-20">
       {/* User Profile Header */}
-      <SidebarHeader className="p-4">
-        <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-100 dark:border-gray-800">
-          <div className="flex flex-col space-y-3">
+      <SidebarHeader className="p-4 pb-2">
+        <div className="group relative rounded-xl p-4 transition-all duration-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent hover:border-slate-100 dark:hover:border-slate-800">
+          <div className="flex flex-col space-y-4">
             {/* User Avatar and Info */}
             <div className="flex items-center gap-3">
               <div className="relative">
-                <Avatar className="h-14 w-14">
-                  <AvatarImage src="/placeholder.svg?height=56&width=56" alt="John Doe" />
-                  <AvatarFallback className="bg-blue-500 text-white font-medium">JD</AvatarFallback>
+                <div className="absolute -inset-0.5 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity blur-sm" />
+                <Avatar className="relative h-12 w-12 border-2 border-white dark:border-slate-900 shadow-sm">
+                  <AvatarImage src="/placeholder.svg?height=56&width=56" alt={session?.user?.name || "User"} />
+                  <AvatarFallback className="bg-slate-100 text-slate-600 font-bold dark:bg-slate-800 dark:text-slate-300">
+                    {session?.user?.name?.slice(0, 2).toUpperCase() || "JD"}
+                  </AvatarFallback>
                 </Avatar>
                 {/* Online Status */}
-                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-slate-900 ring-1 ring-white/50" />
               </div>
               
               {/* User Info */}
-              <div className="flex-1">
-                <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate">
                   {session?.user?.name || 'User'}
                 </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                   {isLoading ? 'Loading...' : (primaryRole?.displayName || 'User')}
                 </p>
               </div>
             </div>
 
             {/* Stats */}
-            <div className="flex gap-4 pt-3 border-t border-gray-100 dark:border-gray-800">
-              <div className="flex-1">
-                <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  <Eye className="w-3 h-3" />
-                  <span>Views</span>
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <div className="flex flex-col p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 transition-colors group-hover:bg-white dark:group-hover:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800/50">
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5">
+                  <Eye className="w-3 h-3" /> Views
                 </div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">24</p>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">24</p>
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  <Users className="w-3 h-3" />
-                  <span>Connections</span>
+              <div className="flex flex-col p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 transition-colors group-hover:bg-white dark:group-hover:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-800/50">
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5">
+                  <Users className="w-3 h-3" /> Network
                 </div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">156</p>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">156</p>
               </div>
-            </div>
-
-            {/* Growth Message */}
-            <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Grow your network
-              </p>
             </div>
           </div>
         </div>
@@ -137,42 +109,80 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
 
       {/* Navigation Menu */}
       <SidebarContent className="px-3 py-2">
-        <SidebarMenu className="space-y-0.5">
-          {menuItems.map((item) => (
-            <SidebarMenuItem key={item.key}>
-              <SidebarMenuButton 
-                onClick={() => {
-                  console.log('Sidebar clicked:', item.key, 'onSectionChange exists:', !!onSectionChange);
-                  onSectionChange(item.key);
-                }}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  activeSection === item.key 
-                    ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border-l-2 border-blue-500' 
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                <item.icon className={`w-4 h-4 flex-shrink-0 ${
-                  activeSection === item.key ? 'text-blue-500' : ''
-                }`} />
-                <span className="truncate">{item.title}</span>
-                {item.key === 'messages' && totalUnreadCount > 0 && (
-                  <Badge variant="destructive" className="ml-auto">
-                    {totalUnreadCount}
-                  </Badge>
-                )}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+        <SidebarMenu className="space-y-1">
+          {menuItems.map((item) => {
+            const isActive = activeSection === item.key;
+            return (
+              <SidebarMenuItem key={item.key}>
+                <SidebarMenuButton 
+                  onClick={() => onSectionChange(item.key)}
+                  className="relative group w-full overflow-hidden"
+                >
+                  {/* Active Background "Slider" Animation */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeSidebarItem"
+                      className="absolute inset-0 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-900/30"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
+                  )}
+                  
+                  <div className={cn(
+                    "relative z-10 flex items-center w-full gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-200",
+                    isActive 
+                      ? "text-blue-600 dark:text-blue-400" 
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  )}>
+                    <item.icon className={cn(
+                      "w-4 h-4 flex-shrink-0 transition-colors",
+                      isActive ? "text-blue-600 dark:text-blue-400 fill-blue-600/10" : "text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300"
+                    )} />
+                    
+                    <span className="truncate">{item.title}</span>
+                    
+                    {item.key === 'messages' && totalUnreadCount > 0 && (
+                      <Badge className="ml-auto bg-rose-500 hover:bg-rose-600 text-white h-5 min-w-[1.25rem] px-1 flex items-center justify-center border-0">
+                        {totalUnreadCount}
+                      </Badge>
+                    )}
+                    
+                    {/* Hover Chevron */}
+                    {!isActive && (
+                      <ChevronRight className="w-3 h-3 ml-auto opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-slate-400" />
+                    )}
+                  </div>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
         </SidebarMenu>
       </SidebarContent>
 
       {/* Footer with Video Call Button */}
-      <SidebarFooter className="p-4 border-t border-gray-100 dark:border-gray-800">
-        <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white gap-2 h-10 rounded-lg font-medium text-sm transition-colors duration-200">
-          <Video className="w-4 h-4" />
-          Start Video Call
-        </Button>
+      <SidebarFooter className="p-4 border-t border-slate-100 dark:border-slate-800">
+        <div className="space-y-4">
+          {/* Pro Tip / Upsell - Optional visual enhancement */}
+          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/30 rounded-xl p-3 border border-blue-100 dark:border-blue-900/30">
+             <div className="flex items-start gap-3">
+                <div className="p-1.5 bg-white dark:bg-slate-900 rounded-md shadow-sm text-amber-500">
+                   <Sparkles className="w-3 h-3" />
+                </div>
+                <div>
+                   <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upcoming Session</p>
+                   <p className="text-[10px] text-slate-500 leading-tight mt-0.5">You have a mentorship call in 2 hours.</p>
+                </div>
+             </div>
+          </div>
+
+          <Button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/20 rounded-xl py-5 transition-all active:scale-[0.98]">
+            <Video className="w-4 h-4 mr-2" />
+            Start Video Call
+          </Button>
+        </div>
       </SidebarFooter>
     </Sidebar>
   )
-} 
+}

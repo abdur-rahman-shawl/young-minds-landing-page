@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/header";
 import { UserSidebar } from "@/components/mentee/sidebars/user-sidebar";
 import { RightSidebar } from "@/components/layout/right-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { AnimatePresence, motion } from "framer-motion"; // Added for animation
 
 // Dashboard components
 import { Dashboard } from "@/components/shared/dashboard/dashboard";
@@ -109,33 +110,55 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
   const renderContent = () => {
     console.log('🚀 renderContent called with activeSection:', activeSection, 'selectedMentor:', selectedMentor);
     
+    let content;
     switch (activeSection) {
       case "dashboard":
-        return <Dashboard onMentorSelect={handleMentorSelect} />;
+        content = <Dashboard onMentorSelect={handleMentorSelect} />;
+        break;
       case "explore":
-        return <ExploreMentors onMentorSelect={handleMentorSelect} />;
+        content = <ExploreMentors onMentorSelect={handleMentorSelect} />;
+        break;
       case "saved":
-        return <SavedItems onMentorSelect={handleMentorSelect} />;
+        content = <SavedItems onMentorSelect={handleMentorSelect} />;
+        break;
       case "mentors":
-        return <Mentors onMentorSelect={handleMentorSelect} />;
+        content = <Mentors onMentorSelect={handleMentorSelect} />;
+        break;
       case "messages":
-        return <Messages />;
+        content = <Messages />;
+        break;
       case "sessions":
-        return <Sessions />;
+        content = <Sessions />;
+        break;
       case "mentor-detail":
-        return (
+        content = (
           <MentorDetailView
             mentorId={selectedMentor}
             onBack={handleBackToExplore}
           />
         );
+        break;
       default:
-        return <Dashboard onMentorSelect={handleMentorSelect} />;
+        content = <Dashboard onMentorSelect={handleMentorSelect} />;
     }
+
+    // Wrap content in animation
+    return (
+      <motion.div
+        key={activeSection + (selectedMentor || "")}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+        className="h-full"
+      >
+        {content}
+      </motion.div>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950">
       <SidebarProvider defaultOpen={true}>
         <div className="flex min-h-screen w-full">
           <UserSidebar 
@@ -143,15 +166,18 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
             onSectionChange={handleSectionChange}
             userRole="mentee"
           />
-          <SidebarInset className="flex flex-col flex-1">
+          <SidebarInset className="flex flex-col flex-1 overflow-hidden">
             <Header showSidebarTrigger />
-            <main className="flex-1 p-6">
-              {renderContent()}
+            <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth">
+              <AnimatePresence mode="wait">
+                {renderContent()}
+              </AnimatePresence>
             </main>
           </SidebarInset>
+          {/* Right sidebar is hidden on small screens usually, keeping your logic same */}
           <RightSidebar selectedMentor={selectedMentor} />
         </div>
       </SidebarProvider>
     </div>
   );
-} 
+}
