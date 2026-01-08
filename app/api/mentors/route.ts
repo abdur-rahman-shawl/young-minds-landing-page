@@ -22,19 +22,26 @@ export async function GET(request: NextRequest) {
         linkedinUrl: mentors.linkedinUrl,
         verificationStatus: mentors.verificationStatus,
         isAvailable: mentors.isAvailable,
+        profileImageUrl: mentors.profileImageUrl,
         // User info
         name: users.name,
         email: users.email,
-        image: users.image,
+        userImage: users.image,
       })
       .from(mentors)
       .innerJoin(users, eq(mentors.userId, users.id))
       .where(eq(mentors.verificationStatus, 'VERIFIED'))
       .orderBy(mentors.createdAt);
 
-    return NextResponse.json({ 
-      success: true, 
-      data: mentosList 
+    // Map the results to handle image fallback priority
+    const mappedMentors = mentosList.map(mentor => ({
+      ...mentor,
+      image: mentor.profileImageUrl || mentor.userImage
+    }));
+
+    return NextResponse.json({
+      success: true,
+      data: mappedMentors
     });
 
   } catch (error) {
@@ -49,17 +56,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { 
-      userId, 
-      title, 
-      company, 
-      industry, 
-      expertise, 
-      experience, 
+    const {
+      userId,
+      title,
+      company,
+      industry,
+      expertise,
+      experience,
       hourlyRate,
       headline,
       about,
-      linkedinUrl 
+      linkedinUrl
     } = body;
 
     // Create new mentor profile with generated ID
@@ -83,9 +90,9 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    return NextResponse.json({ 
-      success: true, 
-      data: newMentor 
+    return NextResponse.json({
+      success: true,
+      data: newMentor
     });
 
   } catch (error) {
