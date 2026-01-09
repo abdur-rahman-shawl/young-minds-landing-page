@@ -139,23 +139,23 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
             </h3>
           </div>
         )}
-        <div className="prose prose-slate dark:prose-invert max-w-none leading-relaxed text-slate-600 dark:text-slate-300">
+        <div className="prose prose-slate dark:prose-invert max-w-none leading-relaxed text-muted-foreground">
           <p className="whitespace-pre-wrap">{mentor.about || "This mentor hasn't added a bio yet."}</p>
         </div>
       </motion.section>
 
       {/* Background / Insights Card */}
       <motion.div variants={fadeIn}>
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center gap-2">
+        <Card className="border-border shadow-sm rounded-xl overflow-hidden bg-card">
+          <div className="px-6 py-4 border-b border-border bg-muted/50 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-blue-500" />
-            <h3 className="font-semibold text-slate-900 dark:text-white">Professional Background</h3>
+            <h3 className="font-semibold text-card-foreground">Professional Background</h3>
           </div>
           <CardContent className="p-0">
             {/* Expertise Row */}
-            <div className="group flex flex-col sm:flex-row sm:items-start p-6 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/30 dark:hover:bg-slate-800/30 transition-colors">
+            <div className="group flex flex-col sm:flex-row sm:items-start p-6 border-b border-border hover:bg-muted/50 transition-colors">
               <div className="w-full sm:w-1/3 mb-2 sm:mb-0">
-                <span className="text-sm font-medium text-slate-500">Core Expertise</span>
+                <span className="text-sm font-medium text-muted-foreground">Core Expertise</span>
               </div>
               <div className="w-full sm:w-2/3 flex flex-wrap gap-2">
                 {mentor.expertiseArray && mentor.expertiseArray.length > 0 ? (
@@ -171,27 +171,27 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
             </div>
 
             {/* Industry Row */}
-            <div className="group flex flex-col sm:flex-row sm:items-center p-6 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/30 dark:hover:bg-slate-800/30 transition-colors">
+            <div className="group flex flex-col sm:flex-row sm:items-center p-6 border-b border-border hover:bg-muted/50 transition-colors">
               <div className="w-full sm:w-1/3 mb-2 sm:mb-0">
-                <span className="text-sm font-medium text-slate-500">Industry</span>
+                <span className="text-sm font-medium text-muted-foreground">Industry</span>
               </div>
               <div className="w-full sm:w-2/3">
                 <div className="flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-slate-400" />
-                  <span className="text-slate-900 dark:text-slate-200 font-medium">{mentor.industry || 'Tech'}</span>
+                  <Briefcase className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-foreground font-medium">{mentor.industry || 'Tech'}</span>
                 </div>
               </div>
             </div>
 
             {/* Location Row */}
-            <div className="group flex flex-col sm:flex-row sm:items-center p-6 hover:bg-slate-50/30 dark:hover:bg-slate-800/30 transition-colors">
+            <div className="group flex flex-col sm:flex-row sm:items-center p-6 hover:bg-muted/50 transition-colors">
               <div className="w-full sm:w-1/3 mb-2 sm:mb-0">
-                <span className="text-sm font-medium text-slate-500">Location</span>
+                <span className="text-sm font-medium text-muted-foreground">Location</span>
               </div>
               <div className="w-full sm:w-2/3">
                 <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-slate-400" />
-                  <span className="text-slate-900 dark:text-slate-200 font-medium">{[mentor.city, mentor.country].filter(Boolean).join(', ') || 'Remote'}</span>
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-foreground font-medium">{[mentor.city, mentor.country].filter(Boolean).join(', ') || 'Remote'}</span>
                 </div>
               </div>
             </div>
@@ -201,21 +201,21 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
 
       {/* Experience Section */}
       <motion.section variants={fadeIn}>
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-          Experience <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1 ml-2"></div>
+        <h3 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2">
+          Experience <div className="h-px bg-border flex-1 ml-2"></div>
         </h3>
 
         <div className="space-y-6">
           {/* Current Role Item */}
           <div className="flex gap-4 group">
             <div className="mt-1">
-              <div className="w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                <Briefcase className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+              <div className="w-12 h-12 bg-card border border-border rounded-xl flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                <Briefcase className="w-6 h-6 text-muted-foreground" />
               </div>
             </div>
             <div>
-              <h4 className="text-lg font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">{mentor.title}</h4>
-              <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">{mentor.company}</p>
+              <h4 className="text-lg font-semibold text-foreground group-hover:text-blue-600 transition-colors">{mentor.title}</h4>
+              <p className="text-sm text-muted-foreground font-medium">{mentor.company}</p>
               <div className="flex items-center gap-2 mt-2">
                 <Badge variant="outline" className="text-[10px] uppercase tracking-wide border-green-200 text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">Current Role</Badge>
               </div>
@@ -230,8 +230,8 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
               </div>
             </div>
             <div className="flex flex-col justify-center">
-              <h4 className="text-lg font-semibold text-slate-900 dark:text-white">Industry Veteran</h4>
-              <p className="text-sm text-slate-600 dark:text-slate-400">{mentor.experience}+ years of total experience</p>
+              <h4 className="text-lg font-semibold text-foreground">Industry Veteran</h4>
+              <p className="text-sm text-muted-foreground">{mentor.experience}+ years of total experience</p>
             </div>
           </div>
         </div>
@@ -340,12 +340,12 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
   )
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 pb-20 font-sans selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen bg-background pb-20 font-sans selection:bg-blue-100 selection:text-blue-900">
 
       {/* 1. HERO SECTION */}
       <div className="relative">
         {/* Banner Container */}
-        <div className="relative h-64 md:h-80 w-full overflow-hidden bg-slate-100 dark:bg-slate-900 group">
+        <div className="relative h-64 md:h-80 w-full overflow-hidden bg-card group">
           {/* Navigation Overlay */}
           <div className="absolute top-6 left-0 right-0 z-20 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -399,15 +399,15 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
               animate={{ scale: 1, opacity: 1 }}
               className="-mt-20 shrink-0 relative"
             >
-              <Avatar className="w-32 h-32 md:w-48 md:h-48 border-[6px] border-white dark:border-slate-950 shadow-xl bg-white dark:bg-slate-950">
+              <Avatar className="w-32 h-32 md:w-48 md:h-48 border-[6px] border-background shadow-xl bg-background">
                 <AvatarImage src={mentor.image || undefined} alt={mentor.name || 'Mentor'} className="object-cover" />
-                <AvatarFallback className="text-5xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-400">
+                <AvatarFallback className="text-5xl font-bold bg-muted text-muted-foreground">
                   {initials}
                 </AvatarFallback>
               </Avatar>
 
               {mentor.verificationStatus === 'VERIFIED' && (
-                <div className="absolute bottom-3 right-3 bg-blue-500 rounded-full p-1.5 shadow-lg border-4 border-white dark:border-slate-950">
+                <div className="absolute bottom-3 right-3 bg-blue-500 rounded-full p-1.5 shadow-lg border-4 border-background">
                   <CheckCircle className="w-5 h-5 text-white" />
                 </div>
               )}
@@ -420,7 +420,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                   <motion.h1
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight"
+                    className="text-3xl md:text-4xl font-bold text-foreground tracking-tight"
                   >
                     {mentor.name}
                   </motion.h1>
@@ -428,12 +428,12 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="text-lg text-slate-600 dark:text-slate-300 font-medium mt-1 flex flex-wrap items-center gap-2"
+                    className="text-lg text-muted-foreground font-medium mt-1 flex flex-wrap items-center gap-2"
                   >
                     {mentor.title}
                     {mentor.company && (
                       <>
-                        <span className="text-slate-300 dark:text-slate-600 hidden md:inline">•</span>
+                        <span className="text-muted-foreground hidden md:inline">•</span>
                         <span className="text-blue-600 dark:text-blue-400">{mentor.company}</span>
                       </>
                     )}
@@ -455,11 +455,11 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                 className="flex flex-wrap items-center gap-4 text-sm text-slate-500 dark:text-slate-400"
               >
                 <span className="flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-slate-400" />
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
                   {[mentor.city, mentor.country].filter(Boolean).join(', ') || 'Remote'}
                 </span>
 
-                <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
+                <div className="h-4 w-px bg-border hidden sm:block"></div>
 
                 <div className="flex items-center gap-2">
                   {mentor.linkedinUrl && (
@@ -473,7 +473,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                     </a>
                   )}
                   {mentor.githubUrl && (
-                    <a href={mentor.githubUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-colors rounded-full">
+                    <a href={mentor.githubUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-muted hover:bg-muted/80 hover:text-foreground transition-colors rounded-full">
                       <Github className="w-4 h-4" />
                     </a>
                   )}
@@ -492,7 +492,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
           <div className="lg:col-span-8">
 
             {/* Smooth Tab Bar */}
-            <div className="sticky top-0 z-30 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 -mx-4 px-4 sm:mx-0 sm:px-0 mb-8">
+            <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border -mx-4 px-4 sm:mx-0 sm:px-0 mb-8">
               <nav className="flex space-x-8 overflow-x-auto scrollbar-hide" aria-label="Tabs">
                 {['overview', 'reviews', 'achievements', 'mentoring_style'].map((tab) => (
                   <button
@@ -502,7 +502,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                       "group relative py-4 px-1 text-sm font-medium whitespace-nowrap transition-colors outline-none",
                       activeTab === tab
                         ? "text-blue-600 dark:text-blue-400"
-                        : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     <span className="capitalize relative z-10 flex items-center gap-2">
@@ -543,16 +543,16 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
 
             {/* Quick Stats */}
             <div className="grid grid-cols-2 gap-4">
-              <Card className="bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
+              <Card className="bg-card border-none shadow-sm">
                 <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                  <span className="text-2xl font-bold text-slate-900 dark:text-white">{mentor.experience}+</span>
-                  <span className="text-xs text-slate-500 uppercase tracking-wide font-medium mt-1">Years Exp.</span>
+                  <span className="text-2xl font-bold text-foreground">{mentor.experience}+</span>
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium mt-1">Years Exp.</span>
                 </CardContent>
               </Card>
-              <Card className="bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
+              <Card className="bg-card border-none shadow-sm">
                 <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                  <span className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-1">5.0 <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" /></span>
-                  <span className="text-xs text-slate-500 uppercase tracking-wide font-medium mt-1">Rating</span>
+                  <span className="text-2xl font-bold text-foreground flex items-center gap-1">5.0 <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" /></span>
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium mt-1">Rating</span>
                 </CardContent>
               </Card>
             </div>
@@ -565,25 +565,25 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                     <Calendar className="w-5 h-5" /> Book a Session
                   </h3>
                 </div>
-                <CardContent className="p-6 bg-white dark:bg-slate-900">
+                <CardContent className="p-6 bg-card">
                   <div className="mb-6">
                     <div className="flex justify-between items-start mb-2">
-                      <span className="font-semibold text-slate-900 dark:text-white text-lg">1:1 Mentorship</span>
+                      <span className="font-semibold text-foreground text-lg">1:1 Mentorship</span>
                       <div className="text-right">
                         {mentor.hourlyRate ? (
                           <span className="block text-xl font-bold text-blue-600">${mentor.hourlyRate}</span>
                         ) : (
                           <span className="block text-xl font-bold text-green-600">Free</span>
                         )}
-                        <span className="text-xs text-slate-400">per session</span>
+                        <span className="text-xs text-muted-foreground">per session</span>
                       </div>
                     </div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    <p className="text-sm text-muted-foreground leading-relaxed">
                       Video call to discuss career advice, portfolio review, or technical challenges.
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3 mb-6 text-sm text-slate-500 bg-slate-50 dark:bg-slate-800 p-3 rounded-lg">
+                  <div className="flex items-center gap-3 mb-6 text-sm text-muted-foreground bg-muted p-3 rounded-lg">
                     <Clock className="w-4 h-4" />
                     <span>60 min duration</span>
                     <span className="mx-1">•</span>

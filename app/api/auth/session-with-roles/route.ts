@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     // Get mentor profile if user is a mentor (optimized)
     let mentorProfile = null;
     const isMentor = userWithRoles.roles.some(role => role.name === 'mentor');
-    
+
     if (isMentor) {
       const [mentor] = await db
         .select({
@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
           headline: mentors.headline,
           maxMentees: mentors.maxMentees,
           profileImageUrl: mentors.profileImageUrl,
+          bannerImageUrl: mentors.bannerImageUrl,
           resumeUrl: mentors.resumeUrl,
           paymentStatus: mentors.paymentStatus,
           couponCode: mentors.couponCode,
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
         .from(mentors)
         .where(eq(mentors.userId, session.user.id))
         .limit(1);
-      
+
       mentorProfile = mentor || null;
     }
 
