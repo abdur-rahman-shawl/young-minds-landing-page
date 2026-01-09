@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FcGoogle } from "react-icons/fc"
+import { FaLinkedin } from "react-icons/fa"
 import { GraduationCap, Users } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -54,6 +55,26 @@ export default function SignInForm() {
     }
   }
 
+  const handleLinkedInSignIn = async () => {
+    setIsLoading(true)
+    try {
+      await signIn('social', {
+        provider: 'linkedin',
+        callbackURL: selectedRole === 'mentor' ? '/become-expert' : callbackUrlParam,
+      })
+      if (selectedRole === 'mentor') {
+        router.replace('/become-expert')
+      } else {
+        router.replace(callbackUrlParam)
+      }
+      router.refresh()
+    } catch (error) {
+      console.error("Sign in error:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -69,11 +90,11 @@ export default function SignInForm() {
         <div className="space-y-4">
           {/* Role Selection */}
           <div className="grid grid-cols-2 gap-4">
-            <Card 
-              className={`cursor-pointer transition-all ${selectedRole === "mentee" 
-                  ? "ring-2 ring-blue-600 bg-blue-50 dark:bg-blue-900/30" 
-                  : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
-              }`}
+            <Card
+              className={`cursor-pointer transition-all ${selectedRole === "mentee"
+                ? "ring-2 ring-blue-600 bg-blue-50 dark:bg-blue-900/30"
+                : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
+                }`}
               onClick={() => setSelectedRole("mentee")}
             >
               <CardContent className="p-4 text-center">
@@ -83,11 +104,11 @@ export default function SignInForm() {
               </CardContent>
             </Card>
 
-            <Card 
-              className={`cursor-pointer transition-all ${selectedRole === "mentor" 
-                  ? "ring-2 ring-green-600 bg-green-50 dark:bg-green-900/30" 
-                  : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
-              }`}
+            <Card
+              className={`cursor-pointer transition-all ${selectedRole === "mentor"
+                ? "ring-2 ring-green-600 bg-green-50 dark:bg-green-900/30"
+                : "hover:bg-gray-100 dark:hover:bg-gray-800/50"
+                }`}
               onClick={() => setSelectedRole("mentor")}
             >
               <CardContent className="p-4 text-center">
@@ -98,9 +119,9 @@ export default function SignInForm() {
             </Card>
           </div>
 
-          {/* Google Sign In */}
+          {/* Social Sign In Options */}
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-6 space-y-3">
               <Button
                 onClick={handleGoogleSignIn}
                 disabled={isLoading || authLoading}
@@ -108,9 +129,21 @@ export default function SignInForm() {
                 variant="outline"
               >
                 <FcGoogle className="h-5 w-5" />
-                {isLoading || authLoading 
-                  ? "Redirecting..." 
+                {isLoading || authLoading
+                  ? "Redirecting..."
                   : `Continue with Google as ${selectedRole === "mentee" ? "Mentee" : "Mentor"}`
+                }
+              </Button>
+
+              <Button
+                onClick={handleLinkedInSignIn}
+                disabled={isLoading || authLoading}
+                className="w-full flex items-center justify-center gap-2 bg-[#0A66C2] hover:bg-[#004182] text-white"
+              >
+                <FaLinkedin className="h-5 w-5" />
+                {isLoading || authLoading
+                  ? "Redirecting..."
+                  : `Continue with LinkedIn as ${selectedRole === "mentee" ? "Mentee" : "Mentor"}`
                 }
               </Button>
             </CardContent>

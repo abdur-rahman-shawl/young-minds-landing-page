@@ -1,5 +1,6 @@
 "use client"
 
+import { motion } from "framer-motion"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -13,15 +14,15 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { 
-  LayoutDashboard, 
-  Users, 
-  Calendar, 
-  MessageSquare, 
-  DollarSign, 
-  BarChart3, 
-  Settings, 
-  Star, 
+import {
+  LayoutDashboard,
+  Users,
+  Calendar,
+  MessageSquare,
+  DollarSign,
+  BarChart3,
+  Settings,
+  Star,
   User,
   BookOpen,
   CalendarClock
@@ -40,7 +41,7 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
   const { session, primaryRole, mentorProfile, isLoading } = useAuth()
   const { stats, isLoading: statsLoading } = useMentorDashboardStats()
   const { totalUnreadCount } = useMessaging(session?.user?.id)
-  
+
   const mentorMenuItems = [
     {
       title: "Dashboard",
@@ -99,29 +100,44 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
     }
   ]
 
+  const mentorName = mentorProfile?.fullName || session?.user?.name || 'Mentor'
+  const mentorInitials = mentorName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+
   return (
     <Sidebar className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 mt-16">
       {/* Header with User Profile */}
-      <SidebarHeader className="p-4">
-        <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-100 dark:border-gray-800">
-          <div className="flex flex-col space-y-3">
-            {/* User Avatar and Info */}
-            <div className="flex items-center gap-3">
+      <SidebarHeader className="p-3">
+        <motion.div
+          className="rounded-2xl bg-gradient-to-br from-amber-50/60 via-white to-orange-50/40 dark:from-gray-800 dark:via-gray-800 dark:to-amber-950/20 p-4 shadow-sm border border-amber-200/60 dark:border-gray-700/60"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
+        >
+          <div className="flex flex-col space-y-4">
+            {/* Avatar and User Info Row */}
+            <div className="flex items-center gap-3.5">
+              {/* Avatar Container */}
               <div className="relative">
-                <Avatar className="h-14 w-14">
-                  <AvatarImage src={mentorProfile?.profileImageUrl || session?.user?.image || undefined} />
-                  <AvatarFallback className="bg-blue-500 text-white font-medium">
-                    {mentorProfile?.fullName?.charAt(0) || session?.user?.name?.charAt(0) || 'M'}
+                <Avatar className="h-14 w-14 ring-2 ring-white dark:ring-gray-700 shadow-md">
+                  <AvatarImage src={mentorProfile?.profileImageUrl || session?.user?.image || undefined} alt={mentorName} />
+                  <AvatarFallback className="bg-gradient-to-br from-amber-500 to-orange-600 text-white font-semibold text-base">
+                    {mentorInitials}
                   </AvatarFallback>
                 </Avatar>
-                {/* Online Status */}
-                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
+
+                {/* Pulsing Online Status */}
+                <div className="absolute -bottom-0.5 -right-0.5">
+                  <span className="relative flex h-3.5 w-3.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white dark:border-gray-700"></span>
+                  </span>
+                </div>
               </div>
-              
+
               {/* User Info */}
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
-                  {mentorProfile?.fullName || session?.user?.name || 'Mentor'}
+                <h3 className="font-semibold text-gray-900 dark:text-white text-[15px]">
+                  {mentorName}
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {mentorProfile?.title || (isLoading ? 'Loading...' : (primaryRole?.displayName || 'Mentor'))}
@@ -129,32 +145,32 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
               </div>
             </div>
 
-            {/* Stats */}
-            <div className="flex gap-4 pt-3 border-t border-gray-100 dark:border-gray-800">
-              <div className="flex-1">
-                <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  <Users className="w-3 h-3" />
-                  <span>Mentees</span>
+            {/* Stats Row */}
+            <div className="flex gap-2.5">
+              {/* Mentees Stat */}
+              <div className="flex-1 bg-white/70 dark:bg-gray-700/40 rounded-xl p-2.5 border border-amber-100 dark:border-gray-600/40">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Users className="w-3 h-3 text-amber-500" />
+                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Mentees</span>
                 </div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{statsLoading ? '...' : (stats?.totalMentees || 0)}</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-white leading-none">
+                  {statsLoading ? '...' : (stats?.totalMentees || 0)}
+                </p>
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  <Star className="w-3 h-3" />
-                  <span>Rating</span>
-                </div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{statsLoading ? '...' : (stats?.averageRating ? stats.averageRating.toFixed(1) : 'N/A')}</p>
-              </div>
-            </div>
 
-            {/* Growth Message */}
-            <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Empower your mentees
-              </p>
+              {/* Rating Stat */}
+              <div className="flex-1 bg-white/70 dark:bg-gray-700/40 rounded-xl p-2.5 border border-amber-100 dark:border-gray-600/40">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Star className="w-3 h-3 text-orange-500" />
+                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Rating</span>
+                </div>
+                <p className="text-lg font-bold text-gray-900 dark:text-white leading-none">
+                  {statsLoading ? '...' : (stats?.averageRating ? stats.averageRating.toFixed(1) : 'N/A')}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </SidebarHeader>
 
       {/* Navigation Menu */}
@@ -162,17 +178,15 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
         <SidebarMenu className="space-y-0.5">
           {mentorMenuItems.map((item) => (
             <SidebarMenuItem key={item.key}>
-              <SidebarMenuButton 
+              <SidebarMenuButton
                 onClick={() => onSectionChange(item.key)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  activeSection === item.key 
-                    ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border-l-2 border-blue-500' 
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'
-                }`}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${activeSection === item.key
+                  ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border-l-2 border-blue-500'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'
+                  }`}
               >
-                <item.icon className={`w-4 h-4 flex-shrink-0 ${
-                  activeSection === item.key ? 'text-blue-500' : ''
-                }`} />
+                <item.icon className={`w-4 h-4 flex-shrink-0 ${activeSection === item.key ? 'text-blue-500' : ''
+                  }`} />
                 <span className="truncate">{item.title}</span>
                 {item.key === 'messages' && totalUnreadCount > 0 && (
                   <Badge variant="destructive" className="ml-auto">

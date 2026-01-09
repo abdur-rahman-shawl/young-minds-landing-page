@@ -20,6 +20,8 @@ export * from './ai-chatbot-message-insights';
 export * from './notifications';
 export * from './contact-submissions';
 export * from './consent-events';
+export * from './audit-events';
+export * from './email-events';
 export * from './mentor-availability';
 export * from './reviews';
 export * from './livekit';

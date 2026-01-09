@@ -201,9 +201,6 @@ export function MentorProfileEdit() {
       formData.append('userId', session.user.id);
       formData.append('bannerImage', file); // Use the file directly to trigger the backend logic if needed, or just send the URL if we trust the frontend uploadResult. 
       // Actually, my backend logic handles the upload if I send the file. 
-      // BUT `uploadBannerImage` already uploaded it to storage.
-      // So I just need to save the URL to the DB.
-      // Wait, the backend logic I wrote earlier (step 148) expects `bannerImage` as a file in FormData to do the upload AND save.
       // OR I can send `bannerImageUrl` in JSON. 
       // Let's use the JSON approach since we already uploaded it on the frontend client (wait, `uploadBannerImage` in `lib/storage` runs on the server if it uses `fs`, but here it's imported in a client component? No, `uploadBannerImage` uses `storage` which handles S3/Supabase. If `uploadBannerImage` is browser-compatible (it uses fetch/axios), then it's fine.
       // Checking `lib/storage/index.ts`: It imports `SupabaseStorageProvider` etc. These might be server-side only.

@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,18 +13,18 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { 
-  Eye, 
-  Users, 
-  Video, 
-  Bookmark, 
-  Users2, 
-  Mail, 
-  Calendar, 
-  LayoutDashboard, 
-  Home, 
-  User, 
-  GraduationCap, 
+import {
+  Eye,
+  Users,
+  Video,
+  Bookmark,
+  Users2,
+  Mail,
+  Calendar,
+  LayoutDashboard,
+  Home,
+  User,
+  GraduationCap,
   BookOpen,
   Sparkles,
   ChevronRight
@@ -31,7 +32,6 @@ import {
 import { useAuth } from "@/contexts/auth-context"
 import { useMessaging } from "@/hooks/use-messaging-v2"
 import { Badge } from "@/components/ui/badge"
-import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 
 interface UserSidebarProps {
@@ -43,7 +43,7 @@ interface UserSidebarProps {
 export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSidebarProps) {
   const { session, primaryRole, isLoading } = useAuth()
   const { totalUnreadCount } = useMessaging(session?.user?.id)
-  
+
   const menuItems = useMemo(() => [
     { title: "Home", icon: Home, key: "home" },
     { title: "Dashboard", icon: LayoutDashboard, key: "dashboard" },
@@ -68,7 +68,7 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
               <div className="relative">
                 <div className="absolute -inset-0.5 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity blur-sm" />
                 <Avatar className="relative h-12 w-12 border-2 border-white dark:border-slate-900 shadow-sm">
-                  <AvatarImage src="/placeholder.svg?height=56&width=56" alt={session?.user?.name || "User"} />
+                  <AvatarImage src={session?.user?.image || "/placeholder.svg?height=56&width=56"} alt={session?.user?.name || "User"} />
                   <AvatarFallback className="bg-slate-100 text-slate-600 font-bold dark:bg-slate-800 dark:text-slate-300">
                     {session?.user?.name?.slice(0, 2).toUpperCase() || "JD"}
                   </AvatarFallback>
@@ -76,7 +76,7 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
                 {/* Online Status */}
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-slate-900 ring-1 ring-white/50" />
               </div>
-              
+
               {/* User Info */}
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate">
@@ -114,7 +114,7 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
             const isActive = activeSection === item.key;
             return (
               <SidebarMenuItem key={item.key}>
-                <SidebarMenuButton 
+                <SidebarMenuButton
                   onClick={() => onSectionChange(item.key)}
                   className="relative group w-full overflow-hidden"
                 >
@@ -129,26 +129,26 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
                       transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     />
                   )}
-                  
+
                   <div className={cn(
                     "relative z-10 flex items-center w-full gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-200",
-                    isActive 
-                      ? "text-blue-600 dark:text-blue-400" 
+                    isActive
+                      ? "text-blue-600 dark:text-blue-400"
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                   )}>
                     <item.icon className={cn(
                       "w-4 h-4 flex-shrink-0 transition-colors",
                       isActive ? "text-blue-600 dark:text-blue-400 fill-blue-600/10" : "text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300"
                     )} />
-                    
+
                     <span className="truncate">{item.title}</span>
-                    
+
                     {item.key === 'messages' && totalUnreadCount > 0 && (
                       <Badge className="ml-auto bg-rose-500 hover:bg-rose-600 text-white h-5 min-w-[1.25rem] px-1 flex items-center justify-center border-0">
                         {totalUnreadCount}
                       </Badge>
                     )}
-                    
+
                     {/* Hover Chevron */}
                     {!isActive && (
                       <ChevronRight className="w-3 h-3 ml-auto opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-slate-400" />
@@ -166,15 +166,15 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
         <div className="space-y-4">
           {/* Pro Tip / Upsell - Optional visual enhancement */}
           <div className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/30 rounded-xl p-3 border border-blue-100 dark:border-blue-900/30">
-             <div className="flex items-start gap-3">
-                <div className="p-1.5 bg-white dark:bg-slate-900 rounded-md shadow-sm text-amber-500">
-                   <Sparkles className="w-3 h-3" />
-                </div>
-                <div>
-                   <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upcoming Session</p>
-                   <p className="text-[10px] text-slate-500 leading-tight mt-0.5">You have a mentorship call in 2 hours.</p>
-                </div>
-             </div>
+            <div className="flex items-start gap-3">
+              <div className="p-1.5 bg-white dark:bg-slate-900 rounded-md shadow-sm text-amber-500">
+                <Sparkles className="w-3 h-3" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upcoming Session</p>
+                <p className="text-[10px] text-slate-500 leading-tight mt-0.5">You have a mentorship call in 2 hours.</p>
+              </div>
+            </div>
           </div>
 
           <Button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/20 rounded-xl py-5 transition-all active:scale-[0.98]">
