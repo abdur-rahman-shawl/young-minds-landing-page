@@ -404,8 +404,21 @@ export function MentorProfileEdit() {
         </Alert>
       )}
 
+      {/* Warning Alert when Editing */}
+      {isEditing && (
+        <Alert className="mb-6 border-yellow-200 bg-yellow-50 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300 dark:border-yellow-900">
+          <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+          <AlertTitle>Warning: Profile Update Requires Re-verification</AlertTitle>
+          <AlertDescription>
+            Saving changes to your profile will trigger a re-verification process.
+            <strong> You will not be able to accept new bookings or sessions until your profile is verified again.</strong>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Success Alert */}
       {success && (
-        <Alert className="border-green-200 bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300 dark:border-green-900">
+        <Alert className="mb-6 border-green-200 bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300 dark:border-green-900">
           <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
           <AlertTitle>Success</AlertTitle>
           <AlertDescription>{success}</AlertDescription>
@@ -871,78 +884,7 @@ export function MentorProfileEdit() {
             </CardContent>
           </Card>
 
-          {/* Verification & Availability */}
-          <Card>
-            <CardHeader className="border-b bg-gray-50">
-              <CardTitle className="flex items-center gap-2 text-gray-900">
-                <ShieldQuestion className="h-5 w-5" />
-                Verification & Availability
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="verificationStatus" className="flex items-center gap-2 font-medium">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Verification Status
-                </Label>
-                <Select
-                  value={mentorData.verificationStatus}
-                  onValueChange={(value) => setMentorData(prev => ({ ...prev, verificationStatus: value as typeof prev.verificationStatus }))}
-                  disabled={!isEditing}
-                >
-                  <SelectTrigger className="transition-all focus:ring-2 focus:ring-blue-500">
-                    <SelectValue placeholder="Select verification status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {verificationStatuses.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="verificationNotes" className="flex items-center gap-2 font-medium">
-                  <FileText className="h-4 w-4" />
-                  Verification Notes
-                </Label>
-                <Textarea
-                  id="verificationNotes"
-                  value={mentorData.verificationNotes}
-                  onChange={(e) => setMentorData(prev => ({ ...prev, verificationNotes: e.target.value }))}
-                  disabled={!isEditing}
-                  placeholder="Notes from reviewers or context for your updates"
-                  rows={4}
-                  className="transition-all focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3 shadow-sm">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Accepting new mentees</p>
-                  <p className="text-xs text-gray-500">Toggle your availability across the platform.</p>
-                </div>
-                <Switch
-                  checked={mentorData.isAvailable}
-                  onCheckedChange={(checked) => setMentorData(prev => ({ ...prev, isAvailable: checked }))}
-                  disabled={!isEditing}
-                />
-              </div>
-
-              <Separator />
-
-              <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
-                <div>
-                  <span className="font-medium text-gray-900">Created:</span> {mentorMeta.createdAt ? new Date(mentorMeta.createdAt).toLocaleString() : 'N/A'}
-                </div>
-                <div>
-                  <span className="font-medium text-gray-900">Last updated:</span> {mentorMeta.updatedAt ? new Date(mentorMeta.updatedAt).toLocaleString() : 'N/A'}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>
