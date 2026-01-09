@@ -1,0 +1,133 @@
+Email catalogue (source: lib/emails.ts)
+
+GMAIL_APP_USER is "info.sharingminds@gmail.com"
+
+1) Mentor application receipt
+- Trigger: After a mentor submits the application form successfully.
+- From: "SharingMinds" <${GMAIL_APP_USER}> (Gmail transporter).
+- To: applicant email (function param `email`).
+- Subject: "We've Received Your SharingMinds Application!"
+- Body (HTML):
+  - Heading: "Thank You for Applying to SharingMinds!"
+  - Greeting: "Hi {name},"
+  - Confirmation text: "We're thrilled you want to join our community of mentors. This email confirms we've successfully received your application."
+  - SLA: "We'll get back to you within 5-7 business days" and mention that the dashboard shows status.
+  - Prompt to explore the website.
+  - CTA button: "Go to Dashboard" linking to `${NEXT_PUBLIC_BASE_URL}/dashboard`.
+  - Sign-off lines: "Best regards," + "The SharingMinds Team".
+- Raw HTML:
+  ```html
+  <div style="font-family: sans-serif; padding: 20px; color: #333;">
+    <h2 style="color: #0056b3;">Thank You for Applying to SharingMinds!</h2>
+    <p>Hi ${name},</p>
+    <p>We're thrilled you want to join our community of mentors. This email confirms we've successfully received your application.</p>
+    <p>Our team will carefully review your profile. We'll get back to you within <strong>5-7 business days</strong> with the next steps. You can check the status of your application on your dashboard.</p>
+    <p>In the meantime, feel free to explore our website and learn more about our mission.</p>
+    <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Go to Dashboard</a>
+    <p>Best regards,</p>
+    <p><strong>The SharingMinds Team</strong></p>
+  </div>
+  ```
+- Signature: "The SharingMinds Team".
+
+2) Mentor application approved
+- Trigger: When a mentor application is approved.
+- From: "SharingMinds" <${GMAIL_APP_USER}> (Gmail transporter).
+- To: mentor email (function param `email`).
+- Subject: "Congratulations! Your SharingMinds Mentor Application is Approved".
+- Body (HTML):
+  - Heading: "Congratulations, {name}!".
+  - Welcome text confirming approval and next steps to set availability and start connecting with mentees.
+  - Optional coupon block shown only if `couponCode` is provided, labeled "Onboarding coupon unlocked" with usage instructions and the code.
+  - CTA button: "Go to Dashboard" linking to `${NEXT_PUBLIC_BASE_URL}/dashboard`.
+  - Sign-off lines: "Best regards," + "The SharingMinds Team".
+- Raw HTML:
+  ```html
+  <div style="font-family: sans-serif; padding: 20px; color: #333;">
+    <h2 style="color: #0056b3;">Congratulations, ${name}!</h2>
+    <p>We are excited to welcome you to the SharingMinds community of mentors. Your application has been approved!</p>
+    <p>You can now access your mentor dashboard to set up your availability and start connecting with mentees.</p>
+    ${couponSection}
+    <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Go to Dashboard</a>
+    <p>Best regards,</p>
+    <p><strong>The SharingMinds Team</strong></p>
+  </div>
+  ```
+- Signature: "The SharingMinds Team"; includes an optional coupon block when a code is passed.
+
+3) Mentor application rejected
+- Trigger: When a mentor application is rejected.
+- From: "SharingMinds" <${GMAIL_APP_USER}> (Gmail transporter).
+- To: mentor email (function param `email`).
+- Subject: "Important: Update Regarding Your SharingMinds Mentor Application".
+- Body (HTML):
+  - Heading: "Update on Your Mentor Application, {name}" (red accent).
+  - Thank-you acknowledgment and rejection notice.
+  - Optional reason block: shows "Reason for rejection" followed by `notes` when provided.
+  - Encouragement to review feedback and consider reapplying.
+  - Sign-off lines: "Best regards," + "The SharingMinds Team".
+- Raw HTML:
+  ```html
+  <div style="font-family: sans-serif; padding: 20px; color: #333;">
+    <h2 style="color: #e74c3c;">Update on Your Mentor Application, ${name}</h2>
+    <p>Thank you for your interest in becoming a mentor with SharingMinds.</p>
+    <p>After careful review, we regret to inform you that your application has not been approved at this time.</p>
+    ${notes ? `<p><strong>Reason for rejection:</strong></p><p>${notes}</p>` : ''}
+    <p>We encourage you to review your application based on the feedback provided (if any) and consider reapplying in the future if you meet our updated criteria.</p>
+    <p>Best regards,</p>
+    <p><strong>The SharingMinds Team</strong></p>
+  </div>
+  ```
+- Signature: "The SharingMinds Team".
+
+4) Mentor application reverification request
+- Trigger: When reviewers need more info/updates before approval.
+- From: "SharingMinds" <${GMAIL_APP_USER}> (Gmail transporter).
+- To: mentor email (function param `email`).
+- Subject: "Action Required: Updates Needed for Your SharingMinds Mentor Application".
+- Body (HTML):
+  - Heading: "Updates Requested for Your Mentor Application, {name}" (amber accent).
+  - Request for additional information or updates.
+  - Optional details block: shows "Details for updates" followed by `notes` when provided.
+  - Prompt to log in to the dashboard for specifics and re-review after updates.
+  - CTA button: "Go to Dashboard" linking to `${NEXT_PUBLIC_BASE_URL}/dashboard`.
+  - Sign-off lines: "Best regards," + "The SharingMinds Team".
+- Raw HTML:
+  ```html
+  <div style="font-family: sans-serif; padding: 20px; color: #333;">
+    <h2 style="color: #f39c12;">Updates Requested for Your Mentor Application, ${name}</h2>
+    <p>Thank you for your application to become a mentor with SharingMinds.</p>
+    <p>Our team has reviewed your profile and requires some additional information or updates before we can proceed with your approval.</p>
+    ${notes ? `<p><strong>Details for updates:</strong></p><p>${notes}</p>` : ''}
+    <p>Please log in to your dashboard to view the specific details and make the necessary changes. Once updated, your application will be re-reviewed.</p>
+    <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Go to Dashboard</a>
+    <p>Best regards,</p>
+    <p><strong>The SharingMinds Team</strong></p>
+  </div>
+  ```
+- Signature: "The SharingMinds Team".
+
+
+5) Contact enquiry notification
+- Trigger: When the contact form is submitted.
+- From: "Sharing Minds" <${GMAIL_APP_USER}> (Gmail transporter).
+- To (DL): community@sharingminds.in, support@sharingminds.in, abdur.rahman.shawl@gmail.com.
+- Subject: "New Contact Enquiry: {subject}" (user-submitted subject, HTML-escaped).
+- Body (HTML):
+  - Heading: "New Contact Enquiry".
+  - Lists Name, Email, Subject (all HTML-escaped).
+  - Message block with line breaks preserved.
+- Raw HTML:
+  ```
+  <div style="font-family: Arial, sans-serif; padding: 20px; color: #0f172a;">
+    <h2 style="color: #4f46e5; margin-bottom: 12px;">New Contact Enquiry</h2>
+    <p style="margin: 6px 0;"><strong>Name:</strong> ${safeName}</p>
+    <p style="margin: 6px 0;"><strong>Email:</strong> ${safeEmail}</p>
+    <p style="margin: 6px 0;"><strong>Subject:</strong> ${safeSubject}</p>
+    <div style="margin-top: 16px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+      <p style="margin: 0 0 8px 0; font-weight: 600;">Message</p>
+      <p style="margin: 0; line-height: 1.6;">${safeMessage}</p>
+    </div>
+  </div>
+  ```
+- Signature: none (informational alert only).

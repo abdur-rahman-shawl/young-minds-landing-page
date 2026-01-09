@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
 import { FcGoogle } from "react-icons/fc"
+import { FaLinkedin } from "react-icons/fa"
 import { Users, GraduationCap } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -45,6 +46,24 @@ export function SignInPopup({ isOpen, onClose, callbackUrl = "/dashboard" }: Sig
     }
   }
 
+  const handleLinkedInSignIn = async () => {
+    setIsLoading(true)
+    try {
+      await signIn('social', {
+        provider: 'linkedin',
+        callbackURL: callbackUrl,
+        prompt: 'select_account',
+      })
+      onClose()
+      router.replace('/dashboard')
+      router.refresh()
+    } catch (error) {
+      console.error("Sign in error:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleBecomeExpert = () => {
     onClose()
     router.push("/become-expert")
@@ -63,7 +82,7 @@ export function SignInPopup({ isOpen, onClose, callbackUrl = "/dashboard" }: Sig
             Welcome to SharingMinds
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4 sm:space-y-6">
           {/* Default User Sign In */}
           <Card className="border-2 border-primary/20 bg-primary/5">
@@ -85,6 +104,15 @@ export function SignInPopup({ isOpen, onClose, callbackUrl = "/dashboard" }: Sig
               >
                 <FcGoogle className="h-5 w-5" />
                 {isLoading ? "Signing in..." : "Continue with Google"}
+              </Button>
+
+              <Button
+                onClick={handleLinkedInSignIn}
+                disabled={isLoading}
+                className="w-full flex items-center justify-center gap-2 mt-3 bg-[#0A66C2] hover:bg-[#004182] text-white"
+              >
+                <FaLinkedin className="h-5 w-5" />
+                {isLoading ? "Signing in..." : "Continue with LinkedIn"}
               </Button>
 
               <div className="relative my-4">
