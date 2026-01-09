@@ -12,6 +12,7 @@ import { MentorSidebar } from "@/components/mentor/sidebars/mentor-sidebar"
 import { AdminSidebar } from "@/components/admin/sidebars/admin-sidebar"
 import { Dashboard } from "@/components/shared/dashboard/dashboard"
 import { MentorOnlyDashboard } from "@/components/mentor/dashboard/mentor-only-dashboard"
+import { MentorPaymentGate } from "@/components/mentor/dashboard/mentor-payment-gate"
 import { ExploreMentors } from "@/components/shared/dashboard/explore"
 import { SavedItems } from "@/components/mentee/dashboard/saved-items"
 import { Mentors } from "@/components/shared/dashboard/mentors"
@@ -28,6 +29,7 @@ import { AdminMentors } from "@/components/admin/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/admin/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
+import { AdminSubscriptions } from "@/components/admin/dashboard/admin-subscriptions"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { useAuth } from "@/contexts/auth-context"
 import { AlertTriangle, Sparkles } from "lucide-react"
@@ -81,6 +83,8 @@ export function DashboardShell() {
     isAdmin,
     isMentor,
     isMentorWithIncompleteProfile,
+    mentorProfile,
+    refreshUserData,
   } = useAuth()
 
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -104,6 +108,19 @@ export function DashboardShell() {
 
   if (isLoading || !isAuthenticated) {
     return <AuthLoadingSkeleton />
+  }
+
+  // SHELL-LEVEL PAYMENT GATE: Block all mentor access if payment is incomplete
+  // This must be checked before rendering sidebar or any content
+  const isMentorPaymentPending = isMentor && mentorProfile?.paymentStatus !== 'COMPLETED'
+  if (isMentorPaymentPending) {
+    return (
+      <MentorPaymentGate
+        user={session?.user}
+        mentorProfile={mentorProfile}
+        onPaymentComplete={refreshUserData}
+      />
+    )
   }
 
   const handleSectionChange = (section: string) => {
@@ -142,6 +159,9 @@ export function DashboardShell() {
         case "mentees":
           content = <AdminMentees />
           break
+        case "subscriptions":
+          content = <AdminSubscriptions />
+          break
         case "analytics":
           content = <AdminAnalytics />
           break
@@ -158,28 +178,22 @@ export function DashboardShell() {
           break
         case "mentees":
           content = (
-            <div className="p-4 md:p-8">
-              <div className="mx-auto max-w-7xl">
-                <MentorMentees />
-              </div>
+            <div className="h-full w-full">
+              <MentorMentees />
             </div>
           )
           break
         case "schedule":
           content = (
-            <div className="p-4 md:p-8">
-              <div className="mx-auto max-w-7xl">
-                <MentorBookingsCalendar />
-              </div>
+            <div className="h-full w-full">
+              <MentorBookingsCalendar />
             </div>
           )
           break
         case "availability":
           content = (
-            <div className="p-4 md:p-8">
-              <div className="mx-auto max-w-6xl">
-                <MentorAvailabilityManager />
-              </div>
+            <div className="h-full w-full">
+              <MentorAvailabilityManager />
             </div>
           )
           break
@@ -320,7 +334,7 @@ export function DashboardShell() {
 
         <SidebarInset className="relative flex flex-1 flex-col overflow-hidden">
           <Header showSidebarTrigger onSearchClick={() => handleSectionChange("explore")} />
-          
+
           <main className="flex flex-1 flex-col px-4 pb-6 pt-20 md:px-6 md:pt-24 lg:px-8">
             <AnimatePresence mode="wait">
               {isMentorWithIncompleteProfile && (
@@ -339,7 +353,7 @@ export function DashboardShell() {
                         onClick={() => router.push("/auth/mentor-verification")}
                         className="group ml-3 inline-flex items-center font-medium text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
                       >
-                        Complete now 
+                        Complete now
                         <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
                       </button>
                     </AlertDescription>

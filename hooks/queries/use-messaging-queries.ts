@@ -38,6 +38,7 @@ interface Message {
     isDelivered: boolean;
     createdAt: string;
     updatedAt: string;
+    replyToId?: string | null;
   };
   sender: {
     id: string;
@@ -82,7 +83,7 @@ export const messagingKeys = {
   all: ['messaging'] as const,
   threads: (userId: string) => ['messaging', 'threads', userId] as const,
   thread: (threadId: string, userId: string) => ['messaging', 'thread', threadId, userId] as const,
-  requests: (userId: string, type?: string, status?: string) => 
+  requests: (userId: string, type?: string, status?: string) =>
     ['messaging', 'requests', userId, { type, status }] as const,
   unreadCount: (userId: string) => ['messaging', 'unread', userId] as const,
 };
@@ -103,8 +104,8 @@ const fetchThread = async (threadId: string, userId: string): Promise<ThreadData
 };
 
 const fetchRequests = async (
-  userId: string, 
-  type: string = 'received', 
+  userId: string,
+  type: string = 'received',
   status: string = 'pending'
 ): Promise<MessageRequest[]> => {
   const response = await fetch(
@@ -189,19 +190,21 @@ export function useSendMessageMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ 
-      threadId, 
-      userId, 
-      content 
-    }: { 
-      threadId: string; 
-      userId: string; 
+    mutationFn: async ({
+      threadId,
+      userId,
+      content,
+      replyToId
+    }: {
+      threadId: string;
+      userId: string;
       content: string;
+      replyToId?: string;
     }) => {
       const response = await fetch(`/api/messaging/threads/${threadId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, content }),
+        body: JSON.stringify({ userId, content, replyToId }),
       });
 
       if (!response.ok) {
@@ -211,10 +214,10 @@ export function useSendMessageMutation() {
 
       return response.json();
     },
-    onMutate: async ({ threadId, userId, content }) => {
+    onMutate: async ({ threadId, userId, content, replyToId }) => {
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ 
-        queryKey: messagingKeys.thread(threadId, userId) 
+      await queryClient.cancelQueries({
+        queryKey: messagingKeys.thread(threadId, userId)
       });
 
       // Snapshot previous value
@@ -237,6 +240,7 @@ export function useSendMessageMutation() {
             isDelivered: false,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            replyToId: replyToId || null,
           },
           sender: null, // Will be populated by server
         };
@@ -264,11 +268,11 @@ export function useSendMessageMutation() {
     },
     onSuccess: (data, variables) => {
       // Invalidate and refetch
-      queryClient.invalidateQueries({ 
-        queryKey: messagingKeys.thread(variables.threadId, variables.userId) 
+      queryClient.invalidateQueries({
+        queryKey: messagingKeys.thread(variables.threadId, variables.userId)
       });
-      queryClient.invalidateQueries({ 
-        queryKey: messagingKeys.threads(variables.userId) 
+      queryClient.invalidateQueries({
+        queryKey: messagingKeys.threads(variables.userId)
       });
     },
   });
@@ -307,19 +311,19 @@ export function useHandleRequestMutation() {
     },
     onSuccess: (data, variables) => {
       // Invalidate requests
-      queryClient.invalidateQueries({ 
-        queryKey: messagingKeys.requests(variables.userId, 'received', 'pending') 
+      queryClient.invalidateQueries({
+        queryKey: messagingKeys.requests(variables.userId, 'received', 'pending')
       });
-      
+
       // If accepted, invalidate threads to show new conversation
       if (variables.action === 'accept') {
-        queryClient.invalidateQueries({ 
-          queryKey: messagingKeys.threads(variables.userId) 
+        queryClient.invalidateQueries({
+          queryKey: messagingKeys.threads(variables.userId)
         });
       }
 
-      const actionText = variables.action === 'accept' ? 'accepted' : 
-                        variables.action === 'reject' ? 'rejected' : 'cancelled';
+      const actionText = variables.action === 'accept' ? 'accepted' :
+        variables.action === 'reject' ? 'rejected' : 'cancelled';
       toast.success(`Request ${actionText} successfully`);
     },
     onError: (err) => {
@@ -369,8 +373,8 @@ export function useSendRequestMutation() {
     },
     onSuccess: (data, variables) => {
       // Invalidate sent requests
-      queryClient.invalidateQueries({ 
-        queryKey: messagingKeys.requests(variables.userId, 'sent', 'pending') 
+      queryClient.invalidateQueries({
+        queryKey: messagingKeys.requests(variables.userId, 'sent', 'pending')
       });
       toast.success('Message request sent successfully');
     },
@@ -403,8 +407,8 @@ export function useArchiveThreadMutation() {
     },
     onSuccess: (data, variables) => {
       // Invalidate threads list
-      queryClient.invalidateQueries({ 
-        queryKey: messagingKeys.threads(variables.userId) 
+      queryClient.invalidateQueries({
+        queryKey: messagingKeys.threads(variables.userId)
       });
       toast.success('Conversation archived');
     },
@@ -437,8 +441,8 @@ export function useMarkAsReadMutation() {
     },
     onMutate: async ({ threadId, userId }) => {
       // Optimistically update unread count
-      await queryClient.cancelQueries({ 
-        queryKey: messagingKeys.threads(userId) 
+      await queryClient.cancelQueries({
+        queryKey: messagingKeys.threads(userId)
       });
 
       const previousThreads = queryClient.getQueryData<Thread[]>(
@@ -448,8 +452,8 @@ export function useMarkAsReadMutation() {
       if (previousThreads) {
         queryClient.setQueryData<Thread[]>(
           messagingKeys.threads(userId),
-          previousThreads.map(thread => 
-            thread.thread.id === threadId 
+          previousThreads.map(thread =>
+            thread.thread.id === threadId
               ? { ...thread, unreadCount: 0 }
               : thread
           )
@@ -469,8 +473,8 @@ export function useMarkAsReadMutation() {
     },
     onSettled: (data, error, variables) => {
       // Always refetch to ensure consistency
-      queryClient.invalidateQueries({ 
-        queryKey: messagingKeys.threads(variables.userId) 
+      queryClient.invalidateQueries({
+        queryKey: messagingKeys.threads(variables.userId)
       });
     },
   });

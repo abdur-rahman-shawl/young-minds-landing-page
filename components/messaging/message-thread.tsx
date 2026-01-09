@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -13,11 +13,9 @@ import {
   MoreVertical,
   Archive,
   Bell,
-  BellOff,
   Trash2,
   Paperclip,
   Loader2,
-  Edit2,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -27,8 +25,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useThreadQuery } from '@/hooks/queries/use-messaging-queries';
-import { useMessaging } from '@/hooks/use-messaging-v2';
-import { useReactions } from '@/hooks/use-reactions';
 import { MessageReactions } from './message-reactions';
 import { ReactionPicker } from './reaction-picker';
 import { MessageEditForm } from './message-edit-form';
@@ -42,6 +38,14 @@ interface MessageThreadProps {
   onBack: () => void;
   onSendMessage: (threadId: string, content: string, replyToId?: string) => Promise<any>;
   onArchive: () => void;
+  showBackButton?: boolean;
+}
+
+interface ReactionGroup {
+  emoji: string;
+  count: number;
+  users: Array<{ id: string; name: string; email: string; image?: string }>;
+  hasReacted: boolean;
 }
 
 interface MessageWithReactionsProps {
@@ -49,13 +53,14 @@ interface MessageWithReactionsProps {
   isOwnMessage: boolean;
   userId: string;
   showDateSeparator: boolean;
-  renderDateSeparator: (date: string) => JSX.Element;
+  renderDateSeparator: (date: string) => React.ReactElement;
   formatMessageDate: (date: string) => string;
   onReply: (msg: any) => void;
   onEdit: (messageId: string, content: string) => Promise<void>;
   onDelete: (messageId: string) => Promise<void>;
   messages: any[];
   scrollToMessage: (messageId: string) => void;
+  onToggleReaction: (messageId: string, emoji: string) => void;
 }
 
 function MessageWithReactions({
@@ -70,19 +75,22 @@ function MessageWithReactions({
   onDelete,
   messages,
   scrollToMessage,
+  onToggleReaction,
 }: MessageWithReactionsProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const { reactions, toggleReaction, isLoading } = useReactions(msg.message.id, userId);
-  
+
+  // Use pre-fetched reactions from message data instead of per-message API call
+  const reactions: ReactionGroup[] = msg.reactions || [];
+
   const messageAge = Date.now() - new Date(msg.message.createdAt).getTime();
-  
+
   // Find the replied-to message if this message is a reply
-  const repliedMessage = msg.message.replyToId 
+  const repliedMessage = msg.message.replyToId
     ? messages.find(m => m.message.id === msg.message.replyToId)
     : null;
-    
+
   const handleEdit = async (newContent: string) => {
     try {
       await onEdit(msg.message.id, newContent);
@@ -92,7 +100,7 @@ function MessageWithReactions({
       toast.error(error instanceof Error ? error.message : 'Failed to edit message');
     }
   };
-  
+
   const handleDelete = async () => {
     try {
       await onDelete(msg.message.id);
@@ -105,7 +113,7 @@ function MessageWithReactions({
   return (
     <div>
       {showDateSeparator && renderDateSeparator(msg.message.createdAt)}
-      
+
       <div
         className={cn(
           'group relative flex gap-3',
@@ -147,8 +155,8 @@ function MessageWithReactions({
                 <div
                   className={cn(
                     'mb-2 p-2 rounded border-l-2 cursor-pointer',
-                    isOwnMessage 
-                      ? 'bg-primary-foreground/10 border-primary-foreground/20' 
+                    isOwnMessage
+                      ? 'bg-primary-foreground/10 border-primary-foreground/20'
                       : 'bg-background/50 border-muted-foreground/20'
                   )}
                   onClick={() => scrollToMessage(msg.message.replyToId)}
@@ -161,7 +169,7 @@ function MessageWithReactions({
                   </p>
                 </div>
               )}
-              
+
               {isEditing ? (
                 <MessageEditForm
                   originalContent={msg.message.content}
@@ -174,7 +182,7 @@ function MessageWithReactions({
                 </p>
               )}
             </div>
-            
+
             {/* Action Buttons - shows on hover */}
             {!isEditing && (
               <div
@@ -195,10 +203,10 @@ function MessageWithReactions({
                     onEdit={() => setIsEditing(true)}
                     onDelete={handleDelete}
                     onReply={() => onReply(msg)}
-                    onCopy={() => {}}
+                    onCopy={() => { }}
                   />
                 )}
-                
+
                 {/* Reply Button for others' messages */}
                 {!isOwnMessage && (
                   <Button
@@ -223,26 +231,26 @@ function MessageWithReactions({
                     </svg>
                   </Button>
                 )}
-                
+
                 {/* Reaction Picker */}
                 <ReactionPicker
-                  onReact={toggleReaction}
+                  onReact={(emoji) => onToggleReaction(msg.message.id, emoji)}
                   side={isOwnMessage ? 'left' : 'right'}
                   triggerClassName="ml-1 mr-2"
                 />
               </div>
             )}
           </div>
-          
+
           {/* Display Reactions */}
           {reactions.length > 0 && (
             <MessageReactions
               reactions={reactions}
-              onReact={toggleReaction}
+              onReact={(emoji) => onToggleReaction(msg.message.id, emoji)}
               className={cn(isOwnMessage && 'justify-end')}
             />
           )}
-          
+
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">
               {formatMessageDate(msg.message.createdAt)}
@@ -255,8 +263,8 @@ function MessageWithReactions({
             {isOwnMessage && (
               <span className="text-xs text-muted-foreground">
                 {msg.message.status === 'read' ? 'Read' :
-                 msg.message.status === 'delivered' ? 'Delivered' :
-                 msg.message.status === 'sent' ? 'Sent' : 'Sending...'}
+                  msg.message.status === 'delivered' ? 'Delivered' :
+                    msg.message.status === 'sent' ? 'Sent' : 'Sending...'}
               </span>
             )}
           </div>
@@ -272,18 +280,59 @@ export function MessageThread({
   onBack,
   onSendMessage,
   onArchive,
+  showBackButton = true,
 }: MessageThreadProps) {
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
-  const { data: threadData, isLoading } = useThreadQuery(threadId, userId);
-  const { editMessage, deleteMessage } = useMessaging(userId);
-  
+  const { data: threadData, isLoading, refetch } = useThreadQuery(threadId, userId);
+
   const thread = threadData?.thread;
   const messages = threadData?.messages || [];
   const otherUser = threadData?.otherUser;
+
+  // Handler for toggling reactions - calls API directly
+  const handleToggleReaction = async (messageId: string, emoji: string) => {
+    try {
+      await fetch(`/api/messaging/messages/${messageId}/reactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji }),
+      });
+      // Refetch thread data to get updated reactions
+      refetch();
+    } catch (error) {
+      toast.error('Failed to update reaction');
+    }
+  };
+
+  // Handler for editing messages
+  const editMessage = async (messageId: string, content: string) => {
+    const response = await fetch(`/api/messaging/messages/${messageId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to edit message');
+    }
+    refetch();
+  };
+
+  // Handler for deleting messages
+  const deleteMessage = async (messageId: string) => {
+    const response = await fetch(`/api/messaging/messages/${messageId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete message');
+    }
+    refetch();
+  };
 
   useEffect(() => {
     // Scroll to bottom when messages change
@@ -297,7 +346,7 @@ export function MessageThread({
 
     const message = messageInput.trim();
     const replyToId = replyingTo?.message?.id;
-    
+
     setMessageInput('');
     setReplyingTo(null);
     setIsSending(true);
@@ -312,7 +361,7 @@ export function MessageThread({
       setIsSending(false);
     }
   };
-  
+
   const scrollToMessage = (messageId: string) => {
     const element = messageRefs.current[messageId];
     if (element) {
@@ -324,7 +373,7 @@ export function MessageThread({
       }, 2000);
     }
   };
-  
+
   const handleReply = (msg: any) => {
     setReplyingTo(msg);
     // Focus the input
@@ -334,7 +383,7 @@ export function MessageThread({
 
   const formatMessageDate = (date: string) => {
     const messageDate = new Date(date);
-    
+
     if (isToday(messageDate)) {
       return format(messageDate, 'h:mm a');
     } else if (isYesterday(messageDate)) {
@@ -347,7 +396,7 @@ export function MessageThread({
   const renderDateSeparator = (date: string) => {
     const messageDate = new Date(date);
     let label = '';
-    
+
     if (isToday(messageDate)) {
       label = 'Today';
     } else if (isYesterday(messageDate)) {
@@ -386,21 +435,23 @@ export function MessageThread({
       <div className="border-b p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onBack}
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            
+            {showBackButton && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onBack}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            )}
+
             <Avatar className="h-10 w-10">
               <AvatarImage src={otherUser?.image} />
               <AvatarFallback>
                 {otherUser?.name?.charAt(0) || 'U'}
               </AvatarFallback>
             </Avatar>
-            
+
             <div>
               <h3 className="font-semibold">{otherUser?.name || 'Unknown User'}</h3>
               <p className="text-xs text-muted-foreground">
@@ -443,14 +494,14 @@ export function MessageThread({
             </div>
           ) : (
             messages.map((msg, index) => {
-              const showDateSeparator = index === 0 || 
-                new Date(messages[index - 1].message.createdAt).toDateString() !== 
+              const showDateSeparator = index === 0 ||
+                new Date(messages[index - 1].message.createdAt).toDateString() !==
                 new Date(msg.message.createdAt).toDateString();
-              
+
               const isOwnMessage = msg.message.senderId === userId;
 
               return (
-                <div 
+                <div
                   key={msg.message.id}
                   ref={(el) => {
                     if (el) messageRefs.current[msg.message.id] = el;
@@ -469,6 +520,7 @@ export function MessageThread({
                     onDelete={deleteMessage}
                     messages={messages}
                     scrollToMessage={scrollToMessage}
+                    onToggleReaction={handleToggleReaction}
                   />
                 </div>
               );
@@ -515,7 +567,7 @@ export function MessageThread({
             </div>
           </div>
         )}
-        
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -531,7 +583,7 @@ export function MessageThread({
           >
             <Paperclip className="h-5 w-5" />
           </Button>
-          
+
           <Input
             placeholder="Type a message..."
             value={messageInput}
@@ -539,7 +591,7 @@ export function MessageThread({
             disabled={isSending}
             className="flex-1"
           />
-          
+
           <Button
             type="submit"
             disabled={!messageInput.trim() || isSending}

@@ -7,12 +7,14 @@
       "WebFetch(domain:originui.com)",
       "mcp__supabase__list_tables",
       "WebSearch",
-      "mcp__supabase__list_projects"
+      "mcp__supabase__list_projects",
+      "Bash(powershell:*)",
+      "mcp__supabase__execute_sql"
     ],
     "deny": []
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "supabase"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }

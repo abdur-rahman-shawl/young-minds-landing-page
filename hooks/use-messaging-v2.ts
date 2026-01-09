@@ -22,16 +22,16 @@ export function useMessaging(userId: string | undefined) {
   const { isConnected } = useMessagingSSE(userId);
 
   // Fetch data using React Query hooks
-  const { 
-    data: threads = [], 
+  const {
+    data: threads = [],
     isLoading: threadsLoading,
-    error: threadsError 
+    error: threadsError
   } = useThreadsQuery(userId);
 
-  const { 
-    data: requests = [], 
+  const {
+    data: requests = [],
     isLoading: requestsLoading,
-    error: requestsError 
+    error: requestsError
   } = useMessageRequestsQuery(userId, 'received', 'pending');
 
   // Get unread counts from cached data
@@ -52,9 +52,9 @@ export function useMessaging(userId: string | undefined) {
   const prefetchThread = usePrefetchThread();
 
   // Wrapper functions that use mutations
-  const sendMessage = async (threadId: string, content: string) => {
+  const sendMessage = async (threadId: string, content: string, replyToId?: string) => {
     if (!userId) throw new Error('User not authenticated');
-    return sendMessageMutation.mutateAsync({ threadId, userId, content });
+    return sendMessageMutation.mutateAsync({ threadId, userId, content, replyToId });
   };
 
   const sendRequest = async (
@@ -105,27 +105,27 @@ export function useMessaging(userId: string | undefined) {
     requestsLoading,
     threadsError,
     requestsError,
-    
+
     // Counts
     unreadThreadsCount,
     pendingRequestsCount,
     totalUnreadCount,
-    
+
     // Connection status
     isConnected,
-    
+
     // Actions
     sendMessage,
     sendRequest,
     handleRequest,
     markThreadAsRead,
     archiveThread,
-    
+
     // Mutation states
     isSendingMessage: sendMessageMutation.isPending,
     isHandlingRequest: handleRequestMutation.isPending,
     isSendingRequest: sendRequestMutation.isPending,
-    
+
     // Prefetching
     prefetchThread,
   };
