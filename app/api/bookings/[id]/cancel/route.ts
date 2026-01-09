@@ -2,15 +2,35 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { sessions, notifications } from '@/lib/db/schema';
-import { eq, and, or } from 'drizzle-orm';
+import { sessions, notifications, sessionPolicies, sessionAuditLog } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { CANCELLATION_REASONS, DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
 
 const cancelBookingSchema = z.object({
-  reason: z.string().max(500, 'Cancellation reason must be less than 500 characters').optional(),
+  reasonCategory: z.enum([
+    'schedule_conflict',
+    'personal_emergency',
+    'no_longer_needed',
+    'found_alternative',
+    'technical_issues',
+    'other'
+  ]),
+  reasonDetails: z.string().max(500, 'Reason details must be less than 500 characters').optional(),
 });
 
-// POST /api/bookings/[id]/cancel - Cancel a booking
+// Helper to get policy value from DB with fallback
+async function getPolicyValue(key: string, defaultValue: string): Promise<string> {
+  const policy = await db
+    .select()
+    .from(sessionPolicies)
+    .where(eq(sessionPolicies.policyKey, key))
+    .limit(1);
+
+  return policy.length > 0 ? policy[0].policyValue : defaultValue;
+}
+
+// POST /api/bookings/[id]/cancel - Cancel a booking (MENTEE ONLY)
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -28,7 +48,7 @@ export async function POST(
     }
 
     const body = await req.json();
-    const { reason } = cancelBookingSchema.parse(body);
+    const { reasonCategory, reasonDetails } = cancelBookingSchema.parse(body);
 
     // Get the existing booking
     const existingBooking = await db
@@ -45,14 +65,13 @@ export async function POST(
     }
 
     const booking = existingBooking[0];
-    
-    // Check if user is participant
-    const isMentor = booking.mentorId === session.user.id;
+
+    // MENTEE ONLY: Only the mentee can cancel the session
     const isMentee = booking.menteeId === session.user.id;
-    
-    if (!isMentor && !isMentee) {
+
+    if (!isMentee) {
       return NextResponse.json(
-        { error: 'You are not authorized to cancel this booking' },
+        { error: 'Only the mentee can cancel this session. Please contact the mentee if you need to modify the booking.' },
         { status: 403 }
       );
     }
@@ -72,39 +91,82 @@ export async function POST(
       );
     }
 
-    // Check cancellation time constraints (e.g., 2 hours before session)
+    if (booking.status === 'in_progress') {
+      return NextResponse.json(
+        { error: 'Cannot cancel a session that is in progress' },
+        { status: 400 }
+      );
+    }
+
+    // Load cancellation policy from DB
+    const cancellationCutoffHours = parseInt(
+      await getPolicyValue(
+        DEFAULT_SESSION_POLICIES.CANCELLATION_CUTOFF_HOURS.key,
+        DEFAULT_SESSION_POLICIES.CANCELLATION_CUTOFF_HOURS.value
+      )
+    );
+
+    // Check cancellation time constraints
     const scheduledTime = new Date(booking.scheduledAt);
     const now = new Date();
     const hoursUntilSession = (scheduledTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    if (hoursUntilSession < 2 && hoursUntilSession > 0) {
+    if (hoursUntilSession < cancellationCutoffHours && hoursUntilSession > 0) {
       return NextResponse.json(
-        { error: 'Sessions cannot be cancelled within 2 hours of the scheduled time' },
+        { error: `Sessions cannot be cancelled within ${cancellationCutoffHours} hours of the scheduled time` },
         { status: 400 }
       );
     }
+
+    // Get reason label for notification
+    const reasonLabel = CANCELLATION_REASONS.find(r => r.value === reasonCategory)?.label || reasonCategory;
+    const fullReason = reasonDetails ? `${reasonLabel}: ${reasonDetails}` : reasonLabel;
 
     // Update the booking
     const [cancelledBooking] = await db
       .update(sessions)
       .set({
         status: 'cancelled',
-        cancelledBy: isMentor ? 'mentor' : 'mentee',
-        cancellationReason: reason,
+        cancelledBy: 'mentee',
+        cancellationReason: fullReason,
         updatedAt: new Date(),
       })
       .where(eq(sessions.id, params.id))
       .returning();
 
-    // Notify the other party
-    const otherUserId = isMentor ? booking.menteeId : booking.mentorId;
-    const userRole = isMentor ? 'mentor' : 'mentee';
+    // Create audit log entry
+    await db.insert(sessionAuditLog).values({
+      sessionId: booking.id,
+      userId: session.user.id,
+      action: 'cancel',
+      reasonCategory: reasonCategory,
+      reasonDetails: reasonDetails,
+      policySnapshot: {
+        cancellationCutoffHours,
+        hoursUntilSession: Math.round(hoursUntilSession * 100) / 100,
+      },
+      ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
+      userAgent: req.headers.get('user-agent') || 'unknown',
+    });
 
+    // Notify the mentor
     await db.insert(notifications).values({
-      userId: otherUserId,
+      userId: booking.mentorId,
       type: 'BOOKING_CANCELLED',
-      title: 'Session Cancelled',
-      message: `Your session "${booking.title}" has been cancelled by the ${userRole}${reason ? `. Reason: ${reason}` : ''}`,
+      title: 'Session Cancelled by Mentee',
+      message: `Your session "${booking.title}" has been cancelled. Reason: ${fullReason}`,
+      relatedId: booking.id,
+      relatedType: 'session',
+      actionUrl: `/dashboard?section=schedule`,
+      actionText: 'View Schedule',
+    });
+
+    // Notify the mentee (confirmation)
+    await db.insert(notifications).values({
+      userId: booking.menteeId,
+      type: 'BOOKING_CANCELLED',
+      title: 'Session Cancellation Confirmed',
+      message: `Your session "${booking.title}" has been cancelled successfully.`,
       relatedId: booking.id,
       relatedType: 'session',
       actionUrl: `/dashboard?section=sessions`,
@@ -119,7 +181,7 @@ export async function POST(
 
   } catch (error) {
     console.error('Booking cancellation error:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid input data', details: error.errors },

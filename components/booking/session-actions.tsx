@@ -28,6 +28,7 @@ import {
   UserX,
   Video,
   MessageSquare,
+  Info,
 } from "lucide-react";
 import { CancelDialog } from "./cancel-dialog";
 import { RescheduleDialog } from "./reschedule-dialog";
@@ -44,6 +45,7 @@ interface ActionSession {
   menteeId: string;
   meetingUrl?: string;
   meetingType?: string;
+  rescheduleCount?: number;
 }
 
 interface SessionActionsProps {
@@ -83,31 +85,28 @@ export function SessionActions({
   const now = new Date();
   const isPastSession = isPast(scheduledTime);
   const hoursUntilSession = (scheduledTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-  
+
   console.log("Time calculations:", {
     scheduledTime,
     now,
     hoursUntilSession,
     isPastSession,
   });
-  
+
+  // Role checks
+  const isMentee = userRole === "mentee";
+  const isMentor = userRole === "mentor";
+
   // Demo mode: allow mentors/mentees to jump into the lobby regardless of schedule timing
   const canJoin = session.status === "scheduled" || session.status === "in_progress";
 
-  // Determine what actions are available
-  const canCancel = session.status === "scheduled" && hoursUntilSession >= 2;
-  const canReschedule = session.status === "scheduled" && hoursUntilSession >= 4;
-  const canMarkNoShow = userRole === "mentor" &&
+  // Determine what actions are available (MENTEE ONLY for cancel/reschedule)
+  const canCancel = isMentee && session.status === "scheduled" && hoursUntilSession >= 2;
+  const canReschedule = isMentee && session.status === "scheduled" && hoursUntilSession >= 4;
+  const canMarkNoShow = isMentor &&
     session.status === "scheduled" &&
     isPastSession &&
     (now.getTime() - scheduledTime.getTime()) / (1000 * 60 * 60) <= 24;
-  
-  console.log("Permissions:", {
-    canJoin,
-    canCancel,
-    canReschedule,
-    canMarkNoShow,
-  });
 
   const handleJoinSession = () => {
     if (onJoin) {
@@ -164,7 +163,7 @@ export function SessionActions({
             Join
           </Button>
         )}
-        
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm">
@@ -174,16 +173,16 @@ export function SessionActions({
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Session Options</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            
+
             {canReschedule && (
               <DropdownMenuItem onClick={() => setShowRescheduleDialog(true)}>
                 <Calendar className="mr-2 h-4 w-4" />
                 Reschedule
               </DropdownMenuItem>
             )}
-            
+
             {canCancel && (
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => setShowCancelDialog(true)}
                 className="text-red-600 focus:text-red-600"
               >
@@ -191,9 +190,9 @@ export function SessionActions({
                 Cancel Session
               </DropdownMenuItem>
             )}
-            
+
             {canMarkNoShow && (
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => setShowNoShowDialog(true)}
                 className="text-orange-600 focus:text-orange-600"
               >
@@ -201,11 +200,19 @@ export function SessionActions({
                 Mark as No-Show
               </DropdownMenuItem>
             )}
-            
-            <DropdownMenuItem>
-              <MessageSquare className="mr-2 h-4 w-4" />
-              Send Message
-            </DropdownMenuItem>
+
+
+
+            {/* Show info message for mentors about cancel/reschedule */}
+            {isMentor && session.status === "scheduled" && (
+              <>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5 text-xs text-muted-foreground flex items-start gap-1.5">
+                  <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                  <span>Only the mentee can cancel or reschedule this session</span>
+                </div>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -227,6 +234,7 @@ export function SessionActions({
         sessionTitle={session.title}
         currentDate={scheduledTime}
         currentDuration={session.duration}
+        rescheduleCount={session.rescheduleCount || 0}
         onSuccess={onUpdate}
       />
 
@@ -236,13 +244,13 @@ export function SessionActions({
           <AlertDialogHeader>
             <AlertDialogTitle>Mark as No-Show?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to mark "{session.title}" as a no-show? 
+              Are you sure you want to mark "{session.title}" as a no-show?
               This will notify the mentee and may affect their account standing.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleMarkNoShow}
               className="bg-orange-600 hover:bg-orange-700"
             >

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -18,32 +18,32 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { 
-  Calendar, 
-  Clock, 
-  User, 
-  Video, 
-  MessageSquare, 
-  Headphones, 
-  ChevronLeft, 
+import {
+  Calendar,
+  Clock,
+  User,
+  Video,
+  MessageSquare,
+  Headphones,
+  ChevronLeft,
   ChevronRight,
-  ChevronDown, 
+  ChevronDown,
   ExternalLink,
   MapPin,
   DollarSign,
   CalendarDays
 } from 'lucide-react';
-import { 
-  format, 
-  addDays, 
+import {
+  format,
+  addDays,
   addMonths,
-  startOfWeek, 
-  endOfWeek, 
+  startOfWeek,
+  endOfWeek,
   startOfMonth,
   endOfMonth,
-  eachDayOfInterval, 
-  isSameDay, 
-  isToday, 
+  eachDayOfInterval,
+  isSameDay,
+  isToday,
   isPast,
   isSameMonth,
   addMinutes,
@@ -77,6 +77,7 @@ interface Session {
   mentorAvatar?: string;
   rate?: number;
   currency?: string;
+  rescheduleCount?: number;
 }
 
 type ViewType = 'month' | 'week' | 'day' | 'agenda';
@@ -88,26 +89,31 @@ const MEETING_TYPE_ICONS = {
 };
 
 const STATUS_COLORS = {
-  scheduled: { 
-    bg: 'bg-blue-200/50 hover:bg-blue-200/40 dark:bg-blue-400/25 dark:hover:bg-blue-400/20', 
-    text: 'text-blue-900/90 dark:text-blue-200', 
-    border: 'shadow-blue-700/8' 
+  scheduled: {
+    bg: 'bg-blue-200/50 hover:bg-blue-200/40 dark:bg-blue-400/25 dark:hover:bg-blue-400/20',
+    text: 'text-blue-900/90 dark:text-blue-200',
+    border: 'shadow-blue-700/8'
   },
-  in_progress: { 
-    bg: 'bg-emerald-200/50 hover:bg-emerald-200/40 dark:bg-emerald-400/25 dark:hover:bg-emerald-400/20', 
-    text: 'text-emerald-900/90 dark:text-emerald-200', 
-    border: 'shadow-emerald-700/8' 
+  in_progress: {
+    bg: 'bg-emerald-200/50 hover:bg-emerald-200/40 dark:bg-emerald-400/25 dark:hover:bg-emerald-400/20',
+    text: 'text-emerald-900/90 dark:text-emerald-200',
+    border: 'shadow-emerald-700/8'
   },
-  completed: { 
-    bg: 'bg-gray-200/50 hover:bg-gray-200/40 dark:bg-gray-400/25 dark:hover:bg-gray-400/20', 
-    text: 'text-gray-900/90 dark:text-gray-200', 
-    border: 'shadow-gray-700/8' 
+  completed: {
+    bg: 'bg-gray-200/50 hover:bg-gray-200/40 dark:bg-gray-400/25 dark:hover:bg-gray-400/20',
+    text: 'text-gray-900/90 dark:text-gray-200',
+    border: 'shadow-gray-700/8'
   },
-  cancelled: { 
-    bg: 'bg-rose-200/50 hover:bg-rose-200/40 dark:bg-rose-400/25 dark:hover:bg-rose-400/20', 
-    text: 'text-rose-900/90 dark:text-rose-200', 
-    border: 'shadow-rose-700/8' 
+  cancelled: {
+    bg: 'bg-rose-200/50 hover:bg-rose-200/40 dark:bg-rose-400/25 dark:hover:bg-rose-400/20',
+    text: 'text-rose-900/90 dark:text-rose-200',
+    border: 'shadow-rose-700/8'
   },
+  no_show: {
+    bg: 'bg-orange-200/50 hover:bg-orange-200/40 dark:bg-orange-400/25 dark:hover:bg-orange-400/20',
+    text: 'text-orange-900/90 dark:text-orange-200',
+    border: 'shadow-orange-700/8'
+  }
 };
 
 export function SessionsCalendarView() {
@@ -119,7 +125,7 @@ export function SessionsCalendarView() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [lobbySession, setLobbySession] = useState<Session | null>(null);
-  
+
   // Get user info for SessionActions
   const userId = session?.user?.id || '';
 
@@ -132,25 +138,25 @@ export function SessionsCalendarView() {
         const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
         const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
         return { start: calendarStart, end: calendarEnd };
-      
+
       case 'week':
         const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
         const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
         return { start: weekStart, end: weekEnd };
-      
+
       case 'day':
         const dayStart = new Date(currentDate);
         dayStart.setHours(0, 0, 0, 0);
         const dayEnd = new Date(currentDate);
         dayEnd.setHours(23, 59, 59, 999);
         return { start: dayStart, end: dayEnd };
-      
+
       case 'agenda':
         // Show next 30 days for agenda view
         const agendaStart = new Date();
         const agendaEnd = addDays(agendaStart, 30);
         return { start: agendaStart, end: agendaEnd };
-      
+
       default:
         return { start: new Date(), end: new Date() };
     }
@@ -209,7 +215,7 @@ export function SessionsCalendarView() {
     }
 
     const increment = direction === 'next' ? 1 : -1;
-    
+
     switch (viewType) {
       case 'month':
         setCurrentDate(prev => addMonths(prev, increment));
@@ -307,7 +313,7 @@ export function SessionsCalendarView() {
                 const daysSessions = getSessionsForDate(day);
                 const isCurrentMonth = isSameMonth(day, currentDate);
                 const isPastDay = isPast(day) && !isToday(day);
-                
+
                 return (
                   <div
                     key={day.toString()}
@@ -319,7 +325,7 @@ export function SessionsCalendarView() {
                       <div className="group-data-today:bg-primary group-data-today:text-primary-foreground mb-1 inline-flex size-6 items-center justify-center rounded-full text-sm">
                         {format(day, 'd')}
                       </div>
-                      
+
                       <div className="flex-1 space-y-1 overflow-hidden">
                         {daysSessions.slice(0, 3).map((session) => {
                           const colors = STATUS_COLORS[session.status];
@@ -421,7 +427,7 @@ export function SessionsCalendarView() {
                   className="border-border/70 relative min-h-[64px] border-b last:border-b-0"
                 />
               ))}
-              
+
               {/* Sessions */}
               {getSessionsForDate(day).map(session => {
                 const sessionDate = new Date(session.scheduledAt);
@@ -504,7 +510,7 @@ export function SessionsCalendarView() {
                   {hourSessions.map(session => {
                     const colors = STATUS_COLORS[session.status];
                     const Icon = MEETING_TYPE_ICONS[session.meetingType];
-                    
+
                     return (
                       <div
                         key={session.id}
@@ -611,7 +617,7 @@ export function SessionsCalendarView() {
                 {daySessions.map(session => {
                   const colors = STATUS_COLORS[session.status];
                   const Icon = MEETING_TYPE_ICONS[session.meetingType];
-                  
+
                   return (
                     <div
                       key={session.id}
@@ -682,7 +688,7 @@ export function SessionsCalendarView() {
             View and manage your mentoring sessions
           </div>
         </div>
-        
+
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center sm:gap-2 max-sm:order-1">
@@ -712,7 +718,7 @@ export function SessionsCalendarView() {
               Today
             </Button>
           </div>
-          
+
           <div className="flex items-center justify-between gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -772,7 +778,7 @@ export function SessionsCalendarView() {
               Session details and information
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedSession && (
             <div className="space-y-4">
               {/* Status Badge */}
@@ -795,7 +801,7 @@ export function SessionsCalendarView() {
                     {format(new Date(selectedSession.scheduledAt), 'EEEE, MMMM d, yyyy')}
                   </span>
                 </div>
-                
+
                 <div className="flex items-center gap-3">
                   <Clock className="w-4 h-4 text-gray-500" />
                   <span className="text-sm">
@@ -856,18 +862,39 @@ export function SessionsCalendarView() {
               )}
 
               {/* Actions */}
-              {selectedSession.status === 'scheduled' && !isPast(new Date(selectedSession.scheduledAt)) && (
-                <div className="pt-4">
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      setDialogOpen(false);
-                      setLobbySession(selectedSession);
-                    }}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Join Session
-                  </Button>
+              {selectedSession.status === 'scheduled' && (
+                <div className="pt-4 space-y-3">
+                  {/* Join Button (only if not past) */}
+                  {!isPast(new Date(selectedSession.scheduledAt)) && (
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        setDialogOpen(false);
+                        setLobbySession(selectedSession);
+                      }}
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Join Session
+                    </Button>
+                  )}
+
+                  {/* Cancel/Reschedule Actions (via SessionActions) */}
+                  <div className="flex items-center justify-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-800">
+                    <SessionActions
+                      session={{
+                        ...selectedSession,
+                        scheduledAt: new Date(selectedSession.scheduledAt),
+                        menteeId: selectedSession.menteeId || userId,
+                        rescheduleCount: selectedSession.rescheduleCount || 0,
+                      }}
+                      userId={userId}
+                      userRole={selectedSession.mentorId === userId ? 'mentor' : 'mentee'}
+                      onUpdate={() => {
+                        fetchSessions();
+                        setDialogOpen(false);
+                      }}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -875,10 +902,11 @@ export function SessionsCalendarView() {
         </DialogContent>
       </Dialog>
 
-      <SessionLobbyModal 
+      <SessionLobbyModal
         isOpen={!!lobbySession}
         onClose={() => setLobbySession(null)}
-        session={lobbySession}
+        sessionId={lobbySession?.id || null}
+        viewerRole={lobbySession?.mentorId === userId ? "mentor" : "mentee"}
       />
     </div>
   );

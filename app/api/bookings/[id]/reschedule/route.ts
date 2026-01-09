@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { sessions, notifications } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { sessions, notifications, sessionPolicies, sessionAuditLog } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
+import { format } from 'date-fns';
 
 const rescheduleBookingSchema = z.object({
   scheduledAt: z.string()
@@ -23,12 +25,24 @@ const rescheduleBookingSchema = z.object({
     .optional(),
 });
 
-// POST /api/bookings/[id]/reschedule - Reschedule a booking
+// Helper to get policy value from DB with fallback
+async function getPolicyValue(key: string, defaultValue: string): Promise<string> {
+  const policy = await db
+    .select()
+    .from(sessionPolicies)
+    .where(eq(sessionPolicies.policyKey, key))
+    .limit(1);
+
+  return policy.length > 0 ? policy[0].policyValue : defaultValue;
+}
+
+// POST /api/bookings/[id]/reschedule - Reschedule a booking (MENTEE ONLY)
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth.api.getSession({
       headers: await headers()
     });
@@ -47,7 +61,7 @@ export async function POST(
     const existingBooking = await db
       .select()
       .from(sessions)
-      .where(eq(sessions.id, params.id))
+      .where(eq(sessions.id, id))
       .limit(1);
 
     if (!existingBooking.length) {
@@ -58,14 +72,13 @@ export async function POST(
     }
 
     const booking = existingBooking[0];
-    
-    // Check if user is participant
-    const isMentor = booking.mentorId === session.user.id;
+
+    // MENTEE ONLY: Only the mentee can reschedule the session
     const isMentee = booking.menteeId === session.user.id;
-    
-    if (!isMentor && !isMentee) {
+
+    if (!isMentee) {
       return NextResponse.json(
-        { error: 'You are not authorized to reschedule this booking' },
+        { error: 'Only the mentee can reschedule this session. Please contact the mentee if you need to modify the booking.' },
         { status: 403 }
       );
     }
@@ -92,70 +105,123 @@ export async function POST(
       );
     }
 
+    if (booking.status === 'in_progress') {
+      return NextResponse.json(
+        { error: 'Cannot reschedule a session that is in progress' },
+        { status: 400 }
+      );
+    }
+
+    // Load policies from DB
+    const rescheduleCutoffHours = parseInt(
+      await getPolicyValue(
+        DEFAULT_SESSION_POLICIES.RESCHEDULE_CUTOFF_HOURS.key,
+        DEFAULT_SESSION_POLICIES.RESCHEDULE_CUTOFF_HOURS.value
+      )
+    );
+
+    const maxReschedules = parseInt(
+      await getPolicyValue(
+        DEFAULT_SESSION_POLICIES.MAX_RESCHEDULES_PER_SESSION.key,
+        DEFAULT_SESSION_POLICIES.MAX_RESCHEDULES_PER_SESSION.value
+      )
+    );
+
+    // Check reschedule count limit
+    if (booking.rescheduleCount >= maxReschedules) {
+      return NextResponse.json(
+        {
+          error: `This session has already been rescheduled ${maxReschedules} time(s). No further rescheduling is allowed.`,
+          rescheduleCount: booking.rescheduleCount,
+          maxReschedules
+        },
+        { status: 400 }
+      );
+    }
+
     // Check rescheduling time constraints
     const oldScheduledTime = new Date(booking.scheduledAt);
     const now = new Date();
     const hoursUntilSession = (oldScheduledTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    if (hoursUntilSession < 4 && hoursUntilSession > 0) {
+    if (hoursUntilSession < rescheduleCutoffHours && hoursUntilSession > 0) {
       return NextResponse.json(
-        { error: 'Sessions cannot be rescheduled within 4 hours of the scheduled time' },
+        { error: `Sessions cannot be rescheduled within ${rescheduleCutoffHours} hours of the scheduled time` },
         { status: 400 }
       );
     }
 
-    // Create a copy of the old session as rescheduled_from reference
-    const [oldSessionCopy] = await db
-      .insert(sessions)
-      .values({
-        ...booking,
-        id: undefined, // Let DB generate new ID
-        status: 'cancelled',
-        cancelledBy: isMentor ? 'mentor' : 'mentee',
-        cancellationReason: 'Rescheduled',
-        createdAt: booking.createdAt,
-        updatedAt: new Date(),
-      })
-      .returning();
+    const newScheduledTime = new Date(scheduledAt);
+    const newRescheduleCount = booking.rescheduleCount + 1;
 
-    // Update the booking with new schedule
+    // Update the booking with new schedule (no copy needed - simpler approach)
     const [rescheduledBooking] = await db
       .update(sessions)
       .set({
-        scheduledAt: new Date(scheduledAt),
+        scheduledAt: newScheduledTime,
         duration: duration || booking.duration,
-        rescheduledFrom: oldSessionCopy.id,
+        rescheduleCount: newRescheduleCount,
         updatedAt: new Date(),
       })
-      .where(eq(sessions.id, params.id))
+      .where(eq(sessions.id, id))
       .returning();
 
-    // Notify the other party
-    const otherUserId = isMentor ? booking.menteeId : booking.mentorId;
-    const userRole = isMentor ? 'mentor' : 'mentee';
-    const oldDate = new Date(booking.scheduledAt).toLocaleString();
-    const newDate = new Date(scheduledAt).toLocaleString();
+    // Create audit log entry
+    await db.insert(sessionAuditLog).values({
+      sessionId: booking.id,
+      userId: session.user.id,
+      action: 'reschedule',
+      previousScheduledAt: oldScheduledTime,
+      newScheduledAt: newScheduledTime,
+      policySnapshot: {
+        rescheduleCutoffHours,
+        maxReschedules,
+        rescheduleNumber: newRescheduleCount,
+        hoursUntilSession: Math.round(hoursUntilSession * 100) / 100,
+      },
+      ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
+      userAgent: req.headers.get('user-agent') || 'unknown',
+    });
 
+    // Format dates for notification
+    const oldDateStr = format(oldScheduledTime, "EEEE, MMMM d 'at' h:mm a");
+    const newDateStr = format(newScheduledTime, "EEEE, MMMM d 'at' h:mm a");
+
+    // Notify the mentor
     await db.insert(notifications).values({
-      userId: otherUserId,
+      userId: booking.mentorId,
       type: 'BOOKING_RESCHEDULED',
-      title: 'Session Rescheduled',
-      message: `Your session "${booking.title}" has been rescheduled by the ${userRole}. Old time: ${oldDate}, New time: ${newDate}`,
+      title: 'Session Rescheduled by Mentee',
+      message: `Your session "${booking.title}" has been rescheduled from ${oldDateStr} to ${newDateStr}.`,
+      relatedId: booking.id,
+      relatedType: 'session',
+      actionUrl: `/dashboard?section=schedule`,
+      actionText: 'View Schedule',
+    });
+
+    // Notify the mentee (confirmation)
+    await db.insert(notifications).values({
+      userId: booking.menteeId,
+      type: 'BOOKING_RESCHEDULED',
+      title: 'Reschedule Confirmed',
+      message: `Your session "${booking.title}" has been rescheduled to ${newDateStr}. (${newRescheduleCount}/${maxReschedules} reschedules used)`,
       relatedId: booking.id,
       relatedType: 'session',
       actionUrl: `/dashboard?section=sessions`,
-      actionText: 'View New Time',
+      actionText: 'View Sessions',
     });
 
     return NextResponse.json({
       success: true,
       booking: rescheduledBooking,
+      rescheduleCount: newRescheduleCount,
+      maxReschedules,
       message: 'Session rescheduled successfully'
     });
 
   } catch (error) {
     console.error('Booking rescheduling error:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid input data', details: error.errors },
