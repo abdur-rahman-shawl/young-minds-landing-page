@@ -232,6 +232,7 @@ export function SessionActions({
         onOpenChange={setShowRescheduleDialog}
         sessionId={session.id}
         sessionTitle={session.title}
+        mentorId={session.mentorId}
         currentDate={scheduledTime}
         currentDuration={session.duration}
         rescheduleCount={session.rescheduleCount || 0}

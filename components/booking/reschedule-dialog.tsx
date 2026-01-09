@@ -10,18 +10,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, AlertCircle } from "lucide-react";
+import { Calendar, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { TimeSlotSelectorV2 } from "./time-slot-selector-v2";
 
 interface RescheduleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sessionId: string;
   sessionTitle: string;
+  mentorId: string;
   currentDate: Date;
   currentDuration: number;
   rescheduleCount?: number;
@@ -34,39 +34,69 @@ export function RescheduleDialog({
   onOpenChange,
   sessionId,
   sessionTitle,
+  mentorId,
   currentDate,
   currentDuration,
   rescheduleCount = 0,
   maxReschedules = 2,
   onSuccess,
 }: RescheduleDialogProps) {
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
-  const [duration, setDuration] = useState(currentDuration.toString());
+  const [selectedTime, setSelectedTime] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [apiRescheduleCount, setApiRescheduleCount] = useState<number | null>(null);
-  const [apiMaxReschedules, setApiMaxReschedules] = useState<number | null>(null);
+  const [sessionData, setSessionData] = useState<{
+    rescheduleCount: number;
+    maxReschedules: number;
+  } | null>(null);
+  const [loadingSession, setLoadingSession] = useState(false);
   const { toast } = useToast();
 
-  // Use API values if available, otherwise use props
-  const currentRescheduleCount = apiRescheduleCount ?? rescheduleCount;
-  const currentMaxReschedules = apiMaxReschedules ?? maxReschedules;
+  // Use fetched session data if available, otherwise use props
+  const currentRescheduleCount = sessionData?.rescheduleCount ?? rescheduleCount;
+  const currentMaxReschedules = sessionData?.maxReschedules ?? maxReschedules;
   const remainingReschedules = currentMaxReschedules - currentRescheduleCount;
   const canReschedule = remainingReschedules > 0;
 
+  // Fetch session data when dialog opens to get accurate reschedule count
+  useEffect(() => {
+    const fetchSessionData = async () => {
+      if (!open || !sessionId) return;
+
+      setLoadingSession(true);
+      try {
+        const response = await fetch(`/api/bookings/${sessionId}`);
+        const data = await response.json();
+
+        if (response.ok && data.booking) {
+          setSessionData({
+            rescheduleCount: data.booking.rescheduleCount ?? 0,
+            maxReschedules: 2, // Default, could be fetched from policies
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching session data:", error);
+      } finally {
+        setLoadingSession(false);
+      }
+    };
+
+    fetchSessionData();
+  }, [open, sessionId]);
+
+  const handleTimeSelected = (time: Date) => {
+    setSelectedTime(time);
+  };
+
   const handleReschedule = async () => {
-    if (!date || !time) {
+    if (!selectedTime) {
       toast({
         title: "Error",
-        description: "Please select both date and time",
+        description: "Please select a new time slot",
         variant: "destructive",
       });
       return;
     }
 
-    const scheduledAt = new Date(`${date}T${time}`);
-
-    if (scheduledAt <= new Date()) {
+    if (selectedTime <= new Date()) {
       toast({
         title: "Error",
         description: "Please select a future date and time",
@@ -83,8 +113,8 @@ export function RescheduleDialog({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          scheduledAt: scheduledAt.toISOString(),
-          duration: parseInt(duration),
+          scheduledAt: selectedTime.toISOString(),
+          duration: currentDuration,
         }),
       });
 
@@ -92,31 +122,30 @@ export function RescheduleDialog({
 
       if (!response.ok) {
         // Update reschedule count from API response if available
-        if (data.rescheduleCount !== undefined) {
-          setApiRescheduleCount(data.rescheduleCount);
-        }
-        if (data.maxReschedules !== undefined) {
-          setApiMaxReschedules(data.maxReschedules);
+        if (data.rescheduleCount !== undefined || data.maxReschedules !== undefined) {
+          setSessionData({
+            rescheduleCount: data.rescheduleCount ?? currentRescheduleCount,
+            maxReschedules: data.maxReschedules ?? currentMaxReschedules,
+          });
         }
         throw new Error(data.error || "Failed to reschedule session");
       }
 
       // Update counts from successful response
-      if (data.rescheduleCount !== undefined) {
-        setApiRescheduleCount(data.rescheduleCount);
-      }
-      if (data.maxReschedules !== undefined) {
-        setApiMaxReschedules(data.maxReschedules);
+      if (data.rescheduleCount !== undefined || data.maxReschedules !== undefined) {
+        setSessionData({
+          rescheduleCount: data.rescheduleCount ?? currentRescheduleCount + 1,
+          maxReschedules: data.maxReschedules ?? currentMaxReschedules,
+        });
       }
 
       toast({
         title: "Session Rescheduled",
-        description: `The session has been rescheduled to ${format(scheduledAt, "EEEE, MMMM d 'at' h:mm a")}. The mentor has been notified.`,
+        description: `The session has been rescheduled to ${format(selectedTime, "EEEE, MMMM d 'at' h:mm a")}. The mentor has been notified.`,
       });
 
       onOpenChange(false);
-      setDate("");
-      setTime("");
+      setSelectedTime(null);
       onSuccess?.();
     } catch (error) {
       console.error("Error rescheduling session:", error);
@@ -132,20 +161,15 @@ export function RescheduleDialog({
 
   const handleClose = (open: boolean) => {
     if (!open) {
-      setDate("");
-      setTime("");
+      setSelectedTime(null);
+      setSessionData(null);
     }
     onOpenChange(open);
   };
 
-  // Set minimum date to tomorrow
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = format(tomorrow, "yyyy-MM-dd");
-
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-blue-500" />
@@ -159,16 +183,20 @@ export function RescheduleDialog({
           {/* Reschedule Count Badge */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Reschedule allowance:</span>
-            <Badge
-              variant={remainingReschedules > 0 ? "secondary" : "destructive"}
-              className="font-medium"
-            >
-              {currentRescheduleCount} / {currentMaxReschedules} used
-            </Badge>
+            {loadingSession ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Badge
+                variant={remainingReschedules > 0 ? "secondary" : "destructive"}
+                className="font-medium"
+              >
+                {currentRescheduleCount} / {currentMaxReschedules} used
+              </Badge>
+            )}
           </div>
 
           {/* Warning if at limit */}
-          {!canReschedule && (
+          {!canReschedule && !loadingSession && (
             <div className="rounded-lg bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-200 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
               <div>
@@ -189,47 +217,27 @@ export function RescheduleDialog({
             </p>
           </div>
 
-          {canReschedule && (
+          {canReschedule && !loadingSession && (
             <>
-              <div className="grid gap-2">
-                <Label htmlFor="date">New Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  min={minDate}
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  required
+              {/* Time Slot Selector - uses mentor's availability */}
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-3 text-sm">Select new time from mentor's availability:</h4>
+                <TimeSlotSelectorV2
+                  mentorId={mentorId}
+                  onTimeSelected={handleTimeSelected}
+                  initialSelectedTime={undefined}
                 />
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="time">New Time</Label>
-                <Input
-                  id="time"
-                  type="time"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="duration" className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Duration (minutes)
-                </Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  min="15"
-                  max="240"
-                  step="15"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  required
-                />
-              </div>
+              {/* Selected Time Confirmation */}
+              {selectedTime && (
+                <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3 text-sm text-blue-800 dark:text-blue-200">
+                  <p className="font-medium">New selected time:</p>
+                  <p className="mt-1">
+                    {format(selectedTime, "EEEE, MMMM d, yyyy 'at' h:mm a")}
+                  </p>
+                </div>
+              )}
             </>
           )}
 
@@ -253,7 +261,7 @@ export function RescheduleDialog({
           </Button>
           <Button
             onClick={handleReschedule}
-            disabled={isLoading || !date || !time || !canReschedule}
+            disabled={isLoading || !selectedTime || !canReschedule || loadingSession}
           >
             {isLoading ? "Rescheduling..." : "Reschedule Session"}
           </Button>

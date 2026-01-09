@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     // Additional business logic validation
     const scheduledAt = new Date(validatedData.scheduledAt);
     const timeErrors = validateBookingTime(scheduledAt, validatedData.duration);
-    
+
     if (timeErrors.length > 0) {
       return NextResponse.json(
         { error: 'Invalid booking time', details: timeErrors },
@@ -88,19 +88,19 @@ export async function POST(req: NextRequest) {
     }
 
     const schedule = availabilitySchedule[0];
-    
+
     // Check if booking is within advance booking window
     const now = new Date();
     const minBookingTime = new Date(now.getTime() + schedule.minAdvanceBookingHours * 60 * 60 * 1000);
     const maxBookingTime = new Date(now.getTime() + schedule.maxAdvanceBookingDays * 24 * 60 * 60 * 1000);
-    
+
     if (scheduledAt < minBookingTime) {
       return NextResponse.json(
         { error: `Bookings must be made at least ${schedule.minAdvanceBookingHours} hours in advance` },
         { status: 400 }
       );
     }
-    
+
     if (scheduledAt > maxBookingTime) {
       return NextResponse.json(
         { error: `Bookings cannot be made more than ${schedule.maxAdvanceBookingDays} days in advance` },
@@ -133,13 +133,13 @@ export async function POST(req: NextRequest) {
     const bookingHour = scheduledAt.getHours();
     const bookingMinute = scheduledAt.getMinutes();
     const bookingTimeStr = `${bookingHour.toString().padStart(2, '0')}:${bookingMinute.toString().padStart(2, '0')}`;
-    
+
     let isInAvailableBlock = false;
     for (const block of timeBlocks) {
       if (block.type === 'AVAILABLE') {
         const blockStart = block.startTime;
         const blockEnd = block.endTime;
-        
+
         // Check if booking time falls within this block
         if (bookingTimeStr >= blockStart && bookingTimeStr < blockEnd) {
           // Also check if the entire session fits within the block
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
           const sessionEndHour = sessionEndTime.getHours();
           const sessionEndMinute = sessionEndTime.getMinutes();
           const sessionEndStr = `${sessionEndHour.toString().padStart(2, '0')}:${sessionEndMinute.toString().padStart(2, '0')}`;
-          
+
           if (sessionEndStr <= blockEnd) {
             isInAvailableBlock = true;
             break;
@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
         }
       }
     }
-    
+
     if (!isInAvailableBlock) {
       return NextResponse.json(
         { error: 'This time slot is not within mentor\'s available hours' },
@@ -315,14 +315,14 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('Booking creation error:', error);
-    
+
     if (error instanceof RateLimitError) {
       return NextResponse.json(
         { error: error.message },
         { status: 429, headers: { 'Retry-After': error.retryAfter.toString() } }
       );
     }
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid input data', details: error.errors },
@@ -363,17 +363,17 @@ export async function GET(req: NextRequest) {
     // If checking a specific mentor's availability (for booking)
     if (mentorId && start && end) {
       const conditions = [eq(sessions.mentorId, mentorId)];
-      
+
       // Add date range filter
       const startDate = new Date(start);
       const endDate = new Date(end);
       conditions.push(gte(sessions.scheduledAt, startDate));
       conditions.push(lte(sessions.scheduledAt, endDate));
-      
+
       if (status) {
         conditions.push(eq(sessions.status, status));
       }
-      
+
       whereCondition = and(...conditions);
     } else if (role === 'mentor') {
       whereCondition = eq(sessions.mentorId, session.user.id);
@@ -403,11 +403,12 @@ export async function GET(req: NextRequest) {
         mentorNotes: sessions.mentorNotes,
         menteeNotes: sessions.menteeNotes,
         //mentorRating: sessions.mentorRating,
-       // menteeRating: sessions.menteeRating,
+        // menteeRating: sessions.menteeRating,
         createdAt: sessions.createdAt,
         updatedAt: sessions.updatedAt,
         mentorId: sessions.mentorId,
         menteeId: sessions.menteeId,
+        rescheduleCount: sessions.rescheduleCount,
       })
       .from(sessions)
       .where(whereCondition)
