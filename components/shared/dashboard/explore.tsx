@@ -194,8 +194,18 @@ export function ExploreMentors({ onMentorSelect }: ExploreMentorsProps) {
                 onClick={() => onMentorSelect(mentor.id)}
               >
                 {/* Card Banner */}
-                <div className="h-24 bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 relative">
-                  <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#4f46e5_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                <div className="h-24 relative overflow-hidden">
+                  {mentor.bannerImageUrl ? (
+                    <img
+                      src={mentor.bannerImageUrl}
+                      alt="Banner"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-r from-blue-600 to-purple-600 relative">
+                      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light pointer-events-none"></div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="px-6 flex-1 flex flex-col relative">

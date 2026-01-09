@@ -3,11 +3,11 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { mentors, mentorsProfileAudit, type Mentor } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { uploadProfilePicture, uploadResume, storage } from '@/lib/storage';
+import { uploadProfilePicture, uploadResume, uploadBannerImage, storage } from '@/lib/storage';
 
 export async function POST(request: NextRequest) {
   console.log('🚀 === MENTOR PROFILE UPDATE API CALLED ===');
-  
+
   try {
     const session = await auth.api.getSession({ headers: request.headers });
     const sessionUserId = session?.user?.id;
@@ -23,22 +23,24 @@ export async function POST(request: NextRequest) {
     let userId: string;
     let updateData: any = {};
     let profilePicture: File | null = null;
+    let bannerImage: File | null = null;
     let resume: File | null = null;
-    
+
     const contentType = request.headers.get('content-type');
-    
+
     if (contentType?.includes('multipart/form-data')) {
       // Handle FormData (with file uploads)
       const formData = await request.formData();
       console.log('📋 FormData received with entries:', Array.from(formData.entries()));
-      
+
       userId = formData.get('userId') as string;
       profilePicture = formData.get('profilePicture') as File;
+      bannerImage = formData.get('bannerImage') as File;
       resume = formData.get('resume') as File;
-      
+
       // Extract all other form fields
       for (const [key, value] of formData.entries()) {
-        if (key !== 'userId' && key !== 'profilePicture' && key !== 'resume') {
+        if (key !== 'userId' && key !== 'profilePicture' && key !== 'bannerImage' && key !== 'resume') {
           updateData[key] = value;
         }
       }
@@ -79,7 +81,7 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-    
+
     console.log('✅ Existing mentor profile found:', existingMentor.id);
 
     const serializeMentorRecord = (record: Mentor) => ({
@@ -93,7 +95,7 @@ export async function POST(request: NextRequest) {
     // Handle file uploads
     let newProfileImageUrl = existingMentor.profileImageUrl;
     let newResumeUrl = existingMentor.resumeUrl;
-    
+
     if (profilePicture && profilePicture.size > 0) {
       try {
         // Delete old profile picture if it exists
@@ -107,7 +109,7 @@ export async function POST(request: NextRequest) {
             console.warn('⚠️ Could not delete old profile picture:', deleteError);
           }
         }
-        
+
         const uploadResult = await uploadProfilePicture(profilePicture, userId);
         newProfileImageUrl = uploadResult.url;
         console.log('✅ New profile picture uploaded:', newProfileImageUrl);
@@ -119,12 +121,41 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-    
+
+    // Handle Banner Image Upload (similar to profile picture)
+    let newBannerImageUrl = existingMentor.bannerImageUrl;
+
+    if (bannerImage && bannerImage.size > 0) {
+      try {
+        // Delete old banner if it exists
+        if (existingMentor.bannerImageUrl) {
+          try {
+            const oldPath = existingMentor.bannerImageUrl.split('/').pop();
+            if (oldPath) {
+              await storage.delete(`banners/${oldPath}`);
+            }
+          } catch (deleteError) {
+            console.warn('⚠️ Could not delete old banner image:', deleteError);
+          }
+        }
+
+        const uploadResult = await uploadBannerImage(bannerImage, userId);
+        newBannerImageUrl = uploadResult.url;
+        console.log('✅ New banner image uploaded:', newBannerImageUrl);
+      } catch (uploadError) {
+        console.error('❌ Banner image upload failed:', uploadError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to upload banner image' },
+          { status: 400 }
+        );
+      }
+    }
+
     if (resume && resume.size > 0) {
       try {
         console.log('📤 Processing resume upload in update-profile API...');
         console.log('📄 Resume file details:', { name: resume.name, size: resume.size, type: resume.type });
-        
+
         // Delete old resume if it exists
         if (existingMentor.resumeUrl) {
           try {
@@ -135,7 +166,7 @@ export async function POST(request: NextRequest) {
             console.warn('⚠️ Could not delete old resume:', deleteError);
           }
         }
-        
+
         const uploadResult = await uploadResume(resume, userId);
         newResumeUrl = uploadResult.url;
         console.log('✅ New resume uploaded successfully:', newResumeUrl);
@@ -153,6 +184,11 @@ export async function POST(request: NextRequest) {
     // If profileImageUrl is provided in JSON and no new profilePicture file uploaded, use it
     if (!profilePicture && updateData.profileImageUrl) {
       newProfileImageUrl = updateData.profileImageUrl as string
+    }
+
+    // If bannerImageUrl is provided in JSON and no new bannerImage file uploaded, use it
+    if (!bannerImage && updateData.bannerImageUrl) {
+      newBannerImageUrl = updateData.bannerImageUrl as string
     }
 
     // If resumeUrl is provided in JSON and no resume file uploaded, use it
@@ -214,21 +250,22 @@ export async function POST(request: NextRequest) {
       headline: toNullableString(updateData.headline),
       maxMentees: parsedMaxMentees,
       profileImageUrl: newProfileImageUrl,
+      bannerImageUrl: newBannerImageUrl,
       resumeUrl: newResumeUrl,
       verificationStatus: 'UPDATED_PROFILE',
       verificationNotes: parsedVerificationNotes,
       isAvailable: parsedIsAvailable
     };
-    
+
     console.log('📝 Step 2: Updating mentor profile with data:', JSON.stringify(mentorUpdateData, null, 2));
-    
+
     try {
       const [updatedMentor] = await db
         .update(mentors)
         .set(mentorUpdateData)
         .where(eq(mentors.userId, userId))
         .returning();
-        
+
       try {
         await db.insert(mentorsProfileAudit).values({
           mentorId: updatedMentor.id,
@@ -242,13 +279,13 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('🎉 SUCCESS: Mentor profile updated in database:', updatedMentor);
-      
+
       return NextResponse.json({
         success: true,
         message: 'Mentor profile updated successfully',
         data: updatedMentor
       });
-      
+
     } catch (updateError) {
       console.error('❌ DATABASE UPDATE ERROR:', updateError);
       throw updateError;
@@ -258,9 +295,9 @@ export async function POST(request: NextRequest) {
     console.error('❌ === FATAL ERROR IN MENTOR PROFILE UPDATE ===');
     console.error('Error details:', error);
     console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace available');
-    
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    
+
     return NextResponse.json(
       { success: false, error: 'Failed to update mentor profile: ' + errorMessage },
       { status: 500 }

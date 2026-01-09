@@ -548,16 +548,18 @@ export function SessionsCalendarView() {
                               </div>
                             </div>
                           </div>
-                          <SessionActions
-                            session={{
-                              ...session,
-                              scheduledAt: new Date(session.scheduledAt),
-                              menteeId: session.menteeId || userId, // If menteeId is missing, use current user as mentee
-                            }}
-                            userId={userId}
-                            userRole={session.mentorId === userId ? 'mentor' : 'mentee'}
-                            onUpdate={fetchSessions}
-                          />
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <SessionActions
+                              session={{
+                                ...session,
+                                scheduledAt: new Date(session.scheduledAt),
+                                menteeId: session.menteeId || userId, // If menteeId is missing, use current user as mentee
+                              }}
+                              userId={userId}
+                              userRole={session.mentorId === userId ? 'mentor' : 'mentee'}
+                              onUpdate={fetchSessions}
+                            />
+                          </div>
                         </div>
                       </div>
                     );
@@ -654,16 +656,18 @@ export function SessionsCalendarView() {
                             </div>
                           )}
                         </div>
-                        <SessionActions
-                          session={{
-                            ...session,
-                            scheduledAt: new Date(session.scheduledAt),
-                            menteeId: session.menteeId || userId, // If menteeId is missing, use current user as mentee
-                          }}
-                          userId={userId}
-                          userRole={session.mentorId === userId ? 'mentor' : 'mentee'}
-                          onUpdate={fetchSessions}
-                        />
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <SessionActions
+                            session={{
+                              ...session,
+                              scheduledAt: new Date(session.scheduledAt),
+                              menteeId: session.menteeId || userId, // If menteeId is missing, use current user as mentee
+                            }}
+                            userId={userId}
+                            userRole={session.mentorId === userId ? 'mentor' : 'mentee'}
+                            onUpdate={fetchSessions}
+                          />
+                        </div>
                       </div>
                     </div>
                   );

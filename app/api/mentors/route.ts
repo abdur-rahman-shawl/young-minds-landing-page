@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
         verificationStatus: mentors.verificationStatus,
         isAvailable: mentors.isAvailable,
         profileImageUrl: mentors.profileImageUrl,
+        bannerImageUrl: mentors.bannerImageUrl,
         // User info
         name: users.name,
         email: users.email,

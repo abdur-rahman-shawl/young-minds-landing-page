@@ -28,6 +28,7 @@ interface MentorDetail {
   city: string | null;
   country: string | null;
   profileImageUrl: string | null;
+  bannerImageUrl: string | null;
   resumeUrl: string | null;
   verificationStatus: string;
   isAvailable: boolean;
@@ -64,10 +65,10 @@ export function useMentorDetail(mentorId: string | null): UseMentorDetailReturn 
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch(`/api/mentors/${mentorId}`);
       const result = await response.json();
-      
+
       if (result.success) {
         setMentor(result.data);
       } else {

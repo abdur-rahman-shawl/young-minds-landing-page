@@ -78,22 +78,22 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
         <div className="h-64 bg-slate-900 animate-pulse relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-900 to-slate-800" />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-900 to-slate-800" />
         </div>
         <div className="max-w-7xl mx-auto px-4 mt-8">
-            <div className="flex flex-col md:flex-row gap-8">
-              <div className="md:w-2/3 space-y-6">
-                <Skeleton className="w-1/2 h-10" />
-                <Skeleton className="w-full h-8" />
-                <div className="space-y-4 mt-8">
-                   <Skeleton className="w-full h-40 rounded-xl" />
-                   <Skeleton className="w-full h-40 rounded-xl" />
-                </div>
-              </div>
-              <div className="md:w-1/3">
-                 <Skeleton className="w-full h-80 rounded-xl" />
+          <div className="flex flex-col md:flex-row gap-8">
+            <div className="md:w-2/3 space-y-6">
+              <Skeleton className="w-1/2 h-10" />
+              <Skeleton className="w-full h-8" />
+              <div className="space-y-4 mt-8">
+                <Skeleton className="w-full h-40 rounded-xl" />
+                <Skeleton className="w-full h-40 rounded-xl" />
               </div>
             </div>
+            <div className="md:w-1/3">
+              <Skeleton className="w-full h-80 rounded-xl" />
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -103,7 +103,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-center px-4">
         <div className="bg-red-50 p-4 rounded-full mb-4">
-           <Zap className="w-8 h-8 text-red-500" />
+          <Zap className="w-8 h-8 text-red-500" />
         </div>
         <p className="text-xl font-medium text-gray-900 mb-2">{error || "Mentor not found"}</p>
         <p className="text-gray-500 mb-6">We couldn't locate the profile you are looking for.</p>
@@ -134,7 +134,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
       <motion.section variants={fadeIn} className="relative">
         {mentor.headline && (
           <div className="relative pl-6 border-l-4 border-blue-500/30 dark:border-blue-400/30 py-1 mb-6">
-             <h3 className="text-2xl font-medium text-slate-800 dark:text-slate-100 leading-snug italic">
+            <h3 className="text-2xl font-medium text-slate-800 dark:text-slate-100 leading-snug italic">
               "{mentor.headline}"
             </h3>
           </div>
@@ -251,24 +251,24 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
       <motion.div variants={staggerContainer} initial="initial" animate="animate" className="space-y-10">
         <div className="grid grid-cols-1 gap-8">
           <motion.div variants={fadeIn}>
-             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Milestones & Impact</h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {milestones.map((milestone) => (
-                  <motion.div 
-                    whileHover={{ y: -4 }}
-                    key={milestone.id} 
-                    className="flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm"
-                  >
-                    <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0", milestone.color)}>
-                      {milestone.icon}
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-slate-900 dark:text-white text-sm">{milestone.title}</h4>
-                      <p className="text-xs text-slate-500 mt-1">Achieved {milestone.date}</p>
-                    </div>
-                  </motion.div>
-                ))}
-             </div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Milestones & Impact</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {milestones.map((milestone) => (
+                <motion.div
+                  whileHover={{ y: -4 }}
+                  key={milestone.id}
+                  className="flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm"
+                >
+                  <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0", milestone.color)}>
+                    {milestone.icon}
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-slate-900 dark:text-white text-sm">{milestone.title}</h4>
+                    <p className="text-xs text-slate-500 mt-1">Achieved {milestone.date}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
           </motion.div>
         </div>
       </motion.div>
@@ -278,10 +278,10 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
   const renderReviews = () => (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between">
-         <h3 className="text-lg font-bold text-slate-900 dark:text-white">Mentee Reviews</h3>
-         <Badge variant="outline" className="text-slate-500">0 Verified Reviews</Badge>
+        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Mentee Reviews</h3>
+        <Badge variant="outline" className="text-slate-500">0 Verified Reviews</Badge>
       </div>
-      
+
       <div className="bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center">
         <div className="bg-white dark:bg-slate-800 w-16 h-16 rounded-full shadow-sm flex items-center justify-center mx-auto mb-4">
           <MessageSquare className="w-8 h-8 text-slate-300 dark:text-slate-600" />
@@ -300,40 +300,40 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
   const renderMentoringStyle = () => (
     <motion.div variants={staggerContainer} initial="initial" animate="animate" className="space-y-6">
       <h3 className="text-lg font-bold text-slate-900 dark:text-white">Mentoring Approach</h3>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <motion.div variants={fadeIn} className="h-full">
-            <Card className="h-full border-l-4 border-l-yellow-400 shadow-sm hover:shadow-md transition-shadow">
-                <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-yellow-500 fill-yellow-500" /> Superpowers
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                        {["Active Listener", "Career Strategist", "Technical Deep-dives", "Empathetic"].map((tag) => (
-                            <Badge key={tag} variant="secondary" className="bg-yellow-50 text-yellow-800 hover:bg-yellow-100 border-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-300 dark:border-yellow-900/30">
-                                {tag}
-                            </Badge>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
+          <Card className="h-full border-l-4 border-l-yellow-400 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Zap className="w-4 h-4 text-yellow-500 fill-yellow-500" /> Superpowers
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {["Active Listener", "Career Strategist", "Technical Deep-dives", "Empathetic"].map((tag) => (
+                  <Badge key={tag} variant="secondary" className="bg-yellow-50 text-yellow-800 hover:bg-yellow-100 border-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-300 dark:border-yellow-900/30">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
         <motion.div variants={fadeIn} className="h-full">
-            <Card className="h-full border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-                <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                        <Quote className="w-4 h-4 text-blue-500 fill-blue-500" /> Communication Style
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                     <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
-                        "I prefer a direct yet supportive approach. I like to ask questions that help you find the answer yourself, rather than just giving you the solution."
-                     </p>
-                </CardContent>
-            </Card>
+          <Card className="h-full border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Quote className="w-4 h-4 text-blue-500 fill-blue-500" /> Communication Style
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
+                "I prefer a direct yet supportive approach. I like to ask questions that help you find the answer yourself, rather than just giving you the solution."
+              </p>
+            </CardContent>
+          </Card>
         </motion.div>
       </div>
     </motion.div>
@@ -341,119 +341,156 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 pb-20 font-sans selection:bg-blue-100 selection:text-blue-900">
-      
-      {/* 1. HERO SECTION */}
-      <div className="relative bg-[#0F1115] pt-6 pb-16 overflow-hidden">
-        {/* Decorative elements */}
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light pointer-events-none"></div>
-        <div className="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          
-          {/* Top Navigation */}
-          <div className="flex justify-between items-center mb-10">
-             <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-300 hover:text-white hover:bg-white/10 transition-all rounded-full px-4">
+      {/* 1. HERO SECTION */}
+      <div className="relative">
+        {/* Banner Container */}
+        <div className="relative h-64 md:h-80 w-full overflow-hidden bg-slate-100 dark:bg-slate-900 group">
+          {/* Navigation Overlay */}
+          <div className="absolute top-6 left-0 right-0 z-20 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto flex justify-between items-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm transition-all rounded-full px-4 border border-white/10"
+              >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Explore
-             </Button>
-             <div className="flex gap-2">
-                <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white hover:bg-white/10 rounded-full">
-                    <Share2 className="w-5 h-5" />
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm rounded-full border border-white/10"
+                >
+                  <Share2 className="w-5 h-5" />
                 </Button>
-             </div>
+              </div>
+            </div>
           </div>
 
-          {/* Profile Header */}
-          <div className="flex flex-col md:flex-row items-start md:items-end gap-8">
-             
-             {/* Avatar with Ring */}
-             <motion.div 
-               initial={{ scale: 0.9, opacity: 0 }}
-               animate={{ scale: 1, opacity: 1 }}
-               className="relative group"
-             >
-               <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full blur opacity-50 group-hover:opacity-75 transition-opacity"></div>
-               <Avatar className="relative w-32 h-32 md:w-44 md:h-44 border-4 border-[#0F1115] shadow-2xl">
-                  <AvatarImage src={mentor.image || undefined} alt={mentor.name || 'Mentor'} className="object-cover" />
-                  <AvatarFallback className="text-5xl font-bold bg-slate-800 text-slate-200">
-                    {initials}
-                  </AvatarFallback>
-               </Avatar>
-               {mentor.verificationStatus === 'VERIFIED' && (
-                  <div className="absolute bottom-2 right-2 bg-white rounded-full p-1 shadow-lg">
-                    <CheckCircle className="w-6 h-6 text-blue-500 fill-blue-500/10" />
-                  </div>
-               )}
-             </motion.div>
+          {/* Banner Image */}
+          {mentor.bannerImageUrl ? (
+            <img
+              src={mentor.bannerImageUrl}
+              alt="Cover"
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-r from-blue-600 to-purple-600 relative">
+              <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light pointer-events-none"></div>
+              {/* Decorative abstracts */}
+              <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+            </div>
+          )}
 
-             {/* Text Content */}
-             <div className="flex-1 space-y-4 mb-2">
-                <motion.div 
-                   initial={{ opacity: 0, x: -20 }}
-                   animate={{ opacity: 1, x: 0 }}
-                   transition={{ delay: 0.1 }}
-                >
-                    <h1 className="text-3xl md:text-5xl font-bold text-white tracking-tight mb-2">
-                        {mentor.name}
-                    </h1>
-                    <p className="text-xl text-slate-300 font-medium flex flex-wrap items-center gap-2">
-                        {mentor.title} 
-                        <span className="text-slate-500 font-normal">at</span> 
-                        <span className="text-white bg-white/10 px-2 py-0.5 rounded text-lg">{mentor.company}</span>
-                    </p>
-                </motion.div>
+          {/* Very light corner vignettes if desired, barely visible */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/5 pointer-events-none"></div>
+        </div>
 
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="flex flex-wrap items-center gap-4 text-sm text-slate-400"
-                >
-                    <span className="flex items-center gap-1.5 hover:text-white transition-colors">
-                        <MapPin className="w-4 h-4" />
-                        {[mentor.city, mentor.country].filter(Boolean).join(', ') || 'Remote'}
-                    </span>
-                    
-                    <div className="h-4 w-px bg-white/10 hidden sm:block"></div>
+        {/* Profile Content Container (Overlapping) */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pb-6">
+          <div className="flex flex-col md:flex-row gap-6 items-start">
 
-                    {/* Socials */}
-                    <div className="flex items-center gap-3">
-                        {mentor.linkedinUrl && (
-                            <a href={mentor.linkedinUrl} target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors p-1 hover:bg-white/5 rounded-full">
-                                <Linkedin className="w-4 h-4" />
-                            </a>
-                        )}
-                        {mentor.websiteUrl && (
-                            <a href={mentor.websiteUrl} target="_blank" rel="noopener noreferrer" className="hover:text-purple-400 transition-colors p-1 hover:bg-white/5 rounded-full">
-                                <Globe className="w-4 h-4" />
-                            </a>
-                        )}
-                         {mentor.githubUrl && (
-                            <a href={mentor.githubUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors p-1 hover:bg-white/5 rounded-full">
-                                <Github className="w-4 h-4" />
-                            </a>
-                        )}
-                    </div>
-                </motion.div>
-             </div>
+            {/* Avatar - Pull up using negative margin */}
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="-mt-20 shrink-0 relative"
+            >
+              <Avatar className="w-32 h-32 md:w-48 md:h-48 border-[6px] border-white dark:border-slate-950 shadow-xl bg-white dark:bg-slate-950">
+                <AvatarImage src={mentor.image || undefined} alt={mentor.name || 'Mentor'} className="object-cover" />
+                <AvatarFallback className="text-5xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-400">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
 
-             {/* Mobile CTA */}
-             <div className="w-full md:hidden mt-2">
-                 <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold h-12 rounded-xl" onClick={handleBookSession}>
-                   Book Session
-                 </Button>
-             </div>
+              {mentor.verificationStatus === 'VERIFIED' && (
+                <div className="absolute bottom-3 right-3 bg-blue-500 rounded-full p-1.5 shadow-lg border-4 border-white dark:border-slate-950">
+                  <CheckCircle className="w-5 h-5 text-white" />
+                </div>
+              )}
+            </motion.div>
+
+            {/* Text Information - Flows below banner */}
+            <div className="flex-1 pt-2 md:pt-6 space-y-4 w-full">
+              <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+                <div>
+                  <motion.h1
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight"
+                  >
+                    {mentor.name}
+                  </motion.h1>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="text-lg text-slate-600 dark:text-slate-300 font-medium mt-1 flex flex-wrap items-center gap-2"
+                  >
+                    {mentor.title}
+                    {mentor.company && (
+                      <>
+                        <span className="text-slate-300 dark:text-slate-600 hidden md:inline">•</span>
+                        <span className="text-blue-600 dark:text-blue-400">{mentor.company}</span>
+                      </>
+                    )}
+                  </motion.div>
+                </div>
+
+                {/* Mobile CTA (visible only on mobile) */}
+                <div className="md:hidden w-full">
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold h-11 rounded-lg shadow-sm" onClick={handleBookSession}>
+                    Book Session
+                  </Button>
+                </div>
+              </div>
+
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="flex flex-wrap items-center gap-4 text-sm text-slate-500 dark:text-slate-400"
+              >
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-slate-400" />
+                  {[mentor.city, mentor.country].filter(Boolean).join(', ') || 'Remote'}
+                </span>
+
+                <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
+
+                <div className="flex items-center gap-2">
+                  {mentor.linkedinUrl && (
+                    <a href={mentor.linkedinUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-colors rounded-full">
+                      <Linkedin className="w-4 h-4" />
+                    </a>
+                  )}
+                  {mentor.websiteUrl && (
+                    <a href={mentor.websiteUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-600 transition-colors rounded-full">
+                      <Globe className="w-4 h-4" />
+                    </a>
+                  )}
+                  {mentor.githubUrl && (
+                    <a href={mentor.githubUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-colors rounded-full">
+                      <Github className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
+
           {/* LEFT COLUMN (Content) */}
           <div className="lg:col-span-8">
-              
+
             {/* Smooth Tab Bar */}
             <div className="sticky top-0 z-30 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 -mx-4 px-4 sm:mx-0 sm:px-0 mb-8">
               <nav className="flex space-x-8 overflow-x-auto scrollbar-hide" aria-label="Tabs">
@@ -463,8 +500,8 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                     onClick={() => setActiveTab(tab as TabType)}
                     className={cn(
                       "group relative py-4 px-1 text-sm font-medium whitespace-nowrap transition-colors outline-none",
-                      activeTab === tab 
-                        ? "text-blue-600 dark:text-blue-400" 
+                      activeTab === tab
+                        ? "text-blue-600 dark:text-blue-400"
                         : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                     )}
                   >
@@ -473,7 +510,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                       {tab === 'achievements' && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-slate-100 text-slate-600">3</Badge>}
                     </span>
                     {activeTab === tab && (
-                      <motion.div 
+                      <motion.div
                         layoutId="activeTabIndicator"
                         className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400"
                       />
@@ -493,65 +530,65 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
                 transition={{ duration: 0.2 }}
                 className="min-h-[400px]"
               >
-                  {activeTab === 'overview' && renderOverview()}
-                  {activeTab === 'reviews' && renderReviews()}
-                  {activeTab === 'achievements' && renderAchievements()}
-                  {activeTab === 'mentoring_style' && renderMentoringStyle()}
+                {activeTab === 'overview' && renderOverview()}
+                {activeTab === 'reviews' && renderReviews()}
+                {activeTab === 'achievements' && renderAchievements()}
+                {activeTab === 'mentoring_style' && renderMentoringStyle()}
               </motion.div>
             </AnimatePresence>
           </div>
 
           {/* RIGHT COLUMN (Sticky Sidebar) */}
           <div className="lg:col-span-4 space-y-6">
-            
+
             {/* Quick Stats */}
             <div className="grid grid-cols-2 gap-4">
-               <Card className="bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
-                  <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                     <span className="text-2xl font-bold text-slate-900 dark:text-white">{mentor.experience}+</span>
-                     <span className="text-xs text-slate-500 uppercase tracking-wide font-medium mt-1">Years Exp.</span>
-                  </CardContent>
-               </Card>
-               <Card className="bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
-                  <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                     <span className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-1">5.0 <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" /></span>
-                     <span className="text-xs text-slate-500 uppercase tracking-wide font-medium mt-1">Rating</span>
-                  </CardContent>
-               </Card>
+              <Card className="bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
+                <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                  <span className="text-2xl font-bold text-slate-900 dark:text-white">{mentor.experience}+</span>
+                  <span className="text-xs text-slate-500 uppercase tracking-wide font-medium mt-1">Years Exp.</span>
+                </CardContent>
+              </Card>
+              <Card className="bg-slate-50 dark:bg-slate-900 border-none shadow-sm">
+                <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                  <span className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-1">5.0 <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" /></span>
+                  <span className="text-xs text-slate-500 uppercase tracking-wide font-medium mt-1">Rating</span>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Available Sessions Block */}
             <div className="sticky top-24 space-y-4">
               <Card className="border border-blue-100 dark:border-blue-900 shadow-xl shadow-blue-500/5 dark:shadow-blue-900/10 rounded-2xl overflow-hidden ring-1 ring-blue-500/20">
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 text-white">
-                   <h3 className="font-bold text-lg flex items-center gap-2">
-                     <Calendar className="w-5 h-5" /> Book a Session
-                   </h3>
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Calendar className="w-5 h-5" /> Book a Session
+                  </h3>
                 </div>
                 <CardContent className="p-6 bg-white dark:bg-slate-900">
                   <div className="mb-6">
                     <div className="flex justify-between items-start mb-2">
-                        <span className="font-semibold text-slate-900 dark:text-white text-lg">1:1 Mentorship</span>
-                        <div className="text-right">
-                          {mentor.hourlyRate ? (
-                            <span className="block text-xl font-bold text-blue-600">${mentor.hourlyRate}</span>
-                          ) : (
-                            <span className="block text-xl font-bold text-green-600">Free</span>
-                          )}
-                          <span className="text-xs text-slate-400">per session</span>
-                        </div>
+                      <span className="font-semibold text-slate-900 dark:text-white text-lg">1:1 Mentorship</span>
+                      <div className="text-right">
+                        {mentor.hourlyRate ? (
+                          <span className="block text-xl font-bold text-blue-600">${mentor.hourlyRate}</span>
+                        ) : (
+                          <span className="block text-xl font-bold text-green-600">Free</span>
+                        )}
+                        <span className="text-xs text-slate-400">per session</span>
+                      </div>
                     </div>
                     <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                       Video call to discuss career advice, portfolio review, or technical challenges.
+                      Video call to discuss career advice, portfolio review, or technical challenges.
                     </p>
                   </div>
-                  
+
                   <div className="flex items-center gap-3 mb-6 text-sm text-slate-500 bg-slate-50 dark:bg-slate-800 p-3 rounded-lg">
-                      <Clock className="w-4 h-4" />
-                      <span>60 min duration</span>
-                      <span className="mx-1">•</span>
-                      <Zap className="w-4 h-4" />
-                      <span>Instant confirmation</span>
+                    <Clock className="w-4 h-4" />
+                    <span>60 min duration</span>
+                    <span className="mx-1">•</span>
+                    <Zap className="w-4 h-4" />
+                    <span>Instant confirmation</span>
                   </div>
 
                   <Button onClick={handleBookSession} className="w-full h-12 text-base font-semibold bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
@@ -562,12 +599,12 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
 
               {isMessageMentorEnabled && (
                 <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-xl">
-                    <CardContent className="p-4">
+                  <CardContent className="p-4">
                     <Button variant="ghost" onClick={handleSendMessage} className="w-full justify-start text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
-                        <MessageSquare className="w-4 h-4 mr-3" />
-                        Send a message
+                      <MessageSquare className="w-4 h-4 mr-3" />
+                      Send a message
                     </Button>
-                    </CardContent>
+                  </CardContent>
                 </Card>
               )}
             </div>
@@ -584,14 +621,14 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
           mentor={{
             id: mentor.id,
             userId: mentor.userId,
-            fullName: mentor.fullName,
-            title: mentor.title,
-            company: mentor.company,
-            profileImageUrl: mentor.profileImageUrl,
-            hourlyRate: mentor.hourlyRate,
-            currency: mentor.currency,
-            about: mentor.about,
-            expertise: mentor.expertiseArray ? JSON.stringify(mentor.expertiseArray) : mentor.expertise,
+            fullName: mentor.fullName || '',
+            title: mentor.title || undefined,
+            company: mentor.company || undefined,
+            profileImageUrl: mentor.profileImageUrl || undefined,
+            hourlyRate: mentor.hourlyRate ? parseFloat(mentor.hourlyRate) : undefined,
+            currency: mentor.currency || undefined,
+            about: mentor.about || undefined,
+            expertise: mentor.expertiseArray ? JSON.stringify(mentor.expertiseArray) : mentor.expertise || undefined,
           }}
         />
       )}

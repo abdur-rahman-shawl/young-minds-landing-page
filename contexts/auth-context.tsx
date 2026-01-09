@@ -13,7 +13,9 @@ interface UserRole {
 interface MentorProfile {
   verificationStatus: string;
   id: string;
+  // Added fields
   profileImageUrl?: string;
+  bannerImageUrl?: string;
   resumeUrl?: string;
   fullName?: string;
   title?: string;
@@ -21,6 +23,7 @@ interface MentorProfile {
   email?: string;
   phone?: string;
   city?: string;
+  state?: string;
   country?: string;
   industry?: string;
   expertise?: string;
@@ -37,19 +40,23 @@ interface MentorProfile {
   paymentStatus?: 'PENDING' | 'COMPLETED' | 'FAILED';
   couponCode?: string | null;
   isCouponCodeEnabled?: boolean;
+  isAvailable?: boolean;
+  verificationNotes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface AuthState {
   // Session data
   session: any;
   isSessionLoading: boolean;
-  
+
   // Role data  
   roles: UserRole[];
   primaryRole: UserRole | null;
   mentorProfile: MentorProfile | null;
   isRolesLoading: boolean;
-  
+
   // Computed states
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -57,12 +64,12 @@ interface AuthState {
   isAdmin: boolean;
   isMentor: boolean;
   isMentee: boolean;
-  
+
   // Actions
   signIn: (provider: string, credentials: any) => Promise<any>;
   refreshUserData: () => Promise<void>;
   signOut: () => Promise<void>;
-  
+
   // Error states
   error: string | null;
 }
@@ -75,12 +82,12 @@ interface AuthProviderProps {
 
 function AuthProviderInner({ children }: AuthProviderProps) {
   const { handleError } = useErrorHandler();
-  
+
   // Use React Query for session management
-  const { 
-    data: sessionData, 
-    isLoading, 
-    error: sessionError, 
+  const {
+    data: sessionData,
+    isLoading,
+    error: sessionError,
     refetch,
   } = useSessionWithRolesQuery();
 
@@ -99,11 +106,11 @@ function AuthProviderInner({ children }: AuthProviderProps) {
   const isMentor = sessionData?.isMentor || false;
   const isMentee = sessionData?.isMentee || false;
   const isMentorWithIncompleteProfile = sessionData?.isMentorWithIncompleteProfile || false;
-  
-  const primaryRole = roles.find(role => role.name === 'mentor') || 
-                     roles.find(role => role.name === 'mentee') || 
-                     roles.find(role => role.name === 'admin') || 
-                     null;
+
+  const primaryRole = roles.find(role => role.name === 'mentor') ||
+    roles.find(role => role.name === 'mentee') ||
+    roles.find(role => role.name === 'admin') ||
+    null;
 
   // Refresh function using React Query
   const refreshUserData = useCallback(async () => {

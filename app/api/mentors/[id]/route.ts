@@ -57,6 +57,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         city: mentors.city,
         country: mentors.country,
         profileImageUrl: mentors.profileImageUrl,
+        bannerImageUrl: mentors.bannerImageUrl,
         resumeUrl: mentors.resumeUrl,
         verificationStatus: mentors.verificationStatus,
         isAvailable: mentors.isAvailable,
@@ -101,10 +102,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       // Use profileImageUrl if available, otherwise fallback to userImage
       image: mentor.profileImageUrl || mentor.userImage,
       // Parse expertise if it's a string
-      expertiseArray: mentor.expertise ? mentor.expertise.split(',').map(s => s.trim()) : [],
+      expertiseArray: mentor.expertise ? mentor.expertise.split(',').map((s: string) => s.trim()) : [],
       // Parse availability if it's JSON, otherwise keep as string
-      availabilityParsed: mentor.availability ? 
-        (typeof mentor.availability === 'string' ? 
+      availabilityParsed: mentor.availability ?
+        (typeof mentor.availability === 'string' ?
           (() => {
             try {
               return JSON.parse(mentor.availability);
@@ -113,24 +114,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
               console.log('Availability is not JSON, treating as string:', mentor.availability);
               return mentor.availability;
             }
-          })() : 
+          })() :
           mentor.availability
         ) : null,
     };
 
-    return NextResponse.json({ 
-      success: true, 
-      data: formattedMentor 
+    return NextResponse.json({
+      success: true,
+      data: formattedMentor
     });
 
   } catch (error) {
     console.error('❌ Error fetching mentor details:', error);
-    
+
     // More specific error handling
     if (error instanceof Error) {
       console.error('❌ Error message:', error.message);
       console.error('❌ Error stack:', error.stack);
-      
+
       // Handle specific database errors
       if (error.message.includes('invalid input syntax for type uuid')) {
         return NextResponse.json(
@@ -139,7 +140,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         );
       }
     }
-    
+
     return NextResponse.json(
       { success: false, error: 'Failed to fetch mentor details' },
       { status: 500 }

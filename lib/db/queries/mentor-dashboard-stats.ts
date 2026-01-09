@@ -24,7 +24,7 @@ export async function getMentorDashboardStats(mentorId: string): Promise<MentorD
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-    
+
     // Convert dates to ISO strings for SQL
     const nowStr = now.toISOString();
     const startOfMonthStr = startOfMonth.toISOString();
@@ -50,7 +50,7 @@ export async function getMentorDashboardStats(mentorId: string): Promise<MentorD
     // Get review statistics
     const reviewStats = await db
       .select({
-        averageRating: sql<number>`AVG(${reviews.rating})::decimal(3,2)`,
+        averageRating: sql<number>`AVG(${reviews.finalScore})::decimal(3,2)`,
         totalReviews: sql<number>`COUNT(${reviews.id})::int`,
       })
       .from(reviews)

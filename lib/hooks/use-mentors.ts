@@ -19,6 +19,7 @@ interface Mentor {
   name: string;
   email: string;
   image: string | null;
+  bannerImageUrl?: string | null;
 }
 
 interface UseMentorsReturn {
@@ -37,10 +38,10 @@ export function useMentors(): UseMentorsReturn {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch('/api/mentors');
       const result = await response.json();
-      
+
       if (result.success) {
         setMentors(result.data);
       } else {
