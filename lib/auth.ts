@@ -27,6 +27,10 @@ export const auth = betterAuth({
       accessType: "offline",
       prompt: "consent"
     },
+    linkedin: {
+      clientId: process.env.LINKEDIN_CLIENT_ID!,
+      clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
+    },
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
@@ -63,7 +67,7 @@ export const auth = betterAuth({
                       assignedBy: session.userId
                     })
                     .onConflictDoNothing();
-                  
+
                   console.log(`✅ Auto-assigned mentee role to user: ${session.userId}`);
                 }
               }

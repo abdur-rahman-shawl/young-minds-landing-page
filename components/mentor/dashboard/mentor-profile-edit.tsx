@@ -13,12 +13,12 @@ import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/contexts/auth-context"
 import { uploadProfilePicture, uploadResume } from "@/lib/storage"
-import { 
-  Edit3, 
-  Save, 
-  X, 
-  Loader2, 
-  User, 
+import {
+  Edit3,
+  Save,
+  X,
+  Loader2,
+  User,
   Camera,
   CheckCircle2,
   ShieldQuestion,
@@ -48,7 +48,7 @@ export function MentorProfileEdit() {
   const [success, setSuccess] = useState<string | null>(null)
   const [imageRefresh, setImageRefresh] = useState(0)
   const [showImage, setShowImage] = useState(false)
-  
+
   const [mentorData, setMentorData] = useState({
     fullName: '',
     email: '',
@@ -92,32 +92,32 @@ export function MentorProfileEdit() {
     console.log('📋 Syncing mentor data from profile', mentorProfile);
 
     setMentorData({
-        fullName: mentorProfile.fullName || session?.user?.name || '',
-        email: mentorProfile.email || session?.user?.email || '',
-        phone: mentorProfile.phone || '',
-        title: mentorProfile.title || '',
-        company: mentorProfile.company || '',
-        city: mentorProfile.city || '',
-        state: mentorProfile.state || '',
-        country: mentorProfile.country || '',
-        industry: mentorProfile.industry || '',
-        expertise: mentorProfile.expertise || '',
-        experience: mentorProfile.experience?.toString() || '',
-        about: mentorProfile.about || '',
-        linkedinUrl: mentorProfile.linkedinUrl || '',
-        githubUrl: mentorProfile.githubUrl || '',
-        websiteUrl: mentorProfile.websiteUrl || '',
-        hourlyRate: mentorProfile.hourlyRate || '',
-        currency: mentorProfile.currency || 'USD',
-        availability: mentorProfile.availability || '',
-        headline: mentorProfile.headline || '',
-        maxMentees: mentorProfile.maxMentees?.toString() || '10',
-        profileImageUrl: mentorProfile.profileImageUrl || '',
-        resumeUrl: mentorProfile.resumeUrl || '',
-        verificationStatus: mentorProfile.verificationStatus || 'IN_PROGRESS',
-        verificationNotes: mentorProfile.verificationNotes || '',
-        isAvailable: mentorProfile.isAvailable !== false
-      })
+      fullName: mentorProfile.fullName || session?.user?.name || '',
+      email: mentorProfile.email || session?.user?.email || '',
+      phone: mentorProfile.phone || '',
+      title: mentorProfile.title || '',
+      company: mentorProfile.company || '',
+      city: mentorProfile.city || '',
+      state: mentorProfile.state || '',
+      country: mentorProfile.country || '',
+      industry: mentorProfile.industry || '',
+      expertise: mentorProfile.expertise || '',
+      experience: mentorProfile.experience?.toString() || '',
+      about: mentorProfile.about || '',
+      linkedinUrl: mentorProfile.linkedinUrl || '',
+      githubUrl: mentorProfile.githubUrl || '',
+      websiteUrl: mentorProfile.websiteUrl || '',
+      hourlyRate: mentorProfile.hourlyRate || '',
+      currency: mentorProfile.currency || 'USD',
+      availability: mentorProfile.availability || '',
+      headline: mentorProfile.headline || '',
+      maxMentees: mentorProfile.maxMentees?.toString() || '10',
+      profileImageUrl: mentorProfile.profileImageUrl || '',
+      resumeUrl: mentorProfile.resumeUrl || '',
+      verificationStatus: mentorProfile.verificationStatus || 'IN_PROGRESS',
+      verificationNotes: mentorProfile.verificationNotes || '',
+      isAvailable: mentorProfile.isAvailable !== false
+    })
 
     setMentorMeta({
       createdAt: mentorProfile.createdAt || '',
@@ -134,13 +134,13 @@ export function MentorProfileEdit() {
     try {
       setIsUploadingImage(true)
       const uploadResult = await uploadProfilePicture(file, session.user.id)
-      
+
       // Update local state
       setMentorData(prev => ({
         ...prev,
         profileImageUrl: uploadResult.url
       }))
-      
+
       // Immediately save to database to update across all components
       const response = await fetch('/api/mentors/update-profile', {
         method: 'POST',
@@ -154,22 +154,22 @@ export function MentorProfileEdit() {
       })
 
       const result = await response.json()
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to save profile image')
       }
-      
+
       // Force image refresh
       setImageRefresh(Date.now())
-      
+
       setSuccess('Profile image uploaded and saved successfully!')
       setTimeout(() => setSuccess(null), 3000)
-      
+
       // Refresh cached user data so other components get the new image. Avoid doing this while editing to prevent form resets.
       if (!isEditing) {
         refreshUserData()
       }
-      
+
     } catch (error) {
       setError('Failed to upload image')
       console.error('Image upload error:', error)
@@ -184,17 +184,17 @@ export function MentorProfileEdit() {
     try {
       setIsUploadingResume(true)
       setError(null)
-      
+
       // Validate file type and size
       const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
       const allowedExtensions = ['pdf', 'doc', 'docx'];
       const fileExtension = file.name.split('.').pop()?.toLowerCase();
-      
+
       if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension || '')) {
         setError('Please upload a PDF, DOC, or DOCX file');
         return;
       }
-      
+
       if (file.size > 10 * 1024 * 1024) { // 10MB limit
         setError('Resume file size must be less than 10MB');
         return;
@@ -204,18 +204,18 @@ export function MentorProfileEdit() {
       const formData = new FormData();
       formData.append('userId', session.user.id);
       formData.append('resume', file);
-      
+
       const response = await fetch('/api/mentors/update-profile', {
         method: 'POST',
         body: formData,
       })
 
       const result = await response.json()
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to save resume')
       }
-      
+
       // Update local state with the new resume URL from the API response
       if (result.data?.resumeUrl) {
         setMentorData(prev => ({
@@ -223,13 +223,13 @@ export function MentorProfileEdit() {
           resumeUrl: result.data.resumeUrl
         }))
       }
-      
+
       setSuccess('Resume uploaded and saved successfully!')
       setTimeout(() => setSuccess(null), 3000)
-      
+
       // Refresh user roles to update all components
       refreshUserData()
-      
+
     } catch (error) {
       setError('Failed to upload resume')
       console.error('Resume upload error:', error)
@@ -244,7 +244,7 @@ export function MentorProfileEdit() {
     try {
       setIsUploadingImage(true) // Reuse loading state
       setError(null)
-      
+
       const response = await fetch('/api/mentors/update-profile', {
         method: 'POST',
         headers: {
@@ -272,7 +272,7 @@ export function MentorProfileEdit() {
             updatedAt: result.data.updatedAt || prev.updatedAt,
           }));
         }
-        
+
         // Refresh user roles to update all components
         refreshUserData()
       } else {
@@ -287,20 +287,20 @@ export function MentorProfileEdit() {
   }
 
   // Simple image logic - use uploaded if available, otherwise Google
-  const currentImage = mentorData.profileImageUrl 
-    ? `${mentorData.profileImageUrl}?t=${imageRefresh || Date.now()}` 
+  const currentImage = mentorData.profileImageUrl
+    ? `${mentorData.profileImageUrl}?t=${imageRefresh || Date.now()}`
     : session?.user?.image
 
   const industries = [
-    "IT & Software", "Marketing & Advertising", "Finance & Banking", "Education", 
-    "Healthcare", "Entrepreneurship & Startup", "Design (UI/UX, Graphic)", "Sales", 
+    "IT & Software", "Marketing & Advertising", "Finance & Banking", "Education",
+    "Healthcare", "Entrepreneurship & Startup", "Design (UI/UX, Graphic)", "Sales",
     "Human Resources", "Other"
   ]
 
   const currencyOptions = ['USD', 'EUR', 'GBP', 'INR', 'AUD', 'CAD'];
 
   const availabilityOptions = [
-    "Weekly (e.g., 1 hour/week)", "Bi-weekly (e.g., 1 hour/bi-week)", 
+    "Weekly (e.g., 1 hour/week)", "Bi-weekly (e.g., 1 hour/bi-week)",
     "Monthly (e.g., 1 hour/month)", "As needed (flexible)"
   ]
 
@@ -315,7 +315,7 @@ export function MentorProfileEdit() {
       mentorData.about, mentorData.hourlyRate, mentorData.availability,
       mentorData.headline, mentorData.profileImageUrl, mentorData.resumeUrl
     ];
-    
+
     const filledFields = fields.filter(field => field && field.toString().trim() !== '').length;
     return Math.round((filledFields / fields.length) * 100);
   };
@@ -363,7 +363,7 @@ export function MentorProfileEdit() {
 
       {/* Content Container */}
       <div className="max-w-4xl mx-auto px-6 py-8">
-        
+
         {/* Alerts */}
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -401,7 +401,7 @@ export function MentorProfileEdit() {
                     </AvatarFallback>
                   </Avatar>
                 )}
-                
+
                 {/* Upload loading indicator */}
                 {isUploadingImage && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
@@ -434,7 +434,7 @@ export function MentorProfileEdit() {
                   {mentorData.fullName || session?.user?.name || 'Your Name'}
                 </h2>
                 <p className="text-gray-600 mb-2">
-                  {mentorData.title || 'Professional Title'} 
+                  {mentorData.title || 'Professional Title'}
                   {mentorData.company && <span> at {mentorData.company}</span>}
                 </p>
                 {mentorData.headline && (
@@ -446,7 +446,7 @@ export function MentorProfileEdit() {
 
               {/* Status Badge */}
               <div className="text-right">
-                <Badge 
+                <Badge
                   variant={mentorProfile?.verificationStatus === 'VERIFIED' ? 'default' : 'secondary'}
                   className="mb-2"
                 >
@@ -467,7 +467,7 @@ export function MentorProfileEdit() {
 
         {/* Form Sections */}
         <div className="space-y-8">
-          
+
           {/* Personal Information */}
           <Card>
             <CardHeader className="border-b bg-gray-50">
@@ -598,7 +598,7 @@ export function MentorProfileEdit() {
                   <Upload className="h-4 w-4" />
                   Resume File
                 </Label>
-                
+
                 {mentorData.resumeUrl ? (
                   <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
                     <div className="flex items-center gap-3">
@@ -726,8 +726,8 @@ export function MentorProfileEdit() {
 
                 <div className="space-y-2">
                   <Label htmlFor="industry" className="font-medium">Industry</Label>
-                  <Select 
-                    value={mentorData.industry} 
+                  <Select
+                    value={mentorData.industry}
                     onValueChange={(value) => setMentorData(prev => ({ ...prev, industry: value }))}
                     disabled={!isEditing}
                   >
@@ -907,8 +907,8 @@ export function MentorProfileEdit() {
                   <Clock className="h-4 w-4" />
                   Availability
                 </Label>
-                <Select 
-                  value={mentorData.availability} 
+                <Select
+                  value={mentorData.availability}
                   onValueChange={(value) => setMentorData(prev => ({ ...prev, availability: value }))}
                   disabled={!isEditing}
                 >
@@ -944,85 +944,13 @@ export function MentorProfileEdit() {
               </div>
             </CardContent>
           </Card>
-        
-          {/* Verification & Availability */}
-          <Card>
-            <CardHeader className="border-b bg-gray-50">
-              <CardTitle className="flex items-center gap-2 text-gray-900">
-                <ShieldQuestion className="h-5 w-5" />
-                Verification & Availability
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="verificationStatus" className="flex items-center gap-2 font-medium">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Verification Status
-                </Label>
-                <Select
-                  value={mentorData.verificationStatus}
-                  onValueChange={(value) => setMentorData(prev => ({ ...prev, verificationStatus: value as typeof prev.verificationStatus }))}
-                  disabled={!isEditing}
-                >
-                  <SelectTrigger className="transition-all focus:ring-2 focus:ring-blue-500">
-                    <SelectValue placeholder="Select verification status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {verificationStatuses.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="verificationNotes" className="flex items-center gap-2 font-medium">
-                  <FileText className="h-4 w-4" />
-                  Verification Notes
-                </Label>
-                <Textarea
-                  id="verificationNotes"
-                  value={mentorData.verificationNotes}
-                  onChange={(e) => setMentorData(prev => ({ ...prev, verificationNotes: e.target.value }))}
-                  disabled={!isEditing}
-                  placeholder="Notes from reviewers or context for your updates"
-                  rows={4}
-                  className="transition-all focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3 shadow-sm">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Accepting new mentees</p>
-                  <p className="text-xs text-gray-500">Toggle your availability across the platform.</p>
-                </div>
-                <Switch
-                  checked={mentorData.isAvailable}
-                  onCheckedChange={(checked) => setMentorData(prev => ({ ...prev, isAvailable: checked }))}
-                  disabled={!isEditing}
-                />
-              </div>
-
-              <Separator />
-
-              <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
-                <div>
-                  <span className="font-medium text-gray-900">Created:</span> {mentorMeta.createdAt ? new Date(mentorMeta.createdAt).toLocaleString() : 'N/A'}
-                </div>
-                <div>
-                  <span className="font-medium text-gray-900">Last updated:</span> {mentorMeta.updatedAt ? new Date(mentorMeta.updatedAt).toLocaleString() : 'N/A'}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Save Button */}
           {isEditing && (
             <div className="pt-6 border-t">
-              <Button 
-                onClick={handleSave} 
+              <Button
+                onClick={handleSave}
                 disabled={isUploadingImage}
                 size="lg"
                 className="w-full md:w-auto px-8 py-3"
