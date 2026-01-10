@@ -17,6 +17,8 @@ import { createBookingSchema, validateBookingTime, canUserAccessBooking } from '
 import { bookingRateLimit, RateLimitError } from '@/lib/rate-limit';
 import { getDay, isWithinInterval, addMinutes, setHours, setMinutes, setSeconds } from 'date-fns';
 import { LiveKitRoomManager } from '@/lib/livekit/room-manager';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
 
 // Remove duplicate schema definition since it's imported
 
@@ -56,6 +58,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'You cannot book a session with yourself' },
         { status: 400 }
+      );
+    }
+
+    // Check subscription limits for MENTOR
+    try {
+      const { has_access, reason } = await checkFeatureAccess(
+        validatedData.mentorId,
+        FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY
+      );
+
+      if (!has_access) {
+        return NextResponse.json(
+          { error: reason || 'Mentor has reached their monthly session limit' },
+          { status: 403 }
+        );
+      }
+    } catch (error) {
+      console.error('Subscription check failed:', error);
+      // Fail open or closed? Closed is safer for integrity, Open is better for UX if system breaks.
+      // Given "PRODUCTION-GRADE" comments, we should probably log and maybe allow?
+      // But user said "if you don't implement this perfectly".
+      // Let's assume fail-safe means if we can't check, we probably shouldn't block unless we know for sure.
+      // However, typical enforcement is "allow if check fails" or "deny".
+      // I'll stick to basic error handling logging, but maybe not block if it throws (or block).
+      // Let's block to be safe on revenue protection.
+      return NextResponse.json(
+        { error: 'Unable to verify mentor availability due to system error' },
+        { status: 500 }
       );
     }
 

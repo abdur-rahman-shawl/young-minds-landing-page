@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { 
+import {
   messages,
   messageThreads,
   messagingPermissions,
@@ -12,6 +12,8 @@ import {
 import { eq, and, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
 
 const sendMessageSchema = z.object({
   content: z.string().min(1).max(5000),
@@ -53,7 +55,7 @@ async function checkAndUpdateMessageQuota(userId: string) {
         updatedAt: new Date()
       })
       .where(eq(messageQuotas.userId, userId));
-    
+
     quota.messagesSentToday = 0;
   }
 
@@ -91,11 +93,22 @@ export async function POST(
 
     const { id: threadId } = await params;
     const body = await request.json();
-    
+
     const validatedData = sendMessageSchema.parse(body);
     const { content, ...messageData } = validatedData;
 
-    await checkAndUpdateMessageQuota(userId);
+    // Subscription Enforcement: Check Direct Message Limits
+    const { has_access, reason } = await checkFeatureAccess(userId, FEATURE_KEYS.DIRECT_MESSAGES_DAILY);
+
+    if (!has_access) {
+      return NextResponse.json(
+        { success: false, error: reason || 'Daily message limit reached. Upgrade your plan for more.' },
+        { status: 403 }
+      );
+    }
+
+    // Removed legacy checkAndUpdateMessageQuota(userId) in favor of subscription system
+    // await checkAndUpdateMessageQuota(userId);
 
     const [thread] = await db
       .select()
@@ -118,8 +131,8 @@ export async function POST(
       );
     }
 
-    const receiverId = thread.participant1Id === userId 
-      ? thread.participant2Id 
+    const receiverId = thread.participant1Id === userId
+      ? thread.participant2Id
       : thread.participant1Id;
 
     const hasPermission = await db
@@ -157,6 +170,9 @@ export async function POST(
         ...messageData
       })
       .returning();
+
+    // Track usage after successful send
+    await trackFeatureUsage(userId, FEATURE_KEYS.DIRECT_MESSAGES_DAILY, { count: 1 });
 
     const unreadCountField = thread.participant1Id === receiverId
       ? 'participant1UnreadCount'
@@ -230,14 +246,14 @@ export async function POST(
     });
   } catch (error) {
     console.error('Error sending message:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { success: false, error: error.errors[0].message },
         { status: 400 }
       );
     }
-    
+
     if (error instanceof Error) {
       if (error.message.includes('limit exceeded')) {
         return NextResponse.json(
@@ -245,7 +261,7 @@ export async function POST(
           { status: 429 }
         );
       }
-      
+
       if (error.message === 'RateLimitError') {
         return NextResponse.json(
           { success: false, error: 'Too many messages. Please slow down.' },
