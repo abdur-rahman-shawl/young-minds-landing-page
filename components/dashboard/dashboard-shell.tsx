@@ -28,6 +28,7 @@ import { AdminMentors } from "@/components/admin/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/admin/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
+import { SubscriptionPlans } from "@/components/mentee/subscriptions/subscription-plans"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { useAuth } from "@/contexts/auth-context"
 import { AlertTriangle, Sparkles } from "lucide-react"
@@ -282,6 +283,9 @@ export function DashboardShell() {
         case "profile":
           content = <MenteeProfile />
           break
+        case "subscriptions":
+          content = <SubscriptionPlans />
+          break
         default:
           content = (
             <Dashboard
@@ -320,7 +324,7 @@ export function DashboardShell() {
 
         <SidebarInset className="relative flex flex-1 flex-col overflow-hidden">
           <Header showSidebarTrigger onSearchClick={() => handleSectionChange("explore")} />
-          
+
           <main className="flex flex-1 flex-col px-4 pb-6 pt-20 md:px-6 md:pt-24 lg:px-8">
             <AnimatePresence mode="wait">
               {isMentorWithIncompleteProfile && (
@@ -339,7 +343,7 @@ export function DashboardShell() {
                         onClick={() => router.push("/auth/mentor-verification")}
                         className="group ml-3 inline-flex items-center font-medium text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
                       >
-                        Complete now 
+                        Complete now
                         <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
                       </button>
                     </AlertDescription>

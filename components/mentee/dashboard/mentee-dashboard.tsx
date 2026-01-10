@@ -16,6 +16,7 @@ import { Mentors } from "@/components/shared/dashboard/mentors";
 import { Messages } from "@/components/shared/dashboard/messages";
 import { Sessions } from "@/components/shared/dashboard/sessions";
 import { MentorDetailView } from "@/components/mentee/mentor-detail-view";
+import { SubscriptionPlans } from "@/components/mentee/subscriptions/subscription-plans";
 
 interface MenteeDashboardProps {
   user: any;
@@ -31,10 +32,10 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
     // Get section and mentor from URL on page load
     const sectionFromUrl = searchParams.get("section") || "dashboard";
     const mentorFromUrl = searchParams.get("mentor");
-    
+
     console.log('🚀 useEffect triggered - URL params:', { sectionFromUrl, mentorFromUrl });
     console.log('🚀 Current state before update:', { activeSection, selectedMentor });
-    
+
     // If mentor ID is present but section is still "explore", automatically set to mentor-detail
     if (mentorFromUrl && sectionFromUrl === "explore") {
       console.log('🚀 Mentor ID found with explore section, auto-setting to mentor-detail');
@@ -45,7 +46,7 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
       setActiveSection(sectionFromUrl);
       setSelectedMentor(mentorFromUrl);
     }
-    
+
     console.log('🚀 useEffect completed - new state should be:', {
       activeSection: mentorFromUrl && sectionFromUrl === "explore" ? "mentor-detail" : sectionFromUrl,
       selectedMentor: mentorFromUrl
@@ -57,21 +58,21 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
     console.log('🚀 Current router:', router);
     setActiveSection(section);
     setSelectedMentor(null);
-    
+
     // Handle courses navigation
     if (section === "courses") {
       console.log('🚀 Navigating to /courses via router.push');
       router.push("/courses");
       return;
     }
-    
+
     // Handle my learning navigation
     if (section === "my-courses") {
       console.log('🚀 Navigating to /my-courses via router.push');
       router.push("/my-courses");
       return;
     }
-    
+
     console.log('🚀 Updating URL for section:', section);
     router.push(`/dashboard?section=${section}`);
   };
@@ -80,19 +81,19 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
     console.log('🚀 handleMentorSelect called with mentorId:', mentorId);
     console.log('🚀 Current activeSection:', activeSection);
     console.log('🚀 Current selectedMentor:', selectedMentor);
-    
+
     setSelectedMentor(mentorId);
     setActiveSection("mentor-detail");
-    
+
     console.log('🚀 Setting activeSection to: mentor-detail');
     console.log('🚀 Setting selectedMentor to:', mentorId);
-    
+
     // Update URL using Next.js router
     const newUrl = `/dashboard?section=mentor-detail&mentor=${mentorId}`;
     console.log('🚀 New URL will be:', newUrl);
-    
+
     router.replace(newUrl, undefined, { shallow: true });
-    
+
     console.log('🚀 URL updated using router.replace, navigation should happen now');
   };
 
@@ -100,7 +101,7 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
     console.log('🚀 handleBackToExplore called');
     setSelectedMentor(null);
     setActiveSection("explore");
-    
+
     // Update URL using Next.js router
     const newUrl = `/dashboard?section=explore`;
     console.log('🚀 Navigating back to:', newUrl);
@@ -109,7 +110,7 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
 
   const renderContent = () => {
     console.log('🚀 renderContent called with activeSection:', activeSection, 'selectedMentor:', selectedMentor);
-    
+
     let content;
     switch (activeSection) {
       case "dashboard":
@@ -138,6 +139,9 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
           />
         );
         break;
+      case "subscriptions":
+        content = <SubscriptionPlans />;
+        break;
       default:
         content = <Dashboard onMentorSelect={handleMentorSelect} />;
     }
@@ -161,8 +165,8 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950">
       <SidebarProvider defaultOpen={true}>
         <div className="flex min-h-screen w-full">
-          <UserSidebar 
-            activeSection={activeSection} 
+          <UserSidebar
+            activeSection={activeSection}
             onSectionChange={handleSectionChange}
             userRole="mentee"
           />
