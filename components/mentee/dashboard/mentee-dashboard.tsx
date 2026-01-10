@@ -16,7 +16,6 @@ import { Mentors } from "@/components/shared/dashboard/mentors";
 import { Messages } from "@/components/shared/dashboard/messages";
 import { Sessions } from "@/components/shared/dashboard/sessions";
 import { MentorDetailView } from "@/components/mentee/mentor-detail-view";
-import { SubscriptionPlans } from "@/components/mentee/subscriptions/subscription-plans";
 
 interface MenteeDashboardProps {
   user: any;
@@ -138,9 +137,6 @@ export function MenteeDashboard({ user }: MenteeDashboardProps) {
             onBack={handleBackToExplore}
           />
         );
-        break;
-      case "subscriptions":
-        content = <SubscriptionPlans />;
         break;
       default:
         content = <Dashboard onMentorSelect={handleMentorSelect} />;

@@ -5,15 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { 
-  Calendar, 
-  Clock, 
-  Settings, 
-  Save, 
-  AlertCircle, 
+import {
+  Calendar,
+  Clock,
+  Settings,
+  Save,
+  AlertCircle,
   Copy,
   Trash2,
   Plus,
@@ -21,7 +21,8 @@ import {
   ChevronRight,
   Globe,
   Shield,
-  Zap
+  Zap,
+  CheckCircle2
 } from 'lucide-react';
 import { WeeklyScheduleEditor } from './weekly-schedule-editor';
 import { AvailabilitySettings } from './availability-settings';
@@ -64,7 +65,7 @@ export function MentorAvailabilityManager() {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('schedule');
-  
+
   const [schedule, setSchedule] = useState<AvailabilitySchedule>({
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     defaultSessionDuration: 60,
@@ -108,7 +109,7 @@ export function MentorAvailabilityManager() {
             timeBlocks: pattern.timeBlocks || []
           }))
         };
-        
+
         setSchedule(loadedSchedule);
         setOriginalSchedule(loadedSchedule);
       } else if (data.schedule === null) {
@@ -126,7 +127,7 @@ export function MentorAvailabilityManager() {
   // Initialize default schedule
   const initializeDefaultSchedule = () => {
     const defaultPatterns: WeeklyPattern[] = [];
-    
+
     // Monday to Friday, 9 AM to 5 PM with lunch break
     for (let day = 1; day <= 5; day++) {
       defaultPatterns.push({
@@ -153,7 +154,7 @@ export function MentorAvailabilityManager() {
         ]
       });
     }
-    
+
     // Weekend - disabled by default
     for (let day = 0; day <= 6; day += 6) {
       defaultPatterns.push({
@@ -162,7 +163,7 @@ export function MentorAvailabilityManager() {
         timeBlocks: []
       });
     }
-    
+
     setSchedule(prev => ({
       ...prev,
       weeklyPatterns: defaultPatterns
@@ -215,7 +216,7 @@ export function MentorAvailabilityManager() {
     setSchedule(prev => {
       const patterns = [...prev.weeklyPatterns];
       const index = patterns.findIndex(p => p.dayOfWeek === dayOfWeek);
-      
+
       if (index >= 0) {
         patterns[index] = { ...patterns[index], ...pattern };
       } else {
@@ -226,7 +227,7 @@ export function MentorAvailabilityManager() {
           ...pattern
         });
       }
-      
+
       return {
         ...prev,
         weeklyPatterns: patterns
@@ -267,33 +268,37 @@ export function MentorAvailabilityManager() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
+      <Card>
+        <CardContent className="flex items-center justify-center py-24">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <p className="text-muted-foreground">Loading your schedule...</p>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Availability Management
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Set your availability for mentoring sessions
+          <h2 className="text-2xl font-bold tracking-tight">Availability Management</h2>
+          <p className="text-sm text-muted-foreground">
+            Configure when mentees can book sessions with you
           </p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           {hasChanges && (
             <Button
               variant="outline"
               onClick={resetChanges}
               disabled={saving}
+              className="text-muted-foreground"
             >
-              Reset Changes
+              Reset
             </Button>
           )}
           <Button
@@ -301,57 +306,89 @@ export function MentorAvailabilityManager() {
             disabled={saving || !hasChanges}
             className="gap-2"
           >
-            <Save className="h-4 w-4" />
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Save Changes
+              </>
+            )}
           </Button>
         </div>
       </div>
 
+      {hasChanges && (
+        <Alert className="bg-amber-500/10 border-amber-500/20 text-amber-900 dark:text-amber-200">
+          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertTitle>Unsaved Changes</AlertTitle>
+          <AlertDescription>
+            You have unsaved changes to your schedule. Don't forget to save when you're done.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Status Card */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-              <div className={`w-3 h-3 rounded-full ${schedule.isActive ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full bg-muted ${schedule.isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-muted text-muted-foreground'}`}>
+                {schedule.isActive ? <CheckCircle2 className="h-6 w-6" /> : <Settings className="h-6 w-6" />}
+              </div>
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                <p className="font-semibold text-base sm:text-lg">
                   Availability Status
                 </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {schedule.isActive ? 'Accepting bookings' : 'Not accepting bookings'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <Badge variant={schedule.isActive ? "default" : "secondary"} className={schedule.isActive ? "bg-green-500 hover:bg-green-600" : ""}>
+                    {schedule.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground hidden sm:inline-block">
+                    — {schedule.isActive ? 'You are accepting new bookings' : 'Bookings are currently paused'}
+                  </span>
+                </div>
               </div>
             </div>
-            
-            <Switch
-              checked={schedule.isActive}
-              onCheckedChange={(checked) => updateSchedule({ isActive: checked })}
-            />
+
+            <div className="flex items-center gap-2">
+              <Label htmlFor="availability-mode" className="text-sm font-medium hidden sm:block">
+                {schedule.isActive ? 'On' : 'Off'}
+              </Label>
+              <Switch
+                id="availability-mode"
+                checked={schedule.isActive}
+                onCheckedChange={(checked) => updateSchedule({ isActive: checked })}
+              />
+            </div>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-            <div className="flex items-center gap-3">
-              <Globe className="h-5 w-5 text-gray-400" />
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t">
+            <div className="flex items-start gap-3">
+              <Globe className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Timezone</p>
-                <p className="font-medium">{schedule.timezone}</p>
+                <p className="text-sm font-medium text-muted-foreground">Timezone</p>
+                <p className="font-medium text-foreground">{schedule.timezone}</p>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-gray-400" />
+
+            <div className="flex items-start gap-3">
+              <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Session Duration</p>
-                <p className="font-medium">{schedule.defaultSessionDuration} minutes</p>
+                <p className="text-sm font-medium text-muted-foreground">Session Duration</p>
+                <p className="font-medium text-foreground">{schedule.defaultSessionDuration} minutes</p>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <Shield className="h-5 w-5 text-gray-400" />
+
+            <div className="flex items-start gap-3">
+              <Shield className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Booking Mode</p>
-                <p className="font-medium">
-                  {schedule.allowInstantBooking ? 'Instant' : 'Requires Confirmation'}
+                <p className="text-sm font-medium text-muted-foreground">Booking Mode</p>
+                <p className="font-medium text-foreground">
+                  {schedule.allowInstantBooking ? 'Instant Booking' : 'Manual Confirmation'}
                 </p>
               </div>
             </div>
@@ -360,34 +397,34 @@ export function MentorAvailabilityManager() {
       </Card>
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
           <TabsTrigger value="schedule" className="gap-2">
             <Calendar className="h-4 w-4" />
-            Schedule
+            <span className="hidden sm:inline">Schedule</span>
           </TabsTrigger>
           <TabsTrigger value="settings" className="gap-2">
             <Settings className="h-4 w-4" />
-            Settings
+            <span className="hidden sm:inline">Settings</span>
           </TabsTrigger>
           <TabsTrigger value="exceptions" className="gap-2">
             <AlertCircle className="h-4 w-4" />
-            Exceptions
+            <span className="hidden sm:inline">Exceptions</span>
           </TabsTrigger>
           <TabsTrigger value="templates" className="gap-2">
             <Zap className="h-4 w-4" />
-            Templates
+            <span className="hidden sm:inline">Templates</span>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="schedule" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
+        <div className="mt-6">
+          <TabsContent value="schedule" className="space-y-4 m-0">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
+                <div className="space-y-1">
                   <CardTitle>Weekly Schedule</CardTitle>
                   <CardDescription>
-                    Set your regular weekly availability pattern
+                    Define your standard weekly availability
                   </CardDescription>
                 </div>
                 <Button
@@ -396,50 +433,65 @@ export function MentorAvailabilityManager() {
                   onClick={copyWeekPattern}
                   className="gap-2"
                 >
-                  <Copy className="h-4 w-4" />
-                  Copy Week
+                  <Copy className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Copy Week Config</span>
                 </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <WeeklyScheduleEditor
-                weeklyPatterns={schedule.weeklyPatterns}
-                onPatternChange={updateWeeklyPattern}
-                timezone={schedule.timezone}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+              </CardHeader>
+              <CardContent>
+                <WeeklyScheduleEditor
+                  weeklyPatterns={schedule.weeklyPatterns}
+                  onPatternChange={updateWeeklyPattern}
+                  timezone={schedule.timezone}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="settings" className="space-y-4">
-          <AvailabilitySettings
-            schedule={schedule}
-            onUpdate={updateSchedule}
-          />
-        </TabsContent>
+          <TabsContent value="settings" className="m-0">
+            <Card>
+              <CardHeader>
+                <CardTitle>Booking Settings</CardTitle>
+                <CardDescription>Configure rules for how mentees can book time with you</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AvailabilitySettings
+                  schedule={schedule}
+                  onUpdate={updateSchedule}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="exceptions" className="space-y-4">
-          <AvailabilityExceptions
-            mentorId={session?.user?.id}
-          />
-        </TabsContent>
+          <TabsContent value="exceptions" className="m-0">
+            <Card>
+              <CardHeader>
+                <CardTitle>Date-Specific Exceptions</CardTitle>
+                <CardDescription>Override your weekly schedule for specific dates (holidays, time off, etc.)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AvailabilityExceptions
+                  mentorId={session?.user?.id}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="templates" className="space-y-4">
-          <AvailabilityTemplates
-            currentSchedule={schedule}
-            onApplyTemplate={applyTemplate}
-          />
-        </TabsContent>
+          <TabsContent value="templates" className="m-0">
+            <Card>
+              <CardHeader>
+                <CardTitle>Schedule Templates</CardTitle>
+                <CardDescription>Save and load different availability configurations</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AvailabilityTemplates
+                  currentSchedule={schedule}
+                  onApplyTemplate={applyTemplate}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </div>
       </Tabs>
-
-      {/* Help Section */}
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          <strong>Tips:</strong> Set your regular weekly schedule, then add exceptions for holidays or special dates. 
-          Use templates for quick setup or to switch between different availability patterns.
-        </AlertDescription>
-      </Alert>
     </div>
   );
 }

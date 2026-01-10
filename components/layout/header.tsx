@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Menu, Search, Settings, LogOut, SunMoon } from "lucide-react"
+import { Menu, Search, Settings, LogOut, SunMoon, MoreVertical, User, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/providers/theme-toggle"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -11,10 +11,19 @@ import { NotificationBell } from "@/components/notifications/notification-bell"
 import { useAuth } from "@/contexts/auth-context"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface HeaderProps {
   onSearchClick?: () => void
   showSidebarTrigger?: boolean
+  isDashboard?: boolean
 }
 
 const NAV_LINKS = [
@@ -23,16 +32,20 @@ const NAV_LINKS = [
   { label: "Pricing", href: "#" },
 ]
 
-export function Header({ onSearchClick, showSidebarTrigger = false }: HeaderProps) {
+export function Header({ onSearchClick, showSidebarTrigger = false, isDashboard = false }: HeaderProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { signOut: authSignOut, isAuthenticated, isMentor: authIsMentor, isLoading } = useAuth()
+  const { signOut: authSignOut, isAuthenticated, isMentor: authIsMentor, isLoading, user } = useAuth()
   const [isScrolled, setIsScrolled] = useState(false)
   const [showSignInPopup, setShowSignInPopup] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isMentor = authIsMentor
-  const isLanding = pathname === "/"
+
+  // Determine if we are on a dashboard page based on path or prop
+  // Ideally this component should receive this as a prop but checking path as fallback
+  const isDashboardPage = isDashboard || pathname.startsWith('/dashboard') || pathname.startsWith('/admin') || pathname.startsWith('/mentee') || pathname.startsWith('/mentor');
+  const isLanding = !isDashboardPage && pathname === "/";
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 10)
@@ -58,9 +71,8 @@ export function Header({ onSearchClick, showSidebarTrigger = false }: HeaderProp
   const handleLogoClick = () => router.push("/")
   const handleGoToDashboard = () => router.push("/dashboard?section=dashboard")
 
-  const headerClasses = `fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-    isScrolled ? "bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-sm" : "bg-white dark:bg-gray-900"
-  } border-b border-gray-200 dark:border-gray-800`
+  const headerClasses = `fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? "bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-sm" : "bg-white dark:bg-gray-900"
+    } border-b border-gray-200 dark:border-gray-800`
 
   const NavLinks = () => (
     <nav className="hidden lg:flex space-x-8">
@@ -99,6 +111,8 @@ export function Header({ onSearchClick, showSidebarTrigger = false }: HeaderProp
       <ThemeToggle />
     </div>
   )
+
+  // MAIN SPLIT: LANDING VS DASHBOARD HEADER
 
   if (isLanding) {
     return (
@@ -141,6 +155,7 @@ export function Header({ onSearchClick, showSidebarTrigger = false }: HeaderProp
                     Logout
                   </Button>
                 </div>
+                {/* Mobile Menu for Landing */}
                 <div className="flex items-center gap-2 lg:hidden">
                   <Button variant="default" size="sm" className="font-semibold" onClick={handleGoToDashboard}>
                     Go to dashboard
@@ -195,6 +210,7 @@ export function Header({ onSearchClick, showSidebarTrigger = false }: HeaderProp
                     Become an Expert
                   </Button>
                 </div>
+                {/* Mobile Menu for Landing (Guest) */}
                 <div className="flex items-center gap-2 lg:hidden">
                   <Button
                     size="sm"
@@ -237,43 +253,98 @@ export function Header({ onSearchClick, showSidebarTrigger = false }: HeaderProp
     )
   }
 
-  // Dashboard / inner pages header
+  // DASHBOARD HEADER (Inner Pages)
   return (
     <>
       <header className={`${headerClasses} flex items-center justify-between gap-3 px-4 h-16 sm:px-6`}>
-        <div className="flex items-center gap-3 sm:gap-4">
+        {/* Left Side: Sidebar Trigger & Logo */}
+        <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
           {showSidebarTrigger && <SidebarTrigger />}
           <div
-            className="text-lg font-bold cursor-pointer transition-colors"
+            className="text-lg font-bold cursor-pointer transition-colors whitespace-nowrap overflow-hidden text-ellipsis"
             onClick={handleLogoClick}
           >
             Sharing<span className="text-blue-500">Minds</span>
           </div>
         </div>
-        <div className="flex items-center gap-2 sm:gap-4">
-          {!isMentor && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="font-semibold border-green-500 text-green-600 hover:bg-green-50"
-              onClick={() => router.push('/become-expert')}
-            >
-              Become an Expert
-            </Button>
-          )}
+
+        {/* Right Side: Actions */}
+        <div className="flex items-center gap-1 sm:gap-2">
+
+          {/* Always Visible: Search (if enabled) & Notifications & Theme */}
           {onSearchClick && (
-            <Button variant="ghost" size="icon" onClick={onSearchClick}>
+            <Button variant="ghost" size="icon" onClick={onSearchClick} className="h-9 w-9">
               <Search className="w-4 h-4" />
             </Button>
           )}
+
           <NotificationBell />
-          <Button variant="ghost" size="icon">
-            <Settings className="w-4 h-4" />
-          </Button>
-          <ThemeToggle />
-          <Button variant="outline" size="sm" onClick={handleAuthClick}>
-            Logout
-          </Button>
+
+          <div className="hidden sm:inline-flex">
+            <ThemeToggle />
+          </div>
+          {/* Mobile Theme Toggle (visible only on mobile) */}
+          <div className="sm:hidden">
+            <ThemeToggle />
+          </div>
+
+
+          {/* Desktop Only Actions */}
+          <div className="hidden md:flex items-center gap-2">
+            {!isMentor && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="font-semibold border-green-500 text-green-600 hover:bg-green-50 ml-2"
+                onClick={() => router.push('/become-expert')}
+              >
+                Become an Expert
+              </Button>
+            )}
+            <Button variant="ghost" size="icon">
+              <Settings className="w-4 h-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleAuthClick}>
+              Logout
+            </Button>
+          </div>
+
+          {/* Mobile Dropdown Menu */}
+          <div className="md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+
+                {!isMentor && (
+                  <>
+                    <DropdownMenuItem onClick={() => router.push('/become-expert')} className="text-green-600 focus:text-green-700">
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      <span>Become an Expert</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+
+                <DropdownMenuItem disabled>
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleAuthClick} className="text-red-600 focus:text-red-600">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
         </div>
       </header>
 

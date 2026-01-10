@@ -1,27 +1,26 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Switch } from "@/components/ui/switch"
+import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/contexts/auth-context"
-import { uploadProfilePicture, uploadResume, uploadBannerImage } from "@/lib/storage"
+import { uploadProfilePicture, uploadBannerImage } from "@/lib/storage"
 import {
   Edit3,
-  Save,
   X,
   Loader2,
   User,
   Camera,
   CheckCircle2,
-  ShieldQuestion,
   Briefcase,
   MapPin,
   Phone,
@@ -31,13 +30,12 @@ import {
   Github,
   DollarSign,
   Clock,
-  Target,
-  Award,
-  BookOpen,
   Star,
   FileText,
   Upload,
-  Image as ImageIcon
+  AlertCircle,
+  Image as ImageIcon,
+  ShieldQuestion
 } from "lucide-react"
 
 export function MentorProfileEdit() {
@@ -93,8 +91,6 @@ export function MentorProfileEdit() {
     // Prevent overwriting unsaved changes while the user is actively editing
     if (isEditing) return;
 
-    console.log('📋 Syncing mentor data from profile', mentorProfile);
-
     setMentorData({
       fullName: mentorProfile.fullName || session?.user?.name || '',
       email: mentorProfile.email || session?.user?.email || '',
@@ -129,9 +125,8 @@ export function MentorProfileEdit() {
       updatedAt: mentorProfile.updatedAt || ''
     });
 
-    // Show image after profile loads
     setTimeout(() => setShowImage(true), 100)
-  }, [mentorProfile, isEditing])
+  }, [mentorProfile, isEditing, session?.user])
 
   const handleImageUpload = async (file: File) => {
     if (!session?.user?.id) return
@@ -140,13 +135,11 @@ export function MentorProfileEdit() {
       setIsUploadingImage(true)
       const uploadResult = await uploadProfilePicture(file, session.user.id)
 
-      // Update local state
       setMentorData(prev => ({
         ...prev,
         profileImageUrl: uploadResult.url
       }))
 
-      // Immediately save to database to update across all components
       const response = await fetch('/api/mentors/update-profile', {
         method: 'POST',
         headers: {
@@ -164,13 +157,10 @@ export function MentorProfileEdit() {
         throw new Error(result.error || 'Failed to save profile image')
       }
 
-      // Force image refresh
       setImageRefresh(Date.now())
-
       setSuccess('Profile image uploaded and saved successfully!')
       setTimeout(() => setSuccess(null), 3000)
 
-      // Refresh cached user data so other components get the new image. Avoid doing this while editing to prevent form resets.
       if (!isEditing) {
         refreshUserData()
       }
@@ -196,22 +186,7 @@ export function MentorProfileEdit() {
         bannerImageUrl: uploadResult.url
       }))
 
-      // Immediately save to database to update across all components
-      const formData = new FormData();
-      formData.append('userId', session.user.id);
-      formData.append('bannerImage', file); // Use the file directly to trigger the backend logic if needed, or just send the URL if we trust the frontend uploadResult. 
-      // Actually, my backend logic handles the upload if I send the file. 
-      // OR I can send `bannerImageUrl` in JSON. 
-      // Let's use the JSON approach since we already uploaded it on the frontend client (wait, `uploadBannerImage` in `lib/storage` runs on the server if it uses `fs`, but here it's imported in a client component? No, `uploadBannerImage` uses `storage` which handles S3/Supabase. If `uploadBannerImage` is browser-compatible (it uses fetch/axios), then it's fine.
-      // Checking `lib/storage/index.ts`: It imports `SupabaseStorageProvider` etc. These might be server-side only.
-      // Ah, `lib/storage` is likely server-side code. I cannot import it in a "use client" component if it uses Node.js modules.
-      // Let's check `lib/storage/providers/supabase.ts`.
-
-      // Actually, looking at `handleImageUpload` above (lines 136-137), it calls `uploadProfilePicture`. If that works, then `uploadBannerImage` will work too.
-      // The `uploadProfilePicture` returns a URL.
-
-      // So I will Update the DB with the new URL.
-
+      // Save to database
       const response = await fetch('/api/mentors/update-profile', {
         method: 'POST',
         headers: {
@@ -254,7 +229,6 @@ export function MentorProfileEdit() {
       setIsUploadingResume(true)
       setError(null)
 
-      // Validate file type and size
       const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
       const allowedExtensions = ['pdf', 'doc', 'docx'];
       const fileExtension = file.name.split('.').pop()?.toLowerCase();
@@ -269,7 +243,6 @@ export function MentorProfileEdit() {
         return;
       }
 
-      // Send file to API for upload and database update
       const formData = new FormData();
       formData.append('userId', session.user.id);
       formData.append('resume', file);
@@ -285,7 +258,6 @@ export function MentorProfileEdit() {
         throw new Error(result.error || 'Failed to save resume')
       }
 
-      // Update local state with the new resume URL from the API response
       if (result.data?.resumeUrl) {
         setMentorData(prev => ({
           ...prev,
@@ -295,8 +267,6 @@ export function MentorProfileEdit() {
 
       setSuccess('Resume uploaded and saved successfully!')
       setTimeout(() => setSuccess(null), 3000)
-
-      // Refresh user roles to update all components
       refreshUserData()
 
     } catch (error) {
@@ -342,7 +312,6 @@ export function MentorProfileEdit() {
           }));
         }
 
-        // Refresh user roles to update all components
         refreshUserData()
       } else {
         setError(result.error || 'Failed to update profile')
@@ -355,9 +324,8 @@ export function MentorProfileEdit() {
     }
   }
 
-  // Simple image logic - use uploaded if available, otherwise Google
   const currentImage = mentorData.profileImageUrl
-    ? `${mentorData.profileImageUrl}?t=${imageRefresh || Date.now()}`
+    ? (imageRefresh ? `${mentorData.profileImageUrl}?t=${imageRefresh}` : mentorData.profileImageUrl)
     : session?.user?.image
 
   const industries = [
@@ -367,15 +335,12 @@ export function MentorProfileEdit() {
   ]
 
   const currencyOptions = ['USD', 'EUR', 'GBP', 'INR', 'AUD', 'CAD'];
-
   const availabilityOptions = [
     "Weekly (e.g., 1 hour/week)", "Bi-weekly (e.g., 1 hour/bi-week)",
     "Monthly (e.g., 1 hour/month)", "As needed (flexible)"
   ]
-
   const verificationStatuses = ['YET_TO_APPLY', 'IN_PROGRESS', 'VERIFIED', 'REJECTED', 'REVERIFICATION', 'RESUBMITTED'];
 
-  // Calculate profile completion percentage
   const calculateCompletion = () => {
     const fields = [
       mentorData.fullName, mentorData.email, mentorData.phone,
@@ -392,460 +357,336 @@ export function MentorProfileEdit() {
   const completionPercentage = calculateCompletion();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Modern Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Mentor Profile
-              </h1>
-              <p className="text-gray-500 mt-1">Manage your professional information</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="text-sm text-gray-500">Profile Complete</div>
-                <div className="text-lg font-semibold text-blue-600">{completionPercentage}%</div>
-              </div>
-              <Button
-                variant={isEditing ? "outline" : "default"}
-                onClick={() => setIsEditing(!isEditing)}
-                className="gap-2"
-              >
-                {isEditing ? (
-                  <>
-                    <X className="h-4 w-4" />
-                    Cancel
-                  </>
-                ) : (
-                  <>
-                    <Edit3 className="h-4 w-4" />
-                    Edit Profile
-                  </>
-                )}
-              </Button>
-            </div>
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Mentor Profile</h1>
+          <p className="text-sm text-muted-foreground">Manage your professional information and public profile</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="text-right hidden sm:block">
+            <div className="text-xs text-muted-foreground">Profile Complete</div>
+            <div className="text-lg font-bold text-primary">{completionPercentage}%</div>
           </div>
+          <Button
+            variant={isEditing ? "outline" : "default"}
+            onClick={() => setIsEditing(!isEditing)}
+            className="gap-2"
+          >
+            {isEditing ? (
+              <>
+                <X className="h-4 w-4" />
+                Cancel Editing
+              </>
+            ) : (
+              <>
+                <Edit3 className="h-4 w-4" />
+                Edit Profile
+              </>
+            )}
+          </Button>
+          {isEditing && (
+            <Button onClick={handleSave} disabled={isUploadingImage} className="gap-2">
+              {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Save Changes
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Content Container */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      {/* Alerts */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-        {/* Alerts */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            <div className="flex items-center gap-2">
-              <X className="h-5 w-5 text-red-500" />
-              {error}
+      {/* Warning Alert when Editing */}
+      {isEditing && (
+        <Alert className="mb-6 border-yellow-200 bg-yellow-50 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300 dark:border-yellow-900">
+          <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+          <AlertTitle>Warning: Profile Update Requires Re-verification</AlertTitle>
+          <AlertDescription>
+            Saving changes to your profile will trigger a re-verification process.
+            <strong> You will not be able to accept new bookings or sessions until your profile is verified again.</strong>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Success Alert */}
+      {success && (
+        <Alert className="mb-6 border-green-200 bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300 dark:border-green-900">
+          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+          <AlertTitle>Success</AlertTitle>
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Profile Overview Card with Banner */}
+      <Card className="overflow-hidden">
+        {/* Banner Image */}
+        <div className="relative h-48 bg-gradient-to-r from-blue-500 to-purple-500 overflow-hidden group">
+          {mentorData.bannerImageUrl ? (
+            <img
+              src={`${mentorData.bannerImageUrl}?t=${bannerRefresh || Date.now()}`}
+              alt="Profile Banner"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+              <ImageIcon className="h-12 w-12 opacity-20" />
             </div>
-          </div>
-        )}
+          )}
 
-        {success && (
-          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              {success}
-            </div>
-          </div>
-        )}
-
-        {/* Profile Overview Card */}
-        <Card className="mb-8 overflow-hidden">
-          {/* Banner Image */}
-          <div className="relative h-48 bg-gradient-to-r from-blue-500 to-purple-500 overflow-hidden group">
-            {mentorData.bannerImageUrl ? (
-              <img
-                src={`${mentorData.bannerImageUrl}?t=${bannerRefresh || Date.now()}`}
-                alt="Profile Banner"
-                className="w-full h-full object-cover"
+          {/* Banner Upload Overlay */}
+          {(isEditing || isUploadingBanner) && (
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleBannerUpload(file)
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                disabled={isUploadingBanner}
               />
-            ) : (
-              <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400">
-                <ImageIcon className="h-12 w-12 opacity-20" />
-              </div>
-            )}
-
-            {/* Banner Upload Overlay */}
-            {(isEditing || isUploadingBanner) && (
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) handleBannerUpload(file)
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                  disabled={isUploadingBanner}
-                />
-                {isUploadingBanner ? (
-                  <div className="bg-white/90 text-slate-900 px-4 py-2 rounded-full flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Uploading...</span>
-                  </div>
-                ) : (
-                  <div className="bg-white/90 text-slate-900 px-4 py-2 rounded-full flex items-center gap-2 font-medium hover:bg-white transition-colors">
-                    <Camera className="h-4 w-4" />
-                    <span>Change Cover</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <CardContent className="px-8 pb-8 pt-0 relative">
-            <div className="flex items-end justify-between -mt-12 mb-6">
-              <div className="flex items-end gap-6">
-                {/* Profile Image */}
-                <div className="relative flex-shrink-0">
-                  {!showImage ? (
-                    <div className="w-24 h-24 rounded-full bg-gray-200 animate-pulse flex items-center justify-center">
-                      <Loader2 className="h-6 w-6 text-gray-400 animate-spin" />
-                    </div>
-                  ) : (
-                    <Avatar className="w-24 h-24">
-                      <AvatarImage src={currentImage} />
-                      <AvatarFallback className="text-xl font-semibold bg-blue-500 text-white">
-                        {mentorData.fullName?.charAt(0) || session?.user?.name?.charAt(0) || 'M'}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-
-                  {/* Upload loading indicator */}
-                  {isUploadingImage && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
-                      <Loader2 className="h-6 w-6 text-white animate-spin" />
-                    </div>
-                  )}
-                  {isEditing && showImage && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-60 rounded-full cursor-pointer transition-all hover:bg-opacity-70">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) handleImageUpload(file)
-                        }}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
-                      {isUploadingImage ? (
-                        <Loader2 className="h-6 w-6 text-white animate-spin" />
-                      ) : (
-                        <Camera className="h-6 w-6 text-white" />
-                      )}
-                    </div>
-                  )}
+              {isUploadingBanner ? (
+                <div className="bg-white/90 text-slate-900 px-4 py-2 rounded-full flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Uploading...</span>
                 </div>
-
-                {/* Profile Info */}
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                    {mentorData.fullName || session?.user?.name || 'Your Name'}
-                  </h2>
-                  <p className="text-gray-600 mb-2">
-                    {mentorData.title || 'Professional Title'}
-                    {mentorData.company && <span> at {mentorData.company}</span>}
-                  </p>
-                  {mentorData.headline && (
-                    <p className="text-gray-500 italic text-sm">
-                      "{mentorData.headline}"
-                    </p>
-                  )}
+              ) : (
+                <div className="bg-white/90 text-slate-900 px-4 py-2 rounded-full flex items-center gap-2 font-medium hover:bg-white transition-colors">
+                  <Camera className="h-4 w-4" />
+                  <span>Change Cover</span>
                 </div>
+              )}
+            </div>
+          )}
+        </div>
 
-              </div> {/* Close gap-6 div */}
+        <CardContent className="p-6 md:p-8 relative -mt-12">
+          <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
+            <div className="relative flex-shrink-0 group">
+              <Avatar className="w-24 h-24 md:w-32 md:h-32 border-4 border-background shadow-sm">
+                <AvatarImage src={currentImage || undefined} className="object-cover" />
+                <AvatarFallback className="text-3xl font-bold bg-primary/10 text-primary">
+                  {mentorData.fullName?.charAt(0) || session?.user?.name?.charAt(0) || 'M'}
+                </AvatarFallback>
+              </Avatar>
 
-              {/* Status Badge */}
-              <div className="text-right">
-                <Badge
-                  variant={mentorProfile?.verificationStatus === 'VERIFIED' ? 'default' : 'secondary'}
-                  className="mb-2"
-                >
-                  {mentorProfile?.verificationStatus || 'IN_PROGRESS'}
+              {isUploadingImage && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
+                  <Loader2 className="h-8 w-8 text-white animate-spin" />
+                </div>
+              )}
+
+              {isEditing && !isUploadingImage && (
+                <label className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-full">
+                  <Camera className="h-8 w-8" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleImageUpload(file)
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
+
+            <div className="flex-1 text-center md:text-left space-y-2">
+              <div>
+                <h2 className="text-2xl font-bold">{mentorData.fullName || session?.user?.name || 'Your Name'}</h2>
+                <p className="text-muted-foreground font-medium">
+                  {mentorData.title || 'Professional Title'}
+                  {mentorData.company && <span className="text-muted-foreground/80"> at {mentorData.company}</span>}
+                </p>
+              </div>
+
+              {mentorData.headline && (
+                <p className="text-sm italic text-muted-foreground/90 max-w-2xl">
+                  "{mentorData.headline}"
+                </p>
+              )}
+
+              <div className="flex flex-wrap gap-2 justify-center md:justify-start pt-2">
+                <Badge variant={mentorProfile?.verificationStatus === 'VERIFIED' ? 'default' : 'secondary'}>
+                  {mentorProfile?.verificationStatus?.replace('_', ' ') || 'IN PROGRESS'}
                 </Badge>
-                <div className="text-sm text-gray-500">
-                  {completionPercentage < 100 && (
-                    <span className="text-orange-600">Profile Incomplete</span>
-                  )}
-                  {completionPercentage === 100 && (
-                    <span className="text-green-600">Profile Complete</span>
-                  )}
-                </div>
-              </div>
-            </div> {/* Close justify-between div */}
-          </CardContent>
-        </Card>
-
-        {/* Form Sections */}
-        <div className="space-y-8">
-
-          {/* Personal Information */}
-          <Card>
-            <CardHeader className="border-b bg-gray-50">
-              <CardTitle className="flex items-center gap-2 text-gray-900">
-                <User className="h-5 w-5" />
-                Personal Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="fullName" className="flex items-center gap-2 font-medium">
-                    <User className="h-4 w-4" />
-                    Full Name
-                  </Label>
-                  <Input
-                    id="fullName"
-                    value={mentorData.fullName}
-                    onChange={(e) => setMentorData(prev => ({ ...prev, fullName: e.target.value }))}
-                    disabled={!isEditing}
-                    className="transition-all focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="flex items-center gap-2 font-medium">
-                    <Mail className="h-4 w-4" />
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={mentorData.email}
-                    onChange={(e) => setMentorData(prev => ({ ...prev, email: e.target.value }))}
-                    disabled={!isEditing}
-                    className="transition-all focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="flex items-center gap-2 font-medium">
-                    <Phone className="h-4 w-4" />
-                    Phone
-                  </Label>
-                  <Input
-                    id="phone"
-                    value={mentorData.phone}
-                    onChange={(e) => setMentorData(prev => ({ ...prev, phone: e.target.value }))}
-                    disabled={!isEditing}
-                    className="transition-all focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="headline" className="flex items-center gap-2 font-medium">
-                    <Star className="h-4 w-4" />
-                    Professional Headline
-                  </Label>
-                  <Input
-                    id="headline"
-                    value={mentorData.headline}
-                    onChange={(e) => setMentorData(prev => ({ ...prev, headline: e.target.value }))}
-                    disabled={!isEditing}
-                    placeholder="e.g., Helping junior developers level up their careers"
-                    className="transition-all focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="city" className="flex items-center gap-2 font-medium">
-                    <MapPin className="h-4 w-4" />
-                    City
-                  </Label>
-                  <Input
-                    id="city"
-                    value={mentorData.city}
-                    onChange={(e) => setMentorData(prev => ({ ...prev, city: e.target.value }))}
-                    disabled={!isEditing}
-                    className="transition-all focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="state" className="flex items-center gap-2 font-medium">
-                    <MapPin className="h-4 w-4" />
-                    State / Province
-                  </Label>
-                  <Input
-                    id="state"
-                    value={mentorData.state}
-                    onChange={(e) => setMentorData(prev => ({ ...prev, state: e.target.value }))}
-                    disabled={!isEditing}
-                    placeholder="State or Province"
-                    className="transition-all focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="country" className="flex items-center gap-2 font-medium">
-                    <Globe className="h-4 w-4" />
-                    Country
-                  </Label>
-                  <Input
-                    id="country"
-                    value={mentorData.country}
-                    onChange={(e) => setMentorData(prev => ({ ...prev, country: e.target.value }))}
-                    disabled={!isEditing}
-                    className="transition-all focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Resume Section */}
-          <Card>
-            <CardHeader className="border-b bg-gray-50">
-              <CardTitle className="flex items-center gap-2 text-gray-900">
-                <FileText className="h-5 w-5" />
-                Resume
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2 font-medium">
-                  <Upload className="h-4 w-4" />
-                  Resume File
-                </Label>
-
-                {mentorData.resumeUrl ? (
-                  <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-green-600" />
-                      <div>
-                        <p className="text-sm font-medium text-green-900">Resume uploaded</p>
-                        <p className="text-xs text-green-700">Click to view your current resume</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => window.open(mentorData.resumeUrl, '_blank')}
-                        className="text-green-700 border-green-300 hover:bg-green-100"
-                      >
-                        View Resume
-                      </Button>
-                      {isEditing && (
-                        <div className="relative">
-                          <input
-                            type="file"
-                            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0]
-                              if (file) handleResumeUpload(file)
-                            }}
-                            className="absolute inset-0 opacity-0 cursor-pointer"
-                            disabled={isUploadingResume}
-                          />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={isUploadingResume}
-                            className="text-blue-700 border-blue-300 hover:bg-blue-100"
-                          >
-                            {isUploadingResume ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                Updating...
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="h-4 w-4 mr-1" />
-                                Replace
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-6 border-2 border-dashed border-gray-300 rounded-lg text-center">
-                    {isEditing ? (
-                      <div className="relative">
-                        <input
-                          type="file"
-                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) handleResumeUpload(file)
-                          }}
-                          className="absolute inset-0 opacity-0 cursor-pointer"
-                          disabled={isUploadingResume}
-                        />
-                        <div className="space-y-2">
-                          <Upload className="h-8 w-8 text-gray-400 mx-auto" />
-                          <p className="text-sm text-gray-600">
-                            {isUploadingResume ? 'Uploading resume...' : 'Click to upload your resume'}
-                          </p>
-                          <p className="text-xs text-gray-500">PDF, DOC, or DOCX (max 10MB)</p>
-                          {isUploadingResume && (
-                            <Loader2 className="h-5 w-5 animate-spin mx-auto text-blue-600" />
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <FileText className="h-8 w-8 text-gray-400 mx-auto" />
-                        <p className="text-sm text-gray-600">No resume uploaded</p>
-                        <p className="text-xs text-gray-500">Click "Edit Profile" to upload your resume</p>
-                      </div>
-                    )}
-                  </div>
+                {mentorData.hourlyRate && (
+                  <Badge variant="outline" className="gap-1">
+                    <DollarSign className="h-3 w-3" />
+                    {mentorData.currency} {mentorData.hourlyRate}/hr
+                  </Badge>
+                )}
+                {mentorData.city && (
+                  <Badge variant="outline" className="gap-1">
+                    <MapPin className="h-3 w-3" />
+                    {mentorData.city}, {mentorData.country}
+                  </Badge>
                 )}
               </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Personal & Social */}
+        <div className="space-y-6 lg:col-span-1">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <User className="h-5 w-5 text-primary" />
+                Personal Info
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  value={mentorData.fullName}
+                  onChange={(e) => setMentorData(prev => ({ ...prev, fullName: e.target.value }))}
+                  disabled={!isEditing}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  value={mentorData.email}
+                  onChange={(e) => setMentorData(prev => ({ ...prev, email: e.target.value }))}
+                  disabled={!isEditing}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={mentorData.phone}
+                  onChange={(e) => setMentorData(prev => ({ ...prev, phone: e.target.value }))}
+                  disabled={!isEditing}
+                  placeholder="+1 (555) 000-0000"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="city">City</Label>
+                <Input
+                  id="city"
+                  value={mentorData.city}
+                  onChange={(e) => setMentorData(prev => ({ ...prev, city: e.target.value }))}
+                  disabled={!isEditing}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="country">Country</Label>
+                <Input
+                  id="country"
+                  value={mentorData.country}
+                  onChange={(e) => setMentorData(prev => ({ ...prev, country: e.target.value }))}
+                  disabled={!isEditing}
+                />
+              </div>
             </CardContent>
           </Card>
 
-          {/* Professional Information */}
           <Card>
-            <CardHeader className="border-b bg-gray-50">
-              <CardTitle className="flex items-center gap-2 text-gray-900">
-                <Briefcase className="h-5 w-5" />
-                Professional Details
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Globe className="h-5 w-5 text-primary" />
+                Social Presence
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="linkedin" className="flex items-center gap-2">
+                  <Linkedin className="h-4 w-4" /> LinkedIn
+                </Label>
+                <Input
+                  id="linkedin"
+                  value={mentorData.linkedinUrl}
+                  onChange={(e) => setMentorData(prev => ({ ...prev, linkedinUrl: e.target.value }))}
+                  disabled={!isEditing}
+                  placeholder="https://linkedin.com/in/..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="github" className="flex items-center gap-2">
+                  <Github className="h-4 w-4" /> GitHub
+                </Label>
+                <Input
+                  id="github"
+                  value={mentorData.githubUrl}
+                  onChange={(e) => setMentorData(prev => ({ ...prev, githubUrl: e.target.value }))}
+                  disabled={!isEditing}
+                  placeholder="https://github.com/..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="website" className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" /> Personal Website
+                </Label>
+                <Input
+                  id="website"
+                  value={mentorData.websiteUrl}
+                  onChange={(e) => setMentorData(prev => ({ ...prev, websiteUrl: e.target.value }))}
+                  disabled={!isEditing}
+                  placeholder="https://..."
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column: Professional Details */}
+        <div className="space-y-6 lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Briefcase className="h-5 w-5 text-primary" />
+                Professional & Expertise
+              </CardTitle>
+              <CardDescription>Share your experience and what you can teach.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="title" className="flex items-center gap-2 font-medium">
-                    <Briefcase className="h-4 w-4" />
-                    Job Title
-                  </Label>
+                  <Label htmlFor="title">Job Title</Label>
                   <Input
                     id="title"
                     value={mentorData.title}
                     onChange={(e) => setMentorData(prev => ({ ...prev, title: e.target.value }))}
                     disabled={!isEditing}
-                    className="transition-all focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="company" className="font-medium">Company</Label>
+                  <Label htmlFor="company">Company</Label>
                   <Input
                     id="company"
                     value={mentorData.company}
                     onChange={(e) => setMentorData(prev => ({ ...prev, company: e.target.value }))}
                     disabled={!isEditing}
-                    className="transition-all focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="industry" className="font-medium">Industry</Label>
+                  <Label htmlFor="industry">Industry</Label>
                   <Select
                     value={mentorData.industry}
                     onValueChange={(value) => setMentorData(prev => ({ ...prev, industry: value }))}
                     disabled={!isEditing}
                   >
-                    <SelectTrigger className="transition-all focus:ring-2 focus:ring-blue-500">
+                    <SelectTrigger>
                       <SelectValue placeholder="Select industry" />
                     </SelectTrigger>
                     <SelectContent>
@@ -857,304 +698,193 @@ export function MentorProfileEdit() {
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="experience" className="flex items-center gap-2 font-medium">
-                    <Award className="h-4 w-4" />
-                    Years of Experience
-                  </Label>
+                  <Label htmlFor="experience">Years of Experience</Label>
                   <Input
                     id="experience"
                     type="number"
-                    min="1"
+                    min="0"
                     value={mentorData.experience}
                     onChange={(e) => setMentorData(prev => ({ ...prev, experience: e.target.value }))}
                     disabled={!isEditing}
-                    className="transition-all focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="expertise" className="flex items-center gap-2 font-medium">
-                  <BookOpen className="h-4 w-4" />
-                  Areas of Expertise
-                </Label>
-                <Textarea
-                  id="expertise"
-                  value={mentorData.expertise}
-                  onChange={(e) => setMentorData(prev => ({ ...prev, expertise: e.target.value }))}
+                <Label htmlFor="headline">Professional Headline</Label>
+                <Input
+                  id="headline"
+                  value={mentorData.headline}
+                  onChange={(e) => setMentorData(prev => ({ ...prev, headline: e.target.value }))}
                   disabled={!isEditing}
-                  placeholder="List your skills and expertise areas (e.g., Python, React, Product Management, Leadership)"
-                  rows={3}
-                  className="transition-all focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g. Senior Software Engineer at TechCorp"
                 />
-                <p className="text-sm text-gray-500">Separate multiple areas with commas</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="about" className="flex items-center gap-2 font-medium">
-                  <User className="h-4 w-4" />
-                  About Me
-                </Label>
+                <Label htmlFor="about">About Me</Label>
                 <Textarea
                   id="about"
                   value={mentorData.about}
                   onChange={(e) => setMentorData(prev => ({ ...prev, about: e.target.value }))}
                   disabled={!isEditing}
-                  placeholder="Tell potential mentees about yourself, your experience, and what you can help them with..."
-                  rows={5}
-                  className="transition-all focus:ring-2 focus:ring-blue-500"
+                  className="min-h-[120px]"
+                  placeholder="Tell mentees about your journey..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="expertise">Key Expertise (comma separated)</Label>
+                <Textarea
+                  id="expertise"
+                  value={mentorData.expertise}
+                  onChange={(e) => setMentorData(prev => ({ ...prev, expertise: e.target.value }))}
+                  disabled={!isEditing}
+                  placeholder="React, Leadership, Career Growth, etc."
                 />
               </div>
             </CardContent>
           </Card>
 
-          {/* Social Links */}
           <Card>
-            <CardHeader className="border-b bg-gray-50">
-              <CardTitle className="flex items-center gap-2 text-gray-900">
-                <Globe className="h-5 w-5" />
-                Social Links
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-primary" />
+                Rates & Availability
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="linkedinUrl" className="flex items-center gap-2 font-medium">
-                  <Linkedin className="h-4 w-4" />
-                  LinkedIn URL
-                </Label>
-                <Input
-                  id="linkedinUrl"
-                  value={mentorData.linkedinUrl}
-                  onChange={(e) => setMentorData(prev => ({ ...prev, linkedinUrl: e.target.value }))}
-                  disabled={!isEditing}
-                  placeholder="https://linkedin.com/in/yourprofile"
-                  className="transition-all focus:ring-2 focus:ring-blue-500"
-                />
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="hourlyRate">Hourly Rate ({mentorData.currency})</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
+                    <Input
+                      id="hourlyRate"
+                      type="number"
+                      min="0"
+                      className="pl-7"
+                      value={mentorData.hourlyRate}
+                      onChange={(e) => setMentorData(prev => ({ ...prev, hourlyRate: e.target.value }))}
+                      disabled={!isEditing}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="currency">Currency</Label>
+                  <Select
+                    value={mentorData.currency}
+                    onValueChange={(value) => setMentorData(prev => ({ ...prev, currency: value }))}
+                    disabled={!isEditing}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="USD" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {currencyOptions.map((curr) => (
+                        <SelectItem key={curr} value={curr}>
+                          {curr}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="githubUrl" className="flex items-center gap-2 font-medium">
-                  <Github className="h-4 w-4" />
-                  GitHub URL
-                </Label>
-                <Input
-                  id="githubUrl"
-                  value={mentorData.githubUrl}
-                  onChange={(e) => setMentorData(prev => ({ ...prev, githubUrl: e.target.value }))}
-                  disabled={!isEditing}
-                  placeholder="https://github.com/yourusername"
-                  className="transition-all focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="websiteUrl" className="flex items-center gap-2 font-medium">
-                  <Globe className="h-4 w-4" />
-                  Personal Website
-                </Label>
-                <Input
-                  id="websiteUrl"
-                  value={mentorData.websiteUrl}
-                  onChange={(e) => setMentorData(prev => ({ ...prev, websiteUrl: e.target.value }))}
-                  disabled={!isEditing}
-                  placeholder="https://yourwebsite.com"
-                  className="transition-all focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Mentoring Settings */}
-          <Card>
-            <CardHeader className="border-b bg-gray-50">
-              <CardTitle className="flex items-center gap-2 text-gray-900">
-                <Target className="h-5 w-5" />
-                Mentoring Settings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="hourlyRate" className="flex items-center gap-2 font-medium">
-                  <DollarSign className="h-4 w-4" />
-                  Hourly Rate
-                </Label>
-                <Input
-                  id="hourlyRate"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={mentorData.hourlyRate}
-                  onChange={(e) => setMentorData(prev => ({ ...prev, hourlyRate: e.target.value }))}
-                  disabled={!isEditing}
-                  placeholder="50.00"
-                  className="transition-all focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="currency" className="flex items-center gap-2 font-medium">
-                  <DollarSign className="h-4 w-4" />
-                  Currency
-                </Label>
-                <Select
-                  value={mentorData.currency}
-                  onValueChange={(value) => setMentorData(prev => ({ ...prev, currency: value }))}
-                  disabled={!isEditing}
-                >
-                  <SelectTrigger className="transition-all focus:ring-2 focus:ring-blue-500">
-                    <SelectValue placeholder="Select currency" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {currencyOptions.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="availability" className="flex items-center gap-2 font-medium">
-                  <Clock className="h-4 w-4" />
-                  Availability
-                </Label>
+                <Label htmlFor="availability">Weekly Availability</Label>
                 <Select
                   value={mentorData.availability}
                   onValueChange={(value) => setMentorData(prev => ({ ...prev, availability: value }))}
                   disabled={!isEditing}
                 >
-                  <SelectTrigger className="transition-all focus:ring-2 focus:ring-blue-500">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select availability" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availabilityOptions.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
+                    {availabilityOptions.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="maxMentees" className="flex items-center gap-2 font-medium">
-                  <User className="h-4 w-4" />
-                  Max Mentees
-                </Label>
-                <Input
-                  id="maxMentees"
-                  type="number"
-                  min="1"
-                  max="50"
-                  value={mentorData.maxMentees}
-                  onChange={(e) => setMentorData(prev => ({ ...prev, maxMentees: e.target.value }))}
-                  disabled={!isEditing}
-                  className="transition-all focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-sm text-gray-500">Maximum number of mentees you can handle</p>
-              </div>
             </CardContent>
           </Card>
 
-          {/* Verification & Availability */}
           <Card>
-            <CardHeader className="border-b bg-gray-50">
-              <CardTitle className="flex items-center gap-2 text-gray-900">
-                <ShieldQuestion className="h-5 w-5" />
-                Verification & Availability
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                Resume
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="verificationStatus" className="flex items-center gap-2 font-medium">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Verification Status
-                </Label>
-                <Select
-                  value={mentorData.verificationStatus}
-                  onValueChange={(value) => setMentorData(prev => ({ ...prev, verificationStatus: value as typeof prev.verificationStatus }))}
-                  disabled={!isEditing}
-                >
-                  <SelectTrigger className="transition-all focus:ring-2 focus:ring-blue-500">
-                    <SelectValue placeholder="Select verification status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {verificationStatuses.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="verificationNotes" className="flex items-center gap-2 font-medium">
-                  <FileText className="h-4 w-4" />
-                  Verification Notes
-                </Label>
-                <Textarea
-                  id="verificationNotes"
-                  value={mentorData.verificationNotes}
-                  onChange={(e) => setMentorData(prev => ({ ...prev, verificationNotes: e.target.value }))}
-                  disabled={!isEditing}
-                  placeholder="Notes from reviewers or context for your updates"
-                  rows={4}
-                  className="transition-all focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3 shadow-sm">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Accepting new mentees</p>
-                  <p className="text-xs text-gray-500">Toggle your availability across the platform.</p>
+            <CardContent>
+              {mentorData.resumeUrl ? (
+                <div className="flex items-center justify-between p-4 bg-muted/40 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-8 w-8 text-primary/60" />
+                    <div>
+                      <p className="font-medium">Current Resume</p>
+                      <p className="text-xs text-muted-foreground">Uploaded PDF/DOC</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => window.open(mentorData.resumeUrl, '_blank')}>
+                      View
+                    </Button>
+                    {isEditing && (
+                      <div className="relative">
+                        <Button variant="secondary" size="sm" disabled={isUploadingResume}>
+                          {isUploadingResume ? <Loader2 className="h-4 w-4 animate-spin" /> : "Replace"}
+                        </Button>
+                        <input
+                          type="file"
+                          accept=".pdf,.doc,.docx"
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleResumeUpload(file)
+                          }}
+                          disabled={isUploadingResume}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <Switch
-                  checked={mentorData.isAvailable}
-                  onCheckedChange={(checked) => setMentorData(prev => ({ ...prev, isAvailable: checked }))}
-                  disabled={!isEditing}
-                />
-              </div>
-
-              <Separator />
-
-              <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
-                <div>
-                  <span className="font-medium text-gray-900">Created:</span> {mentorMeta.createdAt ? new Date(mentorMeta.createdAt).toLocaleString() : 'N/A'}
+              ) : (
+                <div className="border-2 border-dashed rounded-lg p-8 text-center space-y-3">
+                  <Upload className="h-8 w-8 text-muted-foreground mx-auto" />
+                  <div className="space-y-1">
+                    <p className="font-medium">No resume uploaded</p>
+                    <p className="text-xs text-muted-foreground">Upload your CV to verify your experience</p>
+                  </div>
+                  {isEditing && (
+                    <div className="relative inline-block">
+                      <Button disabled={isUploadingResume}>
+                        {isUploadingResume ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                        Upload Resume
+                      </Button>
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx"
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleResumeUpload(file)
+                        }}
+                        disabled={isUploadingResume}
+                      />
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <span className="font-medium text-gray-900">Last updated:</span> {mentorMeta.updatedAt ? new Date(mentorMeta.updatedAt).toLocaleString() : 'N/A'}
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Save Button */}
-          {isEditing && (
-            <div className="pt-6 border-t">
-              <Button
-                onClick={handleSave}
-                disabled={isUploadingImage}
-                size="lg"
-                className="w-full md:w-auto px-8 py-3"
-              >
-                {isUploadingImage ? (
-                  <>
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                    Saving Changes...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-5 w-5 mr-2" />
-                    Save Profile Changes
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
+
         </div>
       </div>
     </div>

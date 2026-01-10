@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { 
+import {
   messageThreads,
   messagingPermissions,
   messages,
-  users
+  users,
+  messageReactions
 } from '@/lib/db/schema';
-import { eq, and, or, desc, asc } from 'drizzle-orm';
+import { eq, and, or, desc, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 
 const updateThreadSchema = z.object({
@@ -55,8 +56,8 @@ export async function GET(
       );
     }
 
-    const otherUserId = thread.participant1Id === userId 
-      ? thread.participant2Id 
+    const otherUserId = thread.participant1Id === userId
+      ? thread.participant2Id
       : thread.participant1Id;
 
     const hasPermission = await db
@@ -111,10 +112,72 @@ export async function GET(
       .where(eq(users.id, otherUserId))
       .limit(1);
 
+    // Fetch all reactions for messages in this thread in a single query (N+1 fix)
+    const messageIds = threadMessages.map((m: { message: { id: string } }) => m.message.id);
+
+    type ReactionGroup = {
+      emoji: string;
+      count: number;
+      users: Array<{ id: string; name: string; email: string; image: string | null }>;
+      hasReacted: boolean;
+    };
+
+    const reactionsMap: Record<string, ReactionGroup[]> = {};
+
+    if (messageIds.length > 0) {
+      const allReactions = await db
+        .select({
+          reaction: messageReactions,
+          user: {
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            image: users.image,
+          },
+        })
+        .from(messageReactions)
+        .leftJoin(users, eq(messageReactions.userId, users.id))
+        .where(inArray(messageReactions.messageId, messageIds));
+
+      // Group reactions by messageId, then by emoji
+      for (const { reaction, user } of allReactions) {
+        const msgId = reaction.messageId;
+        if (!reactionsMap[msgId]) {
+          reactionsMap[msgId] = [];
+        }
+
+        let emojiGroup = reactionsMap[msgId].find(r => r.emoji === reaction.emoji);
+        if (!emojiGroup) {
+          emojiGroup = {
+            emoji: reaction.emoji,
+            count: 0,
+            users: [],
+            hasReacted: false,
+          };
+          reactionsMap[msgId].push(emojiGroup);
+        }
+
+        emojiGroup.count++;
+        if (user) {
+          emojiGroup.users.push(user);
+          if (user.id === userId) {
+            emojiGroup.hasReacted = true;
+          }
+        }
+      }
+    }
+
+    // Attach reactions to messages
+    const messagesWithReactions = threadMessages.map(m => ({
+      ...m,
+      reactions: reactionsMap[m.message.id] || [],
+    }));
+
     const unreadMessages = threadMessages.filter(
-      m => m.message.receiverId === userId && !m.message.isRead
+      (m: { message: { receiverId: string; isRead: boolean } }) =>
+        m.message.receiverId === userId && !m.message.isRead
     );
-    
+
     if (unreadMessages.length > 0) {
       await db
         .update(messages)
@@ -135,7 +198,7 @@ export async function GET(
       const updateData: any = {
         updatedAt: new Date()
       };
-      
+
       if (thread.participant1Id === userId) {
         updateData.participant1UnreadCount = 0;
         updateData.participant1LastReadAt = new Date();
@@ -154,7 +217,7 @@ export async function GET(
       success: true,
       data: {
         thread,
-        messages: threadMessages.reverse(),
+        messages: messagesWithReactions.reverse(),
         otherUser: otherUser[0],
         totalMessages: thread.totalMessages,
         hasMore: offset + limit < thread.totalMessages
@@ -186,7 +249,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    
+
     const validatedData = updateThreadSchema.parse(body);
     const { action, muteDuration } = validatedData;
 
@@ -238,10 +301,10 @@ export async function PATCH(
         break;
 
       case 'mute':
-        const muteUntil = muteDuration 
+        const muteUntil = muteDuration
           ? new Date(Date.now() + muteDuration * 60 * 60 * 1000)
           : null;
-        
+
         if (isParticipant1) {
           updateData.participant1Muted = true;
           updateData.participant1MutedUntil = muteUntil;
@@ -315,7 +378,7 @@ export async function PATCH(
     });
   } catch (error) {
     console.error('Error updating thread:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { success: false, error: error.errors[0].message },

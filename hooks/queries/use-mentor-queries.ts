@@ -14,6 +14,7 @@ interface MentorFilters {
 interface MentorProfile {
   id: string;
   verificationStatus: string;
+  verificationNotes?: string;
   fullName?: string;
   title?: string;
   company?: string;
@@ -35,7 +36,7 @@ export function useMentorsQuery(filters: MentorFilters = {}) {
     queryKey: queryKeys.mentorsList(filters),
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      
+
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
           searchParams.append(key, String(value));
@@ -43,7 +44,7 @@ export function useMentorsQuery(filters: MentorFilters = {}) {
       });
 
       const response = await fetch(`/api/mentors?${searchParams.toString()}`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch mentors: ${response.status}`);
       }
@@ -61,7 +62,7 @@ export function useMentorsInfiniteQuery(filters: MentorFilters = {}) {
     queryKey: ['mentors', 'infinite', filters],
     queryFn: async ({ pageParam = 1 }) => {
       const searchParams = new URLSearchParams();
-      
+
       Object.entries({ ...filters, page: pageParam }).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
           searchParams.append(key, String(value));
@@ -69,7 +70,7 @@ export function useMentorsInfiniteQuery(filters: MentorFilters = {}) {
       });
 
       const response = await fetch(`/api/mentors?${searchParams.toString()}`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch mentors: ${response.status}`);
       }
@@ -92,7 +93,7 @@ export function useMentorQuery(mentorId: string) {
     queryKey: queryKeys.mentorDetail(mentorId),
     queryFn: async () => {
       const response = await fetch(`/api/mentors/${mentorId}`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch mentor: ${response.status}`);
       }
@@ -111,7 +112,7 @@ export function useMentorProfileQuery(userId: string) {
     queryKey: queryKeys.mentorProfile(userId),
     queryFn: async () => {
       const response = await fetch(`/api/user/profile?userId=${userId}`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch mentor profile: ${response.status}`);
       }
@@ -148,13 +149,13 @@ export function useUpdateMentorProfileMutation() {
     onSuccess: (data, variables) => {
       // Invalidate and refetch mentor-related queries
       invalidateQueries.mentorProfile(variables.userId);
-      
+
       // Update the specific mentor profile cache
       queryClient.setQueryData(
         queryKeys.mentorProfile(variables.userId),
         data.data
       );
-      
+
       // Invalidate mentor lists to show updated data
       queryClient.invalidateQueries({ queryKey: queryKeys.mentors });
     },
@@ -187,7 +188,7 @@ export function useApplyMentorMutation() {
     onSuccess: (data, variables) => {
       // Invalidate session to refresh roles
       invalidateQueries.session();
-      
+
       // Invalidate user profile to show new mentor status
       if (variables.userId) {
         invalidateQueries.userProfile(variables.userId);
@@ -218,13 +219,13 @@ export function useSaveMentorMutation() {
     },
     onSuccess: (data, variables) => {
       // Invalidate saved mentors list
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.savedMentors(data.userId) 
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.savedMentors(data.userId)
       });
-      
+
       // Update the specific mentor's saved status if it's in cache
-      queryClient.invalidateQueries({ 
-        queryKey: queryKeys.mentorDetail(variables.mentorId) 
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.mentorDetail(variables.mentorId)
       });
     },
   });
