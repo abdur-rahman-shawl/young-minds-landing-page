@@ -17,6 +17,7 @@ export interface SubscriptionPlanFeature {
   feature_name: string;
   is_included: boolean;
   value_type: 'boolean' | 'count' | 'minutes' | 'text' | 'amount' | 'percent' | 'json';
+  unit?: string | null;
 
   // Limit values
   limit_count: number | null;
@@ -89,7 +90,7 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionI
     .in('status', ['trialing', 'active'])
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (error || !data) {
     throw new Error(`No active subscription found for user ${userId}: ${error?.message || 'Not found'}`);
@@ -127,7 +128,8 @@ export async function getPlanFeatures(userId: string): Promise<SubscriptionPlanF
         feature_key,
         name,
         value_type,
-        is_metered
+        is_metered,
+        unit
       )
     `)
     .eq('plan_id', subscription.plan_id)
@@ -147,6 +149,7 @@ export async function getPlanFeatures(userId: string): Promise<SubscriptionPlanF
       feature_name: feature.name,
       is_included: item.is_included,
       value_type: feature.value_type,
+      unit: feature.unit,
       limit_count: item.limit_count,
       limit_minutes: item.limit_minutes,
       limit_text: item.limit_text,

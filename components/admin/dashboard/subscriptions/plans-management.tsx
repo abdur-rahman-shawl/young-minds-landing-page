@@ -39,6 +39,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PlanFeatureEditor } from "./plan-feature-editor";
 
 interface SubscriptionPlan {
   id: string;
@@ -532,13 +533,8 @@ function EditPlanDialog({
           Manage plan details, features, and pricing
         </DialogDescription>
       </DialogHeader>
-      <div className="py-4">
-        <p className="text-sm text-muted-foreground">
-          Full plan editor with feature assignment coming next...
-        </p>
-        <p className="text-xs text-muted-foreground mt-2">
-          Plan ID: {plan.id}
-        </p>
+      <div className="py-4 space-y-4">
+        <PlanFeatureEditor planId={plan.id} />
       </div>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>

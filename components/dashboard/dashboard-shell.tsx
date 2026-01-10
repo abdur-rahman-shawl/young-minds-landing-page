@@ -28,6 +28,8 @@ import { AdminMentors } from "@/components/admin/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/admin/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
+import { MentorSubscription } from "@/components/mentor/dashboard/mentor-subscription"
+import { MenteeSubscription } from "@/components/mentee/dashboard/mentee-subscription"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { useAuth } from "@/contexts/auth-context"
 import { AlertTriangle, Sparkles } from "lucide-react"
@@ -226,6 +228,13 @@ export function DashboardShell() {
         case "analytics":
           content = <MentorAnalyticsSection />
           break
+        case "subscription":
+          content = (
+            <div className="mx-auto w-full max-w-6xl">
+              <MentorSubscription />
+            </div>
+          )
+          break
         case "profile":
           content = <MentorProfileEdit />
           break
@@ -281,6 +290,13 @@ export function DashboardShell() {
           break
         case "profile":
           content = <MenteeProfile />
+          break
+        case "subscription":
+          content = (
+            <div className="mx-auto w-full max-w-6xl">
+              <MenteeSubscription />
+            </div>
+          )
           break
         default:
           content = (
