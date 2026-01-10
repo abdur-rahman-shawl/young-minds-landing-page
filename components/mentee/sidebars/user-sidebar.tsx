@@ -58,7 +58,7 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
   ], [])
 
   return (
-    <Sidebar className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200 dark:border-slate-800 mt-16 z-20">
+    <Sidebar className="bg-background/80 dark:bg-background/90 backdrop-blur-xl border-r border-border mt-16 z-20">
       {/* User Profile Header */}
       <SidebarHeader className="p-4 pb-2">
         <div className="group relative rounded-xl p-4 transition-all duration-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent hover:border-slate-100 dark:hover:border-slate-800">
@@ -122,7 +122,7 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
                   {isActive && (
                     <motion.div
                       layoutId="activeSidebarItem"
-                      className="absolute inset-0 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-900/30"
+                      className="absolute inset-0 bg-accent rounded-lg border border-primary/20"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
@@ -133,12 +133,12 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
                   <div className={cn(
                     "relative z-10 flex items-center w-full gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-200",
                     isActive
-                      ? "text-blue-600 dark:text-blue-400"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground"
                   )}>
                     <item.icon className={cn(
                       "w-4 h-4 flex-shrink-0 transition-colors",
-                      isActive ? "text-blue-600 dark:text-blue-400 fill-blue-600/10" : "text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300"
+                      isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
                     )} />
 
                     <span className="truncate">{item.title}</span>
@@ -151,7 +151,7 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
 
                     {/* Hover Chevron */}
                     {!isActive && (
-                      <ChevronRight className="w-3 h-3 ml-auto opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-slate-400" />
+                      <ChevronRight className="w-3 h-3 ml-auto opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-muted-foreground" />
                     )}
                   </div>
                 </SidebarMenuButton>
@@ -162,7 +162,7 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
       </SidebarContent>
 
       {/* Footer with Video Call Button */}
-      <SidebarFooter className="p-4 border-t border-slate-100 dark:border-slate-800">
+      <SidebarFooter className="p-4 border-t border-border">
         <div className="space-y-4">
           {/* Pro Tip / Upsell - Optional visual enhancement */}
           <div className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/30 rounded-xl p-3 border border-blue-100 dark:border-blue-900/30">

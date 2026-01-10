@@ -2,12 +2,12 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { 
-  CalendarDays, 
-  MessageSquare, 
-  BookOpen, 
-  Clock, 
-  Users, 
+import {
+  CalendarDays,
+  MessageSquare,
+  BookOpen,
+  Clock,
+  Users,
   ArrowRight,
   Star,
   ChevronRight,
@@ -43,7 +43,7 @@ interface DashboardProps {
 
 export function Dashboard({ onMentorSelect, onSectionChange }: DashboardProps) {
   const { data: session } = useSession();
-  
+
   // Data Fetching
   const { mentors, loading: mentorsLoading } = useMentors();
   const { sessions, loading: sessionsLoading } = useSessions("upcoming");
@@ -57,28 +57,28 @@ export function Dashboard({ onMentorSelect, onSectionChange }: DashboardProps) {
   // Construct Stats Objects
   const stats = useMemo(() => dashboardStats
     ? [
-        {
-          title: "Sessions Booked",
-          value: dashboardStats.sessionsBooked.value.toString(),
-          description: dashboardStats.sessionsBooked.description,
-          icon: CalendarDays,
-          trend: dashboardStats.sessionsBooked.trend,
-        },
-        {
-          title: "Hours Learned",
-          value: dashboardStats.hoursLearned.value.toString(),
-          description: dashboardStats.hoursLearned.description,
-          icon: Clock,
-          trend: dashboardStats.hoursLearned.trend,
-        },
-        {
-          title: "Mentors Connected",
-          value: dashboardStats.mentorsConnected.value.toString(),
-          description: dashboardStats.mentorsConnected.description,
-          icon: Users,
-          trend: dashboardStats.mentorsConnected.trend,
-        },
-      ]
+      {
+        title: "Sessions Booked",
+        value: dashboardStats.sessionsBooked.value.toString(),
+        description: dashboardStats.sessionsBooked.description,
+        icon: CalendarDays,
+        trend: dashboardStats.sessionsBooked.trend,
+      },
+      {
+        title: "Hours Learned",
+        value: dashboardStats.hoursLearned.value.toString(),
+        description: dashboardStats.hoursLearned.description,
+        icon: Clock,
+        trend: dashboardStats.hoursLearned.trend,
+      },
+      {
+        title: "Mentors Connected",
+        value: dashboardStats.mentorsConnected.value.toString(),
+        description: dashboardStats.mentorsConnected.description,
+        icon: Users,
+        trend: dashboardStats.mentorsConnected.trend,
+      },
+    ]
     : [], [dashboardStats]);
 
   // Animation Config
@@ -99,7 +99,7 @@ export function Dashboard({ onMentorSelect, onSectionChange }: DashboardProps) {
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial="hidden"
       animate="visible"
       variants={containerVariants}
@@ -107,9 +107,9 @@ export function Dashboard({ onMentorSelect, onSectionChange }: DashboardProps) {
     >
       {/* 1. Welcome Header */}
       <motion.div variants={itemVariants}>
-        <WelcomeSection 
-          userName={session?.user?.name} 
-          onExploreClick={() => onSectionChange?.("explore")} 
+        <WelcomeSection
+          userName={session?.user?.name}
+          onExploreClick={() => onSectionChange?.("explore")}
         />
       </motion.div>
 
@@ -120,15 +120,15 @@ export function Dashboard({ onMentorSelect, onSectionChange }: DashboardProps) {
 
       {/* 3. Main Split View: Sessions & Mentors */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        
+
         {/* Left Column: Upcoming Sessions */}
         <motion.div variants={itemVariants} className="flex flex-col h-full space-y-4">
           <div className="flex items-center justify-between px-1">
             <div className="space-y-0.5">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+              <h3 className="text-xl font-bold text-foreground tracking-tight">
                 Upcoming Sessions
               </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="text-sm text-muted-foreground">
                 Your schedule for the week
               </p>
             </div>
@@ -142,7 +142,7 @@ export function Dashboard({ onMentorSelect, onSectionChange }: DashboardProps) {
             </Button>
           </div>
 
-          <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-1 shadow-sm">
+          <div className="flex-1 bg-card rounded-2xl border border-border p-1 shadow-subtle">
             <SessionsList
               sessions={upcomingSessions}
               loading={sessionsLoading}
@@ -157,10 +157,10 @@ export function Dashboard({ onMentorSelect, onSectionChange }: DashboardProps) {
         <motion.div variants={itemVariants} className="flex flex-col h-full space-y-4">
           <div className="flex items-center justify-between px-1">
             <div className="space-y-0.5">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+              <h3 className="text-xl font-bold text-foreground tracking-tight">
                 Recommended Mentors
               </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="text-sm text-muted-foreground">
                 Experts curated for your goals
               </p>
             </div>
@@ -179,7 +179,7 @@ export function Dashboard({ onMentorSelect, onSectionChange }: DashboardProps) {
             <MentorsList
               mentors={topMentors}
               loading={mentorsLoading}
-              onMentorClick={(mentor) => onMentorSelect(mentor.id)} 
+              onMentorClick={(mentor) => onMentorSelect(mentor.id)}
               onExploreClick={() => onSectionChange?.("explore")}
             />
           </div>
@@ -191,15 +191,15 @@ export function Dashboard({ onMentorSelect, onSectionChange }: DashboardProps) {
         <motion.div variants={itemVariants} className="space-y-4">
           <div className="flex items-center gap-2 px-1">
             <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-md text-amber-600 dark:text-amber-400">
-               <Star className="w-4 h-4 fill-amber-600 dark:fill-amber-400" />
+              <Star className="w-4 h-4 fill-amber-600 dark:fill-amber-400" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Pending Feedback</h3>
+            <h3 className="text-lg font-bold text-foreground">Pending Feedback</h3>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {reviewsLoading ? (
               [1, 2].map((i) => (
-                <div key={i} className="h-24 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+                <div key={i} className="h-24 bg-muted rounded-xl animate-pulse" />
               ))
             ) : reviewsError ? (
               <div className="col-span-full p-4 text-red-500 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 text-sm">
@@ -242,26 +242,26 @@ export function Dashboard({ onMentorSelect, onSectionChange }: DashboardProps) {
       {/* 5. Quick Actions Grid */}
       <motion.div variants={itemVariants} className="space-y-4">
         <div className="px-1">
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Quick Actions</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Jump straight into productivity</p>
+          <h3 className="text-xl font-bold text-foreground mb-1">Quick Actions</h3>
+          <p className="text-sm text-muted-foreground">Jump straight into productivity</p>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <QuickActionCard 
+          <QuickActionCard
             icon={Users}
             title="Find Mentors"
             description="Connect with top experts"
             color="blue"
             onClick={() => onSectionChange?.("explore")}
           />
-          <QuickActionCard 
+          <QuickActionCard
             icon={MessageSquare}
             title="Messages"
             description="Chat with your network"
             color="violet"
             onClick={() => onSectionChange?.("messages")}
           />
-          <QuickActionCard 
+          <QuickActionCard
             icon={BookOpen}
             title="Learning Hub"
             description="Explore courses & resources"
@@ -313,12 +313,12 @@ function QuickActionCard({ icon: Icon, title, description, color, onClick }: Qui
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 text-left shadow-sm hover:shadow-xl transition-all duration-300",
+        "group relative overflow-hidden rounded-2xl border border-border bg-card p-6 text-left shadow-subtle hover:shadow-medium transition-all duration-300",
         activeStyle.border
       )}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-transparent to-slate-50/50 dark:to-slate-800/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-      
+      <div className="absolute inset-0 bg-gradient-to-br from-transparent to-muted/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+
       <div className="relative flex items-start justify-between">
         <div className="space-y-4">
           <div className={cn(
@@ -330,19 +330,19 @@ function QuickActionCard({ icon: Icon, title, description, color, onClick }: Qui
             <Icon className="w-6 h-6" />
           </div>
           <div>
-            <span className="block text-lg font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">
+            <span className="block text-lg font-bold text-foreground group-hover:text-primary transition-colors">
               {title}
             </span>
-            <span className="text-sm text-slate-500 dark:text-slate-400 mt-0.5 block">
+            <span className="text-sm text-muted-foreground mt-0.5 block">
               {description}
             </span>
           </div>
         </div>
-        
+
         <div className="opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-4 group-hover:translate-x-0 pt-1">
-           <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full shadow-sm">
-              <ArrowRight className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-           </div>
+          <div className="p-2 bg-muted rounded-full shadow-subtle">
+            <ArrowRight className="w-4 h-4 text-muted-foreground" />
+          </div>
         </div>
       </div>
     </motion.button>

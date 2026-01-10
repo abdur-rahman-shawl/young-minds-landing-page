@@ -66,6 +66,7 @@ export function HeroSection() {
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const heroRef = useRef<HTMLDivElement>(null)
   const mentorsSectionRef = useRef<HTMLDivElement>(null)
@@ -359,7 +360,7 @@ export function HeroSection() {
     }
   }
 
-  
+
 
   const nextMentors = () => {
     setCurrentMentorIndex((prev) => Math.min(prev + 3, Math.max(dbMentors.length - 3, 0)))
@@ -393,6 +394,16 @@ export function HeroSection() {
       mentorsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [showMentors])
+
+  // Auto-scroll to chat container when it expands
+  useEffect(() => {
+    if (isChatExpanded && chatContainerRef.current) {
+      // Small delay to allow the expansion animation to start
+      setTimeout(() => {
+        chatContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 100)
+    }
+  }, [isChatExpanded])
 
   // ---------- UI helpers: expertise chips, rate, placeholders ----------
 
@@ -435,7 +446,7 @@ export function HeroSection() {
     <>
       <section ref={heroRef} className="relative px-4 sm:px-6 lg:px-12 xl:px-16 py-12 sm:py-16 lg:py-24">
         {/* Background Shape */}
-        <div className="absolute top-0 left-0 right-0 bottom-0 bg-gray-50 dark:bg-gray-700/20 rounded-br-[160px] -z-10"></div>
+        <div className="absolute top-0 left-0 right-0 bottom-0 bg-secondary dark:bg-card/20 rounded-br-[160px] -z-10"></div>
 
         {/* Decorative Dots */}
         <div className="absolute top-16 left-6 sm:left-8 lg:left-12 xl:left-16 w-12 h-24 opacity-30 -z-5">
@@ -444,64 +455,63 @@ export function HeroSection() {
 
         <div className="relative flex flex-col lg:flex-row items-center lg:items-start gap-10 lg:gap-12 text-center lg:text-left">
           <div className="w-full lg:w-3/5">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 dark:text-white mb-6 leading-tight">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-foreground mb-6 leading-tight tracking-tight">
               What's on your mind?
             </h1>
-            <p className="text-gray-600 dark:text-gray-300 mb-12 text-lg sm:text-xl max-w-2xl mx-auto lg:mx-0">
+            <p className="text-muted-foreground mb-12 text-lg sm:text-xl max-w-2xl mx-auto lg:mx-0">
               Our AI intelligence will connect with your mind & download your thoughts
             </p>
 
             <div className="w-full max-w-4xl mx-auto lg:mx-0">
               {/* Chat Container */}
-              <div 
-                className={`group relative overflow-hidden rounded-3xl bg-white dark:bg-gray-900 transition-all duration-700 ease-out cursor-text ${ 
-                  isFocused 
-                    ? 'shadow-2xl shadow-black/10 dark:shadow-black/30 scale-[1.02] ring-1 ring-gray-300 dark:ring-gray-600' 
-                    : isHovered
-                      ? 'shadow-xl shadow-black/5 dark:shadow-black/20 scale-[1.01]'
-                      : 'shadow-lg shadow-black/5 dark:shadow-black/10'
-                } ${isChatExpanded ? 'max-h-[70vh] sm:max-h-[75vh] lg:max-h-none lg:h-[600px]' : 'h-auto'}`}
+              <div
+                ref={chatContainerRef}
+                className={`group relative overflow-hidden rounded-3xl bg-card transition-all duration-500 ease-out cursor-text ${isFocused
+                  ? 'shadow-large ring-1 ring-primary/20 scale-[1.01]'
+                  : isHovered
+                    ? 'shadow-medium scale-[1.005]'
+                    : 'shadow-small'
+                  } ${isChatExpanded ? 'max-h-[70vh] sm:max-h-[75vh] lg:max-h-none lg:h-[600px]' : 'h-auto'}`}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
                 onClick={handleContainerClick}
               >
                 {/* Subtle gradient border */}
-                <div className={`absolute inset-0 rounded-3xl bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 transition-opacity duration-500 ${isFocused ? 'opacity-100' : 'opacity-0'}`} style={{ padding: '1px' }}>
-                  <div className="w-full h-full rounded-3xl bg-white dark:bg-gray-900"></div>
+                <div className={`absolute inset-0 rounded-3xl bg-gradient-to-r from-primary/10 via-transparent to-primary/10 transition-opacity duration-500 ${isFocused ? 'opacity-100' : 'opacity-0'}`} style={{ padding: '1px' }}>
+                  <div className="w-full h-full rounded-3xl bg-card"></div>
                 </div>
 
                 {/* Chat Messages */}
                 {isChatExpanded && (
                   <div className="relative h-full flex flex-col">
                     {/* Chat Header */}
-                    <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-card/80 backdrop-blur-sm">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-sm ring-2 ring-background">
                         <Sparkles className="w-4 h-4 text-white" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">AI Assistant</h3>
-                        <p className="text-xs text-gray-500">Always here to help</p>
+                        <h3 className="font-semibold text-foreground">AI Assistant</h3>
+                        <p className="text-xs text-muted-foreground">Always here to help</p>
                       </div>
                     </div>
 
                     {/* Messages Area */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gradient-to-b from-muted/10 to-transparent">
                       {messages.map((message) => (
                         <div key={message.id} className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                           {message.type === 'ai' && (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-background">
                               <Bot className="w-4 h-4 text-white" />
                             </div>
                           )}
                           <div className="max-w-[80%]">
-                            <div className={`rounded-2xl px-4 py-3 ${ 
-                              message.type === 'user' 
-                                ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white' 
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                            }`}>
+                            <div className={`rounded-2xl px-4 py-3 shadow-subtle ${message.type === 'user'
+                              ? 'bg-primary text-primary-foreground rounded-br-md'
+                              : 'bg-secondary text-foreground rounded-bl-md'
+                              }`}>
                               <p className="text-sm leading-relaxed">{message.content}</p>
                             </div>
-                            <p className="text-xs text-gray-400 mt-1 ml-1">
+                            <p className="text-xs text-muted-foreground mt-1.5 ml-1">
                               {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
@@ -511,17 +521,17 @@ export function HeroSection() {
                       {/* AI Thinking */}
                       {isAiTyping && !currentAiMessage && (
                         <div className="flex gap-3 justify-start">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-background">
                             <Bot className="w-4 h-4 text-white" />
                           </div>
                           <div className="max-w-[80%]">
-                            <div className="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl px-4 py-3">
+                            <div className="bg-secondary text-foreground rounded-2xl rounded-bl-md px-4 py-3 shadow-subtle">
                               <div className="flex items-center gap-2">
                                 <span className="text-sm">Thinking</span>
                                 <div className="flex gap-1">
-                                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                                 </div>
                               </div>
                             </div>
@@ -532,11 +542,11 @@ export function HeroSection() {
                       {/* Streaming text */}
                       {isAiTyping && currentAiMessage && (
                         <div className="flex gap-3 justify-start">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-background">
                             <Bot className="w-4 h-4 text-white" />
                           </div>
                           <div className="max-w-[80%]">
-                            <div className="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl px-4 py-3">
+                            <div className="bg-secondary text-foreground rounded-2xl rounded-bl-md px-4 py-3 shadow-subtle">
                               <p className="text-sm leading-relaxed">
                                 {currentAiMessage}
                                 <span className="animate-pulse">|</span>
@@ -566,12 +576,12 @@ export function HeroSection() {
                           </div>
                         </div>
                       )}
-                      
+
                       <div ref={chatEndRef} />
                     </div>
 
                     {/* Input Area */}
-                    <div className="border-t border-gray-100 dark:border-gray-800 p-4">
+                    <div className="border-t border-border p-4 bg-card/80 backdrop-blur-sm">
                       <div className="flex items-end gap-3">
                         <div className="flex-1 relative">
                           <textarea
@@ -584,17 +594,16 @@ export function HeroSection() {
                             onKeyDown={handleKeyPress}
                             rows={1}
                             disabled={isAiTyping || isSearchingMentors}
-                            className="w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none text-sm font-medium tracking-wide leading-relaxed resize-none overflow-hidden min-h-[44px] rounded-2xl px-4 py-3 border border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full bg-secondary text-foreground focus:outline-none text-sm font-medium tracking-wide leading-relaxed resize-none overflow-hidden min-h-[44px] rounded-xl px-4 py-3 border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                         </div>
                         <Button
                           onClick={handleSubmit}
                           disabled={!inputValue.trim() || isAiTyping || isSearchingMentors}
-                          className={`h-11 w-11 rounded-2xl font-medium transition-all duration-300 ease-out ${ 
-                            inputValue.trim() && !isAiTyping && !isSearchingMentors
-                              ? 'bg-gray-900 hover:bg-black dark:bg-gray-100 dark:hover:bg-white text-white dark:text-gray-900'
-                              : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
-                          }`}
+                          className={`h-11 w-11 rounded-xl font-medium transition-all duration-200 ease-out shadow-sm ${inputValue.trim() && !isAiTyping && !isSearchingMentors
+                            ? 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                            : 'bg-muted text-muted-foreground cursor-not-allowed'
+                            }`}
                         >
                           <Send className="h-4 w-4" />
                         </Button>
@@ -619,7 +628,7 @@ export function HeroSection() {
                         className="w-full bg-transparent text-gray-900 dark:text-white focus:outline-none text-xl font-medium tracking-wide leading-relaxed resize-none overflow-hidden min-h-[56px] scrollbar-hide relative z-10"
                         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                       />
-                      
+
                       {/* Custom animated placeholder */}
                       {!inputValue && !isFocused && (
                         <div className="absolute inset-0 flex items-start pt-[2px]">
@@ -630,16 +639,15 @@ export function HeroSection() {
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="flex-shrink-0 self-end">
                       <Button
                         onClick={handleSubmit}
                         disabled={!inputValue.trim() || isAiTyping || isSearchingMentors}
-                        className={`relative h-14 w-14 rounded-2xl font-medium transition-all duration-300 ease-out ${ 
-                          inputValue.trim() && !isAiTyping && !isSearchingMentors
-                            ? 'bg-gray-900 hover:bg-black dark:bg-gray-100 dark:hover:bg-white text-white dark:text-gray-900 shadow-lg hover:shadow-xl scale-100 hover:scale-105 hover:rotate-[-2deg]'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed scale-95'
-                        }`}
+                        className={`relative h-14 w-14 rounded-2xl font-medium transition-all duration-300 ease-out ${inputValue.trim() && !isAiTyping && !isSearchingMentors
+                          ? 'bg-gray-900 hover:bg-black dark:bg-gray-100 dark:hover:bg-white text-white dark:text-gray-900 shadow-lg hover:shadow-xl scale-100 hover:scale-105 hover:rotate-[-2deg]'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed scale-95'
+                          }`}
                       >
                         <ArrowRight className={`h-5 w-5 transition-transform duration-300 ${inputValue.trim() ? 'group-hover:translate-x-0.5' : ''}`} />
                       </Button>
@@ -840,9 +848,9 @@ export function HeroSection() {
         </DialogContent>
       </Dialog>
 
-      <SignInPopup 
-        isOpen={showSignInPopup} 
-        onClose={() => setShowSignInPopup(false)} 
+      <SignInPopup
+        isOpen={showSignInPopup}
+        onClose={() => setShowSignInPopup(false)}
         callbackUrl="/dashboard?section=explore"
       />
     </>
