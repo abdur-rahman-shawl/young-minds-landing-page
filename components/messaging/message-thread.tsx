@@ -128,7 +128,7 @@ function MessageWithReactions({
           setShowActions(false);
         }}
       >
-        <Avatar className="h-8 w-8">
+        <Avatar className="h-9 w-9 ring-2 ring-background shadow-subtle">
           <AvatarImage src={msg.sender?.image} />
           <AvatarFallback>
             {msg.sender?.name?.charAt(0) || 'U'}
@@ -144,10 +144,10 @@ function MessageWithReactions({
           <div className="relative">
             <div
               className={cn(
-                'rounded-lg px-3 py-2',
+                'rounded-2xl px-4 py-3 shadow-subtle',
                 isOwnMessage
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted'
+                  ? 'bg-primary text-primary-foreground rounded-br-md'
+                  : 'bg-secondary text-foreground rounded-bl-md'
               )}
             >
               {/* Reply Indicator */}
@@ -417,7 +417,7 @@ export function MessageThread({
   if (isLoading) {
     return (
       <div className="flex flex-col h-full">
-        <div className="border-b p-4">
+        <div className="flex items-center justify-between p-4 border-b border-border bg-card/80 backdrop-blur-sm">
           <Skeleton className="h-12 w-full" />
         </div>
         <div className="flex-1 p-4 space-y-4">
@@ -445,16 +445,16 @@ export function MessageThread({
               </Button>
             )}
 
-            <Avatar className="h-10 w-10">
+            <Avatar className="h-11 w-11 ring-2 ring-primary/10 shadow-subtle">
               <AvatarImage src={otherUser?.image} />
               <AvatarFallback>
                 {otherUser?.name?.charAt(0) || 'U'}
               </AvatarFallback>
             </Avatar>
 
-            <div>
-              <h3 className="font-semibold">{otherUser?.name || 'Unknown User'}</h3>
-              <p className="text-xs text-muted-foreground">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-foreground truncate">{otherUser?.name || 'Unknown User'}</h3>
+              <p className="text-xs text-muted-foreground truncate">
                 {otherUser?.email}
               </p>
             </div>
@@ -486,7 +486,7 @@ export function MessageThread({
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+      <ScrollArea className="flex-1 p-4 bg-gradient-to-b from-muted/20 to-transparent" ref={scrollAreaRef}>
         <div className="space-y-4">
           {messages.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -530,10 +530,10 @@ export function MessageThread({
       </ScrollArea>
 
       {/* Message Input */}
-      <div className="border-t">
+      <div className="border-t border-border bg-card/80 backdrop-blur-sm">
         {/* Reply Bar */}
         {replyingTo && (
-          <div className="px-4 pt-3 pb-2 bg-muted/30 border-b">
+          <div className="px-4 pt-3 pb-2 bg-accent/50 border-b border-border rounded-t-xl">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-muted-foreground mb-1">
@@ -573,7 +573,7 @@ export function MessageThread({
             e.preventDefault();
             handleSendMessage();
           }}
-          className="flex gap-2 p-4"
+          className="flex gap-3 p-4"
         >
           <Button
             type="button"
@@ -589,12 +589,13 @@ export function MessageThread({
             value={messageInput}
             onChange={(e) => setMessageInput(e.target.value)}
             disabled={isSending}
-            className="flex-1"
+            className="flex-1 rounded-xl border-border bg-background shadow-subtle focus-visible:ring-primary/30"
           />
 
           <Button
             type="submit"
             disabled={!messageInput.trim() || isSending}
+            className="rounded-xl shadow-sm h-11 w-11 p-0"
           >
             {isSending ? (
               <Loader2 className="h-5 w-5 animate-spin" />

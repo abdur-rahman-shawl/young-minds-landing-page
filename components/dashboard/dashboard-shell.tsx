@@ -12,7 +12,6 @@ import { MentorSidebar } from "@/components/mentor/sidebars/mentor-sidebar"
 import { AdminSidebar } from "@/components/admin/sidebars/admin-sidebar"
 import { Dashboard } from "@/components/shared/dashboard/dashboard"
 import { MentorOnlyDashboard } from "@/components/mentor/dashboard/mentor-only-dashboard"
-import { MentorPaymentGate } from "@/components/mentor/dashboard/mentor-payment-gate"
 import { ExploreMentors } from "@/components/shared/dashboard/explore"
 import { SavedItems } from "@/components/mentee/dashboard/saved-items"
 import { Mentors } from "@/components/shared/dashboard/mentors"
@@ -29,7 +28,6 @@ import { AdminMentors } from "@/components/admin/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/admin/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
-import { AdminSubscriptions } from "@/components/admin/dashboard/admin-subscriptions"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { useAuth } from "@/contexts/auth-context"
 import { AlertTriangle, Sparkles } from "lucide-react"
@@ -83,8 +81,6 @@ export function DashboardShell() {
     isAdmin,
     isMentor,
     isMentorWithIncompleteProfile,
-    mentorProfile,
-    refreshUserData,
   } = useAuth()
 
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -108,19 +104,6 @@ export function DashboardShell() {
 
   if (isLoading || !isAuthenticated) {
     return <AuthLoadingSkeleton />
-  }
-
-  // SHELL-LEVEL PAYMENT GATE: Block all mentor access if payment is incomplete
-  // This must be checked before rendering sidebar or any content
-  const isMentorPaymentPending = isMentor && mentorProfile?.paymentStatus !== 'COMPLETED'
-  if (isMentorPaymentPending) {
-    return (
-      <MentorPaymentGate
-        user={session?.user}
-        mentorProfile={mentorProfile}
-        onPaymentComplete={refreshUserData}
-      />
-    )
   }
 
   const handleSectionChange = (section: string) => {
@@ -159,9 +142,6 @@ export function DashboardShell() {
         case "mentees":
           content = <AdminMentees />
           break
-        case "subscriptions":
-          content = <AdminSubscriptions />
-          break
         case "analytics":
           content = <AdminAnalytics />
           break
@@ -178,22 +158,28 @@ export function DashboardShell() {
           break
         case "mentees":
           content = (
-            <div className="h-full w-full">
-              <MentorMentees />
+            <div className="p-4 md:p-8">
+              <div className="mx-auto max-w-7xl">
+                <MentorMentees />
+              </div>
             </div>
           )
           break
         case "schedule":
           content = (
-            <div className="h-full w-full">
-              <MentorBookingsCalendar />
+            <div className="p-4 md:p-8">
+              <div className="mx-auto max-w-7xl">
+                <MentorBookingsCalendar />
+              </div>
             </div>
           )
           break
         case "availability":
           content = (
-            <div className="h-full w-full">
-              <MentorAvailabilityManager />
+            <div className="p-4 md:p-8">
+              <div className="mx-auto max-w-6xl">
+                <MentorAvailabilityManager />
+              </div>
             </div>
           )
           break

@@ -10,13 +10,13 @@ interface StatsCardProps {
   loading?: boolean;
 }
 
-export function StatsCard({ 
-  title, 
-  value, 
-  description, 
-  icon: Icon, 
+export function StatsCard({
+  title,
+  value,
+  description,
+  icon: Icon,
   trend = "neutral",
-  loading = false 
+  loading = false
 }: StatsCardProps) {
   const getTrendIcon = () => {
     switch (trend) {
@@ -73,7 +73,7 @@ export function StatsCard({
         <div className="absolute -right-2 top-0 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
           <div className={cn("size-2 rounded-full", trend === "up" ? "bg-emerald-500" : trend === "down" ? "bg-rose-500" : "bg-primary")} />
         </div>
-        
+
         {/* Icon */}
         <div className={cn(
           "size-12 shrink-0 rounded-xl border flex items-center justify-center transition-all duration-300 group-hover:scale-110",
@@ -81,7 +81,7 @@ export function StatsCard({
         )}>
           <Icon className="w-5 h-5" />
         </div>
-        
+
         {/* Content */}
         <div className="flex-1 min-w-0">
           <p className="font-medium tracking-widest text-xs uppercase text-muted-foreground/70 mb-1">
@@ -112,9 +112,9 @@ export function StatsGrid({ stats, loading = false }: StatsGridProps) {
     <div className="relative">
       {/* Gradient background */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 rounded-2xl" />
-      
+
       {/* Grid container */}
-      <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 border border-border/50 rounded-2xl bg-gradient-to-br from-card/80 to-card backdrop-blur-sm overflow-hidden">
+      <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 border border-border/50 rounded-2xl bg-gradient-to-br from-card/80 to-card backdrop-blur-sm overflow-hidden shadow-subtle">
         {loading ? (
           // Loading skeletons
           [1, 2, 3].map((i) => (

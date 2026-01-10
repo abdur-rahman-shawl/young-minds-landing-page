@@ -190,7 +190,7 @@ export function ExploreMentors({ onMentorSelect }: ExploreMentorsProps) {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 key={mentor.id}
-                className="group relative bg-card rounded-2xl border border-border hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300 cursor-pointer overflow-hidden flex flex-col"
+                className="group relative bg-card rounded-2xl border border-border hover:border-primary/30 shadow-subtle hover:shadow-medium transition-all duration-300 cursor-pointer overflow-hidden flex flex-col"
                 onClick={() => onMentorSelect(mentor.id)}
               >
                 {/* Card Banner */}
@@ -226,7 +226,7 @@ export function ExploreMentors({ onMentorSelect }: ExploreMentorsProps) {
                   {/* Rate Badge */}
                   <div className="self-end mt-3">
                     {mentor.hourlyRate ? (
-                      <Badge variant="secondary" className="bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold border-slate-200 dark:border-slate-700">
+                      <Badge variant="secondary" className="bg-secondary text-foreground font-bold border-border">
                         ${mentor.hourlyRate}<span className="text-slate-400 font-normal ml-0.5">/hr</span>
                       </Badge>
                     ) : (
@@ -263,12 +263,12 @@ export function ExploreMentors({ onMentorSelect }: ExploreMentorsProps) {
                     )}
 
                     <div className="pt-4 border-t border-border grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
                         <span>{mentor.experience}+ Yrs Exp.</span>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="truncate">{mentor.industry}</span>
                       </div>
                     </div>
@@ -278,7 +278,7 @@ export function ExploreMentors({ onMentorSelect }: ExploreMentorsProps) {
 
                 {/* Hover Slide-up Button */}
                 <div className="absolute bottom-0 left-0 right-0 p-4 bg-card/90 backdrop-blur-sm translate-y-full group-hover:translate-y-0 transition-transform duration-300 border-t border-border">
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20">
+                  <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-md">
                     View Profile <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { auth } from '@/lib/auth';
+
 
 // Protected routes that require authentication
 const PROTECTED_ROUTES = [
@@ -58,7 +58,7 @@ async function handleApiProtection(request: NextRequest) {
 
   // Check for session cookie
   const sessionCookie = getSessionCookie(request);
-  
+
   if (!sessionCookie) {
     return NextResponse.json(
       { success: false, error: 'Authentication required' },
@@ -79,13 +79,13 @@ async function handlePageProtection(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Check if route requires protection
-  const isProtectedRoute = PROTECTED_ROUTES.some(route => 
+  const isProtectedRoute = PROTECTED_ROUTES.some(route =>
     pathname.startsWith(route)
   );
-  const isAdminRoute = ADMIN_ROUTES.some(route => 
+  const isAdminRoute = ADMIN_ROUTES.some(route =>
     pathname.startsWith(route)
   );
-  const isMentorRoute = MENTOR_ROUTES.some(route => 
+  const isMentorRoute = MENTOR_ROUTES.some(route =>
     pathname.startsWith(route)
   );
 
@@ -95,7 +95,7 @@ async function handlePageProtection(request: NextRequest) {
 
   // Check session
   const sessionCookie = getSessionCookie(request);
-  
+
   if (!sessionCookie) {
     const loginUrl = new URL('/auth', request.url);
     loginUrl.searchParams.set('redirect', pathname);
@@ -103,27 +103,11 @@ async function handlePageProtection(request: NextRequest) {
   }
 
   // For role-specific routes, basic auth check - role verification in page components
+  // We rely on the session cookie presence here to avoid importing 'auth' in Edge Runtime
   if (isAdminRoute || isMentorRoute) {
-    try {
-      const session = await auth.api.getSession({
-        headers: request.headers,
-      });
-
-      if (!session?.user) {
-        const loginUrl = new URL('/auth', request.url);
-        loginUrl.searchParams.set('redirect', pathname);
-        return NextResponse.redirect(loginUrl);
-      }
-      
-      // Role verification moved to page components via AuthContext to avoid Edge Runtime issues
-      // Pages will handle role-based redirects using client-side auth state
-    } catch (error) {
-      console.warn('Page session lookup failed, redirecting to login:', error);
-      const loginUrl = new URL('/auth', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
-      loginUrl.searchParams.set('error', 'authentication-required');
-      return NextResponse.redirect(loginUrl);
-    }
+    // If cookie exists (checked above), let the request through.
+    // The specific page layouts will handle detailed session/role validation.
+    return NextResponse.next();
   }
 
   return NextResponse.next();
@@ -143,7 +127,7 @@ export const config = {
     '/api/messages/:path*',
     '/api/admin/:path*',
     '/api/saved-mentors/:path*',
-    
+
     // Protected page routes
     '/dashboard/:path*',
     '/mentor-signup/:path*',

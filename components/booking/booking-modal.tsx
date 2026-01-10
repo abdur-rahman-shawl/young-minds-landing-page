@@ -80,9 +80,9 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
   const resetState = () => {
     // Small timeout to allow modal close animation to start before resetting state
     setTimeout(() => {
-        setCurrentStep('time-selection');
-        setBookingData({});
-        setBookingId(undefined);
+      setCurrentStep('time-selection');
+      setBookingData({});
+      setBookingId(undefined);
     }, 300);
     onClose();
   };
@@ -167,202 +167,202 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
       <Dialog open={isOpen} onOpenChange={(open) => !open && handleAttemptClose()}>
         <DialogContent
           // Added [&>button]:hidden to hide the default shadcn close button
-          className="max-w-5xl h-[90vh] md:h-[85vh] flex flex-col p-0 overflow-hidden border-0 shadow-2xl rounded-2xl [&>button]:hidden"
+          className="max-w-5xl h-[90vh] md:h-[85vh] flex flex-col p-0 overflow-hidden border-0 shadow-large rounded-2xl [&>button]:hidden"
           onInteractOutside={(e) => e.preventDefault()}
         >
           <div className="flex h-full">
-            
+
             {/* LEFT SIDEBAR: Mentor Context */}
-            <div className="w-80 hidden lg:flex flex-col bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-full">
-               <div className="p-8 flex flex-col h-full">
-                  
-                  {/* Avatar & Basic Info */}
-                  <div className="text-center mb-6">
-                    <div className="relative mx-auto w-24 h-24 mb-4">
-                        <Avatar className="w-full h-full border-4 border-white dark:border-slate-800 shadow-md">
-                            <AvatarImage src={mentor.profileImageUrl} />
-                            <AvatarFallback className="text-2xl bg-indigo-500 text-white">
-                            {mentor.fullName?.charAt(0) || 'M'}
-                            </AvatarFallback>
-                        </Avatar>
-                        {/* Rating Badge */}
-                        <div className="absolute -bottom-2 -right-2 bg-white dark:bg-slate-800 py-1 px-2 rounded-full shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-1">
-                            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">5.0</span>
-                        </div>
+            <div className="w-80 hidden lg:flex flex-col bg-secondary dark:bg-card border-r border-border h-full">
+              <div className="p-8 flex flex-col h-full">
+
+                {/* Avatar & Basic Info */}
+                <div className="text-center mb-6">
+                  <div className="relative mx-auto w-24 h-24 mb-4">
+                    <Avatar className="w-full h-full border-4 border-background shadow-md">
+                      <AvatarImage src={mentor.profileImageUrl} />
+                      <AvatarFallback className="text-2xl bg-indigo-500 text-white">
+                        {mentor.fullName?.charAt(0) || 'M'}
+                      </AvatarFallback>
+                    </Avatar>
+                    {/* Rating Badge */}
+                    <div className="absolute -bottom-2 -right-2 bg-background py-1 px-2 rounded-full shadow-subtle border border-border flex items-center gap-1">
+                      <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                      <span className="text-xs font-bold text-foreground">5.0</span>
                     </div>
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white leading-tight">
-                        {mentor.fullName}
-                    </h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        {mentor.title} {mentor.company && `at ${mentor.company}`}
-                    </p>
                   </div>
+                  <h3 className="font-bold text-lg text-foreground leading-tight">
+                    {mentor.fullName}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {mentor.title} {mentor.company && `at ${mentor.company}`}
+                  </p>
+                </div>
 
-                  <Separator className="mb-6 bg-slate-200 dark:bg-slate-800" />
+                <Separator className="mb-6 bg-border" />
 
-                  {/* Hourly Rate */}
-                  <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 mb-6 shadow-sm">
-                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Session Rate</p>
-                     <div className="flex items-end gap-1">
-                        <span className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(mentor.hourlyRate, mentor.currency)}</span>
-                        <span className="text-sm text-slate-500 mb-1">/ hour</span>
-                     </div>
+                {/* Hourly Rate */}
+                <div className="bg-card p-4 rounded-xl border border-border mb-6 shadow-subtle">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Session Rate</p>
+                  <div className="flex items-end gap-1">
+                    <span className="text-2xl font-bold text-foreground">{formatCurrency(mentor.hourlyRate, mentor.currency)}</span>
+                    <span className="text-sm text-muted-foreground mb-1">/ hour</span>
                   </div>
+                </div>
 
-                  {/* Expertise Tags */}
-                  {mentor.expertise && (
-                    <div className="flex-1">
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Core Expertise</p>
-                      <div className="flex flex-wrap gap-2">
-                        {parseExpertise(mentor.expertise).slice(0, 5).map((skill: string, index: number) => (
-                          <Badge key={index} variant="secondary" className="bg-white hover:bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-normal">
-                            {skill}
-                          </Badge>
-                        ))}
-                      </div>
+                {/* Expertise Tags */}
+                {mentor.expertise && (
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Core Expertise</p>
+                    <div className="flex flex-wrap gap-2">
+                      {parseExpertise(mentor.expertise).slice(0, 5).map((skill: string, index: number) => (
+                        <Badge key={index} variant="secondary" className="bg-card hover:bg-card border border-border text-muted-foreground font-normal">
+                          {skill}
+                        </Badge>
+                      ))}
                     </div>
-                  )}
-
-                  <div className="mt-auto pt-6 text-xs text-center text-slate-400">
-                     Powered by <span className="font-semibold text-slate-600 dark:text-slate-300">Mentore</span>
                   </div>
-               </div>
+                )}
+
+                <div className="mt-auto pt-6 text-xs text-center text-muted-foreground">
+                  Powered by <span className="font-semibold text-foreground">Mentore</span>
+                </div>
+              </div>
             </div>
 
             {/* RIGHT CONTENT: Wizard Steps */}
-            <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-950 relative">
-               
-               {/* Custom Close Button */}
-               <button 
-                 onClick={handleAttemptClose} 
-                 className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors z-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
-                 aria-label="Close booking modal"
-               >
-                   <X className="w-5 h-5" />
-               </button>
+            <div className="flex-1 flex flex-col min-w-0 bg-background relative">
 
-               {/* Step Indicator */}
-               {currentStep !== 'success' && (
-                 <div className="px-8 pt-8 pb-4">
-                    <div className="flex items-center justify-between max-w-md mx-auto relative">
-                       {/* Background Line */}
-                       <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-100 dark:bg-slate-800 -z-10" />
-                       
-                       {STEPS.map((step, idx) => {
-                          const isActive = step.id === currentStep;
-                          const isCompleted = STEPS.findIndex(s => s.id === currentStep) > idx;
-                          
-                          return (
-                             <div key={step.id} className="flex flex-col items-center gap-2 bg-white dark:bg-slate-950 px-2">
-                                <div className={cn(
-                                   "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-300",
-                                   isActive ? "border-blue-600 bg-blue-600 text-white scale-110" : 
-                                   isCompleted ? "border-blue-600 bg-white text-blue-600" :
-                                   "border-slate-200 text-slate-300 bg-white dark:bg-slate-900 dark:border-slate-800"
-                                )}>
-                                   {isCompleted ? <CheckCircle className="w-5 h-5" /> : idx + 1}
-                                </div>
-                                <span className={cn(
-                                   "text-xs font-medium transition-colors duration-300",
-                                   isActive ? "text-blue-600" : isCompleted ? "text-slate-800 dark:text-slate-200" : "text-slate-300"
-                                )}>
-                                   {step.label}
-                                </span>
-                             </div>
-                          );
-                       })}
-                    </div>
-                 </div>
-               )}
+              {/* Custom Close Button */}
+              <button
+                onClick={handleAttemptClose}
+                className="absolute top-4 right-4 p-2 text-muted-foreground hover:text-foreground transition-colors z-10 rounded-full hover:bg-muted"
+                aria-label="Close booking modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
 
-               {/* Step Content Area */}
-               <div className="flex-1 overflow-hidden relative">
-                  <AnimatePresence mode="wait" initial={false}>
-                     
-                     {currentStep === 'time-selection' && (
-                        <motion.div
-                           key="step-time"
-                           initial={{ opacity: 0, x: 20 }}
-                           animate={{ opacity: 1, x: 0 }}
-                           exit={{ opacity: 0, x: -20 }}
-                           transition={{ duration: 0.2 }}
-                           className="h-full"
-                        >
-                           <div className="h-full px-4 md:px-8 py-4 overflow-y-auto">
-                              <h2 className="text-2xl font-bold text-slate-900 dark:text-white text-center mb-6">Select a Date & Time</h2>
-                              <TimeSlotSelectorV2
-                                 mentorId={mentor.userId}
-                                 onTimeSelected={handleTimeSelection}
-                                 initialSelectedTime={bookingData.scheduledAt}
-                              />
-                           </div>
-                        </motion.div>
-                     )}
+              {/* Step Indicator */}
+              {currentStep !== 'success' && (
+                <div className="px-8 pt-8 pb-4">
+                  <div className="flex items-center justify-between max-w-md mx-auto relative">
+                    {/* Background Line */}
+                    <div className="absolute top-1/2 left-0 w-full h-0.5 bg-muted -z-10" />
 
-                     {currentStep === 'details' && bookingData.scheduledAt && (
-                        <motion.div
-                           key="step-details"
-                           initial={{ opacity: 0, x: 20 }}
-                           animate={{ opacity: 1, x: 0 }}
-                           exit={{ opacity: 0, x: -20 }}
-                           transition={{ duration: 0.2 }}
-                           className="h-full"
-                        >
-                            <BookingForm
-                                scheduledAt={bookingData.scheduledAt}
-                                mentor={mentor}
-                                onSubmit={handleBookingDetails}
-                                onBack={handleBackStep}
-                                initialData={bookingData}
-                            />
-                        </motion.div>
-                     )}
+                    {STEPS.map((step, idx) => {
+                      const isActive = step.id === currentStep;
+                      const isCompleted = STEPS.findIndex(s => s.id === currentStep) > idx;
 
-                     {currentStep === 'confirmation' && (
-                        <motion.div
-                           key="step-confirm"
-                           initial={{ opacity: 0, x: 20 }}
-                           animate={{ opacity: 1, x: 0 }}
-                           exit={{ opacity: 0, x: -20 }}
-                           transition={{ duration: 0.2 }}
-                           className="h-full overflow-y-auto p-8"
-                        >
-                           <BookingConfirmation
-                              bookingData={bookingData as BookingData}
-                              mentor={mentor}
-                              onConfirm={handleConfirmBooking}
-                              onBack={handleBackStep}
-                              isSubmitting={isSubmitting}
-                           />
-                        </motion.div>
-                     )}
+                      return (
+                        <div key={step.id} className="flex flex-col items-center gap-2 bg-background px-2">
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-300",
+                            isActive ? "border-primary bg-primary text-primary-foreground scale-110" :
+                              isCompleted ? "border-primary bg-background text-primary" :
+                                "border-border text-muted-foreground bg-background"
+                          )}>
+                            {isCompleted ? <CheckCircle className="w-5 h-5" /> : idx + 1}
+                          </div>
+                          <span className={cn(
+                            "text-xs font-medium transition-colors duration-300",
+                            isActive ? "text-primary" : isCompleted ? "text-foreground" : "text-muted-foreground"
+                          )}>
+                            {step.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-                     {currentStep === 'success' && bookingId && (
-                        <motion.div
-                           key="step-success"
-                           initial={{ opacity: 0, scale: 0.9 }}
-                           animate={{ opacity: 1, scale: 1 }}
-                           className="h-full flex flex-col items-center justify-center p-8 text-center"
-                        >
-                           <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-6 animate-bounce">
-                              <CheckCircle className="w-10 h-10 text-green-600 dark:text-green-500" />
-                           </div>
-                           <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Booking Confirmed!</h2>
-                           <p className="text-slate-500 max-w-md mx-auto mb-8 text-lg">
-                              Your session has been scheduled. Check your email for the calendar invite and meeting link.
-                           </p>
-                           <div className="flex gap-4">
-                              <Button variant="outline" onClick={resetState} size="lg">Close</Button>
-                              <Button onClick={() => window.location.href = '/dashboard?section=sessions'} size="lg" className="bg-blue-600 text-white hover:bg-blue-700">
-                                 View My Sessions
-                              </Button>
-                           </div>
-                        </motion.div>
-                     )}
+              {/* Step Content Area */}
+              <div className="flex-1 overflow-hidden relative">
+                <AnimatePresence mode="wait" initial={false}>
 
-                  </AnimatePresence>
-               </div>
+                  {currentStep === 'time-selection' && (
+                    <motion.div
+                      key="step-time"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="h-full"
+                    >
+                      <div className="h-full px-4 md:px-8 py-4 overflow-y-auto">
+                        <h2 className="text-2xl font-bold text-foreground text-center mb-6">Select a Date & Time</h2>
+                        <TimeSlotSelectorV2
+                          mentorId={mentor.userId}
+                          onTimeSelected={handleTimeSelection}
+                          initialSelectedTime={bookingData.scheduledAt}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {currentStep === 'details' && bookingData.scheduledAt && (
+                    <motion.div
+                      key="step-details"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="h-full"
+                    >
+                      <BookingForm
+                        scheduledAt={bookingData.scheduledAt}
+                        mentor={mentor}
+                        onSubmit={handleBookingDetails}
+                        onBack={handleBackStep}
+                        initialData={bookingData}
+                      />
+                    </motion.div>
+                  )}
+
+                  {currentStep === 'confirmation' && (
+                    <motion.div
+                      key="step-confirm"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="h-full overflow-y-auto p-8"
+                    >
+                      <BookingConfirmation
+                        bookingData={bookingData as BookingData}
+                        mentor={mentor}
+                        onConfirm={handleConfirmBooking}
+                        onBack={handleBackStep}
+                        isSubmitting={isSubmitting}
+                      />
+                    </motion.div>
+                  )}
+
+                  {currentStep === 'success' && bookingId && (
+                    <motion.div
+                      key="step-success"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="h-full flex flex-col items-center justify-center p-8 text-center"
+                    >
+                      <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-6 animate-bounce">
+                        <CheckCircle className="w-10 h-10 text-green-600 dark:text-green-500" />
+                      </div>
+                      <h2 className="text-3xl font-bold text-foreground mb-2">Booking Confirmed!</h2>
+                      <p className="text-muted-foreground max-w-md mx-auto mb-8 text-lg">
+                        Your session has been scheduled. Check your email for the calendar invite and meeting link.
+                      </p>
+                      <div className="flex gap-4">
+                        <Button variant="outline" onClick={resetState} size="lg">Close</Button>
+                        <Button onClick={() => window.location.href = '/dashboard?section=sessions'} size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                          View My Sessions
+                        </Button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                </AnimatePresence>
+              </div>
             </div>
           </div>
         </DialogContent>
