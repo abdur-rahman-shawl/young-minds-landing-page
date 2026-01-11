@@ -22,6 +22,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { getPlaybackUrl } from '@/lib/livekit/recording-manager';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
 
 export async function GET(
   request: NextRequest,
@@ -52,6 +54,20 @@ export async function GET(
     console.log(
       `🎥 Playback URL request: recording=${recordingId}, user=${userId}`
     );
+
+    const { has_access, reason } = await checkFeatureAccess(
+      userId,
+      FEATURE_KEYS.SESSION_RECORDINGS_ACCESS
+    );
+    if (!has_access) {
+      return NextResponse.json(
+        {
+          error: 'Forbidden',
+          message: reason || 'Session recordings are not included in your plan',
+        },
+        { status: 403 }
+      );
+    }
 
     // ======================================================================
     // GENERATE PLAYBACK URL (includes authorization check)

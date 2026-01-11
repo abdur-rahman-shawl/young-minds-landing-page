@@ -3,6 +3,8 @@ import { db } from '@/lib/db';
 import { sessions, mentors, users } from '@/lib/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
 
 async function requireSessionUser(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -118,6 +120,28 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      try {
+        const { has_access, reason } = await checkFeatureAccess(
+          mentorId,
+          FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY
+        );
+
+        if (!has_access) {
+          return NextResponse.json(
+            { success: false, error: reason || 'Mentor has reached their monthly session limit' },
+            { status: 403 }
+          );
+        }
+      } catch (error) {
+        console.error('Subscription check failed:', error);
+        return NextResponse.json(
+          { success: false, error: 'Unable to verify mentor subscription limits' },
+          { status: 500 }
+        );
+      }
+
+      const sessionDuration = duration || 60;
+
       // Create new session
       const [newSession] = await db
         .insert(sessions)
@@ -127,10 +151,26 @@ export async function POST(request: NextRequest) {
           title: title || 'Mentoring Session',
           description: description || null,
           scheduledAt: new Date(scheduledAt),
-          duration: duration || 60,
+          duration: sessionDuration,
           status: 'scheduled',
         })
         .returning();
+
+      try {
+        await trackFeatureUsage(
+          mentorId,
+          FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY,
+          { count: 1, minutes: sessionDuration },
+          'session',
+          newSession.id
+        );
+      } catch (error) {
+        console.error('Usage tracking failed:', error);
+        return NextResponse.json(
+          { success: false, error: 'Failed to track session usage' },
+          { status: 500 }
+        );
+      }
 
       return NextResponse.json({
         success: true,

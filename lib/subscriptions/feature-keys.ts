@@ -5,6 +5,8 @@ export const FEATURE_KEYS = {
     MESSAGE_REQUESTS_DAILY: 'message_requests_daily',
     AI_HELPER_CHAT_ACCESS: 'ai_helper_chat_access',
     AI_HELPER_MESSAGES_LIMIT: 'ai_helper_messages_limit',
+    FREE_COURSES_LIMIT: 'free_courses_limit',
+    SESSION_RECORDINGS_ACCESS: 'session_recordings_access',
     // Admin/System features
     PLATFORM_FEE_PERCENTAGE: 'platform_fee_percentage',
     MAX_MENTEES_LIMIT: 'max_mentees_limit',

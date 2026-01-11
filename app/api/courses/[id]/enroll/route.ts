@@ -10,6 +10,8 @@ import {
   paymentTransactions
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -113,6 +115,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json(
         { success: false, error: 'Already enrolled in this course' },
         { status: 400 }
+      );
+    }
+
+    const { has_access, reason } = await checkFeatureAccess(
+      userId,
+      FEATURE_KEYS.FREE_COURSES_LIMIT
+    );
+    if (!has_access) {
+      return NextResponse.json(
+        { success: false, error: reason || 'Course enrollment limit reached' },
+        { status: 403 }
       );
     }
 
@@ -236,6 +249,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         enrollmentCount: courseData.length > 0 ? (course.id ? 1 : 0) + 1 : 1
       })
       .where(eq(courses.id, courseId));
+
+    await trackFeatureUsage(
+      userId,
+      FEATURE_KEYS.FREE_COURSES_LIMIT,
+      { count: 1 },
+      'course_enrollment',
+      enrollmentId
+    );
 
     // Return success response
     return NextResponse.json({
