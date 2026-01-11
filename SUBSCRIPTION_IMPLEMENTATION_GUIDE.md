@@ -241,6 +241,12 @@ enforceAndTrackFeature(
    - Search features
    - Display feature details (type, unit, metered status)
 
+4. **`components/admin/dashboard/subscriptions/plan-feature-editor.tsx`**
+   - Full plan-feature assignment UI
+   - Dynamic limit editor by value type
+   - Interval controls for metered features
+   - Save updates per feature
+
 4. **`components/admin/dashboard/subscriptions/subscriptions-overview.tsx`**
    - Placeholder for active subscriptions view
 
@@ -266,13 +272,19 @@ enforceAndTrackFeature(
 3. **`app/api/admin/subscriptions/features/route.ts`** (GET)
    - Returns all features with category names
 
+4. **`app/api/admin/subscriptions/plans/[planId]/route.ts`** (PATCH, DELETE)
+   - Update plan fields
+   - Delete plan
+
+5. **`app/api/admin/subscriptions/plans/[planId]/features/route.ts`** (GET, POST)
+   - GET: List all features with assignment status for plan
+   - POST: Upsert feature limits for plan (conflict-safe)
+
 **Missing API Routes:**
-- Feature assignment (add/remove features from plans)
 - Feature creation/editing
 - Usage analytics endpoints
-- Individual plan editing
 
-### Feature Enforcement (Phase 1 Complete - 60%)
+### Feature Enforcement (Phase 1 Complete - 75%)
 
 **Files Modified with Subscription Checks:**
 
@@ -297,7 +309,6 @@ enforceAndTrackFeature(
 4. **`app/api/chat/route.ts`** ✅
    - **Line ~50:** Added authentication requirement
    - **Line ~61:** Check `'ai_helper_chat_access'` (boolean)
-   - **Line ~76:** Check `'ai_helper_messages_limit'` (count)
    - Returns 401/403 before AI streaming starts
 
 5. **`app/api/ai-chatbot-messages/route.ts`** ✅
@@ -305,17 +316,37 @@ enforceAndTrackFeature(
    - **Feature Key:** `'ai_helper_messages_limit'`
    - **Tracks:** count: 1 per user message
 
+6. **`app/api/messaging/requests/route.ts`** ✅
+   - Added subscription check for message requests
+   - Added usage tracking on successful request
+   - **Feature Key:** `'message_requests_daily'`
+   - **Tracks:** count: 1
+
+7. **`app/api/courses/[id]/enroll/route.ts`** ✅
+   - Added subscription check for course enrollments
+   - Added usage tracking after enrollment
+   - **Feature Key:** `'free_courses_limit'`
+   - **Tracks:** count: 1
+
+8. **`app/api/sessions/[sessionId]/recordings/route.ts`** ✅
+   - Added subscription gating for recordings list
+   - **Feature Key:** `'session_recordings_access'`
+
+9. **`app/api/recordings/[id]/playback-url/route.ts`** ✅
+   - Added subscription gating for playback access
+   - **Feature Key:** `'session_recordings_access'`
+
 **Enforcement Coverage:**
 - ✅ Session bookings (primary endpoint)
 - ✅ Session creation (secondary endpoint)
 - ✅ Direct messaging (thread messages)
 - ✅ AI chat access control
 - ✅ AI chat usage tracking
-- ⏳ Message requests (not yet enforced)
+- ✅ Message requests enforced
 - ⏳ Legacy messaging API (not yet enforced)
 - ⏳ Session rescheduling
-- ⏳ Course enrollments
-- ⏳ Recording features
+- ✅ Course enrollments enforced
+- ✅ Recording access enforced
 - ⏳ Analytics access
 
 ---
@@ -545,39 +576,44 @@ However, with service role key, RLS policies may not apply. The helper functions
    - Message sending checks work
    - AI chat checks work
    - Usage tracking works for all three
+   - Message requests enforced
+   - Course enrollments enforced
+   - Recording access enforced
 
 3. **Admin UI**
    - Can view all plans
    - Can view all features
    - Can create new plans
+   - Can assign features + limits to plans
    - Can change plan status
    - Dashboard accessible
 
 4. **Admin APIs**
    - Stats endpoint works
    - Plans list/create works
+   - Plan update/delete works
+   - Plan-feature assignment endpoints work
    - Features list works
+
+5. **User Subscription Experience (Partial)**
+   - Subscription tab displays current plan + usage
+   - Lists all plans for the user's audience
+   - Temporary "Select Plan" flow creates a subscription (bypasses checkout)
 
 ### ⚠️ Partially Functional
 
 1. **Admin UI**
-   - Cannot assign features to plans (no UI)
-   - Cannot edit feature limits (no UI)
+   - Cannot create/edit features (no UI)
    - Cannot view usage analytics (placeholder)
    - Cannot view active subscriptions (placeholder)
 
 2. **Enforcement**
-   - Message requests not enforced
    - Legacy messaging API not enforced
-   - Course enrollments not enforced
-   - Recording features not enforced
    - Analytics access not enforced
 
 3. **User Experience**
-   - No user-facing subscription display
-   - No usage meters/progress bars
    - No upgrade prompts in UI
-   - No error message handling in frontend
+   - Error handling for limit reached is not wired to frontend
 
 ### ❌ Not Functional
 
@@ -588,9 +624,8 @@ However, with service role key, RLS policies may not apply. The helper functions
    - No subscription creation from payments
 
 2. **User Management**
-   - Users can't view their subscription
-   - Users can't upgrade/downgrade
-   - Users can't see their usage
+   - Users can't upgrade/downgrade via payments
+   - Users can view their subscription + usage (UI complete)
    - Users can't manage team members
 
 3. **Automation**
@@ -614,16 +649,10 @@ However, with service role key, RLS policies may not apply. The helper functions
 **Estimated Time: 20 hours**
 
 1. **Feature Assignment UI (8 hours)**
-   - Build interface to assign features to plans
-   - Dynamic limit input forms based on value_type
-   - Save to `subscription_plan_features` table
-   - See [Phase 2: Task 1](#task-1-feature-assignment-interface-8-hours)
+   - ✅ Completed
 
 2. **User Subscription Display (6 hours)**
-   - Show user's current plan
-   - Display included features
-   - Show usage meters
-   - See [Phase 3: Task 1](#task-1-subscription-display-for-users-6-hours)
+   - ✅ Completed (includes usage meters + plan list)
 
 3. **Stripe Integration (6 hours)**
    - Checkout session creation
@@ -645,6 +674,7 @@ However, with service role key, RLS policies may not apply. The helper functions
    - Plan comparison page
    - Upgrade/downgrade buttons
    - Proration calculations
+   - Checkout integration (Stripe)
    - See [Phase 3: Task 2](#task-2-plan-selection--upgrade-flow-5-hours)
 
 6. **Error Handling & Prompts (3 hours)**
@@ -664,10 +694,7 @@ However, with service role key, RLS policies may not apply. The helper functions
 **Estimated Time: 12 hours**
 
 8. **Additional Enforcement (6 hours)**
-   - Message requests API
    - Legacy messaging API
-   - Course enrollments
-   - Recording features
    - Analytics access
    - See [Section 7.3](#73-additional-feature-enforcement)
 
