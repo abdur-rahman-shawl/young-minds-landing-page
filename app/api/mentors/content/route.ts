@@ -4,6 +4,8 @@ import { db } from '@/lib/db';
 import { mentorContent, courses, mentors } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
 
 // Validation schemas
 const createContentSchema = z.object({
@@ -95,6 +97,17 @@ export async function POST(request: NextRequest) {
 
     if (!mentor.length) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
+    }
+
+    const access = await checkFeatureAccess(
+      session.user.id,
+      FEATURE_KEYS.CONTENT_POSTING_ACCESS
+    );
+    if (!access.has_access) {
+      return NextResponse.json(
+        { error: access.reason || 'Content publishing is not included in your plan' },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();

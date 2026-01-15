@@ -28,6 +28,79 @@
 
 ---
 
+## QUICK START FOR NEW DEVELOPERS (READ THIS FIRST)
+
+If you only read one section, read this.
+
+### What Is Done Right Now
+
+**Admin tooling**
+- Plans list/create works
+- Plan edit/delete works
+- Plan feature assignment + limits editor works
+- Feature edit dialog works
+- Plan pricing editor works (add/toggle active prices)
+
+**User experience**
+- Subscription tab shows current plan + usage
+- Plan list shows only the user's audience (mentor or mentee)
+- "Select Plan" creates a subscription row (temporary, bypasses payment)
+
+**Enforcement (active in code)**
+- Sessions: mentor monthly session limits enforced
+- Messaging: direct messages and message requests enforced
+- AI: chatbot access + messages enforced
+- Courses: enrollments enforced
+- Recordings: access to list/playback enforced
+- Analytics: mentor + mentee analytics endpoints gated
+- Content uploads + posting gated for mentors
+
+### What Is NOT Done Yet (Critical Gaps)
+
+**Payments**
+- No Stripe checkout
+- No webhook handling
+- No subscription creation from payments
+
+**Upgrade/UX**
+- "Select Plan" does not trigger payment
+- No upgrade prompts on limit reached
+- No pricing comparison page
+
+**Enforcement gaps**
+- Mentee session limits (free/paid/counseling) not enforced
+- Session duration limits not enforced
+- AI search visibility/appearance gating not enforced
+- Knowledge hub / live sessions / partner offers / early access not enforced
+- Team member limits not enforced
+
+### The Next Best Step (for an LLM or a new dev)
+
+1) Implement payment flow (Stripe) and replace the temporary "Select Plan"
+   - Build: `lib/payments/stripe-client.ts`
+   - API: `app/api/stripe/create-checkout-session/route.ts`
+   - API: `app/api/stripe/webhook/route.ts`
+   - Update "Select Plan" to create checkout and redirect
+
+2) Finish enforcement for mentee session limits
+   - Requires: a reliable way to classify session type (free/paid/counseling)
+   - Add feature checks for:
+     - `free_video_sessions_monthly`
+     - `paid_video_sessions_monthly`
+     - `counseling_sessions_monthly`
+   - Place checks in booking/session creation endpoints
+
+3) Add missing feature gates once endpoints exist
+   - AI search visibility (mentor listing / search endpoints)
+   - Knowledge hub access
+   - Live sessions
+   - Team member limits
+   - Partner offers + early access
+
+If you are starting work, begin with **Step 1 (Stripe)** unless business explicitly wants enforcement completion before payments.
+
+---
+
 ## 1. PROJECT CONTEXT & BUSINESS OBJECTIVES
 
 ### What Is This Project?
@@ -2956,3 +3029,55 @@ Before marking this complete:
 | Priority Support | ❌ | ❌ | ✔ Chatbot | ✔ Chatbot | ✔ Chatbot |
 | Exclusive Partner Offers | ❌ | ❌ | ❌ | ✔ | ✔ |
 | Early Access to New Features | ❌ | ❌ | ❌ | ✔ | ✔ |
+
+---
+
+## Feature Key Mapping (Admin Setup Reference)
+
+Use the following feature_key + value_type when configuring the plans above in the Admin UI. These keys match `lib/subscriptions/feature-keys.ts`.
+
+### Mentor Feature Mapping
+
+| Feature (Mentor) | feature_key | value_type | Notes |
+|---|---|---|---|
+| Mentor Profile | `mentor_profile_access` | boolean | Included = true |
+| Company Page | `company_page_access` | boolean | Included = true |
+| AI-push search, appearances & visibility | `ai_profile_appearances_monthly` | count | limit_count + limit_interval=month |
+| Lead Qualifying Session (Free) | `lead_qualifying_session_minutes` | minutes | limit_minutes |
+| 1:1 Paid Video Sessions | `mentor_sessions_monthly` | count | limit_count + limit_interval=month |
+| Session Duration | `session_duration_minutes` | minutes | limit_minutes |
+| Create & Post Content / Videos | `content_posting_access` | boolean/text | Unlimited = limit_text |
+| Roadmap / Whitepaper Upload | `roadmap_upload_access` | boolean/text | Unlimited = limit_text |
+| Roadmap / Whitepaper Download | `roadmap_download_access` | boolean/count | Optional limit_count |
+| Knowledge Hub Access | `knowledge_hub_access_level` | text | "Limited" / "Unlimited" |
+| Industry Expert Listing | `industry_expert_listing_limit` | count | limit_count (categories) |
+| Live Sessions | `live_sessions_minutes_monthly` | minutes | limit_minutes + limit_interval=month |
+| Courses / Pre-recorded Videos | `course_videos_monthly` | count | limit_count + limit_interval=month |
+| Analytics Dashboard | `analytics_access_level` | text | "Real-time" / "Deep" |
+| Priority Support | `priority_support` | text | "Chatbot" |
+| Exclusive Partner Offers | `exclusive_partner_offers_access` | boolean | Included = true |
+| Early Access to New Features | `early_access_features` | boolean | Included = true |
+
+### Mentee Feature Mapping
+
+| Feature (Mentee) | feature_key | value_type | Notes |
+|---|---|---|---|
+| Individual Profile Page | `mentee_profile_access` | boolean | Included = true |
+| Company Page | `company_page_access` | boolean | Included = true |
+| AI Search (Intent identification & Mentor suggestion) | `ai_search_sessions_monthly` | count | limit_count + limit_interval=month |
+| Free 1:1 Video Call | `free_video_sessions_monthly` | count/minutes | limit_count + limit_minutes |
+| Paid 1:1 Video Calls | `paid_video_sessions_monthly` | count | limit_count + limit_interval=month |
+| 1:1 Counseling Sessions | `counseling_sessions_monthly` | count | limit_count + limit_interval=month |
+| Create & Post Content / Videos | `content_posting_access` | boolean/text | Unlimited = limit_text |
+| Roadmap / Whitepaper Download | `roadmap_download_access` | boolean/text | Unlimited = limit_text |
+| Knowledge Hub Access | `knowledge_hub_access_level` | text | "Limited" / "Unlimited" |
+| Industry Expert Access | `industry_expert_access_level` | text | "Limited" / "Unlimited" |
+| Live Sessions (1 hr) | `live_sessions_count_monthly` | count | limit_count + limit_interval=month |
+| Courses / Pre-recorded Sessions | `courses_access_level` | text | Optional `course_discount_percent` |
+| Analytics Dashboard | `analytics_access_level` | text | "Real-time" / "Deep" |
+| Priority Support | `priority_support` | text | "Chatbot" |
+| Exclusive Partner Offers | `exclusive_partner_offers_access` | boolean | Included = true |
+| Early Access to New Features | `early_access_features` | boolean | Included = true |
+| Team Member Limit (Corporates) | `team_member_limit` | count | limit_count |
+
+**Enforcement note:** some keys above are currently used only for UI display until feature-specific enforcement is added in APIs.

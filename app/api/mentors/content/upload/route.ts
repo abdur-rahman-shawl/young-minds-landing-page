@@ -4,6 +4,8 @@ import { storage } from '@/lib/storage';
 import { mentors } from '@/lib/db/schema';
 import { db } from '@/lib/db';
 import { eq } from 'drizzle-orm';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,6 +33,32 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    if (fileType === 'document') {
+      const access = await checkFeatureAccess(
+        session.user.id,
+        FEATURE_KEYS.ROADMAP_UPLOAD_ACCESS
+      );
+      if (!access.has_access) {
+        return NextResponse.json(
+          { error: access.reason || 'Document uploads are not included in your plan' },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (fileType === 'video' || fileType === 'content') {
+      const access = await checkFeatureAccess(
+        session.user.id,
+        FEATURE_KEYS.CONTENT_POSTING_ACCESS
+      );
+      if (!access.has_access) {
+        return NextResponse.json(
+          { error: access.reason || 'Content uploads are not included in your plan' },
+          { status: 403 }
+        );
+      }
     }
 
     // Determine upload path and constraints based on file type

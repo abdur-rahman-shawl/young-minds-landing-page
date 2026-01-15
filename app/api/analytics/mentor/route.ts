@@ -7,6 +7,8 @@ import {
 } from '@/lib/db/queries/analytics.queries';
 import { auth } from '@/lib/auth'; // Placeholder for your authentication utility
 import { headers } from 'next/headers';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
 
 /**
  * API Endpoint for the Mentor Analytics Dashboard.
@@ -26,6 +28,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
     const mentorId = session.user.id;
+
+    const access = await checkFeatureAccess(mentorId, FEATURE_KEYS.ANALYTICS_ACCESS_LEVEL);
+    if (!access.has_access) {
+      return NextResponse.json(
+        { message: access.reason || 'Analytics access not included in your plan', upgrade_required: true },
+        { status: 403 }
+      );
+    }
 
     // STEP 2: Get date range from query parameters, with defaults.
     const { searchParams } = new URL(request.url);
