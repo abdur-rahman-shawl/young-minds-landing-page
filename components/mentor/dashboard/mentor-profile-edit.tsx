@@ -359,12 +359,12 @@ export function MentorProfileEdit() {
   return (
     <div className="space-y-6">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Mentor Profile</h1>
-          <p className="text-sm text-muted-foreground">Manage your professional information and public profile</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Mentor Profile</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Manage your professional information and public profile</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <div className="text-right hidden sm:block">
             <div className="text-xs text-muted-foreground">Profile Complete</div>
             <div className="text-lg font-bold text-primary">{completionPercentage}%</div>
@@ -372,24 +372,25 @@ export function MentorProfileEdit() {
           <Button
             variant={isEditing ? "outline" : "default"}
             onClick={() => setIsEditing(!isEditing)}
-            className="gap-2"
+            className="gap-2 text-sm"
+            size="sm"
           >
             {isEditing ? (
               <>
                 <X className="h-4 w-4" />
-                Cancel Editing
+                <span className="hidden xs:inline">Cancel</span> Editing
               </>
             ) : (
               <>
                 <Edit3 className="h-4 w-4" />
-                Edit Profile
+                <span className="hidden xs:inline">Edit</span> Profile
               </>
             )}
           </Button>
           {isEditing && (
-            <Button onClick={handleSave} disabled={isUploadingImage} className="gap-2">
+            <Button onClick={handleSave} disabled={isUploadingImage} className="gap-2 text-sm" size="sm">
               {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              Save Changes
+              <span className="hidden xs:inline">Save</span> Changes
             </Button>
           )}
         </div>
@@ -428,7 +429,7 @@ export function MentorProfileEdit() {
       {/* Profile Overview Card with Banner */}
       <Card className="overflow-hidden">
         {/* Banner Image */}
-        <div className="relative h-48 bg-gradient-to-r from-blue-500 to-purple-500 overflow-hidden group">
+        <div className="relative h-32 sm:h-40 md:h-48 bg-gradient-to-r from-blue-500 to-purple-500 overflow-hidden group">
           {mentorData.bannerImageUrl ? (
             <img
               src={`${mentorData.bannerImageUrl}?t=${bannerRefresh || Date.now()}`}
@@ -469,10 +470,10 @@ export function MentorProfileEdit() {
           )}
         </div>
 
-        <CardContent className="p-6 md:p-8 relative -mt-12">
-          <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
+        <CardContent className="p-4 sm:p-6 md:p-8 relative -mt-10 sm:-mt-12">
+          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-6">
             <div className="relative flex-shrink-0 group">
-              <Avatar className="w-24 h-24 md:w-32 md:h-32 border-4 border-background shadow-sm">
+              <Avatar className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 border-4 border-background shadow-sm">
                 <AvatarImage src={currentImage || undefined} className="object-cover" />
                 <AvatarFallback className="text-3xl font-bold bg-primary/10 text-primary">
                   {mentorData.fullName?.charAt(0) || session?.user?.name?.charAt(0) || 'M'}
@@ -501,10 +502,10 @@ export function MentorProfileEdit() {
               )}
             </div>
 
-            <div className="flex-1 text-center md:text-left space-y-2">
+            <div className="flex-1 text-center sm:text-left space-y-2 min-w-0">
               <div>
-                <h2 className="text-2xl font-bold">{mentorData.fullName || session?.user?.name || 'Your Name'}</h2>
-                <p className="text-muted-foreground font-medium">
+                <h2 className="text-xl sm:text-2xl font-bold truncate">{mentorData.fullName || session?.user?.name || 'Your Name'}</h2>
+                <p className="text-sm sm:text-base text-muted-foreground font-medium truncate">
                   {mentorData.title || 'Professional Title'}
                   {mentorData.company && <span className="text-muted-foreground/80"> at {mentorData.company}</span>}
                 </p>
@@ -516,7 +517,7 @@ export function MentorProfileEdit() {
                 </p>
               )}
 
-              <div className="flex flex-wrap gap-2 justify-center md:justify-start pt-2">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center sm:justify-start pt-2">
                 <Badge variant={mentorProfile?.verificationStatus === 'VERIFIED' ? 'default' : 'secondary'}>
                   {mentorProfile?.verificationStatus?.replace('_', ' ') || 'IN PROGRESS'}
                 </Badge>
@@ -538,9 +539,9 @@ export function MentorProfileEdit() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Left Column: Personal & Social */}
-        <div className="space-y-6 lg:col-span-1">
+        <div className="space-y-4 sm:space-y-6 lg:col-span-1">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -647,16 +648,16 @@ export function MentorProfileEdit() {
         </div>
 
         {/* Right Column: Professional Details */}
-        <div className="space-y-6 lg:col-span-2">
+        <div className="space-y-4 sm:space-y-6 lg:col-span-2">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Briefcase className="h-5 w-5 text-primary" />
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                <Briefcase className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 Professional & Expertise
               </CardTitle>
-              <CardDescription>Share your experience and what you can teach.</CardDescription>
+              <CardDescription className="text-xs sm:text-sm">Share your experience and what you can teach.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6 pt-0 sm:pt-0">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="title">Job Title</Label>
