@@ -8,11 +8,11 @@ import { HeroSection } from "@/components/landing/hero-section"
 import { StatsSection } from "@/components/landing/stats-section"
 import { MentorSection } from "@/components/landing/mentor-section"
 import { VideoCallSection } from "@/components/landing/video-call-section"
-import { ChatSection } from "@/components/landing/chat-section"
+import { TestimonialsSection } from "@/components/landing/testimonials-section"
 import { CollabExpertsSection } from "@/components/landing/collab-experts-section"
 import { CaseStudySection } from "@/components/landing/case-study-section"
-import { ServicesGrid } from "@/components/landing/services-grid"
-import { RightSidebar } from "@/components/layout/right-sidebar"
+import { CTASection } from "@/components/landing/cta-section"
+import { FooterSection } from "@/components/landing/footer-section"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { useAuth } from "@/contexts/auth-context"
 import { MentorSidebar } from "@/components/mentor/sidebars/mentor-sidebar"
@@ -52,29 +52,23 @@ const AdminAnalytics = dynamic(() => import("@/app/admins/analytics/page"), {
 
 function LandingContent() {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-slate-950">
       <Header />
-      <main className="flex flex-col gap-8 pt-24 pb-10 px-4 sm:px-6 lg:px-8 xl:flex-row xl:items-start">
-        <div className="mx-auto flex-1 min-w-0 w-full max-w-6xl">
-          <HeroSection />
-          <div className="px-6 sm:px-8 lg:px-12 xl:px-16">
-            <StatsSection />
-            <MentorSection />
-            <VideoCallSection />
-            <ChatSection />
-            <CollabExpertsSection />
-            <CaseStudySection />
-            <ServicesGrid />
-          </div>
-        </div>
-
-        <div className="hidden xl:block xl:w-80 flex-shrink-0">
-          <RightSidebar />
-        </div>
+      <main>
+        <HeroSection />
+        <StatsSection />
+        <MentorSection />
+        <VideoCallSection />
+        <TestimonialsSection />
+        <CollabExpertsSection />
+        <CaseStudySection />
+        <CTASection />
+        <FooterSection />
       </main>
     </div>
   )
 }
+
 
 export function PageContent() {
   const [activeSection, setActiveSection] = useState("dashboard")

@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Send, Bot, Sparkles, Search, ArrowLeftCircle, ArrowRightCircle, MapPin } from "lucide-react"
+import { ArrowRight, Send, Bot, Sparkles, Search, ArrowLeftCircle, ArrowRightCircle, MapPin, Star, Users, CheckCircle2, Play, Zap } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { v4 as uuidv4 } from 'uuid';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { MentorDetailView } from "@/components/mentee/mentor-detail-view"
@@ -19,7 +20,6 @@ interface Message {
   timestamp: Date
 }
 
-// Matches the shape returned by /api/public-mentors
 interface DbMentor {
   id: string
   userId: string
@@ -37,7 +37,6 @@ interface DbMentor {
   websiteUrl?: string | null
   verificationStatus: string | null
   isAvailable: boolean | null
-  // joined user basics
   name: string | null
   email: string | null
   image: string | null
@@ -59,7 +58,6 @@ export function HeroSection() {
   const [currentAiMessage, setCurrentAiMessage] = useState("")
   const [isSearchingMentors, setIsSearchingMentors] = useState(false)
 
-  // REAL mentors from your DB
   const [dbMentors, setDbMentors] = useState<DbMentor[]>([])
   const [showMentors, setShowMentors] = useState(false)
   const [currentMentorIndex, setCurrentMentorIndex] = useState(0)
@@ -70,9 +68,7 @@ export function HeroSection() {
   const router = useRouter()
   const heroRef = useRef<HTMLDivElement>(null)
   const mentorsSectionRef = useRef<HTMLDivElement>(null)
-  const [mentorSectionHeight, setMentorSectionHeight] = useState<number | undefined>(undefined)
 
-  // Chat session ID logic
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -109,7 +105,6 @@ export function HeroSection() {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  // Save message helper
   const saveMessageToDB = async (
     senderType: 'user' | 'ai' | 'system',
     content: string,
@@ -144,14 +139,12 @@ export function HeroSection() {
   };
 
   const placeholderQueries = [
-    "What college would I opt for Hotel Management in Australia?",
-    "Which university offers the best MBA program in Canada?",
-    "How do I transition from engineering to product management?",
-    "What are the career prospects in artificial intelligence?",
-    "Should I pursue a master's degree or start working immediately?",
-    "How can I break into the tech industry without a CS degree?",
-    "What skills are most valuable for remote work opportunities?",
-    "Which coding bootcamp would be best for career switching?"
+    "How do I transition into product management?",
+    "What skills do I need for AI/ML roles?",
+    "Should I pursue an MBA or start working?",
+    "How to break into tech from a non-CS background?",
+    "What's the best career path in data science?",
+    "How can I prepare for FAANG interviews?",
   ]
 
   // Typewriter placeholder effect
@@ -164,7 +157,7 @@ export function HeroSection() {
           setCurrentPlaceholder(currentQuery.slice(0, charIndex + 1))
           setCharIndex(charIndex + 1)
         } else {
-          setTimeout(() => setIsTyping(false), 800)
+          setTimeout(() => setIsTyping(false), 1200)
         }
       } else {
         if (charIndex > 0) {
@@ -175,7 +168,7 @@ export function HeroSection() {
           setIsTyping(true)
         }
       }
-    }, isTyping ? 25 + Math.random() * 25 : 15)
+    }, isTyping ? 40 + Math.random() * 30 : 20)
     return () => clearTimeout(typewriterTimer)
   }, [charIndex, isTyping, currentQueryIndex, isFocused, inputValue, placeholderQueries, isChatExpanded])
 
@@ -220,34 +213,26 @@ export function HeroSection() {
 
         partialJson += decoder.decode(value, { stream: true });
 
-        // Try to parse the partial JSON to get the text part for streaming UI
         try {
-          // This regex is a simple way to extract the 'text' field value
-          // for real-time display, even if the JSON is incomplete.
-          const textMatch = partialJson.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)/);
+          const textMatch = partialJson.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
           if (textMatch && textMatch[1]) {
-            // Unescape common characters for display
-            const streamingText = textMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, '"');
+            const streamingText = textMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');
             setCurrentAiMessage(streamingText);
           }
 
-          // Check if a tool call is present in the complete JSON object
           const finalJson = JSON.parse(partialJson);
           if (finalJson.tool_call && finalJson.tool_call.name === 'find_mentors') {
             toolCallDetected = true;
           }
         } catch (e) {
-          // JSON is not yet complete, continue accumulating chunks
+          // JSON parsing in progress
         }
       }
 
-      // Final processing after the stream is complete
       try {
         const finalResponse = JSON.parse(partialJson);
         fullResponseText = finalResponse.text || "";
       } catch (e) {
-        console.error("Failed to parse final JSON from stream:", e);
-        // Fallback to whatever text was partially streamed
         fullResponseText = currentAiMessage;
       }
 
@@ -260,7 +245,6 @@ export function HeroSection() {
       setMessages(prev => [...prev, aiMessage]);
       await saveMessageToDB('ai', aiMessage.content, userMessageId);
 
-      // If the tool call was detected during the stream, execute it now.
       if (toolCallDetected) {
         const mentors = await fetchMentorsFromApi();
         if (mentors && mentors.length) {
@@ -283,11 +267,9 @@ export function HeroSection() {
     }
   };
 
-  // Fetch real mentors from your public route
   const fetchMentorsFromApi = async (): Promise<DbMentor[] | null> => {
     try {
       setIsSearchingMentors(true)
-
       const params = new URLSearchParams({
         page: '1',
         pageSize: '12',
@@ -309,7 +291,7 @@ export function HeroSection() {
         {
           id: uuidv4(),
           type: 'ai',
-          content: 'I couldn’t load mentors right now. Please try again in a moment.',
+          content: 'I couldn\'t load mentors right now. Please try again in a moment.',
           timestamp: new Date(),
         },
       ])
@@ -327,7 +309,6 @@ export function HeroSection() {
       }
 
       const currentInput = inputValue.trim()
-
       const userMessage: Message = {
         id: uuidv4(),
         type: 'user',
@@ -337,11 +318,7 @@ export function HeroSection() {
 
       setMessages(prev => [...prev, userMessage])
       setInputValue("")
-
       await saveMessageToDB('user', currentInput)
-
-      // The hardcoded check is no longer needed here.
-      // The AI will decide when to call the tool.
       await simulateAiResponse(currentInput, userMessage.id)
     }
   }
@@ -359,8 +336,6 @@ export function HeroSection() {
       textareaRef.current?.focus()
     }
   }
-
-
 
   const nextMentors = () => {
     setCurrentMentorIndex((prev) => Math.min(prev + 3, Math.max(dbMentors.length - 3, 0)))
@@ -388,31 +363,24 @@ export function HeroSection() {
 
   useEffect(() => {
     if (showMentors && mentorsSectionRef.current) {
-      if (heroRef.current) {
-        setMentorSectionHeight(heroRef.current.offsetHeight)
-      }
       mentorsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [showMentors])
 
-  // Auto-scroll to chat container when it expands
   useEffect(() => {
     if (isChatExpanded && chatContainerRef.current) {
-      // Small delay to allow the expansion animation to start
       setTimeout(() => {
         chatContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }, 100)
     }
   }, [isChatExpanded])
 
-  // ---------- UI helpers: expertise chips, rate, placeholders ----------
-
   const parseExpertise = (exp: string | null) =>
     (exp ?? "")
       .split(/[,;]\s*/g)
       .map(s => s.trim())
       .filter(Boolean)
-      .slice(0, 6)
+      .slice(0, 4)
 
   const formatRate = (rate: string | null, curr: string | null) => {
     if (!rate) return null
@@ -429,192 +397,201 @@ export function HeroSection() {
     return (first + last).toUpperCase() || "?"
   }
 
-  // SVG placeholder as data URI – no external request needed
-  const placeholderDataUrl = (name?: string | null) => {
-    const initials = encodeURIComponent(getInitials(name))
-    const bg = "EEE"     // light gray background
-    const fg = "666"     // mid gray text
-    // 600x360 fits our header aspect better
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='600' height='360'>
-      <rect width='100%' height='100%' fill='#${bg}'/>
-      <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='Inter, Arial' font-size='120' fill='#${fg}'>${initials}</text>
-    </svg>`
-    return `data:image/svg+xml;utf8,${svg}`
-  }
-
   return (
     <>
-      <section ref={heroRef} className="relative px-4 sm:px-6 lg:px-12 xl:px-16 py-12 sm:py-16 lg:py-24">
-        {/* Background Shape */}
-        <div className="absolute top-0 left-0 right-0 bottom-0 bg-secondary dark:bg-card/20 rounded-br-[160px] -z-10"></div>
+      {/* Hero Section */}
+      <section ref={heroRef} className="relative min-h-[90vh] flex items-center overflow-hidden">
+        {/* Gradient Background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+          {/* Animated gradient orbs */}
+          <div className="absolute top-1/4 -left-20 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-600/10 rounded-full blur-3xl" />
 
-        {/* Decorative Dots */}
-        <div className="absolute top-16 left-6 sm:left-8 lg:left-12 xl:left-16 w-12 h-24 opacity-30 -z-5">
-          <div className="w-full h-full bg-gradient-to-b from-gray-400 to-transparent bg-[radial-gradient(circle,_#d1d5db_1.5px,_transparent_1.5px)] bg-[length:18px_18px]"></div>
+          {/* Grid pattern overlay */}
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0wIDBoNDB2NDBoLTQweiIvPjxwYXRoIGQ9Ik00MCAwdjQwIiBzdHJva2U9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiIHN0cm9rZS13aWR0aD0iMSIvPjxwYXRoIGQ9Ik0wIDQwaDQwIiBzdHJva2U9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiIHN0cm9rZS13aWR0aD0iMSIvPjwvZz48L3N2Zz4=')] opacity-40" />
         </div>
 
-        <div className="relative flex flex-col lg:flex-row items-center lg:items-start gap-10 lg:gap-12 text-center lg:text-left">
-          <div className="w-full lg:w-3/5">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-foreground mb-6 leading-tight tracking-tight">
-              What's on your mind?
-            </h1>
-            <p className="text-muted-foreground mb-12 text-lg sm:text-xl max-w-2xl mx-auto lg:mx-0">
-              Our AI intelligence will connect with your mind & download your thoughts
-            </p>
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-20">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
-            <div className="w-full max-w-4xl mx-auto lg:mx-0">
-              {/* Chat Container */}
+            {/* Left Content */}
+            <div className="text-center lg:text-left">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm mb-8">
+                <Sparkles className="w-4 h-4 text-yellow-400" />
+                <span className="text-sm font-medium text-slate-300">AI-Powered Mentorship Platform</span>
+              </div>
+
+              {/* Headline */}
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-white mb-6 leading-tight tracking-tight">
+                Transform Your{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
+                  Career
+                </span>
+                <br />
+                With Expert Mentors
+              </h1>
+
+              {/* Subheadline */}
+              <p className="text-lg sm:text-xl text-slate-400 mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                Connect with industry leaders, get personalized guidance, and accelerate your professional growth with 1-on-1 mentorship.
+              </p>
+
+              {/* Trust Badges */}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 mb-10">
+                <div className="flex items-center gap-2">
+                  <div className="flex -space-x-2">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 border-2 border-slate-900 flex items-center justify-center text-xs text-white font-medium">
+                        {i}K
+                      </div>
+                    ))}
+                  </div>
+                  <span className="text-sm text-slate-400">10,000+ Professionals</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                    ))}
+                  </div>
+                  <span className="text-sm text-slate-400">4.9/5 Rating</span>
+                </div>
+              </div>
+
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-8 py-6 rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300 group"
+                  onClick={() => router.push('/auth?mode=signup')}
+                >
+                  Get Started Free
+                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full sm:w-auto border-white/20 text-white hover:bg-white/10 px-8 py-6 rounded-xl backdrop-blur-sm"
+                  onClick={() => router.push('/auth?mode=signin')}
+                >
+                  <Play className="w-5 h-5 mr-2" />
+                  Watch Demo
+                </Button>
+              </div>
+            </div>
+
+            {/* Right Content - AI Chat */}
+            <div className="w-full max-w-xl mx-auto lg:mx-0">
               <div
                 ref={chatContainerRef}
-                className={`group relative overflow-hidden rounded-3xl bg-card transition-all duration-500 ease-out cursor-text ${isFocused
-                  ? 'shadow-large ring-1 ring-primary/20 scale-[1.01]'
-                  : isHovered
-                    ? 'shadow-medium scale-[1.005]'
-                    : 'shadow-small'
-                  } ${isChatExpanded ? 'max-h-[70vh] sm:max-h-[75vh] lg:max-h-none lg:h-[600px]' : 'h-auto'}`}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
+                className={`relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl transition-all duration-500 ${isChatExpanded ? 'h-[500px]' : 'h-auto'
+                  } ${isFocused ? 'ring-2 ring-blue-500/50 border-blue-500/30' : ''}`}
                 onClick={handleContainerClick}
               >
-                {/* Subtle gradient border */}
-                <div className={`absolute inset-0 rounded-3xl bg-gradient-to-r from-primary/10 via-transparent to-primary/10 transition-opacity duration-500 ${isFocused ? 'opacity-100' : 'opacity-0'}`} style={{ padding: '1px' }}>
-                  <div className="w-full h-full rounded-3xl bg-card"></div>
+                {/* Glow effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-purple-500/10 pointer-events-none" />
+
+                {/* Chat Header */}
+                <div className="relative flex items-center gap-3 px-6 py-4 border-b border-white/10 bg-white/5">
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                      <Sparkles className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-900" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">AI Career Advisor</h3>
+                    <p className="text-xs text-slate-400">Online • Ready to help</p>
+                  </div>
+                  <div className="ml-auto">
+                    <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
+                      <Zap className="w-3 h-3 mr-1" />
+                      Powered by AI
+                    </Badge>
+                  </div>
                 </div>
 
-                {/* Chat Messages */}
+                {/* Chat Messages Area */}
                 {isChatExpanded && (
-                  <div className="relative h-full flex flex-col">
-                    {/* Chat Header */}
-                    <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-card/80 backdrop-blur-sm">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-sm ring-2 ring-background">
-                        <Sparkles className="w-4 h-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">AI Assistant</h3>
-                        <p className="text-xs text-muted-foreground">Always here to help</p>
-                      </div>
-                    </div>
-
-                    {/* Messages Area */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gradient-to-b from-muted/10 to-transparent">
-                      {messages.map((message) => (
-                        <div key={message.id} className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          {message.type === 'ai' && (
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-background">
-                              <Bot className="w-4 h-4 text-white" />
-                            </div>
-                          )}
-                          <div className="max-w-[80%]">
-                            <div className={`rounded-2xl px-4 py-3 shadow-subtle ${message.type === 'user'
-                              ? 'bg-primary text-primary-foreground rounded-br-md'
-                              : 'bg-secondary text-foreground rounded-bl-md'
-                              }`}>
-                              <p className="text-sm leading-relaxed">{message.content}</p>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1.5 ml-1">
-                              {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-
-                      {/* AI Thinking */}
-                      {isAiTyping && !currentAiMessage && (
-                        <div className="flex gap-3 justify-start">
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-background">
+                  <div className="h-[340px] overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                    {messages.map((message) => (
+                      <div key={message.id} className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        {message.type === 'ai' && (
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                             <Bot className="w-4 h-4 text-white" />
                           </div>
-                          <div className="max-w-[80%]">
-                            <div className="bg-secondary text-foreground rounded-2xl rounded-bl-md px-4 py-3 shadow-subtle">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm">Thinking</span>
-                                <div className="flex gap-1">
-                                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                  <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                        )}
+                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.type === 'user'
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-br-md'
+                            : 'bg-white/10 text-slate-200 rounded-bl-md'
+                          }`}>
+                          <p className="text-sm leading-relaxed">{message.content}</p>
                         </div>
-                      )}
-
-                      {/* Streaming text */}
-                      {isAiTyping && currentAiMessage && (
-                        <div className="flex gap-3 justify-start">
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-background">
-                            <Bot className="w-4 h-4 text-white" />
-                          </div>
-                          <div className="max-w-[80%]">
-                            <div className="bg-secondary text-foreground rounded-2xl rounded-bl-md px-4 py-3 shadow-subtle">
-                              <p className="text-sm leading-relaxed">
-                                {currentAiMessage}
-                                <span className="animate-pulse">|</span>
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Mentor Search Animation */}
-                      {isSearchingMentors && (
-                        <div className="flex gap-3 justify-start">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                            <Search className="w-4 h-4 text-white" />
-                          </div>
-                          <div className="max-w-[80%]">
-                            <div className="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm">Searching for suitable mentors</span>
-                                <div className="flex gap-1">
-                                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div ref={chatEndRef} />
-                    </div>
-
-                    {/* Input Area */}
-                    <div className="border-t border-border p-4 bg-card/80 backdrop-blur-sm">
-                      <div className="flex items-end gap-3">
-                        <div className="flex-1 relative">
-                          <textarea
-                            ref={textareaRef}
-                            placeholder={isAiTyping || isSearchingMentors ? "Please wait..." : "Type your message..."}
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            onFocus={() => setIsFocused(true)}
-                            onBlur={() => setIsFocused(false)}
-                            onKeyDown={handleKeyPress}
-                            rows={1}
-                            disabled={isAiTyping || isSearchingMentors}
-                            className="w-full bg-secondary text-foreground focus:outline-none text-sm font-medium tracking-wide leading-relaxed resize-none overflow-hidden min-h-[44px] rounded-xl px-4 py-3 border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-subtle disabled:opacity-50 disabled:cursor-not-allowed"
-                          />
-                        </div>
-                        <Button
-                          onClick={handleSubmit}
-                          disabled={!inputValue.trim() || isAiTyping || isSearchingMentors}
-                          className={`h-11 w-11 rounded-xl font-medium transition-all duration-200 ease-out shadow-sm ${inputValue.trim() && !isAiTyping && !isSearchingMentors
-                            ? 'bg-primary hover:bg-primary/90 text-primary-foreground'
-                            : 'bg-muted text-muted-foreground cursor-not-allowed'
-                            }`}
-                        >
-                          <Send className="h-4 w-4" />
-                        </Button>
                       </div>
-                    </div>
+                    ))}
+
+                    {/* AI Thinking */}
+                    {isAiTyping && !currentAiMessage && (
+                      <div className="flex gap-3 justify-start">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                          <Bot className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="bg-white/10 text-slate-200 rounded-2xl rounded-bl-md px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">Thinking</span>
+                            <div className="flex gap-1">
+                              {[0, 1, 2].map((i) => (
+                                <div key={i} className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Streaming text */}
+                    {isAiTyping && currentAiMessage && (
+                      <div className="flex gap-3 justify-start">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                          <Bot className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="max-w-[80%] bg-white/10 text-slate-200 rounded-2xl rounded-bl-md px-4 py-3">
+                          <p className="text-sm leading-relaxed">
+                            {currentAiMessage}
+                            <span className="animate-pulse text-blue-400">|</span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Searching mentors */}
+                    {isSearchingMentors && (
+                      <div className="flex gap-3 justify-start">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                          <Search className="w-4 h-4 text-white animate-pulse" />
+                        </div>
+                        <div className="bg-white/10 text-slate-200 rounded-2xl rounded-bl-md px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">Finding mentors for you</span>
+                            <div className="flex gap-1">
+                              {[0, 1, 2].map((i) => (
+                                <div key={i} className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div ref={chatEndRef} />
                   </div>
                 )}
 
-                {/* Initial Input (when chat is not expanded) */}
-                {!isChatExpanded && (
-                  <div className="relative flex items-start px-8 py-7 gap-4">
+                {/* Chat Input */}
+                <div className={`relative p-4 ${isChatExpanded ? 'border-t border-white/10 bg-white/5' : ''}`}>
+                  <div className="relative flex items-end gap-3">
                     <div className="flex-1 relative">
                       <textarea
                         ref={textareaRef}
@@ -625,81 +602,74 @@ export function HeroSection() {
                         onBlur={() => setIsFocused(false)}
                         onKeyDown={handleKeyPress}
                         rows={1}
-                        className="w-full bg-transparent text-gray-900 dark:text-white focus:outline-none text-xl font-medium tracking-wide leading-relaxed resize-none overflow-hidden min-h-[56px] scrollbar-hide relative z-10"
-                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                        disabled={isAiTyping || isSearchingMentors}
+                        className={`w-full bg-white/5 border border-white/10 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 rounded-xl px-4 py-3.5 text-base resize-none transition-all ${isChatExpanded ? 'min-h-[44px]' : 'min-h-[56px] text-lg'
+                          } disabled:opacity-50`}
+                        style={{ scrollbarWidth: 'none' }}
                       />
-
-                      {/* Custom animated placeholder */}
+                      {/* Animated placeholder */}
                       {!inputValue && !isFocused && (
-                        <div className="absolute inset-0 flex items-start pt-[2px]">
-                          <span className="text-gray-400 text-xl font-medium tracking-wide leading-relaxed pointer-events-none">
+                        <div className="absolute inset-0 flex items-center px-4 pointer-events-none">
+                          <span className={`text-slate-500 ${isChatExpanded ? 'text-base' : 'text-lg'}`}>
                             {currentPlaceholder}
-                            <span className="animate-pulse">|</span>
+                            <span className="animate-pulse text-blue-400">|</span>
                           </span>
                         </div>
                       )}
                     </div>
-
-                    <div className="flex-shrink-0 self-end">
-                      <Button
-                        onClick={handleSubmit}
-                        disabled={!inputValue.trim() || isAiTyping || isSearchingMentors}
-                        className={`relative h-14 w-14 rounded-2xl font-medium transition-all duration-300 ease-out ${inputValue.trim() && !isAiTyping && !isSearchingMentors
-                          ? 'bg-gray-900 hover:bg-black dark:bg-gray-100 dark:hover:bg-white text-white dark:text-gray-900 shadow-lg hover:shadow-xl scale-100 hover:scale-105 hover:rotate-[-2deg]'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed scale-95'
-                          }`}
-                      >
-                        <ArrowRight className={`h-5 w-5 transition-transform duration-300 ${inputValue.trim() ? 'group-hover:translate-x-0.5' : ''}`} />
-                      </Button>
-                    </div>
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={!inputValue.trim() || isAiTyping || isSearchingMentors}
+                      className={`h-12 w-12 rounded-xl transition-all duration-300 ${inputValue.trim() && !isAiTyping && !isSearchingMentors
+                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-500/25'
+                          : 'bg-white/10 text-slate-500'
+                        }`}
+                    >
+                      <Send className="w-5 h-5" />
+                    </Button>
                   </div>
-                )}
+
+                  {/* Hints */}
+                  {!isChatExpanded && (
+                    <div className="flex items-center justify-between mt-3 px-1">
+                      <span className="text-xs text-slate-500">Ask anything about your career</span>
+                      <span className="text-xs text-slate-500">Press Enter ↵</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Floating hint - only show when chat is not expanded */}
+              {/* Feature pills below chat */}
               {!isChatExpanded && (
-                <div className={`mt-4 px-4 transition-all duration-500 ${isFocused ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-gray-400 font-medium tracking-widest uppercase">
-                      AI Intelligence
+                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mt-6">
+                  {['Career Advice', 'Resume Review', 'Interview Prep', 'Skill Roadmaps'].map((feature) => (
+                    <span key={feature} className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-slate-400">
+                      {feature}
                     </span>
-                    <span className="text-gray-400 font-medium">
-                      Press Enter to chat • Shift + Enter for new line
-                    </span>
-                  </div>
+                  ))}
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Hero image stays next to chat only */}
-          <div className="w-full lg:w-2/5 flex justify-center lg:justify-end">
-            <div className="relative w-full max-w-xs sm:max-w-sm h-[260px] sm:h-[320px] lg:w-96 lg:h-96">
-              <Image
-                src="https://img.freepik.com/free-photo/smiley-man-working-laptop-from-home_23-2148306647.jpg"
-                alt="Person working on a laptop"
-                fill
-                className="object-cover rounded-t-full"
-              />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Mentor Recommendations Section (REAL data) */}
+      {/* Mentor Recommendations */}
       {showMentors && (
-        <section ref={mentorsSectionRef} className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-8 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
-          <div className="max-w-screen-xl mx-auto w-full">
-            <Card className="bg-white dark:bg-gray-900 rounded-2xl p-4 md:p-6 border shadow-sm">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Mentors</h2>
+        <section ref={mentorsSectionRef} className="w-full px-4 sm:px-6 lg:px-8 py-12 bg-slate-900/50 border-t border-white/5">
+          <div className="max-w-7xl mx-auto">
+            <Card className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Recommended Mentors</h2>
+                  <p className="text-sm text-slate-400">Based on your interests</p>
+                </div>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
                     onClick={prevMentors}
                     disabled={!canGoPrev}
-                    className={`rounded-full p-2 ${!canGoPrev ? 'opacity-30 cursor-not-allowed' : ''}`}
-                    aria-label="Previous mentors"
+                    className={`rounded-full p-2 text-white hover:bg-white/10 ${!canGoPrev ? 'opacity-30 cursor-not-allowed' : ''}`}
                   >
                     <ArrowLeftCircle className="h-6 w-6" />
                   </Button>
@@ -707,8 +677,7 @@ export function HeroSection() {
                     variant="ghost"
                     onClick={nextMentors}
                     disabled={!canGoNext}
-                    className={`rounded-full p-2 ${!canGoNext ? 'opacity-30 cursor-not-allowed' : ''}`}
-                    aria-label="Next mentors"
+                    className={`rounded-full p-2 text-white hover:bg-white/10 ${!canGoNext ? 'opacity-30 cursor-not-allowed' : ''}`}
                   >
                     <ArrowRightCircle className="h-6 w-6" />
                   </Button>
@@ -716,105 +685,65 @@ export function HeroSection() {
               </div>
 
               {dbMentors.length === 0 ? (
-                <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+                <div className="text-center text-slate-400 py-12">
                   No mentors found right now.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {visibleMentors.map((m) => {
                     const chips = parseExpertise(m.expertise)
                     const rate = formatRate(m.hourlyRate, m.currency)
-                    const imgSrc = m.image || placeholderDataUrl(m.name)
 
                     return (
-                      <div key={m.id} className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden flex flex-col cursor-pointer" onClick={() => handleBookIntroCall(m.id)}>
-                        {/* Header image area (taller card) */}
-                        <div className="relative w-full h-40 bg-gray-100 dark:bg-gray-900">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={imgSrc}
-                            alt={m.name ?? 'Mentor'}
-                            className="absolute inset-0 w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        </div>
-
-                        {/* Content */}
-                        <div className="p-4 flex flex-col gap-3 flex-1">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-gray-900 dark:text-white truncate">
-                              {m.name ?? 'Unnamed Mentor'}
+                      <div
+                        key={m.id}
+                        className="group rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 overflow-hidden transition-all duration-300 cursor-pointer hover:border-blue-500/30"
+                        onClick={() => handleBookIntroCall(m.id)}
+                      >
+                        <div className="p-5 flex flex-col gap-4">
+                          <div className="flex items-start gap-4">
+                            <div className="relative">
+                              {m.image ? (
+                                <img
+                                  src={m.image}
+                                  alt={m.name ?? 'Mentor'}
+                                  className="w-14 h-14 rounded-xl object-cover border-2 border-white/10"
+                                />
+                              ) : (
+                                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg">
+                                  {getInitials(m.name)}
+                                </div>
+                              )}
+                              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-900" />
                             </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                              {(m.title || 'Mentor')}{m.company ? ` • ${m.company}` : ''}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-white truncate">{m.name ?? 'Mentor'}</h3>
+                              <p className="text-sm text-slate-400 truncate">{m.title || 'Expert Mentor'}</p>
+                              {m.company && <p className="text-xs text-slate-500 truncate">@ {m.company}</p>}
                             </div>
                           </div>
 
-                          {m.headline && (
-                            <div className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
-                              {m.headline}
-                            </div>
-                          )}
-
-                          {(chips.length > 0) && (
+                          {chips.length > 0 && (
                             <div className="flex flex-wrap gap-2">
-                              {chips.slice(0, 4).map((c, i) => (
-                                <span key={i} className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-                                  {c}
+                              {chips.map((chip, i) => (
+                                <span key={i} className="px-2 py-1 rounded-md bg-blue-500/10 text-blue-400 text-xs border border-blue-500/20">
+                                  {chip}
                                 </span>
                               ))}
                             </div>
                           )}
 
-                          <div className="grid grid-cols-2 gap-2 text-sm">
-                            <div className="rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-2">
-                              <div className="text-xs text-gray-500">Experience</div>
-                              <div className="font-medium">{(m.experience ?? 0)} yrs</div>
+                          <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                            <div className="flex items-center gap-2 text-sm text-slate-400">
+                              <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                              <span>5.0</span>
+                              <span className="text-slate-600">•</span>
+                              <span>{m.experience || 0}+ yrs</span>
                             </div>
-                            <div className="rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-2">
-                              <div className="text-xs text-gray-500">Rate</div>
-                              <div className="font-medium">{rate ?? '—'}</div>
-                            </div>
+                            {rate && (
+                              <span className="text-sm font-semibold text-white">{rate}</span>
+                            )}
                           </div>
-
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1 text-gray-500">
-                              <MapPin className="h-3.5 w-3.5" />
-                              {/* If you later add city/country, put them here.
-                                  For now we hint the industry as a proxy. */}
-                              <span className="truncate">{m.industry ?? '—'}</span>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                              {m.linkedinUrl ? (
-                                <a
-                                  href={m.linkedinUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="underline text-gray-600 dark:text-gray-300"
-                                >
-                                  LinkedIn
-                                </a>
-                              ) : null}
-                              {m.websiteUrl ? (
-                                <a
-                                  href={m.websiteUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="underline text-gray-600 dark:text-gray-300"
-                                >
-                                  Website
-                                </a>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          <Button
-                            onClick={(e) => { e.stopPropagation(); handleBookIntroCall(m.id); }}
-                            className="mt-1 w-full rounded-xl"
-                          >
-                            Book Intro Call
-                          </Button>
                         </div>
                       </div>
                     )
@@ -826,32 +755,25 @@ export function HeroSection() {
         </section>
       )}
 
+      {/* Mentor Detail Modal */}
       <Dialog open={isMentorModalOpen} onOpenChange={setIsMentorModalOpen}>
-        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
-          <DialogHeader className="pl-8 pr-12 pt-8 pb-4 w-full">
-            <DialogTitle>Mentor Profile</DialogTitle>
-            <DialogDescription>
-              View mentor details and book a session.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0">
           {selectedMentorIdForModal && (
-            <div className="pl-8 pr-12 pt-0 w-full mx-auto">
-              <MentorDetailView
-                mentorId={selectedMentorIdForModal}
-                onBack={() => {
-                  setIsMentorModalOpen(false)
-                  setSelectedMentorIdForModal(null)
-                }}
-              />
-            </div>
+            <MentorDetailView
+              mentorId={selectedMentorIdForModal}
+              onBack={() => {
+                setIsMentorModalOpen(false)
+                setSelectedMentorIdForModal(null)
+              }}
+            />
           )}
         </DialogContent>
       </Dialog>
 
+      {/* Sign In Popup */}
       <SignInPopup
         isOpen={showSignInPopup}
         onClose={() => setShowSignInPopup(false)}
-        callbackUrl="/dashboard?section=explore"
       />
     </>
   )
