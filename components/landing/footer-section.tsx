@@ -59,7 +59,7 @@ export function FooterSection() {
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                                 <Sparkles className="w-5 h-5 text-white" />
                             </div>
-                            <span className="text-xl font-bold text-white">YoungMinds</span>
+                            <span className="text-xl font-bold text-white">SharingMinds</span>
                         </div>
                         <p className="text-slate-400 mb-6 max-w-sm">
                             Connecting ambitious professionals with world-class mentors to accelerate career growth.
