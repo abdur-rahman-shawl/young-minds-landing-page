@@ -28,6 +28,7 @@ import { AdminMentors } from "@/components/admin/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/admin/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
+import { AdminSubscriptions } from "@/components/admin/dashboard/admin-subscriptions"
 import { MentorSubscription } from "@/components/mentor/dashboard/mentor-subscription"
 import { MenteeSubscription } from "@/components/mentee/dashboard/mentee-subscription"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
@@ -149,6 +150,9 @@ export function DashboardShell() {
           break
         case "enquiries":
           content = <AdminEnquiries />
+          break
+        case "subscriptions":
+          content = <AdminSubscriptions />
           break
         default:
           content = <AdminOverview />

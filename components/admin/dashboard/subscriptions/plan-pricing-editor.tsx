@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -45,6 +52,8 @@ export function PlanPricingEditor({ planId }: PlanPricingEditorProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(defaultForm);
+  const [editingPrice, setEditingPrice] = useState<PlanPrice | null>(null);
+  const [editForm, setEditForm] = useState(defaultForm);
 
   const loadPrices = async () => {
     try {
@@ -119,6 +128,56 @@ export function PlanPricingEditor({ planId }: PlanPricingEditorProps) {
     }
   };
 
+  const startEditing = (price: PlanPrice) => {
+    setEditingPrice(price);
+    setEditForm({
+      price_type: price.price_type,
+      billing_interval: price.billing_interval,
+      billing_interval_count: price.billing_interval_count,
+      amount: price.amount,
+      currency: price.currency,
+      is_active: price.is_active,
+    });
+  };
+
+  const updatePrice = async () => {
+    if (!editingPrice) return;
+    setSaving(true);
+    try {
+      const res = await fetch(
+        `/api/admin/subscriptions/plans/${planId}/prices/${editingPrice.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(editForm),
+        }
+      );
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success("Price updated");
+        setPrices((prev) =>
+          prev.map((item) =>
+            item.id === editingPrice.id
+              ? {
+                  ...item,
+                  ...editForm,
+                }
+              : item
+          )
+        );
+        setEditingPrice(null);
+      } else {
+        toast.error(data.message || "Failed to update price");
+      }
+    } catch (error) {
+      console.error("Failed to update price:", error);
+      toast.error("Failed to update price");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -146,6 +205,13 @@ export function PlanPricingEditor({ planId }: PlanPricingEditorProps) {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => startEditing(price)}
+                    >
+                      Edit
+                    </Button>
                     <span className="text-xs text-muted-foreground">Active</span>
                     <Switch
                       checked={price.is_active}
@@ -261,6 +327,123 @@ export function PlanPricingEditor({ planId }: PlanPricingEditorProps) {
           </div>
         </CardContent>
       </Card>
+
+      {editingPrice && (
+        <Dialog open onOpenChange={() => setEditingPrice(null)}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Edit Price</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Amount</Label>
+                  <Input
+                    type="number"
+                    value={editForm.amount}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        amount: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Currency</Label>
+                  <Input
+                    value={editForm.currency}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        currency: event.target.value.toUpperCase(),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Billing Interval</Label>
+                  <Select
+                    value={editForm.billing_interval}
+                    onValueChange={(value) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        billing_interval: value as PlanPrice["billing_interval"],
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="day">Daily</SelectItem>
+                      <SelectItem value="week">Weekly</SelectItem>
+                      <SelectItem value="month">Monthly</SelectItem>
+                      <SelectItem value="year">Yearly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Interval Count</Label>
+                  <Input
+                    type="number"
+                    value={editForm.billing_interval_count}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        billing_interval_count: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Price Type</Label>
+                  <Select
+                    value={editForm.price_type}
+                    onValueChange={(value) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        price_type: value as PlanPrice["price_type"],
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="standard">Standard</SelectItem>
+                      <SelectItem value="introductory">Introductory</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2 pt-6">
+                  <Switch
+                    checked={editForm.is_active}
+                    onCheckedChange={(checked) =>
+                      setEditForm((prev) => ({ ...prev, is_active: checked }))
+                    }
+                  />
+                  <Label>Active</Label>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingPrice(null)}>
+                Cancel
+              </Button>
+              <Button onClick={updatePrice} disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

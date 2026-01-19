@@ -383,29 +383,6 @@ export function SubscriptionDisplay() {
               )}
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Included Features</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {features.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No features assigned to this plan.</p>
-              ) : (
-                features.map((feature) => (
-                  <div key={feature.feature_key} className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium">{feature.feature_name}</p>
-                      <p className="text-xs text-muted-foreground">{formatLimit(feature)}</p>
-                    </div>
-                    <Badge variant={feature.is_included ? "default" : "outline"}>
-                      {feature.is_included ? "Included" : "Excluded"}
-                    </Badge>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
         </>
       )}
     </div>
