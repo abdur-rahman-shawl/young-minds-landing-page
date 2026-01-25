@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
             mentorRescheduleCutoffHours,
             mentorMaxReschedules,
             freeCancellationHours,
+            partialRefundPercentage,
+            lateCancellationRefundPercentage,
         ] = await Promise.all([
             getPolicyValue(
                 DEFAULT_SESSION_POLICIES.CANCELLATION_CUTOFF_HOURS.key,
@@ -60,6 +62,14 @@ export async function GET(req: NextRequest) {
                 DEFAULT_SESSION_POLICIES.FREE_CANCELLATION_HOURS.key,
                 DEFAULT_SESSION_POLICIES.FREE_CANCELLATION_HOURS.value
             ),
+            getPolicyValue(
+                DEFAULT_SESSION_POLICIES.PARTIAL_REFUND_PERCENTAGE.key,
+                DEFAULT_SESSION_POLICIES.PARTIAL_REFUND_PERCENTAGE.value
+            ),
+            getPolicyValue(
+                DEFAULT_SESSION_POLICIES.LATE_CANCELLATION_REFUND_PERCENTAGE.key,
+                DEFAULT_SESSION_POLICIES.LATE_CANCELLATION_REFUND_PERCENTAGE.value
+            ),
         ]);
 
         // Return role-specific policies if role is specified
@@ -69,6 +79,8 @@ export async function GET(req: NextRequest) {
                 rescheduleCutoffHours: parseInt(mentorRescheduleCutoffHours),
                 maxReschedules: parseInt(mentorMaxReschedules),
                 freeCancellationHours: parseInt(freeCancellationHours),
+                partialRefundPercentage: parseInt(partialRefundPercentage),
+                lateCancellationRefundPercentage: parseInt(lateCancellationRefundPercentage),
             });
         }
 
@@ -78,6 +90,8 @@ export async function GET(req: NextRequest) {
                 rescheduleCutoffHours: parseInt(rescheduleCutoffHours),
                 maxReschedules: parseInt(maxReschedules),
                 freeCancellationHours: parseInt(freeCancellationHours),
+                partialRefundPercentage: parseInt(partialRefundPercentage),
+                lateCancellationRefundPercentage: parseInt(lateCancellationRefundPercentage),
             });
         }
 
@@ -94,6 +108,8 @@ export async function GET(req: NextRequest) {
                 maxReschedules: parseInt(mentorMaxReschedules),
             },
             freeCancellationHours: parseInt(freeCancellationHours),
+            partialRefundPercentage: parseInt(partialRefundPercentage),
+            lateCancellationRefundPercentage: parseInt(lateCancellationRefundPercentage),
         });
 
     } catch (error) {

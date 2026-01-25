@@ -45,6 +45,7 @@ interface ActionSession {
   meetingType?: string;
   rescheduleCount?: number;
   mentorRescheduleCount?: number;
+  rate?: number;
 }
 
 interface SessionActionsProps {
@@ -206,6 +207,8 @@ export function SessionActions({
         sessionId={session.id}
         sessionTitle={session.title}
         userRole={userRole}
+        sessionRate={session.rate ?? 0}
+        scheduledAt={scheduledTime}
         onSuccess={onUpdate}
       />
 

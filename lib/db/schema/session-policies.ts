@@ -88,6 +88,20 @@ export const DEFAULT_SESSION_POLICIES = {
         type: 'boolean',
         description: 'Whether a cancellation reason is mandatory',
     },
+    // Refund percentage when mentee cancels between free and cutoff hours
+    PARTIAL_REFUND_PERCENTAGE: {
+        key: 'partial_refund_percentage',
+        value: '70',
+        type: 'integer',
+        description: 'Refund % when mentee cancels between free_cancellation_hours and cancellation_cutoff_hours',
+    },
+    // Refund percentage when mentee cancels after cutoff (late cancellation)
+    LATE_CANCELLATION_REFUND_PERCENTAGE: {
+        key: 'late_cancellation_refund_percentage',
+        value: '0',
+        type: 'integer',
+        description: 'Refund % when mentee cancels after cancellation_cutoff_hours',
+    },
 } as const;
 
 // Cancellation reason categories for MENTEES

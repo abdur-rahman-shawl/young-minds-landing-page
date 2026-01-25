@@ -42,6 +42,11 @@ export const sessions = pgTable('sessions', {
   noShowMarkedBy: text('no_show_marked_by'), // 'mentor' | 'system'
   noShowMarkedAt: timestamp('no_show_marked_at'),
 
+  // Refund tracking
+  refundAmount: decimal('refund_amount', { precision: 10, scale: 2 }),
+  refundPercentage: integer('refund_percentage'),
+  refundStatus: text('refund_status').default('none'), // 'none', 'pending', 'processed', 'failed'
+
   // Recording configuration
   recordingConfig: jsonb('recording_config')
     .default({ enabled: true, resolution: '1280x720', fps: 30 })

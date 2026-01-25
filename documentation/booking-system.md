@@ -178,13 +178,38 @@ Tracks all cancellations and reschedules:
 3. **Fetch Booking** - Verify exists
 4. **Authorization** - Must be mentor OR mentee of this session
 5. **Status Validation** - Can't cancel if `cancelled`, `completed`, `in_progress`
-6. **Policy Check** - Load role-specific cutoff:
-   - Mentee: `cancellation_cutoff_hours` (default 2)
-   - Mentor: `mentor_cancellation_cutoff_hours` (default 1)
-7. **Time Check** - `hoursUntilSession >= cancellationCutoffHours`
-8. **Update Session** - Set `status='cancelled'`, `cancelledBy='mentor'|'mentee'`, `cancellationReason`
-9. **Audit Log** - Insert record with policy snapshot and `cancelledBy`
-10. **Notify Other Party** - Role-specific notification titles
+6. **Policy Check** - Load role-specific cutoff and refund policies
+7. **Time Check** - `hoursUntilSession >= cancellationCutoffHours` (mentee only)
+8. **Calculate Refund** - Based on timing and who cancels (see Refund Rules below)
+9. **Update Session** - Set status, cancelledBy, refundPercentage, refundAmount, refundStatus
+10. **Audit Log** - Insert record with policy snapshot and refund details
+11. **Notify Other Party** - Include refund info in notification
+
+### Refund Rules
+
+| Scenario | Refund % |
+|----------|----------|
+| Mentor cancels | 100% (always full refund to mentee) |
+| Mentee cancels ≥ `free_cancellation_hours` before session | 100% |
+| Mentee cancels between `free_cancellation_hours` and `cancellation_cutoff_hours` | `partial_refund_percentage` (default 70%) |
+| Mentee cancels after `cancellation_cutoff_hours` | `late_cancellation_refund_percentage` (default 0%) |
+
+### Refund Tracking Fields (sessions table)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `refund_amount` | decimal | Calculated refund amount |
+| `refund_percentage` | integer | Refund percentage applied |
+| `refund_status` | text | `'none'`, `'pending'`, `'processed'`, `'failed'` |
+
+### Refund Policies (session_policies table)
+
+| Policy Key | Default | Description |
+|------------|---------|-------------|
+| `free_cancellation_hours` | 24 | Full refund window |
+| `partial_refund_percentage` | 70 | Refund % between free and cutoff |
+| `late_cancellation_refund_percentage` | 0 | Refund % after cutoff |
+
 
 ### Cancellation Reason Categories
 
