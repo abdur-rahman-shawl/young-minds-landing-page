@@ -45,6 +45,37 @@ time-selection → details → confirmation → success
 | `/api/bookings/[id]/cancel` | POST | Cancel with reason |
 | `/api/bookings/[id]/reschedule` | POST | Reschedule to new time |
 | `/api/bookings/[id]/no-show` | POST | Mark as no-show |
+| `/api/session-policies` | GET | Fetch session policies (optional `?role=mentor\|mentee`) |
+
+### Session Policies API
+
+`GET /api/session-policies` (`app/api/session-policies/route.ts`):
+
+Fetches configurable session policies from the database. Used by frontend dialogs to display dynamic policy values.
+
+**Query Parameters:**
+- `role` (optional): `mentor` or `mentee` - Returns role-specific policies
+
+**Response (with role):**
+```json
+{
+  "cancellationCutoffHours": 1,
+  "rescheduleCutoffHours": 2,
+  "maxReschedules": 5,
+  "freeCancellationHours": 24
+}
+```
+
+**Response (without role):**
+```json
+{
+  "mentee": { "cancellationCutoffHours": 2, "rescheduleCutoffHours": 4, "maxReschedules": 2 },
+  "mentor": { "cancellationCutoffHours": 1, "rescheduleCutoffHours": 2, "maxReschedules": 5 },
+  "freeCancellationHours": 24
+}
+```
+
+> **Note:** Frontend dialogs (`cancel-dialog.tsx`, `reschedule-dialog.tsx`) fetch these policies dynamically when opened. Changes to `session_policies` table are reflected immediately in the UI.
 
 ---
 
@@ -138,57 +169,72 @@ Tracks all cancellations and reschedules:
 
 ---
 
-## Cancellation Flow (Mentee Only)
+## Cancellation Flow (Mentor AND Mentee)
 
 `POST /api/bookings/[id]/cancel` (`app/api/bookings/[id]/cancel/route.ts`):
 
 1. **Auth Check** - Must be logged in
 2. **Parse Body** - `reasonCategory` (required), `reasonDetails` (optional)
 3. **Fetch Booking** - Verify exists
-4. **Authorization** - Only mentee can cancel (`booking.menteeId === session.user.id`)
+4. **Authorization** - Must be mentor OR mentee of this session
 5. **Status Validation** - Can't cancel if `cancelled`, `completed`, `in_progress`
-6. **Policy Check** - Load `cancellation_cutoff_hours` from DB (default 2)
+6. **Policy Check** - Load role-specific cutoff:
+   - Mentee: `cancellation_cutoff_hours` (default 2)
+   - Mentor: `mentor_cancellation_cutoff_hours` (default 1)
 7. **Time Check** - `hoursUntilSession >= cancellationCutoffHours`
-8. **Update Session** - Set `status='cancelled'`, `cancelledBy='mentee'`, `cancellationReason`
-9. **Audit Log** - Insert record with policy snapshot
-10. **Notify Both** - Mentor gets "Session Cancelled", Mentee gets "Cancellation Confirmed"
+8. **Update Session** - Set `status='cancelled'`, `cancelledBy='mentor'|'mentee'`, `cancellationReason`
+9. **Audit Log** - Insert record with policy snapshot and `cancelledBy`
+10. **Notify Other Party** - Role-specific notification titles
 
-### Cancellation Reason Categories (Required)
+### Cancellation Reason Categories
+
+**Mentee Reasons:**
 - Schedule conflict
 - Personal emergency
 - No longer need this session
 - Found alternative solution
 - Technical issues expected
-- Other (free text)
+- Other
+
+**Mentor Reasons:**
+- Schedule conflict
+- Personal emergency
+- Unable to prepare for session
+- Health-related reason
+- Technical issues
+- No longer available
+- Other
 
 ---
 
-## Reschedule Flow (Mentee Only)
+## Reschedule Flow (Mentor AND Mentee)
 
 `POST /api/bookings/[id]/reschedule` (`app/api/bookings/[id]/reschedule/route.ts`):
 
 1. **Auth Check** - Must be logged in
 2. **Parse Body** - `scheduledAt` (required), `duration` (optional)
 3. **Fetch Booking** - Verify exists
-4. **Authorization** - Only mentee can reschedule (`booking.menteeId === session.user.id`)
+4. **Authorization** - Must be mentor OR mentee of this session
 5. **Status Validation** - Can't reschedule if `cancelled`, `completed`, `no_show`, `in_progress`
-6. **Load Policies**:
-   - `reschedule_cutoff_hours` (default 4)
-   - `max_reschedules_per_session` (default 2)
-7. **Reschedule Count Check** - `booking.rescheduleCount < maxReschedules`
+6. **Load Policies** (role-specific):
+   - Mentee: `reschedule_cutoff_hours` (default 4), `max_reschedules_per_session` (default 2)
+   - Mentor: `mentor_reschedule_cutoff_hours` (default 2), `mentor_max_reschedules_per_session` (default 2)
+7. **Reschedule Count Check** - Check role-specific count:
+   - Mentee: `booking.rescheduleCount < maxReschedules`
+   - Mentor: `booking.mentorRescheduleCount < mentorMaxReschedules`
 8. **Time Check** - `hoursUntilSession >= rescheduleCutoffHours`
-9. **Update Session** - New `scheduledAt`, increment `rescheduleCount`
-10. **Audit Log** - Insert with `previousScheduledAt`, `newScheduledAt`
-11. **Notify Both** - Mentor gets "Session Rescheduled", Mentee gets "Reschedule Confirmed"
+9. **Update Session** - New `scheduledAt`, increment role-specific counter
+10. **Audit Log** - Insert with `rescheduledBy` in policy snapshot
+11. **Notify Other Party** - Role-specific notification titles
 
 ### Frontend Reschedule Dialog
 
 The `reschedule-dialog.tsx` component:
-- Uses `TimeSlotSelectorV2` to show only mentor's available time slots
-- Fetches current `rescheduleCount` from session data via `GET /api/bookings/[id]`
-- Shows reschedule allowance badge (e.g., "1 / 2 used")
-- Disables rescheduling if limit reached
-- Requires `mentorId` prop to fetch mentor's availability
+- Accepts `userRole` prop to show role-specific UI
+- Uses `TimeSlotSelectorV2` to show mentor's available time slots
+- Fetches current `rescheduleCount` and `mentorRescheduleCount` from session data
+- Shows reschedule allowance badge for current user's role
+- Disables rescheduling if role-specific limit reached
 
 ---
 
@@ -209,23 +255,29 @@ The `reschedule-dialog.tsx` component:
 
 ## Business Rules
 
+| Rule | Mentee | Mentor |
+|------|--------|--------|
+| Cancellation cutoff | 2 hours (configurable) | 1 hour (configurable) |
+| Reschedule cutoff | 4 hours (configurable) | 2 hours (configurable) |
+| Max reschedules | 2 per session (configurable) | 2 per session (configurable) |
+
 | Rule | Value |
 |------|-------|
 | Min booking duration | 15 minutes |
 | Max booking duration | 4 hours |
 | Slot interval | 30 minutes |
-| Cancellation cutoff | 2 hours before session (configurable) |
-| Reschedule cutoff | 4 hours before session (configurable) |
-| Max reschedules | 2 per session (configurable) |
 | Business hours | 9 AM - 9 PM (default) |
 | Min advance booking | 30 minutes (configurable per mentor) |
 
-### Mentee-Only Policy
+### Session Modification Policy
 
-> **Important:** Only mentees can cancel or reschedule sessions. Mentors cannot modify bookings.
+> **Updated:** Both mentors AND mentees can now cancel and reschedule sessions, each with their own policies.
 
-- **Mentors** see an info message: "Only the mentee can cancel or reschedule this session"
-- **Mentors** can mark sessions as no-show (within 24 hours of past session time)
+- Mentors and mentees have **separate reschedule counts** per session
+- Each party has **role-specific cutoff times**
+- Actions are tracked in audit log with initiator role
+- Notifications indicate who initiated the action
+
 
 ---
 

@@ -27,13 +27,11 @@ import {
   XCircle,
   UserX,
   Video,
-  MessageSquare,
-  Info,
 } from "lucide-react";
 import { CancelDialog } from "./cancel-dialog";
 import { RescheduleDialog } from "./reschedule-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { isPast, isWithinInterval, addHours, subHours } from "date-fns";
+import { isPast } from "date-fns";
 
 interface ActionSession {
   id: string;
@@ -46,6 +44,7 @@ interface ActionSession {
   meetingUrl?: string;
   meetingType?: string;
   rescheduleCount?: number;
+  mentorRescheduleCount?: number;
 }
 
 interface SessionActionsProps {
@@ -69,29 +68,10 @@ export function SessionActions({
   const [showNoShowDialog, setShowNoShowDialog] = useState(false);
   const { toast } = useToast();
 
-  // Debug logging
-  console.log("SessionActions Debug:", {
-    sessionId: session.id,
-    sessionTitle: session.title,
-    status: session.status,
-    scheduledAt: session.scheduledAt,
-    mentorId: session.mentorId,
-    menteeId: session.menteeId,
-    userId,
-    userRole,
-  });
-
   const scheduledTime = new Date(session.scheduledAt);
   const now = new Date();
   const isPastSession = isPast(scheduledTime);
   const hoursUntilSession = (scheduledTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-  console.log("Time calculations:", {
-    scheduledTime,
-    now,
-    hoursUntilSession,
-    isPastSession,
-  });
 
   // Role checks
   const isMentee = userRole === "mentee";
@@ -100,9 +80,24 @@ export function SessionActions({
   // Demo mode: allow mentors/mentees to jump into the lobby regardless of schedule timing
   const canJoin = session.status === "scheduled" || session.status === "in_progress";
 
-  // Determine what actions are available (MENTEE ONLY for cancel/reschedule)
-  const canCancel = isMentee && session.status === "scheduled" && hoursUntilSession >= 2;
-  const canReschedule = isMentee && session.status === "scheduled" && hoursUntilSession >= 4;
+  // Determine what actions are available
+  // Mentor: 1hr cutoff for cancel, 2hr cutoff for reschedule (default policies)
+  // Mentee: 2hr cutoff for cancel, 4hr cutoff for reschedule (default policies)
+  const mentorCancelCutoff = 1;
+  const menteeCancelCutoff = 2;
+  const mentorRescheduleCutoff = 2;
+  const menteeRescheduleCutoff = 4;
+
+  const canCancel = session.status === "scheduled" && (
+    (isMentee && hoursUntilSession >= menteeCancelCutoff) ||
+    (isMentor && hoursUntilSession >= mentorCancelCutoff)
+  );
+
+  const canReschedule = session.status === "scheduled" && (
+    (isMentee && hoursUntilSession >= menteeRescheduleCutoff) ||
+    (isMentor && hoursUntilSession >= mentorRescheduleCutoff)
+  );
+
   const canMarkNoShow = isMentor &&
     session.status === "scheduled" &&
     isPastSession &&
@@ -200,19 +195,6 @@ export function SessionActions({
                 Mark as No-Show
               </DropdownMenuItem>
             )}
-
-
-
-            {/* Show info message for mentors about cancel/reschedule */}
-            {isMentor && session.status === "scheduled" && (
-              <>
-                <DropdownMenuSeparator />
-                <div className="px-2 py-1.5 text-xs text-muted-foreground flex items-start gap-1.5">
-                  <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                  <span>Only the mentee can cancel or reschedule this session</span>
-                </div>
-              </>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -223,6 +205,7 @@ export function SessionActions({
         onOpenChange={setShowCancelDialog}
         sessionId={session.id}
         sessionTitle={session.title}
+        userRole={userRole}
         onSuccess={onUpdate}
       />
 
@@ -235,7 +218,8 @@ export function SessionActions({
         mentorId={session.mentorId}
         currentDate={scheduledTime}
         currentDuration={session.duration}
-        rescheduleCount={session.rescheduleCount || 0}
+        userRole={userRole}
+        rescheduleCount={userRole === "mentor" ? (session.mentorRescheduleCount || 0) : (session.rescheduleCount || 0)}
         onSuccess={onUpdate}
       />
 
@@ -245,7 +229,7 @@ export function SessionActions({
           <AlertDialogHeader>
             <AlertDialogTitle>Mark as No-Show?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to mark "{session.title}" as a no-show?
+              Are you sure you want to mark &quot;{session.title}&quot; as a no-show?
               This will notify the mentee and may affect their account standing.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -263,7 +247,3 @@ export function SessionActions({
     </>
   );
 }
-
-
-
-

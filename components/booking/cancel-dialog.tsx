@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,16 +19,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { CANCELLATION_REASONS } from "@/lib/db/schema/session-policies";
+import { CANCELLATION_REASONS, MENTOR_CANCELLATION_REASONS } from "@/lib/db/schema/session-policies";
 
 interface CancelDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sessionId: string;
   sessionTitle: string;
+  userRole: "mentor" | "mentee";
   onSuccess?: () => void;
+}
+
+interface PolicyData {
+  cancellationCutoffHours: number;
+  rescheduleCutoffHours: number;
+  maxReschedules: number;
+  freeCancellationHours: number;
 }
 
 export function CancelDialog({
@@ -36,12 +44,45 @@ export function CancelDialog({
   onOpenChange,
   sessionId,
   sessionTitle,
+  userRole,
   onSuccess,
 }: CancelDialogProps) {
   const [reasonCategory, setReasonCategory] = useState<string>("");
   const [reasonDetails, setReasonDetails] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [policyData, setPolicyData] = useState<PolicyData | null>(null);
+  const [loadingPolicies, setLoadingPolicies] = useState(false);
   const { toast } = useToast();
+
+  // Select appropriate cancellation reasons based on role
+  const cancellationReasons = userRole === "mentor" ? MENTOR_CANCELLATION_REASONS : CANCELLATION_REASONS;
+
+  // Use fetched policy data if available, otherwise use defaults
+  const cutoffHours = policyData?.cancellationCutoffHours ?? (userRole === "mentor" ? 1 : 2);
+  const otherPartyLabel = userRole === "mentor" ? "mentee" : "mentor";
+
+  // Fetch policies when dialog opens
+  useEffect(() => {
+    const fetchPolicies = async () => {
+      if (!open) return;
+
+      setLoadingPolicies(true);
+      try {
+        const response = await fetch(`/api/session-policies?role=${userRole}`);
+        const data = await response.json();
+
+        if (response.ok) {
+          setPolicyData(data);
+        }
+      } catch (error) {
+        console.error("Error fetching policies:", error);
+      } finally {
+        setLoadingPolicies(false);
+      }
+    };
+
+    fetchPolicies();
+  }, [open, userRole]);
 
   const handleCancel = async () => {
     if (!reasonCategory) {
@@ -74,7 +115,7 @@ export function CancelDialog({
 
       toast({
         title: "Session Cancelled",
-        description: "The session has been cancelled successfully. The mentor has been notified.",
+        description: `The session has been cancelled successfully. The ${otherPartyLabel} has been notified.`,
       });
 
       onOpenChange(false);
@@ -97,6 +138,7 @@ export function CancelDialog({
     if (!open) {
       setReasonCategory("");
       setReasonDetails("");
+      setPolicyData(null);
     }
     onOpenChange(open);
   };
@@ -110,7 +152,7 @@ export function CancelDialog({
             Cancel Session
           </DialogTitle>
           <DialogDescription>
-            Are you sure you want to cancel "{sessionTitle}"? This action cannot be undone.
+            Are you sure you want to cancel &quot;{sessionTitle}&quot;? This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -124,7 +166,7 @@ export function CancelDialog({
                 <SelectValue placeholder="Select a reason..." />
               </SelectTrigger>
               <SelectContent>
-                {CANCELLATION_REASONS.map((reason) => (
+                {cancellationReasons.map((reason) => (
                   <SelectItem key={reason.value} value={reason.value}>
                     {reason.label}
                   </SelectItem>
@@ -152,11 +194,18 @@ export function CancelDialog({
           {/* Policy Notice */}
           <div className="rounded-lg bg-yellow-50 dark:bg-yellow-950/30 p-3 text-sm text-yellow-800 dark:text-yellow-200">
             <p className="font-medium">Cancellation Policy:</p>
-            <ul className="mt-1 list-disc list-inside space-y-1 text-xs">
-              <li>Sessions cannot be cancelled within 2 hours of the scheduled time</li>
-              <li>The mentor will be notified of the cancellation</li>
-              <li>Frequent cancellations may affect your account standing</li>
-            </ul>
+            {loadingPolicies ? (
+              <div className="mt-1 flex items-center gap-2 text-xs">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Loading policy...
+              </div>
+            ) : (
+              <ul className="mt-1 list-disc list-inside space-y-1 text-xs">
+                <li>Sessions cannot be cancelled within {cutoffHours} hour(s) of the scheduled time</li>
+                <li>The {otherPartyLabel} will be notified of the cancellation</li>
+                <li>Frequent cancellations may affect your account standing</li>
+              </ul>
+            )}
           </div>
         </div>
         <DialogFooter>

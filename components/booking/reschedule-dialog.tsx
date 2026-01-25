@@ -24,9 +24,16 @@ interface RescheduleDialogProps {
   mentorId: string;
   currentDate: Date;
   currentDuration: number;
+  userRole: "mentor" | "mentee";
   rescheduleCount?: number;
-  maxReschedules?: number;
   onSuccess?: () => void;
+}
+
+interface PolicyData {
+  cancellationCutoffHours: number;
+  rescheduleCutoffHours: number;
+  maxReschedules: number;
+  freeCancellationHours: number;
 }
 
 export function RescheduleDialog({
@@ -37,24 +44,56 @@ export function RescheduleDialog({
   mentorId,
   currentDate,
   currentDuration,
+  userRole,
   rescheduleCount = 0,
-  maxReschedules = 2,
   onSuccess,
 }: RescheduleDialogProps) {
   const [selectedTime, setSelectedTime] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionData, setSessionData] = useState<{
     rescheduleCount: number;
-    maxReschedules: number;
+    mentorRescheduleCount: number;
   } | null>(null);
+  const [policyData, setPolicyData] = useState<PolicyData | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
+  const [loadingPolicies, setLoadingPolicies] = useState(false);
   const { toast } = useToast();
 
   // Use fetched session data if available, otherwise use props
-  const currentRescheduleCount = sessionData?.rescheduleCount ?? rescheduleCount;
-  const currentMaxReschedules = sessionData?.maxReschedules ?? maxReschedules;
-  const remainingReschedules = currentMaxReschedules - currentRescheduleCount;
+  const currentRescheduleCount = sessionData
+    ? (userRole === "mentor" ? sessionData.mentorRescheduleCount : sessionData.rescheduleCount)
+    : rescheduleCount;
+
+  // Use fetched policy data if available, otherwise use defaults
+  const maxReschedules = policyData?.maxReschedules ?? 2;
+  const cutoffHours = policyData?.rescheduleCutoffHours ?? (userRole === "mentor" ? 2 : 4);
+
+  const remainingReschedules = maxReschedules - currentRescheduleCount;
   const canReschedule = remainingReschedules > 0;
+  const otherPartyLabel = userRole === "mentor" ? "mentee" : "mentor";
+
+  // Fetch policies when dialog opens
+  useEffect(() => {
+    const fetchPolicies = async () => {
+      if (!open) return;
+
+      setLoadingPolicies(true);
+      try {
+        const response = await fetch(`/api/session-policies?role=${userRole}`);
+        const data = await response.json();
+
+        if (response.ok) {
+          setPolicyData(data);
+        }
+      } catch (error) {
+        console.error("Error fetching policies:", error);
+      } finally {
+        setLoadingPolicies(false);
+      }
+    };
+
+    fetchPolicies();
+  }, [open, userRole]);
 
   // Fetch session data when dialog opens to get accurate reschedule count
   useEffect(() => {
@@ -69,7 +108,7 @@ export function RescheduleDialog({
         if (response.ok && data.booking) {
           setSessionData({
             rescheduleCount: data.booking.rescheduleCount ?? 0,
-            maxReschedules: 2, // Default, could be fetched from policies
+            mentorRescheduleCount: data.booking.mentorRescheduleCount ?? 0,
           });
         }
       } catch (error) {
@@ -121,27 +160,12 @@ export function RescheduleDialog({
       const data = await response.json();
 
       if (!response.ok) {
-        // Update reschedule count from API response if available
-        if (data.rescheduleCount !== undefined || data.maxReschedules !== undefined) {
-          setSessionData({
-            rescheduleCount: data.rescheduleCount ?? currentRescheduleCount,
-            maxReschedules: data.maxReschedules ?? currentMaxReschedules,
-          });
-        }
         throw new Error(data.error || "Failed to reschedule session");
-      }
-
-      // Update counts from successful response
-      if (data.rescheduleCount !== undefined || data.maxReschedules !== undefined) {
-        setSessionData({
-          rescheduleCount: data.rescheduleCount ?? currentRescheduleCount + 1,
-          maxReschedules: data.maxReschedules ?? currentMaxReschedules,
-        });
       }
 
       toast({
         title: "Session Rescheduled",
-        description: `The session has been rescheduled to ${format(selectedTime, "EEEE, MMMM d 'at' h:mm a")}. The mentor has been notified.`,
+        description: `The session has been rescheduled to ${format(selectedTime, "EEEE, MMMM d 'at' h:mm a")}. The ${otherPartyLabel} has been notified.`,
       });
 
       onOpenChange(false);
@@ -163,9 +187,12 @@ export function RescheduleDialog({
     if (!open) {
       setSelectedTime(null);
       setSessionData(null);
+      setPolicyData(null);
     }
     onOpenChange(open);
   };
+
+  const isLoadingData = loadingSession || loadingPolicies;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -176,33 +203,35 @@ export function RescheduleDialog({
             Reschedule Session
           </DialogTitle>
           <DialogDescription>
-            Choose a new date and time for "{sessionTitle}"
+            Choose a new date and time for &quot;{sessionTitle}&quot;
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           {/* Reschedule Count Badge */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Reschedule allowance:</span>
-            {loadingSession ? (
+            <span className="text-sm text-muted-foreground">
+              Your reschedule allowance:
+            </span>
+            {isLoadingData ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Badge
                 variant={remainingReschedules > 0 ? "secondary" : "destructive"}
                 className="font-medium"
               >
-                {currentRescheduleCount} / {currentMaxReschedules} used
+                {currentRescheduleCount} / {maxReschedules} used
               </Badge>
             )}
           </div>
 
           {/* Warning if at limit */}
-          {!canReschedule && !loadingSession && (
+          {!canReschedule && !isLoadingData && (
             <div className="rounded-lg bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-800 dark:text-red-200 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="font-medium">Reschedule limit reached</p>
                 <p className="text-xs mt-1">
-                  This session has been rescheduled the maximum number of times allowed.
+                  You have used all your reschedules for this session.
                   Please contact support if you need further assistance.
                 </p>
               </div>
@@ -217,11 +246,15 @@ export function RescheduleDialog({
             </p>
           </div>
 
-          {canReschedule && !loadingSession && (
+          {canReschedule && !isLoadingData && (
             <>
               {/* Time Slot Selector - uses mentor's availability */}
               <div className="border-t pt-4">
-                <h4 className="font-medium mb-3 text-sm">Select new time from mentor's availability:</h4>
+                <h4 className="font-medium mb-3 text-sm">
+                  {userRole === "mentor"
+                    ? "Select a new time from your availability:"
+                    : "Select new time from mentor's availability:"}
+                </h4>
                 <TimeSlotSelectorV2
                   mentorId={mentorId}
                   onTimeSelected={handleTimeSelected}
@@ -245,9 +278,9 @@ export function RescheduleDialog({
           <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3 text-sm text-blue-800 dark:text-blue-200">
             <p className="font-medium">Rescheduling Policy:</p>
             <ul className="mt-1 list-disc list-inside space-y-1 text-xs">
-              <li>Sessions cannot be rescheduled within 4 hours of the scheduled time</li>
-              <li>The mentor will be notified of the new schedule</li>
-              <li>Each session can be rescheduled up to {currentMaxReschedules} times</li>
+              <li>Sessions cannot be rescheduled within {cutoffHours} hour(s) of the scheduled time</li>
+              <li>The {otherPartyLabel} will be notified of the new schedule</li>
+              <li>You can reschedule up to {maxReschedules} time(s) per session</li>
             </ul>
           </div>
         </div>
@@ -261,7 +294,7 @@ export function RescheduleDialog({
           </Button>
           <Button
             onClick={handleReschedule}
-            disabled={isLoading || !selectedTime || !canReschedule || loadingSession}
+            disabled={isLoading || !selectedTime || !canReschedule || isLoadingData}
           >
             {isLoading ? "Rescheduling..." : "Reschedule Session"}
           </Button>

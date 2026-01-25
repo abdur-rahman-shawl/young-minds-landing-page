@@ -32,26 +32,47 @@ export type NewSessionPolicy = typeof sessionPolicies.$inferInsert;
 
 // Default policy keys and values
 export const DEFAULT_SESSION_POLICIES = {
-    // Minimum hours before session when cancellation is still allowed
+    // Minimum hours before session when cancellation is still allowed (MENTEE)
     CANCELLATION_CUTOFF_HOURS: {
         key: 'cancellation_cutoff_hours',
         value: '2',
         type: 'integer',
-        description: 'Minimum hours before session to allow cancellation',
+        description: 'Minimum hours before session to allow mentee cancellation',
     },
-    // Minimum hours before session when rescheduling is still allowed
+    // Minimum hours before session when rescheduling is still allowed (MENTEE)
     RESCHEDULE_CUTOFF_HOURS: {
         key: 'reschedule_cutoff_hours',
         value: '4',
         type: 'integer',
-        description: 'Minimum hours before session to allow rescheduling',
+        description: 'Minimum hours before session to allow mentee rescheduling',
     },
-    // Maximum number of reschedules per session
+    // Maximum number of reschedules per session (MENTEE)
     MAX_RESCHEDULES_PER_SESSION: {
         key: 'max_reschedules_per_session',
         value: '2',
         type: 'integer',
-        description: 'Maximum number of times a session can be rescheduled',
+        description: 'Maximum number of times a mentee can reschedule a session',
+    },
+    // Minimum hours before session when cancellation is still allowed (MENTOR)
+    MENTOR_CANCELLATION_CUTOFF_HOURS: {
+        key: 'mentor_cancellation_cutoff_hours',
+        value: '1',
+        type: 'integer',
+        description: 'Minimum hours before session to allow mentor cancellation',
+    },
+    // Minimum hours before session when rescheduling is still allowed (MENTOR)
+    MENTOR_RESCHEDULE_CUTOFF_HOURS: {
+        key: 'mentor_reschedule_cutoff_hours',
+        value: '2',
+        type: 'integer',
+        description: 'Minimum hours before session to allow mentor rescheduling',
+    },
+    // Maximum number of reschedules per session (MENTOR)
+    MENTOR_MAX_RESCHEDULES_PER_SESSION: {
+        key: 'mentor_max_reschedules_per_session',
+        value: '2',
+        type: 'integer',
+        description: 'Maximum number of times a mentor can reschedule a session',
     },
     // Hours before session for penalty-free cancellation
     FREE_CANCELLATION_HOURS: {
@@ -69,7 +90,7 @@ export const DEFAULT_SESSION_POLICIES = {
     },
 } as const;
 
-// Cancellation reason categories (enum-like)
+// Cancellation reason categories for MENTEES
 export const CANCELLATION_REASONS = [
     { value: 'schedule_conflict', label: 'Schedule conflict' },
     { value: 'personal_emergency', label: 'Personal emergency' },
@@ -79,4 +100,17 @@ export const CANCELLATION_REASONS = [
     { value: 'other', label: 'Other' },
 ] as const;
 
+// Cancellation reason categories for MENTORS
+export const MENTOR_CANCELLATION_REASONS = [
+    { value: 'schedule_conflict', label: 'Schedule conflict' },
+    { value: 'personal_emergency', label: 'Personal emergency' },
+    { value: 'preparation_issue', label: 'Unable to prepare for session' },
+    { value: 'health_related', label: 'Health-related reason' },
+    { value: 'technical_issues', label: 'Technical issues' },
+    { value: 'unavailable', label: 'No longer available' },
+    { value: 'other', label: 'Other' },
+] as const;
+
 export type CancellationReasonValue = typeof CANCELLATION_REASONS[number]['value'];
+export type MentorCancellationReasonValue = typeof MENTOR_CANCELLATION_REASONS[number]['value'];
+

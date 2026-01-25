@@ -37,7 +37,8 @@ export const sessions = pgTable('sessions', {
   cancelledBy: text('cancelled_by'), // 'mentor' | 'mentee'
   cancellationReason: text('cancellation_reason'),
   rescheduledFrom: uuid('rescheduled_from').references(() => sessions.id),
-  rescheduleCount: integer('reschedule_count').default(0).notNull(), // Track times rescheduled
+  rescheduleCount: integer('reschedule_count').default(0).notNull(), // Track times rescheduled by mentee
+  mentorRescheduleCount: integer('mentor_reschedule_count').default(0).notNull(), // Track times rescheduled by mentor
   noShowMarkedBy: text('no_show_marked_by'), // 'mentor' | 'system'
   noShowMarkedAt: timestamp('no_show_marked_at'),
 

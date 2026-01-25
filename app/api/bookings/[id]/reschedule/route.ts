@@ -36,7 +36,7 @@ async function getPolicyValue(key: string, defaultValue: string): Promise<string
   return policy.length > 0 ? policy[0].policyValue : defaultValue;
 }
 
-// POST /api/bookings/[id]/reschedule - Reschedule a booking (MENTEE ONLY)
+// POST /api/bookings/[id]/reschedule - Reschedule a booking (MENTOR OR MENTEE)
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -73,12 +73,13 @@ export async function POST(
 
     const booking = existingBooking[0];
 
-    // MENTEE ONLY: Only the mentee can reschedule the session
+    // Check if user is mentor or mentee for this session
+    const isMentor = booking.mentorId === session.user.id;
     const isMentee = booking.menteeId === session.user.id;
 
-    if (!isMentee) {
+    if (!isMentee && !isMentor) {
       return NextResponse.json(
-        { error: 'Only the mentee can reschedule this session. Please contact the mentee if you need to modify the booking.' },
+        { error: 'You are not authorized to reschedule this session.' },
         { status: 403 }
       );
     }
@@ -112,27 +113,47 @@ export async function POST(
       );
     }
 
-    // Load policies from DB
-    const rescheduleCutoffHours = parseInt(
-      await getPolicyValue(
-        DEFAULT_SESSION_POLICIES.RESCHEDULE_CUTOFF_HOURS.key,
-        DEFAULT_SESSION_POLICIES.RESCHEDULE_CUTOFF_HOURS.value
+    // Load policies from DB based on role
+    const rescheduleCutoffHours = isMentor
+      ? parseInt(
+        await getPolicyValue(
+          DEFAULT_SESSION_POLICIES.MENTOR_RESCHEDULE_CUTOFF_HOURS.key,
+          DEFAULT_SESSION_POLICIES.MENTOR_RESCHEDULE_CUTOFF_HOURS.value
+        )
       )
-    );
+      : parseInt(
+        await getPolicyValue(
+          DEFAULT_SESSION_POLICIES.RESCHEDULE_CUTOFF_HOURS.key,
+          DEFAULT_SESSION_POLICIES.RESCHEDULE_CUTOFF_HOURS.value
+        )
+      );
 
-    const maxReschedules = parseInt(
-      await getPolicyValue(
-        DEFAULT_SESSION_POLICIES.MAX_RESCHEDULES_PER_SESSION.key,
-        DEFAULT_SESSION_POLICIES.MAX_RESCHEDULES_PER_SESSION.value
+    const maxReschedules = isMentor
+      ? parseInt(
+        await getPolicyValue(
+          DEFAULT_SESSION_POLICIES.MENTOR_MAX_RESCHEDULES_PER_SESSION.key,
+          DEFAULT_SESSION_POLICIES.MENTOR_MAX_RESCHEDULES_PER_SESSION.value
+        )
       )
-    );
+      : parseInt(
+        await getPolicyValue(
+          DEFAULT_SESSION_POLICIES.MAX_RESCHEDULES_PER_SESSION.key,
+          DEFAULT_SESSION_POLICIES.MAX_RESCHEDULES_PER_SESSION.value
+        )
+      );
+
+    // Get the current reschedule count based on role
+    const currentRescheduleCount = isMentor
+      ? (booking.mentorRescheduleCount ?? 0)
+      : booking.rescheduleCount;
 
     // Check reschedule count limit
-    if (booking.rescheduleCount >= maxReschedules) {
+    if (currentRescheduleCount >= maxReschedules) {
+      const roleLabel = isMentor ? 'mentor' : 'mentee';
       return NextResponse.json(
         {
-          error: `This session has already been rescheduled ${maxReschedules} time(s). No further rescheduling is allowed.`,
-          rescheduleCount: booking.rescheduleCount,
+          error: `This session has already been rescheduled ${maxReschedules} time(s) by the ${roleLabel}. No further rescheduling is allowed.`,
+          rescheduleCount: currentRescheduleCount,
           maxReschedules
         },
         { status: 400 }
@@ -145,24 +166,34 @@ export async function POST(
     const hoursUntilSession = (oldScheduledTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
     if (hoursUntilSession < rescheduleCutoffHours && hoursUntilSession > 0) {
+      const roleLabel = isMentor ? 'Mentors' : 'Mentees';
       return NextResponse.json(
-        { error: `Sessions cannot be rescheduled within ${rescheduleCutoffHours} hours of the scheduled time` },
+        { error: `${roleLabel} cannot reschedule sessions within ${rescheduleCutoffHours} hour(s) of the scheduled time` },
         { status: 400 }
       );
     }
 
     const newScheduledTime = new Date(scheduledAt);
-    const newRescheduleCount = booking.rescheduleCount + 1;
+    const newRescheduleCount = currentRescheduleCount + 1;
+    const rescheduledBy = isMentor ? 'mentor' : 'mentee';
 
-    // Update the booking with new schedule (no copy needed - simpler approach)
+    // Update the booking with new schedule
+    const updateData: Record<string, unknown> = {
+      scheduledAt: newScheduledTime,
+      duration: duration || booking.duration,
+      updatedAt: new Date(),
+    };
+
+    // Increment the appropriate reschedule counter based on role
+    if (isMentor) {
+      updateData.mentorRescheduleCount = newRescheduleCount;
+    } else {
+      updateData.rescheduleCount = newRescheduleCount;
+    }
+
     const [rescheduledBooking] = await db
       .update(sessions)
-      .set({
-        scheduledAt: newScheduledTime,
-        duration: duration || booking.duration,
-        rescheduleCount: newRescheduleCount,
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(sessions.id, id))
       .returning();
 
@@ -178,6 +209,7 @@ export async function POST(
         maxReschedules,
         rescheduleNumber: newRescheduleCount,
         hoursUntilSession: Math.round(hoursUntilSession * 100) / 100,
+        rescheduledBy,
       },
       ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
       userAgent: req.headers.get('user-agent') || 'unknown',
@@ -187,35 +219,63 @@ export async function POST(
     const oldDateStr = format(oldScheduledTime, "EEEE, MMMM d 'at' h:mm a");
     const newDateStr = format(newScheduledTime, "EEEE, MMMM d 'at' h:mm a");
 
-    // Notify the mentor
-    await db.insert(notifications).values({
-      userId: booking.mentorId,
-      type: 'BOOKING_RESCHEDULED',
-      title: 'Session Rescheduled by Mentee',
-      message: `Your session "${booking.title}" has been rescheduled from ${oldDateStr} to ${newDateStr}.`,
-      relatedId: booking.id,
-      relatedType: 'session',
-      actionUrl: `/dashboard?section=schedule`,
-      actionText: 'View Schedule',
-    });
+    // Notify the other party
+    if (isMentor) {
+      // Mentor rescheduled → notify mentee
+      await db.insert(notifications).values({
+        userId: booking.menteeId,
+        type: 'BOOKING_RESCHEDULED',
+        title: 'Session Rescheduled by Mentor',
+        message: `Your session "${booking.title}" has been rescheduled from ${oldDateStr} to ${newDateStr}.`,
+        relatedId: booking.id,
+        relatedType: 'session',
+        actionUrl: `/dashboard?section=sessions`,
+        actionText: 'View Sessions',
+      });
 
-    // Notify the mentee (confirmation)
-    await db.insert(notifications).values({
-      userId: booking.menteeId,
-      type: 'BOOKING_RESCHEDULED',
-      title: 'Reschedule Confirmed',
-      message: `Your session "${booking.title}" has been rescheduled to ${newDateStr}. (${newRescheduleCount}/${maxReschedules} reschedules used)`,
-      relatedId: booking.id,
-      relatedType: 'session',
-      actionUrl: `/dashboard?section=sessions`,
-      actionText: 'View Sessions',
-    });
+      // Confirmation to mentor
+      await db.insert(notifications).values({
+        userId: booking.mentorId,
+        type: 'BOOKING_RESCHEDULED',
+        title: 'Reschedule Confirmed',
+        message: `You have rescheduled "${booking.title}" to ${newDateStr}. (${newRescheduleCount}/${maxReschedules} reschedules used)`,
+        relatedId: booking.id,
+        relatedType: 'session',
+        actionUrl: `/dashboard?section=schedule`,
+        actionText: 'View Schedule',
+      });
+    } else {
+      // Mentee rescheduled → notify mentor
+      await db.insert(notifications).values({
+        userId: booking.mentorId,
+        type: 'BOOKING_RESCHEDULED',
+        title: 'Session Rescheduled by Mentee',
+        message: `Your session "${booking.title}" has been rescheduled from ${oldDateStr} to ${newDateStr}.`,
+        relatedId: booking.id,
+        relatedType: 'session',
+        actionUrl: `/dashboard?section=schedule`,
+        actionText: 'View Schedule',
+      });
+
+      // Confirmation to mentee
+      await db.insert(notifications).values({
+        userId: booking.menteeId,
+        type: 'BOOKING_RESCHEDULED',
+        title: 'Reschedule Confirmed',
+        message: `Your session "${booking.title}" has been rescheduled to ${newDateStr}. (${newRescheduleCount}/${maxReschedules} reschedules used)`,
+        relatedId: booking.id,
+        relatedType: 'session',
+        actionUrl: `/dashboard?section=sessions`,
+        actionText: 'View Sessions',
+      });
+    }
 
     return NextResponse.json({
       success: true,
       booking: rescheduledBooking,
       rescheduleCount: newRescheduleCount,
       maxReschedules,
+      rescheduledBy,
       message: 'Session rescheduled successfully'
     });
 
