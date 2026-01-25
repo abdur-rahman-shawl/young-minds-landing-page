@@ -47,6 +47,11 @@ export const sessions = pgTable('sessions', {
   refundPercentage: integer('refund_percentage'),
   refundStatus: text('refund_status').default('none'), // 'none', 'pending', 'processed', 'failed'
 
+  // Pending reschedule request (for quick access)
+  pendingRescheduleRequestId: uuid('pending_reschedule_request_id'),
+  pendingRescheduleTime: timestamp('pending_reschedule_time'),
+  pendingRescheduleBy: text('pending_reschedule_by'), // 'mentor' | 'mentee'
+
   // Recording configuration
   recordingConfig: jsonb('recording_config')
     .default({ enabled: true, resolution: '1280x720', fps: 30 })

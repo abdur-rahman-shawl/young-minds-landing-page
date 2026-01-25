@@ -232,34 +232,86 @@ Tracks all cancellations and reschedules:
 
 ---
 
-## Reschedule Flow (Mentor AND Mentee)
+## Reschedule Flow (Approval Required)
 
-`POST /api/bookings/[id]/reschedule` (`app/api/bookings/[id]/reschedule/route.ts`):
+Reschedules now require approval from the other party instead of instant updates.
+
+### Flow Diagram
+
+```
+Mentor/Mentee clicks "Reschedule"
+        ↓
+Creates reschedule_request (status: 'pending')
+        ↓
+Updates session: pendingRescheduleTime, pendingRescheduleBy
+        ↓
+Notifies other party
+        ↓
+Other party responds:
+  ├─ Accept → Session updated, request 'accepted'
+  ├─ Counter-propose → New time suggested, request 'counter_proposed'
+  └─ Cancel (mentee only) → Session cancelled, 100% refund
+```
+
+### API: Request Reschedule
+
+`POST /api/bookings/[id]/reschedule`:
 
 1. **Auth Check** - Must be logged in
-2. **Parse Body** - `scheduledAt` (required), `duration` (optional)
-3. **Fetch Booking** - Verify exists
-4. **Authorization** - Must be mentor OR mentee of this session
-5. **Status Validation** - Can't reschedule if `cancelled`, `completed`, `no_show`, `in_progress`
-6. **Load Policies** (role-specific):
-   - Mentee: `reschedule_cutoff_hours` (default 4), `max_reschedules_per_session` (default 2)
-   - Mentor: `mentor_reschedule_cutoff_hours` (default 2), `mentor_max_reschedules_per_session` (default 2)
-7. **Reschedule Count Check** - Check role-specific count:
-   - Mentee: `booking.rescheduleCount < maxReschedules`
-   - Mentor: `booking.mentorRescheduleCount < mentorMaxReschedules`
-8. **Time Check** - `hoursUntilSession >= rescheduleCutoffHours`
-9. **Update Session** - New `scheduledAt`, increment role-specific counter
-10. **Audit Log** - Insert with `rescheduledBy` in policy snapshot
-11. **Notify Other Party** - Role-specific notification titles
+2. **Authorization** - Must be mentor OR mentee
+3. **Check for existing pending request**
+4. **Policy check** - Load cutoff hours and max reschedules
+5. **Create reschedule_request** - Status: 'pending', set expiry
+6. **Update session** - Set pending reschedule fields
+7. **Notify other party** - "Respond Now" action link
 
-### Frontend Reschedule Dialog
+### API: Respond to Reschedule
 
-The `reschedule-dialog.tsx` component:
-- Accepts `userRole` prop to show role-specific UI
-- Uses `TimeSlotSelectorV2` to show mentor's available time slots
-- Fetches current `rescheduleCount` and `mentorRescheduleCount` from session data
-- Shows reschedule allowance badge for current user's role
-- Disables rescheduling if role-specific limit reached
+`POST /api/bookings/[id]/reschedule/respond`:
+
+**Body:**
+```json
+{
+  "requestId": "uuid",
+  "action": "accept" | "reject" | "counter_propose" | "cancel_session",
+  "counterProposedTime": "2024-01-26T10:00:00Z",
+  "cancellationReason": "..."
+}
+```
+
+**Actions:**
+- `accept` - Update session scheduledAt, increment reschedule count
+- `reject` - Keep original time (mentor only)
+- `counter_propose` - Suggest different time (max 3 rounds)
+- `cancel_session` - Cancel with 100% refund (mentee only, when mentor reschedules)
+
+### Database: reschedule_requests Table
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | uuid | Primary key |
+| `session_id` | uuid | FK to sessions |
+| `initiated_by` | text | 'mentor' or 'mentee' |
+| `status` | text | pending/accepted/rejected/counter_proposed/cancelled/expired |
+| `proposed_time` | timestamp | Requested new time |
+| `counter_proposed_time` | timestamp | Counter-proposal time |
+| `counter_proposal_count` | integer | Rounds of negotiation |
+| `expires_at` | timestamp | Auto-expiry time |
+
+### Session Fields (Quick Access)
+
+| Field | Description |
+|-------|-------------|
+| `pending_reschedule_request_id` | FK to active request |
+| `pending_reschedule_time` | Proposed/counter time |
+| `pending_reschedule_by` | Who last proposed |
+
+### Frontend Components
+
+- `reschedule-dialog.tsx` - Request reschedule (creates pending request)
+- `reschedule-request-banner.tsx` - Shows pending status or respond button
+- `reschedule-response-dialog.tsx` - Accept/Counter/Cancel tabs
+
 
 ---
 

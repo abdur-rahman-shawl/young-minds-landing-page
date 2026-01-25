@@ -164,8 +164,8 @@ export function RescheduleDialog({
       }
 
       toast({
-        title: "Session Rescheduled",
-        description: `The session has been rescheduled to ${format(selectedTime, "EEEE, MMMM d 'at' h:mm a")}. The ${otherPartyLabel} has been notified.`,
+        title: "Reschedule Request Sent",
+        description: `Your reschedule request has been sent to the ${otherPartyLabel} for approval.`,
       });
 
       onOpenChange(false);

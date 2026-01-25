@@ -102,6 +102,20 @@ export const DEFAULT_SESSION_POLICIES = {
         type: 'integer',
         description: 'Refund % when mentee cancels after cancellation_cutoff_hours',
     },
+    // Reschedule request expiry time
+    RESCHEDULE_REQUEST_EXPIRY_HOURS: {
+        key: 'reschedule_request_expiry_hours',
+        value: '48',
+        type: 'integer',
+        description: 'Hours until reschedule request auto-expires',
+    },
+    // Maximum counter proposals allowed
+    MAX_COUNTER_PROPOSALS: {
+        key: 'max_counter_proposals',
+        value: '3',
+        type: 'integer',
+        description: 'Maximum rounds of counter-proposals allowed per reschedule request',
+    },
 } as const;
 
 // Cancellation reason categories for MENTEES

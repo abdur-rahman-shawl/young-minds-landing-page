@@ -29,6 +29,7 @@ export * from './mentors-form-audit-trail';
 export * from './mentors-profile-audit';
 export * from './session-policies';
 export * from './session-audit-log';
+export * from './reschedule-requests';
 
 // Temporary empty export to prevent TypeScript errors
 export { };
