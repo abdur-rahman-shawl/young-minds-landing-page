@@ -58,6 +58,9 @@ export function CancelDialog({
     const [loadingPolicies, setLoadingPolicies] = useState(false);
     const { toast } = useToast();
 
+    // Normalize sessionRate to number (may come as string from db)
+    const rate = typeof sessionRate === 'string' ? parseFloat(sessionRate) : (sessionRate || 0);
+
     // Select appropriate cancellation reasons based on role
     const cancellationReasons = userRole === "mentor" ? MENTOR_CANCELLATION_REASONS : CANCELLATION_REASONS;
 
@@ -70,24 +73,24 @@ export function CancelDialog({
         const hoursUntilSession = (scheduled.getTime() - now.getTime()) / (1000 * 60 * 60);
 
         // Mentor cancels → always 100%
-        if (userRole === "mentor") return { percentage: 100, amount: sessionRate };
+        if (userRole === "mentor") return { percentage: 100, amount: rate };
 
         // Session in the past
         if (hoursUntilSession <= 0) return { percentage: 0, amount: 0 };
 
         // Free cancellation window
         if (hoursUntilSession >= policyData.freeCancellationHours) {
-            return { percentage: 100, amount: sessionRate };
+            return { percentage: 100, amount: rate };
         }
 
         // Between free and cutoff
         if (hoursUntilSession >= policyData.cancellationCutoffHours) {
-            const amount = (sessionRate * policyData.partialRefundPercentage) / 100;
+            const amount = (rate * policyData.partialRefundPercentage) / 100;
             return { percentage: policyData.partialRefundPercentage, amount };
         }
 
         // After cutoff (late cancellation)
-        const amount = (sessionRate * policyData.lateCancellationRefundPercentage) / 100;
+        const amount = (rate * policyData.lateCancellationRefundPercentage) / 100;
         return { percentage: policyData.lateCancellationRefundPercentage, amount };
     };
 
@@ -197,7 +200,7 @@ export function CancelDialog({
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     {/* Refund Preview */}
-                    {sessionRate > 0 && (
+                    {rate > 0 && (
                         <div className="rounded-lg bg-green-50 dark:bg-green-950/30 p-3 text-sm text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800">
                             <div className="flex items-center gap-2 font-medium">
                                 <DollarSign className="h-4 w-4" />
@@ -211,7 +214,7 @@ export function CancelDialog({
                             ) : (
                                 <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                                     <div className="text-muted-foreground">Session Rate:</div>
-                                    <div className="font-medium">${sessionRate.toFixed(2)}</div>
+                                    <div className="font-medium">${rate.toFixed(2)}</div>
                                     <div className="text-muted-foreground">Refund:</div>
                                     <div className="font-medium">
                                         {refundPreview.percentage}% (${refundPreview.amount.toFixed(2)})
