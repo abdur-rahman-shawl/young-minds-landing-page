@@ -11,7 +11,7 @@ import {
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
+import { checkFeatureAccess, getPlanFeatures, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -118,15 +118,33 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { has_access, reason } = await checkFeatureAccess(
+    const coursesAccess = await checkFeatureAccess(
       userId,
-      FEATURE_KEYS.FREE_COURSES_LIMIT
+      FEATURE_KEYS.COURSES_ACCESS_LEVEL
     );
-    if (!has_access) {
+    if (!coursesAccess.has_access) {
       return NextResponse.json(
-        { success: false, error: reason || 'Course enrollment limit reached' },
+        { success: false, error: coursesAccess.reason || 'Courses are not included in your plan' },
         { status: 403 }
       );
+    }
+
+    const accessLevelText = typeof coursesAccess.limit === 'string' ? coursesAccess.limit : null;
+    const shouldEnforceCourseLimit = accessLevelText
+      ? accessLevelText.toLowerCase() !== 'unlimited'
+      : true;
+
+    if (shouldEnforceCourseLimit) {
+      const { has_access, reason } = await checkFeatureAccess(
+        userId,
+        FEATURE_KEYS.FREE_COURSES_LIMIT
+      );
+      if (!has_access) {
+        return NextResponse.json(
+          { success: false, error: reason || 'Course enrollment limit reached' },
+          { status: 403 }
+        );
+      }
     }
 
     const {
@@ -141,6 +159,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const coursePrice = parseFloat(course.price || '0');
     let finalPrice = coursePrice;
     let discountAmount = 0;
+
+    try {
+      const planFeatures = await getPlanFeatures(userId);
+      const discountFeature = planFeatures.find(
+        feature => feature.feature_key === FEATURE_KEYS.COURSE_DISCOUNT_PERCENT
+      );
+      const discountPercent = discountFeature?.limit_percent ?? null;
+
+      if (discountPercent !== null && discountPercent > 0) {
+        discountAmount = (coursePrice * Number(discountPercent)) / 100;
+        finalPrice = Math.max(0, Number((coursePrice - discountAmount).toFixed(2)));
+      }
+    } catch (error) {
+      console.error('Course discount lookup failed:', error);
+    }
 
     // Handle coupon codes here if needed
     if (couponCode) {

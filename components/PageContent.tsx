@@ -44,6 +44,8 @@ import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { Courses } from "@/components/shared/dashboard/courses"
 import { MyLearning } from "@/components/mentee/dashboard/my-learning"
 import { MentorAnalyticsSection } from "@/components/mentor/dashboard/mentor-analytics-section"
+import { MentorSubscription } from "@/components/mentor/dashboard/mentor-subscription"
+import { MenteeSubscription } from "@/components/mentee/dashboard/mentee-subscription"
 
 const AdminAnalytics = dynamic(() => import("@/app/admins/analytics/page"), {
   ssr: false,
@@ -207,6 +209,12 @@ export function PageContent() {
           return <MentorContent />
         case "analytics":
           return <MentorAnalyticsSection />
+        case "subscription":
+          return (
+            <div className="mx-auto w-full max-w-6xl">
+              <MentorSubscription />
+            </div>
+          )
         case "profile":
           return isMentor ? <MentorProfileEdit /> : <MenteeProfile />
         default:
@@ -253,6 +261,12 @@ export function PageContent() {
         )
       case "profile":
         return <MenteeProfile />
+      case "subscription":
+        return (
+          <div className="mx-auto w-full max-w-6xl">
+            <MenteeSubscription />
+          </div>
+        )
       default:
         return (
           <Dashboard

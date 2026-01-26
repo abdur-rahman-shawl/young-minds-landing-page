@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { mentors, users } from '@/lib/db/schema'
 import { and, eq, ilike, or, desc } from 'drizzle-orm'
+import { auth } from '@/lib/auth'
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys'
+import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement'
 
 // Force Node runtime (DB drivers), and avoid any ISR caching
 export const runtime = 'nodejs'
@@ -21,6 +24,31 @@ export async function GET(req: NextRequest) {
     const q = (searchParams.get('q') ?? '').trim()
     const industry = (searchParams.get('industry') ?? '').trim()
     const availableOnly = (searchParams.get('availableOnly') ?? 'true') === 'true'
+    const aiSearch = (searchParams.get('ai') ?? 'false') === 'true'
+
+    let requesterId: string | null = null
+    if (aiSearch) {
+      const session = await auth.api.getSession({ headers: req.headers })
+      requesterId = session?.user?.id || null
+
+      if (!requesterId) {
+        return NextResponse.json(
+          { success: false, error: 'Authentication required for AI search' },
+          { status: 401 }
+        )
+      }
+
+      const { has_access, reason } = await checkFeatureAccess(
+        requesterId,
+        FEATURE_KEYS.AI_SEARCH_SESSIONS_MONTHLY
+      )
+      if (!has_access) {
+        return NextResponse.json(
+          { success: false, error: reason || 'AI search not included in your plan' },
+          { status: 403 }
+        )
+      }
+    }
 
     // WHERE clauses
     const whereClauses: any[] = [eq(mentors.verificationStatus, 'VERIFIED' as const)]
@@ -68,12 +96,44 @@ export async function GET(req: NextRequest) {
       .limit(pageSize)
       .offset(offset)
 
+    let filteredRows = rows
+    if (aiSearch && requesterId) {
+      const allowedRows = []
+      for (const row of rows) {
+        const access = await checkFeatureAccess(
+          row.userId,
+          FEATURE_KEYS.AI_PROFILE_APPEARANCES_MONTHLY
+        )
+        if (access.has_access) {
+          allowedRows.push(row)
+        }
+      }
+      filteredRows = allowedRows
+
+      await trackFeatureUsage(
+        requesterId,
+        FEATURE_KEYS.AI_SEARCH_SESSIONS_MONTHLY,
+        { count: 1 },
+        'ai_search'
+      )
+
+      for (const row of filteredRows) {
+        await trackFeatureUsage(
+          row.userId,
+          FEATURE_KEYS.AI_PROFILE_APPEARANCES_MONTHLY,
+          { count: 1 },
+          'mentor_profile',
+          row.id
+        )
+      }
+    }
+
     // Lightweight pagination (no expensive COUNT)
-    const hasMore = rows.length === pageSize
+    const hasMore = filteredRows.length === pageSize
 
     return NextResponse.json({
       success: true,
-      data: rows,
+      data: filteredRows,
       pagination: { page, pageSize, hasMore }
     })
   } catch (error: any) {

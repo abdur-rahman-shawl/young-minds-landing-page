@@ -645,10 +645,12 @@ However, with service role key, RLS policies may not apply. The helper functions
    - All triggers working
 
 2. **Core Enforcement**
-   - Session booking checks work
+   - Mentor session limits enforced on booking and session creation
+   - Mentee session limits enforced by session type (free/paid/counseling)
+   - Session duration limits enforced for mentees (per session type) and mentors
    - Message sending checks work
    - AI chat checks work
-   - Usage tracking works for all three
+   - Usage tracking works for sessions, messaging, and AI messages
    - Message requests enforced
    - Course enrollments enforced
    - Recording access enforced
@@ -672,6 +674,44 @@ However, with service role key, RLS policies may not apply. The helper functions
    - Subscription tab displays current plan + usage
    - Lists all plans for the user's audience
    - Temporary "Select Plan" flow creates a subscription (bypasses checkout)
+
+### Implementation Status by Feature (API Enforcement)
+
+**Implemented (Enforced + Tracked)**
+- Mentor session limits: `mentor_sessions_monthly` in `app/api/bookings/route.ts` and `app/api/sessions/route.ts`
+- Mentee session limits by type: `free_video_sessions_monthly`, `paid_video_sessions_monthly`, `counseling_sessions_monthly` in `app/api/bookings/route.ts` and `app/api/sessions/route.ts`
+- Session duration limits: `session_duration_minutes` in `app/api/bookings/route.ts` and `app/api/sessions/route.ts`
+- Direct messages: `direct_messages_daily` in `app/api/messaging/threads/[id]/messages/route.ts`
+- Message requests: `message_requests_daily` in `app/api/messaging/requests/route.ts`
+- AI chat access + messages: `ai_helper_chat_access` and `ai_helper_messages_limit` in `app/api/chat/route.ts` and `app/api/ai-chatbot-messages/route.ts`
+- Course enrollments: `free_courses_limit` in `app/api/courses/[id]/enroll/route.ts`
+- Course access/discount at enroll: `courses_access_level`, `course_discount_percent` in `app/api/courses/[id]/enroll/route.ts`
+- Recordings access: `session_recordings_access` in `app/api/sessions/[sessionId]/recordings/route.ts` and `app/api/recordings/[id]/playback-url/route.ts`
+- Mentor AI appearance + mentee AI search (only when `?ai=true`): `ai_profile_appearances_monthly`, `ai_search_sessions_monthly` in `app/api/public-mentors/route.ts`
+
+**Partially Implemented (Gated, but not fully scoped/leveled)**
+- Analytics access: `analytics_access_level` is checked in `app/api/analytics/mentor/route.ts` and `app/api/student/learning-analytics/route.ts` but does not differentiate "Real-time" vs "Deep"
+- Course access in listings: no pricing/discount visibility in `app/api/courses/route.ts`
+
+**Not Implemented (No API gates yet)**
+- Knowledge hub access: `knowledge_hub_access_level`
+- Industry expert access/listing: `industry_expert_access_level`, `industry_expert_listing_limit`
+- Live sessions: `live_sessions_minutes_monthly`, `live_sessions_count_monthly`
+- Partner offers: `exclusive_partner_offers_access`
+- Early access: `early_access_features`
+- Team members: `team_member_limit` and `subscription_team_members` enforcement
+
+### Where To Add Remaining Gates (Suggested Endpoints)
+
+| Feature | Suggested endpoint(s) | Notes |
+|---|---|---|
+| Knowledge hub access | `app/api/courses/route.ts`, `app/api/student/courses/route.ts` | Gate list/browse and enrolled content; use `knowledge_hub_access_level` for limited vs unlimited. |
+| Industry expert access | `app/api/public-mentors/route.ts`, `app/api/mentors/[id]/route.ts` | Use `industry_expert_access_level` to gate visibility or booking CTA. |
+| Industry expert listing limit | `app/api/mentors/update-profile/route.ts`, `app/api/mentors/route.ts` | Enforce max categories/tags on mentor profile updates. |
+| Live sessions | (When implemented) `app/api/live-sessions/*` | Use minutes/count limits per plan. |
+| Partner offers | (UI/API depends on offers module) | Gate offers list or redemption endpoint. |
+| Early access features | (Feature flag entry points) | Gate entry to beta features or routes. |
+| Team member limit | `app/api/subscriptions/team/*` (to be created) | Enforce `team_member_limit` on invites/accepts. |
 
 ### ⚠️ Partially Functional
 

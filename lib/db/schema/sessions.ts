@@ -11,6 +11,7 @@ export const sessions = pgTable('sessions', {
   title: text('title').notNull(),
   description: text('description'),
   status: text('status').notNull().default('scheduled'), // 'scheduled', 'in_progress', 'completed', 'cancelled', 'no_show'
+  sessionType: text('session_type').notNull().default('PAID'), // 'FREE', 'PAID', 'COUNSELING'
 
   // Timing
   scheduledAt: timestamp('scheduled_at').notNull(),
