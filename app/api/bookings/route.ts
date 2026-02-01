@@ -136,32 +136,34 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Enforce mentor per-session duration limit
-      try {
-        const { has_access, reason, limit } = await checkFeatureAccess(
-          validatedData.mentorId,
-          FEATURE_KEYS.SESSION_DURATION_MINUTES
-        );
+      // Enforce mentor per-session duration limit only for paid/counseling
+      if (validatedData.sessionType !== 'FREE') {
+        try {
+          const { has_access, reason, limit } = await checkFeatureAccess(
+            validatedData.mentorId,
+            FEATURE_KEYS.SESSION_DURATION_MINUTES
+          );
 
-        if (!has_access) {
+          if (!has_access) {
+            return NextResponse.json(
+              { error: reason || 'Mentor session duration limit not included in plan' },
+              { status: 403 }
+            );
+          }
+
+          if (typeof limit === 'number' && validatedData.duration > limit) {
+            return NextResponse.json(
+              { error: `Session duration exceeds mentor limit of ${limit} minutes` },
+              { status: 403 }
+            );
+          }
+        } catch (error) {
+          console.error('Duration limit check failed (mentor):', error);
           return NextResponse.json(
-            { error: reason || 'Mentor session duration limit not included in plan' },
-            { status: 403 }
+            { error: 'Unable to verify mentor session duration limits' },
+            { status: 500 }
           );
         }
-
-        if (typeof limit === 'number' && validatedData.duration > limit) {
-          return NextResponse.json(
-            { error: `Session duration exceeds mentor limit of ${limit} minutes` },
-            { status: 403 }
-          );
-        }
-      } catch (error) {
-        console.error('Duration limit check failed (mentor):', error);
-        return NextResponse.json(
-          { error: 'Unable to verify mentor session duration limits' },
-          { status: 500 }
-        );
       }
     }
 

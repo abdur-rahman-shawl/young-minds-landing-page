@@ -28,6 +28,21 @@ export async function GET(req: NextRequest) {
     const aiSearch = (searchParams.get('ai') ?? 'false') === 'true'
 
     let requesterId: string | null = null
+    const resolveFeatureAccess = async (userId: string, primaryKey: string, fallbackKey?: string) => {
+      const primary = await checkFeatureAccess(userId, primaryKey).catch(() => null)
+      if (primary?.has_access) {
+        return { key: primaryKey, access: primary }
+      }
+      if (fallbackKey) {
+        const fallback = await checkFeatureAccess(userId, fallbackKey).catch(() => null)
+        if (fallback?.has_access) {
+          return { key: fallbackKey, access: fallback }
+        }
+        return { key: primaryKey, access: primary || fallback }
+      }
+      return { key: primaryKey, access: primary }
+    }
+
     if (aiSearch) {
       const session = await auth.api.getSession({ headers: req.headers })
       requesterId = session?.user?.id || null
@@ -39,13 +54,14 @@ export async function GET(req: NextRequest) {
         )
       }
 
-      const { has_access, reason } = await checkFeatureAccess(
+      const requesterAccess = await resolveFeatureAccess(
         requesterId,
+        FEATURE_KEYS.AI_SEARCH_SESSIONS,
         FEATURE_KEYS.AI_SEARCH_SESSIONS_MONTHLY
       )
-      if (!has_access) {
+      if (!requesterAccess.access?.has_access) {
         return NextResponse.json(
-          { success: false, error: reason || 'AI search not included in your plan' },
+          { success: false, error: requesterAccess.access?.reason || 'AI search not included in your plan' },
           { status: 403 }
         )
       }
@@ -125,38 +141,60 @@ export async function GET(req: NextRequest) {
               const [freeAccess, mentorAccess, visibilityAccess] = await Promise.all([
                 checkFeatureAccess(row.userId, FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY),
                 checkFeatureAccess(row.userId, FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY),
-                checkFeatureAccess(row.userId, FEATURE_KEYS.AI_PROFILE_APPEARANCES_MONTHLY),
+                resolveFeatureAccess(row.userId, FEATURE_KEYS.AI_VISIBILITY),
               ])
               return {
                 row,
                 eligible:
-                  freeAccess.has_access && mentorAccess.has_access && visibilityAccess.has_access,
+                  freeAccess.has_access &&
+                  mentorAccess.has_access &&
+                  (visibilityAccess as any)?.access?.has_access === true,
+                visibilityKey: (visibilityAccess as any)?.key,
               }
             } catch (error) {
               console.error('Failed to check mentor eligibility:', error)
-              return { row, eligible: false }
+              return { row, eligible: false, visibilityKey: null }
             }
           })
         )
 
         filteredRows = eligibilityChecks.filter((item) => item.eligible).map((item) => item.row)
-      }
 
-      await trackFeatureUsage(
-        requesterId,
-        FEATURE_KEYS.AI_SEARCH_SESSIONS_MONTHLY,
-        { count: 1 },
-        'ai_search'
-      )
-
-      for (const row of filteredRows) {
-        await trackFeatureUsage(
-          row.userId,
-          FEATURE_KEYS.AI_PROFILE_APPEARANCES_MONTHLY,
-          { count: 1 },
-          'mentor_profile',
-          row.id
+        const visibilityKeyByUser = new Map(
+          eligibilityChecks
+            .filter((item) => item.eligible)
+            .map((item) => [item.row.userId, item.visibilityKey || FEATURE_KEYS.AI_VISIBILITY])
         )
+
+        const requesterAccess = await resolveFeatureAccess(
+          requesterId,
+          FEATURE_KEYS.AI_SEARCH_SESSIONS,
+          FEATURE_KEYS.AI_SEARCH_SESSIONS_MONTHLY
+        )
+        if (requesterAccess.access?.has_access) {
+          await trackFeatureUsage(
+            requesterId,
+            requesterAccess.key,
+            { count: 1 },
+            'ai_search'
+          )
+        }
+
+        for (const row of filteredRows) {
+          const visibilityKey = visibilityKeyByUser.get(row.userId)
+          if (!visibilityKey) continue
+          try {
+            await trackFeatureUsage(
+              row.userId,
+              visibilityKey,
+              { count: 1 },
+              'mentor_profile',
+              row.id
+            )
+          } catch (error) {
+            console.error('Failed to track mentor visibility:', error)
+          }
+        }
       }
     }
 
