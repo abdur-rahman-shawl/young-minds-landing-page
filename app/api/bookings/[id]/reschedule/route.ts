@@ -231,6 +231,8 @@ export async function POST(
     const recipientId = isMentor ? booking.menteeId : booking.mentorId;
     const initiatorName = isMentor ? 'Your mentor' : 'Your mentee';
 
+    const recipientSection = isMentor ? 'sessions' : 'schedule';
+
     await db.insert(notifications).values({
       userId: recipientId,
       type: 'RESCHEDULE_REQUEST',
@@ -238,7 +240,7 @@ export async function POST(
       message: `${initiatorName} wants to reschedule "${booking.title}" to ${newDateStr}. Please respond by ${expiryDateStr}.`,
       relatedId: booking.id,
       relatedType: 'session',
-      actionUrl: `/dashboard?section=sessions&action=reschedule-response&sessionId=${booking.id}`,
+      actionUrl: `/dashboard?section=${recipientSection}&action=reschedule-response&sessionId=${booking.id}`,
       actionText: 'Respond Now',
     });
 

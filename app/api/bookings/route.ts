@@ -416,9 +416,13 @@ export async function GET(req: NextRequest) {
         // Mentor info (from JOIN with mentors table)
         mentorName: mentors.fullName,
         mentorAvatar: mentors.profileImageUrl,
+        // Mentee info (from JOIN with users table)
+        menteeName: users.name,
+        menteeAvatar: users.image,
       })
       .from(sessions)
       .leftJoin(mentors, eq(sessions.mentorId, mentors.userId))
+      .leftJoin(users, eq(sessions.menteeId, users.id))
       .where(whereCondition)
       .orderBy(desc(sessions.scheduledAt));
 

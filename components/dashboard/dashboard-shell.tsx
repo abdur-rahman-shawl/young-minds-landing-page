@@ -47,12 +47,12 @@ const AdminAnalytics = dynamic(() => import("@/app/admins/analytics/page"), {
   loading: () => <WidgetLoader text="Loading analytics..." />,
 })
 
-const MentorBookingsCalendar = dynamic(
+const MentorScheduleView = dynamic(
   () =>
-    import("@/components/booking/mentor-bookings-calendar").then(
-      (mod) => mod.MentorBookingsCalendar
+    import("@/components/booking/mentor-schedule-view").then(
+      (mod) => mod.MentorScheduleView
     ),
-  { ssr: false, loading: () => <WidgetLoader text="Loading calendar..." /> }
+  { ssr: false, loading: () => <WidgetLoader text="Loading schedule..." /> }
 )
 
 const MentorAvailabilityManager = dynamic(
@@ -169,7 +169,7 @@ export function DashboardShell() {
           content = (
             <div className="p-4 md:p-8">
               <div className="mx-auto max-w-7xl">
-                <MentorBookingsCalendar />
+                <MentorScheduleView />
               </div>
             </div>
           )

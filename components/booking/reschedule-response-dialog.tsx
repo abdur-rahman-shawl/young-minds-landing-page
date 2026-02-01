@@ -31,6 +31,7 @@ interface RescheduleResponseDialogProps {
     userRole: "mentor" | "mentee";
     mentorId: string;
     counterProposalCount?: number;
+    initialAction?: 'accept' | 'reject' | 'counter_propose' | 'cancel_session';
     onSuccess?: () => void;
 }
 
@@ -46,9 +47,10 @@ export function RescheduleResponseDialog({
     userRole,
     mentorId,
     counterProposalCount = 0,
+    initialAction = 'accept',
     onSuccess,
 }: RescheduleResponseDialogProps) {
-    const [selectedTab, setSelectedTab] = useState<string>("accept");
+    const [selectedTab, setSelectedTab] = useState<string>(initialAction === 'counter_propose' ? 'counter' : initialAction === 'cancel_session' ? 'cancel' : initialAction);
     const [counterTime, setCounterTime] = useState<Date | null>(null);
     const [cancellationReason, setCancellationReason] = useState("");
     const [isLoading, setIsLoading] = useState(false);

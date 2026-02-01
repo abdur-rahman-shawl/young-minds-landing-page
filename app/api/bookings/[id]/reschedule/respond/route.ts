@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { sessions, notifications, rescheduleRequests, sessionAuditLog, sessionPolicies } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { format, addHours } from 'date-fns';
 import { DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
@@ -55,7 +55,10 @@ export async function POST(
                 and(
                     eq(rescheduleRequests.id, requestId),
                     eq(rescheduleRequests.sessionId, sessionId),
-                    eq(rescheduleRequests.status, 'pending')
+                    or(
+                        eq(rescheduleRequests.status, 'pending'),
+                        eq(rescheduleRequests.status, 'counter_proposed')
+                    )
                 )
             )
             .limit(1);
@@ -98,10 +101,16 @@ export async function POST(
         const isMentee = booking.menteeId === session.user.id;
         const userRole = isMentor ? 'mentor' : 'mentee';
 
-        // The responder should be the opposite of who initiated
-        if (rescheduleRequest.initiatedBy === userRole) {
+        // Check who needs to panic if they are the one responding
+        // For pending: initiator cannot respond
+        // For counter_proposed: counter_proposer cannot respond
+        const lastActionBy = rescheduleRequest.status === 'counter_proposed'
+            ? rescheduleRequest.counterProposedBy
+            : rescheduleRequest.initiatedBy;
+
+        if (lastActionBy === userRole) {
             return NextResponse.json(
-                { error: 'You cannot respond to your own reschedule request' },
+                { error: 'You cannot respond to your own request/proposal' },
                 { status: 403 }
             );
         }
@@ -118,9 +127,21 @@ export async function POST(
         // Handle different actions
         switch (action) {
             case 'accept': {
+                // Determine the accepted time
+                const acceptedTime = rescheduleRequest.status === 'counter_proposed'
+                    ? rescheduleRequest.counterProposedTime
+                    : rescheduleRequest.proposedTime;
+
+                if (!acceptedTime) {
+                    return NextResponse.json(
+                        { error: 'No valid time found to accept' },
+                        { status: 400 }
+                    );
+                }
+
                 // Update session with new time
                 const updateData: Record<string, unknown> = {
-                    scheduledAt: rescheduleRequest.proposedTime,
+                    scheduledAt: acceptedTime,
                     duration: rescheduleRequest.proposedDuration || booking.duration,
                     pendingRescheduleRequestId: null,
                     pendingRescheduleTime: null,
@@ -148,18 +169,18 @@ export async function POST(
                     })
                     .where(eq(rescheduleRequests.id, requestId));
 
-                // Notify the initiator
-                const initiatorId = rescheduleRequest.initiatedBy === 'mentor' ? booking.mentorId : booking.menteeId;
-                const newDateStr = format(rescheduleRequest.proposedTime, "EEEE, MMMM d 'at' h:mm a");
+                // Notify the other party (the one who made the last action)
+                const otherPartyId = isMentor ? booking.menteeId : booking.mentorId;
+                const newDateStr = format(acceptedTime, "EEEE, MMMM d 'at' h:mm a");
 
                 await db.insert(notifications).values({
-                    userId: initiatorId,
+                    userId: otherPartyId,
                     type: 'RESCHEDULE_ACCEPTED',
                     title: 'Reschedule Accepted',
-                    message: `Your reschedule request for "${booking.title}" has been accepted. New time: ${newDateStr}`,
+                    message: `Your reschedule proposal for "${booking.title}" has been accepted. New time: ${newDateStr}`,
                     relatedId: booking.id,
                     relatedType: 'session',
-                    actionUrl: `/dashboard?section=sessions`,
+                    actionUrl: `/dashboard?section=${isMentor ? 'schedule' : 'sessions'}`,
                     actionText: 'View Session',
                 });
 
@@ -168,15 +189,15 @@ export async function POST(
                     sessionId: booking.id,
                     userId: session.user.id,
                     action: 'reschedule_accepted',
-                    previousScheduledAt: rescheduleRequest.originalTime,
-                    newScheduledAt: rescheduleRequest.proposedTime,
-                    policySnapshot: { initiatedBy: rescheduleRequest.initiatedBy, acceptedBy: userRole },
+                    previousScheduledAt: booking.scheduledAt, // Log previous actual time
+                    newScheduledAt: acceptedTime,
+                    policySnapshot: { initiatedBy: rescheduleRequest.initiatedBy, acceptedBy: userRole, status: rescheduleRequest.status },
                 });
 
                 return NextResponse.json({
                     success: true,
                     action: 'accepted',
-                    newScheduledAt: rescheduleRequest.proposedTime,
+                    newScheduledAt: acceptedTime,
                     message: 'Reschedule request accepted. Session has been updated.',
                 });
             }
@@ -213,7 +234,7 @@ export async function POST(
                     message: `Your reschedule request for "${booking.title}" was not accepted. The original time remains.`,
                     relatedId: booking.id,
                     relatedType: 'session',
-                    actionUrl: `/dashboard?section=sessions`,
+                    actionUrl: `/dashboard?section=${isMentor ? 'schedule' : 'sessions'}`,
                     actionText: 'View Session',
                 });
 
@@ -290,7 +311,7 @@ export async function POST(
                     message: `A different time was suggested for "${booking.title}": ${counterDateStr}. Please respond.`,
                     relatedId: booking.id,
                     relatedType: 'session',
-                    actionUrl: `/dashboard?section=sessions&action=reschedule-response&sessionId=${booking.id}`,
+                    actionUrl: `/dashboard?section=${isMentor ? 'schedule' : 'sessions'}&action=reschedule-response&sessionId=${booking.id}`,
                     actionText: 'Respond Now',
                 });
 

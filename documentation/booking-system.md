@@ -1,13 +1,13 @@
 # Booking System Documentation
 
-> **Last Updated:** 2026-02-01  
+> **Last Updated:** 2026-02-01
 > **Purpose:** Documents the mentor-mentee session booking flow
 
 ---
 
 ## Overview
 
-The booking system allows a **mentee** to book a session with a **mentor** through a multi-step wizard process.
+The booking system allows a **mentee** to book a session with a **mentor** through a multi-step wizard process. It also includes comprehensive tools for managing sessions, cancellations, and rescheduling for both parties.
 
 ---
 
@@ -21,10 +21,12 @@ Located in `components/booking/`:
 | `time-slot-selector-v2.tsx` | Step 1: Calendar & time slot selection (also used in reschedule) |
 | `booking-form.tsx` | Step 2: Duration, meeting type, session title/description |
 | `booking-confirmation.tsx` | Step 3: Review summary, pricing, payment form |
-| `sessions-calendar-view.tsx` | Session calendar with popup details, inline actions |
+| `sessions-calendar-view.tsx` | **Mentee's** session calendar with popup details, inline actions |
+| `mentor-schedule-view.tsx` | **New: Mentor's** dedicated schedule view (Week/List toggle, stats, popup) |
 | `session-actions.tsx` | Action buttons (Join, Reschedule, Cancel, No-Show) |
 | `cancel-dialog.tsx` | Cancel confirmation with reason selection |
 | `reschedule-dialog.tsx` | Reschedule UI with mentor's availability slots |
+| `reschedule-response-dialog.tsx` | **New:** UI for responding to reschedule requests (Accept/Counter/Reject) |
 | `reschedule-request-banner.tsx` | Shows pending reschedule status or respond button |
 
 ### Wizard Flow
@@ -40,7 +42,7 @@ time-selection → details → confirmation → success
 |----------|--------|---------|
 | `/api/mentors/[id]/availability/slots` | GET | Fetch available time slots |
 | `/api/bookings` | POST | Create new booking |
-| `/api/bookings` | GET | Get user's bookings (includes rescheduleCount) |
+| `/api/bookings` | GET | Get user's bookings (includes rescheduleCount, mentee info for mentors) |
 | `/api/bookings/[id]` | GET | Get specific booking |
 | `/api/bookings/[id]` | PUT | Update booking |
 | `/api/bookings/[id]` | DELETE | Cancel booking |
@@ -49,6 +51,7 @@ time-selection → details → confirmation → success
 | `/api/bookings/[id]/reschedule/respond` | POST | Respond to reschedule (accept/reject/counter) |
 | `/api/bookings/[id]/reschedule/withdraw` | POST | Withdraw own reschedule request |
 | `/api/bookings/[id]/no-show` | POST | Mark as no-show |
+| `/api/mentor/mentees-sessions` | GET | **New:** Get unique mentees & session stats for mentor view |
 | `/api/session-policies` | GET | Fetch session policies (optional `?role=mentor\|mentee`) |
 
 ### Session Policies API
@@ -66,20 +69,11 @@ Fetches configurable session policies from the database. Used by frontend dialog
   "cancellationCutoffHours": 1,
   "rescheduleCutoffHours": 2,
   "maxReschedules": 5,
-  "freeCancellationHours": 24
+  "freeCancellationHours": 24,
+  "rescheduleRequestExpiryHours": 48,
+  "maxCounterProposals": 3
 }
 ```
-
-**Response (without role):**
-```json
-{
-  "mentee": { "cancellationCutoffHours": 2, "rescheduleCutoffHours": 4, "maxReschedules": 2 },
-  "mentor": { "cancellationCutoffHours": 1, "rescheduleCutoffHours": 2, "maxReschedules": 5 },
-  "freeCancellationHours": 24
-}
-```
-
-> **Note:** Frontend dialogs (`cancel-dialog.tsx`, `reschedule-dialog.tsx`) fetch these policies dynamically when opened. Changes to `session_policies` table are reflected immediately in the UI.
 
 ---
 
@@ -164,128 +158,42 @@ Tracks all cancellations and reschedules:
 - `previousScheduledAt`, `newScheduledAt`
 - `policySnapshot`, `ipAddress`, `userAgent`
 
-### Mentor Availability (`lib/db/schema/mentor-availability.ts`)
-
-**`mentorAvailabilitySchedules`** - Global settings:
-- `timezone`, `defaultSessionDuration`, `bufferTimeBetweenSessions`
-- `minAdvanceBookingHours`, `maxAdvanceBookingDays`
-- `defaultStartTime`, `defaultEndTime`
-- `isActive`, `allowInstantBooking`, `requireConfirmation`
-
-**`mentorWeeklyPatterns`** - Weekly recurring availability:
-- `dayOfWeek` (0-6, Sunday-Saturday)
-- `isEnabled` (boolean)
-- `timeBlocks` (JSON array with startTime, endTime, type)
-
-**`mentorAvailabilityExceptions`** - Holidays/vacations:
-- `startDate`, `endDate`
-- `type` (AVAILABLE, BREAK, BUFFER, BLOCKED)
-- `reason`, `isFullDay`
-
 ---
 
-## Booking Creation Flow
+## Mentor Schedule View (New)
 
-`POST /api/bookings` (`app/api/bookings/route.ts`):
+The `MentorScheduleView` component (`components/booking/mentor-schedule-view.tsx`) provides a comprehensive dashboard for mentors to manage their sessions.
 
-1. **Auth & Rate Limit** - Verify logged in, max 3 bookings/minute
-2. **Input Validation** - Zod schema + business rules
-3. **Self-booking Check** - Cannot book yourself
-4. **Mentor Verification** - Exists and `isAvailable`
-5. **Availability Checks**:
-   - Schedule active
-   - Within advance booking window
-   - Day enabled in weekly patterns
-   - Time within AVAILABLE block
-   - No blocking exceptions
-   - No conflicts (including buffer)
-6. **Create Session** - Insert into `sessions` table
-7. **Notifications** - Notify both mentor and mentee
-8. **LiveKit Room** - Creates video room for session
-
----
-
-## Cancellation Flow (Mentor AND Mentee)
-
-`POST /api/bookings/[id]/cancel` (`app/api/bookings/[id]/cancel/route.ts`):
-
-1. **Auth Check** - Must be logged in
-2. **Parse Body** - `reasonCategory` (required), `reasonDetails` (optional)
-3. **Fetch Booking** - Verify exists
-4. **Authorization** - Must be mentor OR mentee of this session
-5. **Status Validation** - Can't cancel if `cancelled`, `completed`, `in_progress`
-6. **Policy Check** - Load role-specific cutoff and refund policies
-7. **Time Check** - `hoursUntilSession >= cancellationCutoffHours` (mentee only)
-8. **Calculate Refund** - Based on timing and who cancels (see Refund Rules below)
-9. **Update Session** - Set status, cancelledBy, refundPercentage, refundAmount, refundStatus
-10. **Audit Log** - Insert record with policy snapshot and refund details
-11. **Notify Other Party** - Include refund info in notification
-
-### Refund Rules
-
-| Scenario | Refund % |
-|----------|----------|
-| Mentor cancels | 100% (always full refund to mentee) |
-| Mentee cancels ≥ `free_cancellation_hours` before session | 100% |
-| Mentee cancels between `free_cancellation_hours` and `cancellation_cutoff_hours` | `partial_refund_percentage` (default 70%) |
-| Mentee cancels after `cancellation_cutoff_hours` | `late_cancellation_refund_percentage` (default 0%) |
-
-### Refund Tracking Fields (sessions table)
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `refund_amount` | decimal | Calculated refund amount |
-| `refund_percentage` | integer | Refund percentage applied |
-| `refund_status` | text | `'none'`, `'pending'`, `'processed'`, `'failed'` |
-
-### Refund Policies (session_policies table)
-
-| Policy Key | Default | Description |
-|------------|---------|-------------|
-| `free_cancellation_hours` | 24 | Full refund window |
-| `partial_refund_percentage` | 70 | Refund % between free and cutoff |
-| `late_cancellation_refund_percentage` | 0 | Refund % after cutoff |
-
-
-### Cancellation Reason Categories
-
-**Mentee Reasons:**
-- Schedule conflict
-- Personal emergency
-- No longer need this session
-- Found alternative solution
-- Technical issues expected
-- Other
-
-**Mentor Reasons:**
-- Schedule conflict
-- Personal emergency
-- Unable to prepare for session
-- Health-related reason
-- Technical issues
-- No longer available
-- Other
+**Features:**
+1.  **Stats Overview:** Header cards showing Total Mentees, Total Sessions (All Time), Upcoming Sessions, and Completed Sessions.
+2.  **View Toggle:** Switch between a **Weekly Calendar** (visual grid) and a **List View** (chronological list).
+3.  **Detailed Session Popup:** Clicking a session opens a dialog with:
+    *   **Mentee Info:** Avatar, Name (fetched via `users` table join), and session context.
+    *   **Session Details:** Time, date, countdown, meeting type.
+    *   **Inline Actions:** Join, Reschedule, Cancel, Add Notes.
+    *   **Reschedule Management:** If a request is pending, displays "Accept", "Counter", and "Decline" buttons directly in the popup.
 
 ---
 
 ## Reschedule Flow (Approval Required)
 
-Reschedules now require approval from the other party instead of instant updates.
+The reschedule system ensures that any time change is mutually agreed upon.
 
 ### Flow Diagram
 
 ```
-Mentor/Mentee clicks "Reschedule"
+User (Mentor/Mentee) clicks "Reschedule"
         ↓
 Creates reschedule_request (status: 'pending')
         ↓
 Updates session: pendingRescheduleTime, pendingRescheduleBy
         ↓
-Notifies other party
+Notifies other party (Action URL points to schedule/sessions view)
         ↓
-Other party responds:
-  ├─ Accept → Session updated, request 'accepted'
-  ├─ Counter-propose → New time suggested, request 'counter_proposed'
+Other party responds via RescheduleResponseDialog:
+  ├─ Accept → Session updated to new time, request 'accepted'
+  ├─ Counter-propose → New time suggested, request 'counter_proposed' (Logic handles this state)
+  ├─ Reject → Request 'rejected', session stays at original time
   └─ Cancel (mentee only) → Session cancelled, 100% refund
 ```
 
@@ -293,13 +201,13 @@ Other party responds:
 
 `POST /api/bookings/[id]/reschedule`:
 
-1. **Auth Check** - Must be logged in
-2. **Authorization** - Must be mentor OR mentee
-3. **Check for existing pending request**
-4. **Policy check** - Load cutoff hours and max reschedules
-5. **Create reschedule_request** - Status: 'pending', set expiry
-6. **Update session** - Set pending reschedule fields
-7. **Notify other party** - "Respond Now" action link
+1.  **Auth Check** - Must be logged in
+2.  **Authorization** - Must be mentor OR mentee
+3.  **Check for existing pending request**
+4.  **Policy check** - Check cutoff hours and max reschedules
+5.  **Create reschedule_request** - Status: 'pending', set expiry
+6.  **Update session** - Set pending reschedule fields
+7.  **Notify other party** - "Respond Now" action link dynamically routes to the correct dashboard section
 
 ### API: Respond to Reschedule
 
@@ -310,101 +218,32 @@ Other party responds:
 {
   "requestId": "uuid",
   "action": "accept" | "reject" | "counter_propose" | "cancel_session",
-  "counterProposedTime": "2024-01-26T10:00:00Z",
+  "counterProposedTime": "2024-01-26T10:00:00Z", // Required if action is counter_propose
   "cancellationReason": "..."
 }
 ```
 
 **Actions:**
-- `accept` - Update session scheduledAt, increment reschedule count
-- `reject` - Keep original time (mentor only)
-- `counter_propose` - Suggest different time (max 3 rounds)
-- `cancel_session` - Cancel with 100% refund (mentee only, when mentor reschedules)
-
-### Database: reschedule_requests Table
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | uuid | Primary key |
-| `session_id` | uuid | FK to sessions |
-| `initiated_by` | text | 'mentor' or 'mentee' |
-| `status` | text | pending/accepted/rejected/counter_proposed/cancelled/expired |
-| `proposed_time` | timestamp | Requested new time |
-| `counter_proposed_time` | timestamp | Counter-proposal time |
-| `counter_proposal_count` | integer | Rounds of negotiation |
-| `expires_at` | timestamp | Auto-expiry time |
-
-### Session Fields (Quick Access)
-
-| Field | Description |
-|-------|-------------|
-| `pending_reschedule_request_id` | FK to active request |
-| `pending_reschedule_time` | Proposed/counter time |
-| `pending_reschedule_by` | Who last proposed |
-
-### Frontend Components
-
-- `reschedule-dialog.tsx` - Request reschedule (creates pending request)
-- `reschedule-request-banner.tsx` - Shows pending status or respond button
-- `reschedule-response-dialog.tsx` - Accept/Counter/Cancel tabs
-
-### API: Withdraw Reschedule Request
-
-`POST /api/bookings/[id]/reschedule/withdraw`
-
-Allows the **initiator** of a reschedule request to withdraw their own request.
-
-**Authorization:**
-- Only the user who initiated the reschedule request can withdraw it
-- Request must be in `pending` or `counter_proposed` status
-
-**Actions performed:**
-1. Update `reschedule_requests.status` to `cancelled`
-2. Clear `pendingRescheduleRequestId`, `pendingRescheduleTime`, `pendingRescheduleBy` on session
-3. Log action in `session_audit_log` with action `reschedule_withdrawn`
-4. Notify other party with type `RESCHEDULE_WITHDRAWN`
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Reschedule request withdrawn successfully. The session remains at its original time.",
-  "originalScheduledAt": "2026-02-02T13:00:00.000Z"
-}
-```
+-   **`accept`**: Updates session `scheduledAt` to `proposedTime` (or `counterProposedTime` if status was 'counter_proposed'). Increments reschedule count. Mark request 'accepted'.
+-   **`reject`**: Keeps original time. Mark request 'rejected'. (Mentor only).
+-   **`counter_propose`**: Suggests a different time. Updates request status to `counter_proposed`, increments `counterProposalCount`. Max 3 rounds.
+-   **`cancel_session`**: Mentee cancels the session in response to a mentor's reschedule request. 100% refund triggered.
 
 ---
 
-## Session Details Popup
+## Cancellation Flow (Mentor AND Mentee)
 
-The session popup in `sessions-calendar-view.tsx` displays session info with state-specific actions.
+`POST /api/bookings/[id]/cancel` (`app/api/bookings/[id]/cancel/route.ts`):
 
-### Layout
-
-1. **Mentor Card** - Avatar, name, session type badge
-2. **Session Title & Description**
-3. **Session Details** - Date, time (with countdown), duration, meeting type, rate
-4. **Pending Reschedule Alert** - If applicable, shows proposed time and responder actions
-5. **Action Buttons** - State-dependent
-
-### State-Specific Actions
-
-| State | Actions |
-|-------|--------|
-| **Scheduled** | Join Session, Reschedule, Cancel Session |
-| **Scheduled + Pending Reschedule (Initiator)** | Withdraw Request, Reschedule (disabled), Cancel Session |
-| **Scheduled + Pending Reschedule (Responder)** | Accept/Counter/Decline via banner, Cancel Session |
-| **In Progress** | Rejoin Session |
-| **Completed** | View Recording (coming soon), Rebook with Mentor (coming soon) |
-| **Cancelled** | Refund Status, Rebook with Mentor (coming soon) |
-
-### Key Behaviors
-
-- **No Join button when reschedule pending** - Prevents confusion about which time is valid
-- **Inline action buttons** - No hidden dropdown menus
-- **Mentor info from mentors table** - Uses `fullName` and `profileImageUrl`
-- **Time countdown** - Shows "Starts in X days/hours/minutes"
-
+1.  **Auth Check** - Must be logged in
+2.  **Authorization** - Must be mentor OR mentee of this session
+3.  **Status Validation** - Can't cancel if already `cancelled`, `completed`, `in_progress`
+4.  **Policy Check** - Load role-specific cutoff and refund policies
+5.  **Time Check** - `hoursUntilSession >= cancellationCutoffHours` (mentee only)
+6.  **Calculate Refund** - Based on timing and who cancels (Mentor cancels = 100% refund)
+7.  **Update Session** - Set status, cancelledBy, refundPercentage, etc.
+8.  **Audit Log** - Insert record
+9.  **Notify Other Party**
 
 ---
 
@@ -412,123 +251,13 @@ The session popup in `sessions-calendar-view.tsx` displays session info with sta
 
 `GET /api/mentors/[id]/availability/slots`:
 
-1. Fetch schedule, weekly patterns, exceptions
-2. Get existing bookings in date range
-3. For each day in range:
-   - Check if day enabled
-   - Generate 30-min interval slots from AVAILABLE blocks
-   - Filter: past, outside window, exceptions, conflicts
-4. Convert to requested timezone
-5. Return slots with availability status
+1.  Fetch schedule, weekly patterns, exceptions
+2.  Get existing bookings in date range
+3.  For each day in range:
+    -   Check if day enabled
+    -   Generate 30-min interval slots from AVAILABLE blocks
+    -   Filter: past, outside window, exceptions, conflicts
+4.  Convert to requested timezone
+5.  Return slots with availability status
 
 ---
-
-## Business Rules
-
-| Rule | Mentee | Mentor |
-|------|--------|--------|
-| Cancellation cutoff | 2 hours (configurable) | 1 hour (configurable) |
-| Reschedule cutoff | 4 hours (configurable) | 2 hours (configurable) |
-| Max reschedules | 2 per session (configurable) | 2 per session (configurable) |
-
-| Rule | Value |
-|------|-------|
-| Min booking duration | 15 minutes |
-| Max booking duration | 4 hours |
-| Slot interval | 30 minutes |
-| Business hours | 9 AM - 9 PM (default) |
-| Min advance booking | 30 minutes (configurable per mentor) |
-
-### Session Modification Policy
-
-> **Updated:** Both mentors AND mentees can now cancel and reschedule sessions, each with their own policies.
-
-- Mentors and mentees have **separate reschedule counts** per session
-- Each party has **role-specific cutoff times**
-- Actions are tracked in audit log with initiator role
-- Notifications indicate who initiated the action
-
-
----
-
-## Validation Schema
-
-Located in `lib/validations/booking.ts`:
-
-- `createBookingSchema` - For new bookings
-- `updateBookingSchema` - For updates
-- `cancelBookingSchema` - For cancellations
-- `rescheduleBookingSchema` - For rescheduling
-
----
-
-## Key Files
-
-```
-components/booking/
-├── booking-modal.tsx          # Main wizard
-├── booking-form.tsx           # Session details form
-├── booking-confirmation.tsx   # Review & confirm
-├── time-slot-selector-v2.tsx  # Date/time picker (used in booking & reschedule)
-├── cancel-dialog.tsx          # Cancel confirmation
-├── reschedule-dialog.tsx      # Reschedule UI with availability slots
-└── session-actions.tsx        # Action buttons (passes mentorId to reschedule)
-
-app/api/bookings/
-├── route.ts                   # POST (create), GET (list with rescheduleCount)
-└── [id]/
-    ├── route.ts               # GET, PUT, DELETE
-    ├── cancel/route.ts        # POST cancel
-    ├── reschedule/route.ts    # POST reschedule
-    └── no-show/route.ts       # POST no-show
-
-lib/db/schema/
-├── sessions.ts                # Session table
-├── mentor-availability.ts     # Availability tables
-├── session-policies.ts        # Configurable policies
-└── session-audit-log.ts       # Audit trail
-
-lib/validations/
-└── booking.ts                 # Zod schemas
-```
-
----
-
-## Data Flow Diagrams
-
-### Booking Creation
-```
-Mentee → booking-modal.tsx → POST /api/bookings
-           ↓                         ↓
-      time-slot-selector      Validate availability
-      booking-form            Check conflicts
-      booking-confirmation    Create session record
-                              Create notifications
-                              Create LiveKit room
-```
-
-### Cancel Flow (Mentee Only)
-```
-session-actions.tsx → CancelDialog → POST /api/bookings/[id]/cancel
-       ↓                    ↓                     ↓
-  canCancel check     Reason select      Verify mentee
-  (>=2hrs, mentee)    Reason details     Load policy from DB
-                                         Check cutoff time
-                                         Update session.status
-                                         Insert audit log
-                                         Create notifications
-```
-
-### Reschedule Flow (Mentee Only)
-```
-session-actions.tsx → RescheduleDialog → POST /api/bookings/[id]/reschedule
-       ↓                      ↓                       ↓
-  canReschedule check   TimeSlotSelectorV2    Verify mentee
-  (>=4hrs, mentee)      (mentor's slots)      Load policies
-  Pass mentorId         Show count badge      Check max limit
-                                              Check cutoff time
-                                              Update scheduledAt
-                                              Increment count
-                                              Insert audit log
-                                              Create notifications
-```
