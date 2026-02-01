@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { mentors, users } from '@/lib/db/schema'
 import { and, eq, ilike, or, desc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/server'
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys'
 import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement'
 
@@ -97,18 +98,49 @@ export async function GET(req: NextRequest) {
       .offset(offset)
 
     let filteredRows = rows
+
     if (aiSearch && requesterId) {
-      const allowedRows = []
-      for (const row of rows) {
-        const access = await checkFeatureAccess(
-          row.userId,
-          FEATURE_KEYS.AI_PROFILE_APPEARANCES_MONTHLY
-        )
-        if (access.has_access) {
-          allowedRows.push(row)
+      if (filteredRows.length > 0) {
+        const supabase = await createClient()
+        const mentorUserIds = filteredRows.map((row) => row.userId)
+
+        const { data: subscriptions, error: subscriptionsError } = await supabase
+          .from('subscriptions')
+          .select('user_id')
+          .in('user_id', mentorUserIds)
+          .in('status', ['trialing', 'active'])
+
+        if (subscriptionsError) {
+          console.error('Failed to load mentor subscriptions:', subscriptionsError)
+        } else {
+          const eligibleMentorIds = new Set(subscriptions?.map((item) => item.user_id))
+          filteredRows = filteredRows.filter((row) => eligibleMentorIds.has(row.userId))
         }
       }
-      filteredRows = allowedRows
+
+      if (filteredRows.length > 0) {
+        const eligibilityChecks = await Promise.all(
+          filteredRows.map(async (row) => {
+            try {
+              const [freeAccess, mentorAccess, visibilityAccess] = await Promise.all([
+                checkFeatureAccess(row.userId, FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY),
+                checkFeatureAccess(row.userId, FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY),
+                checkFeatureAccess(row.userId, FEATURE_KEYS.AI_PROFILE_APPEARANCES_MONTHLY),
+              ])
+              return {
+                row,
+                eligible:
+                  freeAccess.has_access && mentorAccess.has_access && visibilityAccess.has_access,
+              }
+            } catch (error) {
+              console.error('Failed to check mentor eligibility:', error)
+              return { row, eligible: false }
+            }
+          })
+        )
+
+        filteredRows = eligibilityChecks.filter((item) => item.eligible).map((item) => item.row)
+      }
 
       await trackFeatureUsage(
         requesterId,

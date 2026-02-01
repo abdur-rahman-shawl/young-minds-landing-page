@@ -81,6 +81,7 @@ function LandingContent() {
 export function PageContent() {
   const [activeSection, setActiveSection] = useState("dashboard")
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null)
+  const [mentorSource, setMentorSource] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const {
@@ -118,9 +119,11 @@ export function PageContent() {
 
   const handleMentorSelect = (mentorId: string) => {
     console.log("🚀 app/page.tsx handleMentorSelect called with:", mentorId)
+    setMentorSource(activeSection)
     setActiveSection("mentor-detail")
     setSelectedMentor(mentorId)
-    const newUrl = `/?section=mentor-detail&mentor=${mentorId}`
+    const fromParam = activeSection === "explore" ? "&from=explore" : ""
+    const newUrl = `/?section=mentor-detail&mentor=${mentorId}${fromParam}`
     console.log("🚀 app/page.tsx setting URL to:", newUrl)
     router.push(newUrl, { scroll: false })
   }
@@ -198,9 +201,11 @@ export function PageContent() {
           return (
             <MentorDetailView
               mentorId={selectedMentor}
+              bookingSource={mentorSource === "explore" ? "explore" : "default"}
               onBack={() => {
                 setActiveSection("explore")
                 setSelectedMentor(null)
+                setMentorSource(null)
                 router.push("/?section=explore", { scroll: false })
               }}
             />
@@ -252,9 +257,11 @@ export function PageContent() {
         return (
           <MentorDetailView
             mentorId={selectedMentor}
+            bookingSource={mentorSource === "explore" ? "explore" : "default"}
             onBack={() => {
               setActiveSection("explore")
               setSelectedMentor(null)
+              setMentorSource(null)
               router.push("/?section=explore", { scroll: false })
             }}
           />

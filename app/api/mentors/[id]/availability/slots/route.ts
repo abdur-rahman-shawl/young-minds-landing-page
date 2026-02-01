@@ -41,9 +41,9 @@ interface AvailableSlot {
 // GET /api/mentors/[id]/availability/slots - Get available booking slots
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const {id} = params;
+  const { id } = await params;
   try {
     // Get query parameters
     const startDate = req.nextUrl.searchParams.get('startDate');

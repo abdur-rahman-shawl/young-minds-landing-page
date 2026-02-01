@@ -20,6 +20,7 @@ interface Mentor {
 
 interface BookingData {
   scheduledAt: Date;
+  sessionType: 'FREE' | 'PAID' | 'COUNSELING';
   duration: number;
   meetingType: 'video' | 'audio' | 'chat';
   title: string;
@@ -45,6 +46,12 @@ const MEETING_TYPE_LABELS = {
   video: 'Video Call',
   audio: 'Audio Call',
   chat: 'Text Chat',
+};
+
+const SESSION_TYPE_LABELS: Record<BookingData['sessionType'], string> = {
+  FREE: 'Free Intro Session',
+  PAID: 'Paid Session',
+  COUNSELING: 'Counseling Session',
 };
 
 export function BookingConfirmation({ 
@@ -135,6 +142,19 @@ export function BookingConfirmation({
                    </div>
                 </div>
 
+                <div className="space-y-1">
+                  <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Session Type</span>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {SESSION_TYPE_LABELS[bookingData.sessionType]}
+                  </p>
+                  {bookingData.sessionType === 'FREE' && (
+                    <p className="text-xs text-gray-500">Free sessions are limited to 30 minutes.</p>
+                  )}
+                  {bookingData.sessionType === 'PAID' && (
+                    <p className="text-xs text-gray-500">Paid sessions are limited to 45 minutes.</p>
+                  )}
+                </div>
+
                 <Separator />
 
                 {/* Mentor Info */}
@@ -180,14 +200,16 @@ export function BookingConfirmation({
       </motion.div>
 
       {/* Payment Form Injection */}
-      <motion.div 
-         initial={{ opacity: 0 }} 
-         animate={{ opacity: 1 }} 
-         transition={{ delay: 0.2 }}
-         className="pt-2"
-      >
-         <PaymentForm />
-      </motion.div>
+      {bookingData.sessionType !== 'FREE' && (
+        <motion.div 
+           initial={{ opacity: 0 }} 
+           animate={{ opacity: 1 }} 
+           transition={{ delay: 0.2 }}
+           className="pt-2"
+        >
+           <PaymentForm />
+        </motion.div>
+      )}
 
       {/* Warning / Notes */}
       <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg p-4 flex gap-3">

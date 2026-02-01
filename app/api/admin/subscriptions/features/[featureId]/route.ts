@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const updateFeatureSchema = z.object({
   name: z.string().min(1).optional(),
+  feature_key: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   category_id: z.string().uuid().optional(),
   value_type: z.enum(["boolean", "count", "minutes", "text", "amount", "percent", "json"]).optional(),

@@ -81,6 +81,8 @@ export function Courses() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [hasCourseAccess, setHasCourseAccess] = useState(true);
 
   // Query parameters
   const [searchQuery, setSearchQuery] = useState('');
@@ -105,6 +107,11 @@ export function Courses() {
 
   const fetchCourses = async () => {
     try {
+      if (accessChecked && !hasCourseAccess) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       const queryParams = new URLSearchParams({
         page: currentPage.toString(),
@@ -134,8 +141,40 @@ export function Courses() {
   };
 
   useEffect(() => {
+    const checkAccess = async () => {
+      try {
+        const response = await fetch('/api/subscriptions/me', { credentials: 'include' });
+        if (!response.ok) {
+          setHasCourseAccess(true);
+          return;
+        }
+
+        const data = await response.json();
+        const subscription = data?.data?.subscription;
+        const features = data?.data?.features || [];
+
+        if (subscription?.audience === 'mentee') {
+          const hasFeature = features.some((feature: { feature_key?: string }) =>
+            feature.feature_key === 'courses_access'
+          );
+          setHasCourseAccess(hasFeature);
+        } else {
+          setHasCourseAccess(true);
+        }
+      } catch (error) {
+        setHasCourseAccess(true);
+      } finally {
+        setAccessChecked(true);
+      }
+    };
+
+    checkAccess();
+  }, []);
+
+  useEffect(() => {
+    if (!accessChecked || !hasCourseAccess) return;
     fetchCourses();
-  }, [debouncedSearch, selectedCategory, selectedDifficulty, minPrice, maxPrice, sortBy, sortOrder, currentPage]);
+  }, [accessChecked, hasCourseAccess, debouncedSearch, selectedCategory, selectedDifficulty, minPrice, maxPrice, sortBy, sortOrder, currentPage]);
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -164,6 +203,20 @@ export function Courses() {
   };
 
   // --- Components ---
+  if (accessChecked && !hasCourseAccess) {
+    return (
+      <div className="mx-auto w-full max-w-5xl">
+        <Card className="border-slate-200 dark:border-slate-800">
+          <CardHeader>
+            <CardTitle>Courses not included</CardTitle>
+            <CardDescription>
+              Your current plan does not include access to courses. Please upgrade to view the catalog.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   const CourseCard = ({ course }: { course: Course }) => (
     <motion.div 

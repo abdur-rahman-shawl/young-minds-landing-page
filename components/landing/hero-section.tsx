@@ -860,6 +860,7 @@ export function HeroSection() {
             <div className="pl-8 pr-12 pt-0 w-full mx-auto">
               <MentorDetailView
                 mentorId={selectedMentorIdForModal}
+                bookingSource="ai"
                 onBack={() => {
                   setIsMentorModalOpen(false)
                   setSelectedMentorIdForModal(null)

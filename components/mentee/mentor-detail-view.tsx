@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,11 +43,15 @@ import { cn } from "@/lib/utils"
 interface MentorDetailViewProps {
   mentorId: string | null
   onBack: () => void
+  bookingSource?: 'explore' | 'ai' | 'default'
 }
 
 type TabType = "overview" | "reviews" | "achievements" | "mentoring_style"
 
-export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
+export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }: MentorDetailViewProps) {
+  const searchParams = useSearchParams()
+  const urlSource = searchParams.get('from')
+  const resolvedSource = bookingSource === 'default' && urlSource === 'explore' ? 'explore' : bookingSource
   const { mentor, loading, error } = useMentorDetail(mentorId)
   const { session } = useAuth()
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
@@ -618,6 +623,7 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
         <BookingModal
           isOpen={isBookingModalOpen}
           onClose={() => setIsBookingModalOpen(false)}
+          allowFreeBooking={resolvedSource !== 'explore'}
           mentor={{
             id: mentor.id,
             userId: mentor.userId,

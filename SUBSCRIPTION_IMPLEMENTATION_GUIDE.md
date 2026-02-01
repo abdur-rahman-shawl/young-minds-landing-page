@@ -685,7 +685,7 @@ However, with service role key, RLS policies may not apply. The helper functions
 - Message requests: `message_requests_daily` in `app/api/messaging/requests/route.ts`
 - AI chat access + messages: `ai_helper_chat_access` and `ai_helper_messages_limit` in `app/api/chat/route.ts` and `app/api/ai-chatbot-messages/route.ts`
 - Course enrollments: `free_courses_limit` in `app/api/courses/[id]/enroll/route.ts`
-- Course access/discount at enroll: `courses_access_level`, `course_discount_percent` in `app/api/courses/[id]/enroll/route.ts`
+- Course access/discount at enroll: `courses_access`, `course_discount_percent` in `app/api/courses/[id]/enroll/route.ts`
 - Recordings access: `session_recordings_access` in `app/api/sessions/[sessionId]/recordings/route.ts` and `app/api/recordings/[id]/playback-url/route.ts`
 - Mentor AI appearance + mentee AI search (only when `?ai=true`): `ai_profile_appearances_monthly`, `ai_search_sessions_monthly` in `app/api/public-mentors/route.ts`
 
@@ -3113,7 +3113,7 @@ Use the following feature_key + value_type when configuring the plans above in t
 | Knowledge Hub Access | `knowledge_hub_access_level` | text | "Limited" / "Unlimited" |
 | Industry Expert Access | `industry_expert_access_level` | text | "Limited" / "Unlimited" |
 | Live Sessions (1 hr) | `live_sessions_count_monthly` | count | limit_count + limit_interval=month |
-| Courses / Pre-recorded Sessions | `courses_access_level` | text | Optional `course_discount_percent` |
+| Courses / Pre-recorded Sessions | `courses_access` | text | Optional `course_discount_percent` |
 | Analytics Dashboard | `analytics_access_level` | text | "Real-time" / "Deep" |
 | Priority Support | `priority_support` | text | "Chatbot" |
 | Exclusive Partner Offers | `exclusive_partner_offers_access` | boolean | Included = true |

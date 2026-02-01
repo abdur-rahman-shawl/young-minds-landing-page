@@ -109,6 +109,7 @@ export function FeaturesManagement() {
         credentials: "include",
         body: JSON.stringify({
           name: updated.name,
+          feature_key: updated.feature_key,
           description: updated.description,
           category_id: updated.category_id,
           value_type: updated.value_type,
@@ -278,7 +279,10 @@ function FeatureEditForm({
         </div>
         <div className="space-y-2">
           <Label>Feature Key</Label>
-          <Input value={feature.feature_key} disabled />
+          <Input
+            value={feature.feature_key}
+            onChange={(event) => onChange({ ...feature, feature_key: event.target.value })}
+          />
         </div>
       </div>
 

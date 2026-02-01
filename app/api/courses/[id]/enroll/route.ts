@@ -120,7 +120,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const coursesAccess = await checkFeatureAccess(
       userId,
-      FEATURE_KEYS.COURSES_ACCESS_LEVEL
+      FEATURE_KEYS.COURSES_ACCESS
     );
     if (!coursesAccess.has_access) {
       return NextResponse.json(

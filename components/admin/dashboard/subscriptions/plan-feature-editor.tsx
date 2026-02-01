@@ -303,18 +303,33 @@ export function PlanFeatureEditor({ planId }: PlanFeatureEditorProps) {
               </div>
 
               {selectedFeature.value_type === "count" && (
-                <div className="space-y-2">
-                  <Label>Limit Count</Label>
-                  <Input
-                    type="number"
-                    value={formState.limit_count ?? ""}
-                    onChange={(event) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        limit_count: event.target.value === "" ? null : Number(event.target.value),
-                      }))
-                    }
-                  />
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Limit Count</Label>
+                    <Input
+                      type="number"
+                      value={formState.limit_count ?? ""}
+                      onChange={(event) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          limit_count: event.target.value === "" ? null : Number(event.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Limit Minutes (Optional)</Label>
+                    <Input
+                      type="number"
+                      value={formState.limit_minutes ?? ""}
+                      onChange={(event) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          limit_minutes: event.target.value === "" ? null : Number(event.target.value),
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
               )}
 

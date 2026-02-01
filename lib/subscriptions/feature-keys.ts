@@ -26,7 +26,7 @@ export const FEATURE_KEYS = {
     LIVE_SESSIONS_MINUTES_MONTHLY: 'live_sessions_minutes_monthly',
     LIVE_SESSIONS_COUNT_MONTHLY: 'live_sessions_count_monthly',
     COURSE_VIDEOS_MONTHLY: 'course_videos_monthly',
-    COURSES_ACCESS_LEVEL: 'courses_access_level',
+    COURSES_ACCESS: 'courses_access',
     COURSE_DISCOUNT_PERCENT: 'course_discount_percent',
     TEAM_MEMBER_LIMIT: 'team_member_limit',
     EXCLUSIVE_PARTNER_OFFERS_ACCESS: 'exclusive_partner_offers_access',
