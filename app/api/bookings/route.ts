@@ -339,6 +339,7 @@ export async function POST(req: NextRequest) {
         title: validatedData.title,
         description: validatedData.description,
         sessionType: validatedData.sessionType,
+        bookingSource,
         scheduledAt: new Date(validatedData.scheduledAt),
         duration: validatedData.duration,
         meetingType: validatedData.meetingType,
