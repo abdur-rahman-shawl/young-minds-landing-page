@@ -1,6 +1,6 @@
 # Booking System Documentation
 
-> **Last Updated:** 2026-01-09  
+> **Last Updated:** 2026-02-01  
 > **Purpose:** Documents the mentor-mentee session booking flow
 
 ---
@@ -21,9 +21,11 @@ Located in `components/booking/`:
 | `time-slot-selector-v2.tsx` | Step 1: Calendar & time slot selection (also used in reschedule) |
 | `booking-form.tsx` | Step 2: Duration, meeting type, session title/description |
 | `booking-confirmation.tsx` | Step 3: Review summary, pricing, payment form |
+| `sessions-calendar-view.tsx` | Session calendar with popup details, inline actions |
 | `session-actions.tsx` | Action buttons (Join, Reschedule, Cancel, No-Show) |
 | `cancel-dialog.tsx` | Cancel confirmation with reason selection |
 | `reschedule-dialog.tsx` | Reschedule UI with mentor's availability slots |
+| `reschedule-request-banner.tsx` | Shows pending reschedule status or respond button |
 
 ### Wizard Flow
 ```
@@ -43,7 +45,9 @@ time-selection → details → confirmation → success
 | `/api/bookings/[id]` | PUT | Update booking |
 | `/api/bookings/[id]` | DELETE | Cancel booking |
 | `/api/bookings/[id]/cancel` | POST | Cancel with reason |
-| `/api/bookings/[id]/reschedule` | POST | Reschedule to new time |
+| `/api/bookings/[id]/reschedule` | POST | Request reschedule (creates pending request) |
+| `/api/bookings/[id]/reschedule/respond` | POST | Respond to reschedule (accept/reject/counter) |
+| `/api/bookings/[id]/reschedule/withdraw` | POST | Withdraw own reschedule request |
 | `/api/bookings/[id]/no-show` | POST | Mark as no-show |
 | `/api/session-policies` | GET | Fetch session policies (optional `?role=mentor\|mentee`) |
 
@@ -105,8 +109,17 @@ Core booking/session data:
 | `cancelledBy` | text | `mentor` or `mentee` |
 | `cancellationReason` | text | Why cancelled |
 | `rescheduledFrom` | UUID | References original session |
-| `rescheduleCount` | integer | Times this session has been rescheduled |
+| `rescheduleCount` | integer | Times mentee rescheduled |
+| `mentorRescheduleCount` | integer | Times mentor rescheduled |
 | `recordingConfig` | jsonb | Recording settings |
+| **Refund Tracking** | | |
+| `refundAmount` | decimal | Amount to refund |
+| `refundPercentage` | integer | Percentage of rate |
+| `refundStatus` | text | `none`, `pending`, `processed`, `failed` |
+| **Pending Reschedule** | | |
+| `pendingRescheduleRequestId` | UUID | FK to reschedule_requests |
+| `pendingRescheduleTime` | timestamp | Proposed new time |
+| `pendingRescheduleBy` | text | `mentor` or `mentee` |
 
 ### Session Policies (`lib/db/schema/session-policies.ts`)
 
@@ -115,15 +128,38 @@ Admin-configurable settings for cancellation/rescheduling:
 | Policy Key | Default | Description |
 |------------|---------|-------------|
 | `cancellation_cutoff_hours` | 2 | Min hours before session to cancel |
-| `reschedule_cutoff_hours` | 4 | Min hours before session to reschedule |
-| `max_reschedules_per_session` | 2 | Max reschedules allowed |
+| `reschedule_cutoff_hours` | 4 | Min hours before session to reschedule (mentee) |
+| `mentor_reschedule_cutoff_hours` | 2 | Min hours before session to reschedule (mentor) |
+| `max_reschedules_per_session` | 2 | Max reschedules allowed (mentee) |
+| `mentor_max_reschedules_per_session` | 2 | Max reschedules allowed (mentor) |
 | `free_cancellation_hours` | 24 | Hours for penalty-free cancel |
 | `require_cancellation_reason` | true | Reason is mandatory |
+| `reschedule_request_expiry_hours` | 48 | Hours until reschedule request expires |
+| `max_counter_proposals` | 3 | Max counter-proposals per reschedule |
+
+### Reschedule Requests (`lib/db/schema/reschedule-requests.ts`)
+
+Tracks reschedule negotiation between mentor and mentee:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `sessionId` | UUID | FK to sessions |
+| `initiatedBy` | text | `mentor` or `mentee` |
+| `initiatorId` | text | FK to users |
+| `status` | text | `pending`, `accepted`, `rejected`, `counter_proposed`, `cancelled`, `expired` |
+| `proposedTime` | timestamp | Requested new time |
+| `proposedDuration` | integer | Duration in minutes |
+| `originalTime` | timestamp | Original scheduled time |
+| `counterProposedTime` | timestamp | Counter-proposal time |
+| `counterProposedBy` | text | Who made counter-proposal |
+| `counterProposalCount` | integer | Rounds of negotiation |
+| `expiresAt` | timestamp | Auto-expiry time |
 
 ### Session Audit Log (`lib/db/schema/session-audit-log.ts`)
 
 Tracks all cancellations and reschedules:
-- `sessionId`, `userId`, `action` (cancel/reschedule)
+- `sessionId`, `userId`, `action` (cancel/reschedule/reschedule_accepted)
 - `reasonCategory`, `reasonDetails`
 - `previousScheduledAt`, `newScheduledAt`
 - `policySnapshot`, `ipAddress`, `userAgent`
@@ -311,6 +347,63 @@ Other party responds:
 - `reschedule-dialog.tsx` - Request reschedule (creates pending request)
 - `reschedule-request-banner.tsx` - Shows pending status or respond button
 - `reschedule-response-dialog.tsx` - Accept/Counter/Cancel tabs
+
+### API: Withdraw Reschedule Request
+
+`POST /api/bookings/[id]/reschedule/withdraw`
+
+Allows the **initiator** of a reschedule request to withdraw their own request.
+
+**Authorization:**
+- Only the user who initiated the reschedule request can withdraw it
+- Request must be in `pending` or `counter_proposed` status
+
+**Actions performed:**
+1. Update `reschedule_requests.status` to `cancelled`
+2. Clear `pendingRescheduleRequestId`, `pendingRescheduleTime`, `pendingRescheduleBy` on session
+3. Log action in `session_audit_log` with action `reschedule_withdrawn`
+4. Notify other party with type `RESCHEDULE_WITHDRAWN`
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Reschedule request withdrawn successfully. The session remains at its original time.",
+  "originalScheduledAt": "2026-02-02T13:00:00.000Z"
+}
+```
+
+---
+
+## Session Details Popup
+
+The session popup in `sessions-calendar-view.tsx` displays session info with state-specific actions.
+
+### Layout
+
+1. **Mentor Card** - Avatar, name, session type badge
+2. **Session Title & Description**
+3. **Session Details** - Date, time (with countdown), duration, meeting type, rate
+4. **Pending Reschedule Alert** - If applicable, shows proposed time and responder actions
+5. **Action Buttons** - State-dependent
+
+### State-Specific Actions
+
+| State | Actions |
+|-------|--------|
+| **Scheduled** | Join Session, Reschedule, Cancel Session |
+| **Scheduled + Pending Reschedule (Initiator)** | Withdraw Request, Reschedule (disabled), Cancel Session |
+| **Scheduled + Pending Reschedule (Responder)** | Accept/Counter/Decline via banner, Cancel Session |
+| **In Progress** | Rejoin Session |
+| **Completed** | View Recording (coming soon), Rebook with Mentor (coming soon) |
+| **Cancelled** | Refund Status, Rebook with Mentor (coming soon) |
+
+### Key Behaviors
+
+- **No Join button when reschedule pending** - Prevents confusion about which time is valid
+- **Inline action buttons** - No hidden dropdown menus
+- **Mentor info from mentors table** - Uses `fullName` and `profileImageUrl`
+- **Time countdown** - Shows "Starts in X days/hours/minutes"
 
 
 ---

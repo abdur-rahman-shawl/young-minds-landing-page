@@ -22,6 +22,7 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'RESCHEDULE_ACCEPTED',
   'RESCHEDULE_REJECTED',
   'RESCHEDULE_COUNTER',
+  'RESCHEDULE_WITHDRAWN',
 ]);
 
 export const notifications = pgTable('notifications', {

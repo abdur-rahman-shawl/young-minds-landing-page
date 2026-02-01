@@ -402,15 +402,23 @@ export async function GET(req: NextRequest) {
         currency: sessions.currency,
         mentorNotes: sessions.mentorNotes,
         menteeNotes: sessions.menteeNotes,
-        //mentorRating: sessions.mentorRating,
-        // menteeRating: sessions.menteeRating,
         createdAt: sessions.createdAt,
         updatedAt: sessions.updatedAt,
         mentorId: sessions.mentorId,
         menteeId: sessions.menteeId,
         rescheduleCount: sessions.rescheduleCount,
+        mentorRescheduleCount: sessions.mentorRescheduleCount,
+        cancelledBy: sessions.cancelledBy,
+        // Pending reschedule fields
+        pendingRescheduleRequestId: sessions.pendingRescheduleRequestId,
+        pendingRescheduleTime: sessions.pendingRescheduleTime,
+        pendingRescheduleBy: sessions.pendingRescheduleBy,
+        // Mentor info (from JOIN with mentors table)
+        mentorName: mentors.fullName,
+        mentorAvatar: mentors.profileImageUrl,
       })
       .from(sessions)
+      .leftJoin(mentors, eq(sessions.mentorId, mentors.userId))
       .where(whereCondition)
       .orderBy(desc(sessions.scheduledAt));
 

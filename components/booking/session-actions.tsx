@@ -46,6 +46,8 @@ interface ActionSession {
   rescheduleCount?: number;
   mentorRescheduleCount?: number;
   rate?: number;
+  // Pending reschedule fields
+  pendingRescheduleBy?: 'mentor' | 'mentee';
 }
 
 interface SessionActionsProps {
@@ -94,7 +96,10 @@ export function SessionActions({
     (isMentor && hoursUntilSession >= mentorCancelCutoff)
   );
 
-  const canReschedule = session.status === "scheduled" && (
+  // Disable reschedule if there's already a pending request
+  const hasPendingReschedule = !!session.pendingRescheduleBy;
+
+  const canReschedule = session.status === "scheduled" && !hasPendingReschedule && (
     (isMentee && hoursUntilSession >= menteeRescheduleCutoff) ||
     (isMentor && hoursUntilSession >= mentorRescheduleCutoff)
   );
