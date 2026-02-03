@@ -231,21 +231,25 @@ Other party responds via RescheduleResponseDialog:
 
 ---
 
-## Cancellation Flow (Mentor AND Mentee)
+### Cancellation Flow (Mentor AND Mentee)
 
 `POST /api/bookings/[id]/cancel` (`app/api/bookings/[id]/cancel/route.ts`):
 
-1.  **Auth Check** - Must be logged in
-2.  **Authorization** - Must be mentor OR mentee of this session
-3.  **Status Validation** - Can't cancel if already `cancelled`, `completed`, `in_progress`
-4.  **Policy Check** - Load role-specific cutoff and refund policies
-5.  **Time Check** - `hoursUntilSession >= cancellationCutoffHours` (mentee only)
-6.  **Calculate Refund** - Based on timing and who cancels (Mentor cancels = 100% refund)
-7.  **Update Session** - Set status, cancelledBy, refundPercentage, etc.
-8.  **Audit Log** - Insert record
-9.  **Notify Other Party**
+1. **Auth Check** - Must be logged in
+2. **Authorization** - Must be mentor OR mentee
+3. **Status Check** - Cannot cancel completed/cancelled sessions
+4. **Roles-specific behavior**:
+   - **Mentee:** Standard cancellation with refund calculation.
+   - **Mentor:**
+     - **Auto-Reassignment Attempt:** System tries to find another available mentor for the same time slot.
+     - **If Reassigned:** Updates session to new mentor, notifies all parties (Mentee, Old Mentor, New Mentor).
+     - **If No Replacement:** Falls back to standard cancellation (100% refund).
 
----
+5. **Update Session** - Set status/refund info
+6. **Audit Log** - Record action
+7. **Notify** - Send alerts
+
+### Refund Rules
 
 ## Availability Slot Generation
 

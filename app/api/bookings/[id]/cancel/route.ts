@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { sessions, notifications, sessionPolicies, sessionAuditLog } from '@/lib/db/schema';
+import { sessions, notifications, sessionPolicies, sessionAuditLog, mentors, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { CANCELLATION_REASONS, MENTOR_CANCELLATION_REASONS, DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
+import { findRandomAvailableMentor } from '@/lib/services/mentor-matching';
 
 // All valid cancellation reason values (mentee + mentor combined)
 const allReasonValues = [
@@ -40,7 +41,7 @@ function calculateRefundPercentage(
         lateCancellationRefundPercentage: number;
     }
 ): number {
-    // Mentor cancels → always 100% refund to mentee
+    // Mentor cancels → always 100% refund to mentee (unless reassigned)
     if (isMentor) return 100;
 
     // Session is in the past → no refund
@@ -176,6 +177,104 @@ export async function POST(
             );
         }
 
+        // =========================================================================================
+        // MENTOR REASSIGNMENT LOGIC
+        // =========================================================================================
+        if (isMentor) {
+            // Attempt to find a replacement mentor
+            const newMentorId = await findRandomAvailableMentor(
+                booking.scheduledAt,
+                booking.duration,
+                session.user.id
+            );
+
+            if (newMentorId) {
+                // Fetch new mentor details for notification
+                const [newMentorUser] = await db
+                    .select({ name: users.name })
+                    .from(mentors)
+                    .innerJoin(users, eq(mentors.userId, users.id))
+                    .where(eq(mentors.userId, newMentorId))
+                    .limit(1);
+
+                const newMentorName = newMentorUser?.name || 'Another Mentor';
+
+                // Reassign session
+                const [updatedBooking] = await db
+                    .update(sessions)
+                    .set({
+                        mentorId: newMentorId,
+                        mentorNotes: `Auto-reassigned from original mentor (${session.user.name || 'Unknown'}) who cancelled due to: ${reasonCategory}`,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(sessions.id, id))
+                    .returning();
+
+                // Notify Mentee
+                await db.insert(notifications).values({
+                    userId: booking.menteeId,
+                    type: 'SYSTEM_ALERT', // Or a new type like SESSION_REASSIGNED
+                    title: 'Session Reassigned',
+                    message: `Your session "${booking.title}" has been reassigned to ${newMentorName} because the original mentor had to cancel. The time remains the same.`,
+                    relatedId: booking.id,
+                    relatedType: 'session',
+                    actionUrl: `/dashboard?section=sessions`,
+                    actionText: 'View Session',
+                });
+
+                // Notify Old Mentor (Cancellation Confirmed)
+                await db.insert(notifications).values({
+                    userId: booking.mentorId,
+                    type: 'BOOKING_CANCELLED',
+                    title: 'Session Cancelled & Reassigned',
+                    message: `You cancelled "${booking.title}". The session was successfully reassigned to another mentor.`,
+                    relatedId: booking.id,
+                    relatedType: 'session',
+                    actionUrl: `/dashboard?section=schedule`,
+                    actionText: 'View Schedule',
+                });
+
+                // Notify New Mentor
+                await db.insert(notifications).values({
+                    userId: newMentorId,
+                    type: 'BOOKING_REQUEST',
+                    title: 'New Session Assigned (Reassignment)',
+                    message: `You have been assigned an urgent session "${booking.title}" (Reassigned from another mentor).`,
+                    relatedId: booking.id,
+                    relatedType: 'session',
+                    actionUrl: `/dashboard?section=schedule`,
+                    actionText: 'View Session',
+                });
+
+                // Audit Log
+                await db.insert(sessionAuditLog).values({
+                    sessionId: booking.id,
+                    userId: session.user.id,
+                    action: 'reassignment', // Custom action for this case
+                    reasonCategory: reasonCategory,
+                    reasonDetails: reasonDetails,
+                    policySnapshot: {
+                        originalMentor: booking.mentorId,
+                        newMentor: newMentorId,
+                        reason: 'Auto-reassignment after mentor cancellation'
+                    },
+                    ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
+                    userAgent: req.headers.get('user-agent') || 'unknown',
+                });
+
+                return NextResponse.json({
+                    success: true,
+                    reassigned: true,
+                    newMentorName,
+                    booking: updatedBooking,
+                    message: `Session reassigned to ${newMentorName}.`
+                });
+            }
+        }
+        // =========================================================================================
+
+        // FALLBACK / STANDARD CANCELLATION (If mentee cancels OR mentor cancels loop failed)
+
         // Calculate refund
         const refundPercentage = calculateRefundPercentage(isMentor, hoursUntilSession, {
             freeCancellationHours: parseInt(freeCancellationHours),
@@ -238,7 +337,7 @@ export async function POST(
 
         // Notify the other party
         if (isMentor) {
-            // Mentor cancelled → notify mentee
+            // Mentor cancelled (and NO replacement found) -> notify mentee
             await db.insert(notifications).values({
                 userId: booking.menteeId,
                 type: 'BOOKING_CANCELLED',
@@ -262,7 +361,7 @@ export async function POST(
                 actionText: 'View Schedule',
             });
         } else {
-            // Mentee cancelled → notify mentor
+            // Mentee cancelled -> notify mentor
             await db.insert(notifications).values({
                 userId: booking.mentorId,
                 type: 'BOOKING_CANCELLED',
