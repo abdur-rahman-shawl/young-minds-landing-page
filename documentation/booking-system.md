@@ -475,3 +475,53 @@ The cancel dialog (`components/booking/cancel-dialog.tsx`) displays different co
 5.  Return slots with availability status
 
 ---
+
+## Email Notifications
+
+> **Source:** `lib/email.ts`  
+> **Sender:** `info.sharingminds@gmail.com` via nodemailer
+
+### Booking-Related Emails
+
+| Email | Recipient | Trigger | Template Function |
+|-------|-----------|---------|-------------------|
+| **Booking Confirmed** | Mentee | After successful booking | `sendBookingConfirmedEmail` |
+| **New Booking Alert** | Mentor | After mentee books | `sendNewBookingAlertEmail` |
+| **Mentor Cancelled (Reassigned)** | Mentee | Mentor cancels + new mentor auto-assigned | `sendMentorCancelledReassignedEmail` |
+| **Mentor Cancelled (No Mentor)** | Mentee | Mentor cancels + no replacement found | `sendMentorCancelledNoMentorEmail` |
+| **Mentee Cancelled** | Mentor | Mentee cancels session | `sendMenteeCancelledEmail` |
+| **Mentee Cancellation Confirmation** | Mentee | Mentee cancels (confirmation) | `sendMenteeCancellationConfirmationEmail` |
+| **Mentor Cancellation Confirmation** | Mentor | Mentor cancels (confirmation) | `sendMentorCancellationConfirmationEmail` |
+| **New Mentor Assigned** | New Mentor | Auto-assigned or mentee-selected | `sendNewMentorAssignedEmail` |
+| **Alternative Mentor Selected** | Mentee | Mentee selects new mentor | `sendAlternativeMentorSelectedEmail` |
+| **Reschedule Request** | Other party | Reschedule request submitted | `sendRescheduleRequestEmail` |
+| **Reschedule Confirmed** | Both parties | Reschedule accepted | `sendRescheduleConfirmedEmail` |
+
+### Email Content Pattern
+
+Each booking email includes:
+- Personalized greeting
+- Session details box (title, date, time, duration)
+- Context-specific message
+- CTA button linking to dashboard
+- SharingMinds branding
+
+### Future Emails (Not Yet Implemented)
+
+| Email | Reason |
+|-------|--------|
+| Session Reminders (24h, 1h) | Requires background job/cron |
+| Session Completed | Future feature |
+| Refund Processed | Future feature |
+| Booking Confirmed | Already handled by payment flow |
+| New Booking Alert (to Mentor) | Already handled by payment flow |
+
+### Audit Logging
+
+All emails are logged via `recordEmailEvent()` with:
+- Action type (e.g., `email.booking.mentee_cancelled`)
+- Recipient email
+- Template name
+- Session ID and related details
+
+---

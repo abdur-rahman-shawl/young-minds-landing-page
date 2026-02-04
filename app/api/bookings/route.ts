@@ -17,6 +17,7 @@ import { createBookingSchema, validateBookingTime, canUserAccessBooking } from '
 import { bookingRateLimit, RateLimitError } from '@/lib/rate-limit';
 import { getDay, isWithinInterval, addMinutes, setHours, setMinutes, setSeconds } from 'date-fns';
 import { LiveKitRoomManager } from '@/lib/livekit/room-manager';
+import { sendBookingConfirmedEmail, sendNewBookingAlertEmail } from '@/lib/email';
 
 // Remove duplicate schema definition since it's imported
 
@@ -263,6 +264,50 @@ export async function POST(req: NextRequest) {
       actionUrl: `/dashboard?section=sessions`,
       actionText: 'View Sessions',
     });
+
+    // Send booking confirmation emails
+    const bookingEmailData = {
+      sessionId: newBooking.id,
+      sessionTitle: validatedData.title,
+      scheduledAt: scheduledAt,
+      duration: validatedData.duration,
+      meetingType: validatedData.meetingType as 'video' | 'audio' | 'chat',
+    };
+
+    // Fetch mentor email data first (needed for both emails)
+    const mentorEmailData = await db
+      .select({ name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.id, validatedData.mentorId))
+      .limit(1);
+
+    const mentorNameForEmail = mentorEmailData[0]?.name || 'Your Mentor';
+
+    // Email to mentee (booking confirmed)
+    const menteeData = await db
+      .select({ name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1);
+
+    if (menteeData[0]?.email) {
+      await sendBookingConfirmedEmail(
+        menteeData[0].email,
+        menteeData[0].name || 'Mentee',
+        mentorNameForEmail,
+        bookingEmailData
+      );
+    }
+
+    // Email to mentor (new booking alert)
+    if (mentorEmailData[0]?.email) {
+      await sendNewBookingAlertEmail(
+        mentorEmailData[0].email,
+        mentorEmailData[0].name || 'Mentor',
+        session.user.name || 'A Mentee',
+        bookingEmailData
+      );
+    }
 
     // ========================================================================
     // CREATE LIVEKIT ROOM FOR THE SESSION

@@ -5,6 +5,7 @@ import { sessions, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { z } from 'zod';
+import { sendAlternativeMentorSelectedEmail, sendNewMentorAssignedEmail } from '@/lib/email';
 
 const selectMentorSchema = z.object({
     newMentorId: z.string().min(1, 'New mentor ID is required'),
@@ -66,9 +67,9 @@ export async function POST(
             );
         }
 
-        // Get the new mentor's name for notification
+        // Get the new mentor's info for notification
         const [newMentorUser] = await db
-            .select({ name: users.name })
+            .select({ name: users.name, email: users.email })
             .from(users)
             .where(eq(users.id, newMentorId))
             .limit(1);
@@ -96,8 +97,43 @@ export async function POST(
             .set(updateData)
             .where(eq(sessions.id, sessionId));
 
-        // TODO: Send notification to new mentor
-        // TODO: Log audit entry
+        // Fetch mentee data for emails
+        const [menteeData] = await db
+            .select({ name: users.name, email: users.email })
+            .from(users)
+            .where(eq(users.id, booking.menteeId))
+            .limit(1);
+
+        const finalScheduledAt = scheduledAt ? new Date(scheduledAt) : booking.scheduledAt;
+
+        const bookingEmailData = {
+            sessionId: booking.id,
+            sessionTitle: booking.title,
+            scheduledAt: finalScheduledAt,
+            duration: booking.duration,
+            meetingType: booking.meetingType as 'video' | 'audio' | 'chat',
+        };
+
+        // Send email to mentee confirming their new mentor selection
+        if (menteeData?.email) {
+            await sendAlternativeMentorSelectedEmail(
+                menteeData.email,
+                menteeData.name || 'Mentee',
+                newMentorUser.name || 'Your New Mentor',
+                bookingEmailData
+            );
+        }
+
+        // Send email to new mentor about their new session
+        if (newMentorUser.email) {
+            await sendNewMentorAssignedEmail(
+                newMentorUser.email,
+                newMentorUser.name || 'Mentor',
+                menteeData?.name || session.user.name || 'A Mentee',
+                bookingEmailData,
+                false // Not a system reassignment, mentee selected directly
+            );
+        }
 
         return NextResponse.json({
             success: true,

@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { sessions, notifications, rescheduleRequests, sessionAuditLog, sessionPolicies } from '@/lib/db/schema';
+import { sessions, notifications, rescheduleRequests, sessionAuditLog, sessionPolicies, users } from '@/lib/db/schema';
 import { eq, and, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { format, addHours } from 'date-fns';
 import { DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
+import { sendRescheduleConfirmedEmail } from '@/lib/email';
 
 const respondSchema = z.object({
     requestId: z.string().uuid('Invalid request ID'),
@@ -193,6 +194,53 @@ export async function POST(
                     newScheduledAt: acceptedTime,
                     policySnapshot: { initiatedBy: rescheduleRequest.initiatedBy, acceptedBy: userRole, status: rescheduleRequest.status },
                 });
+
+                // Send reschedule confirmed emails to BOTH parties
+                const mentorData = await db
+                    .select({ name: users.name, email: users.email })
+                    .from(users)
+                    .where(eq(users.id, booking.mentorId))
+                    .limit(1);
+
+                const menteeData = await db
+                    .select({ name: users.name, email: users.email })
+                    .from(users)
+                    .where(eq(users.id, booking.menteeId))
+                    .limit(1);
+
+                const bookingData = {
+                    sessionId: booking.id,
+                    sessionTitle: booking.title,
+                    scheduledAt: acceptedTime,
+                    duration: rescheduleRequest.proposedDuration || booking.duration,
+                    meetingType: booking.meetingType as 'video' | 'audio' | 'chat',
+                };
+
+                const oldTime = booking.scheduledAt;
+
+                // Email to mentor
+                if (mentorData[0]?.email) {
+                    await sendRescheduleConfirmedEmail(
+                        mentorData[0].email,
+                        mentorData[0].name || 'Mentor',
+                        menteeData[0]?.name || 'Your Mentee',
+                        bookingData,
+                        oldTime,
+                        acceptedTime
+                    );
+                }
+
+                // Email to mentee
+                if (menteeData[0]?.email) {
+                    await sendRescheduleConfirmedEmail(
+                        menteeData[0].email,
+                        menteeData[0].name || 'Mentee',
+                        mentorData[0]?.name || 'Your Mentor',
+                        bookingData,
+                        oldTime,
+                        acceptedTime
+                    );
+                }
 
                 return NextResponse.json({
                     success: true,

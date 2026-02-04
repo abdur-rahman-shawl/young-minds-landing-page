@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { sessions, notifications, sessionPolicies, rescheduleRequests } from '@/lib/db/schema';
+import { sessions, notifications, sessionPolicies, rescheduleRequests, users } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
 import { format, addHours } from 'date-fns';
+import { sendRescheduleRequestEmail } from '@/lib/email';
 
 const rescheduleBookingSchema = z.object({
   scheduledAt: z.string()
@@ -243,6 +244,36 @@ export async function POST(
       actionUrl: `/dashboard?section=${recipientSection}&action=reschedule-response&sessionId=${booking.id}`,
       actionText: 'Respond Now',
     });
+
+    // Send reschedule request email
+    const [recipientData] = await db
+      .select({ name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.id, recipientId))
+      .limit(1);
+
+    if (recipientData?.email) {
+      const initiatorData = await db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, session.user.id))
+        .limit(1);
+
+      await sendRescheduleRequestEmail(
+        recipientData.email,
+        recipientData.name || 'User',
+        initiatorData[0]?.name || session.user.name || (isMentor ? 'Your Mentor' : 'Your Mentee'),
+        initiatedBy,
+        {
+          sessionId: booking.id,
+          sessionTitle: booking.title,
+          scheduledAt: booking.scheduledAt,
+          duration: booking.duration,
+          meetingType: booking.meetingType as 'video' | 'audio' | 'chat',
+        },
+        proposedTime
+      );
+    }
 
     return NextResponse.json({
       success: true,

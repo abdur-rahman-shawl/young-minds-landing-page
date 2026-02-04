@@ -7,6 +7,14 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { CANCELLATION_REASONS, MENTOR_CANCELLATION_REASONS, DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
 import { findAvailableReplacementMentor } from '@/lib/services/mentor-matching';
+import {
+    sendMentorCancelledReassignedEmail,
+    sendMentorCancelledNoMentorEmail,
+    sendMenteeCancelledEmail,
+    sendMenteeCancellationConfirmationEmail,
+    sendMentorCancellationConfirmationEmail,
+    sendNewMentorAssignedEmail
+} from '@/lib/email';
 
 // All valid cancellation reason values (mentee + mentor combined)
 const allReasonValues = [
@@ -256,6 +264,76 @@ export async function POST(
                     actionText: 'View Session',
                 });
 
+                // Send email to mentee about reassignment
+                const menteeData = await db
+                    .select({ name: users.name, email: users.email })
+                    .from(users)
+                    .where(eq(users.id, booking.menteeId))
+                    .limit(1);
+
+                const originalMentorData = await db
+                    .select({ name: users.name, email: users.email })
+                    .from(users)
+                    .where(eq(users.id, booking.mentorId))
+                    .limit(1);
+
+                if (menteeData.length > 0 && menteeData[0].email) {
+                    await sendMentorCancelledReassignedEmail(
+                        menteeData[0].email,
+                        menteeData[0].name || 'Mentee',
+                        originalMentorData[0]?.name || 'Your Mentor',
+                        newMentorName,
+                        {
+                            sessionId: booking.id,
+                            sessionTitle: booking.title,
+                            scheduledAt: booking.scheduledAt,
+                            duration: booking.duration,
+                            meetingType: booking.meetingType as 'video' | 'audio' | 'chat',
+                        }
+                    );
+                }
+
+                // Email to original mentor (confirmation of their cancellation)
+                if (originalMentorData[0]?.email) {
+                    await sendMentorCancellationConfirmationEmail(
+                        originalMentorData[0].email,
+                        originalMentorData[0].name || 'Mentor',
+                        menteeData[0]?.name || 'The Mentee',
+                        {
+                            sessionId: booking.id,
+                            sessionTitle: booking.title,
+                            scheduledAt: booking.scheduledAt,
+                            duration: booking.duration,
+                            meetingType: booking.meetingType as 'video' | 'audio' | 'chat',
+                        },
+                        true,
+                        newMentorName
+                    );
+                }
+
+                // Email to new mentor (assigned notification)
+                const newMentorEmailData = await db
+                    .select({ email: users.email })
+                    .from(users)
+                    .where(eq(users.id, newMentorId))
+                    .limit(1);
+
+                if (newMentorEmailData[0]?.email) {
+                    await sendNewMentorAssignedEmail(
+                        newMentorEmailData[0].email,
+                        newMentorName,
+                        menteeData[0]?.name || 'A Mentee',
+                        {
+                            sessionId: booking.id,
+                            sessionTitle: booking.title,
+                            scheduledAt: booking.scheduledAt,
+                            duration: booking.duration,
+                            meetingType: booking.meetingType as 'video' | 'audio' | 'chat',
+                        },
+                        true // isReassignment
+                    );
+                }
+
                 // Audit Log
                 await db.insert(sessionAuditLog).values({
                     sessionId: booking.id,
@@ -325,6 +403,52 @@ export async function POST(
                     actionUrl: `/dashboard?section=schedule`,
                     actionText: 'View Schedule',
                 });
+
+                // Send email to mentee about no mentor found
+                const menteeDataNoMentor = await db
+                    .select({ name: users.name, email: users.email })
+                    .from(users)
+                    .where(eq(users.id, booking.menteeId))
+                    .limit(1);
+
+                if (menteeDataNoMentor.length > 0 && menteeDataNoMentor[0].email) {
+                    const originalMentorDataNoMentor = await db
+                        .select({ name: users.name, email: users.email })
+                        .from(users)
+                        .where(eq(users.id, booking.mentorId))
+                        .limit(1);
+
+                    // Email to mentee about no mentor found
+                    await sendMentorCancelledNoMentorEmail(
+                        menteeDataNoMentor[0].email,
+                        menteeDataNoMentor[0].name || 'Mentee',
+                        originalMentorDataNoMentor[0]?.name || 'Your Mentor',
+                        {
+                            sessionId: booking.id,
+                            sessionTitle: booking.title,
+                            scheduledAt: booking.scheduledAt,
+                            duration: booking.duration,
+                            meetingType: booking.meetingType as 'video' | 'audio' | 'chat',
+                        }
+                    );
+
+                    // Email to mentor confirming their cancellation (no replacement found)
+                    if (originalMentorDataNoMentor[0]?.email) {
+                        await sendMentorCancellationConfirmationEmail(
+                            originalMentorDataNoMentor[0].email,
+                            originalMentorDataNoMentor[0].name || 'Mentor',
+                            menteeDataNoMentor[0].name || 'The Mentee',
+                            {
+                                sessionId: booking.id,
+                                sessionTitle: booking.title,
+                                scheduledAt: booking.scheduledAt,
+                                duration: booking.duration,
+                                meetingType: booking.meetingType as 'video' | 'audio' | 'chat',
+                            },
+                            false // Not reassigned
+                        );
+                    }
+                }
 
                 // Audit Log
                 await db.insert(sessionAuditLog).values({
@@ -464,6 +588,54 @@ export async function POST(
                 actionUrl: `/dashboard?section=sessions`,
                 actionText: 'View Sessions',
             });
+
+            // Send email to mentor about mentee cancellation
+            const mentorDataForEmail = await db
+                .select({ name: users.name, email: users.email })
+                .from(users)
+                .where(eq(users.id, booking.mentorId))
+                .limit(1);
+
+            const menteeDataForEmail = await db
+                .select({ name: users.name, email: users.email })
+                .from(users)
+                .where(eq(users.id, booking.menteeId))
+                .limit(1);
+
+            // Email to mentor about mentee cancellation
+            if (mentorDataForEmail.length > 0 && mentorDataForEmail[0].email) {
+                await sendMenteeCancelledEmail(
+                    mentorDataForEmail[0].email,
+                    mentorDataForEmail[0].name || 'Mentor',
+                    menteeDataForEmail[0]?.name || 'The Mentee',
+                    {
+                        sessionId: booking.id,
+                        sessionTitle: booking.title,
+                        scheduledAt: booking.scheduledAt,
+                        duration: booking.duration,
+                        meetingType: booking.meetingType as 'video' | 'audio' | 'chat',
+                    },
+                    fullReason
+                );
+            }
+
+            // Email to mentee confirming their own cancellation
+            if (menteeDataForEmail[0]?.email) {
+                await sendMenteeCancellationConfirmationEmail(
+                    menteeDataForEmail[0].email,
+                    menteeDataForEmail[0].name || 'Mentee',
+                    mentorDataForEmail[0]?.name || 'Your Mentor',
+                    {
+                        sessionId: booking.id,
+                        sessionTitle: booking.title,
+                        scheduledAt: booking.scheduledAt,
+                        duration: booking.duration,
+                        meetingType: booking.meetingType as 'video' | 'audio' | 'chat',
+                    },
+                    refundPercentage,
+                    refundAmount
+                );
+            }
         }
 
         return NextResponse.json({
