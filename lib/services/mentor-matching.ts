@@ -10,15 +10,21 @@ import { eq, and, ne, lte, gte, inArray, notInArray } from 'drizzle-orm';
 import { getDay, addMinutes, isSameDay } from 'date-fns';
 
 /**
- * Finds a random available mentor for a specific time slot.
- * Used for auto-reassignment when a mentor cancels.
+ * Finds an available replacement mentor for a specific time slot.
+ * Used for auto-reassignment when a mentor cancels a session.
  * 
- * @param scheduledAt Date object for the session start time
- * @param duration Duration in minutes
- * @param excludeMentorId The ID of the mentor to exclude (the one cancelling)
- * @returns The ID of a random available mentor, or null if none found
+ * Checks:
+ * 1. Mentor is active, verified, and has active schedule
+ * 2. Mentor's weekly pattern allows the day/time
+ * 3. No blocking exceptions for the date
+ * 4. No conflicting bookings (with buffer time)
+ * 
+ * @param scheduledAt - Date object for the session start time
+ * @param duration - Duration in minutes
+ * @param excludeMentorId - The ID of the mentor to exclude (the one cancelling)
+ * @returns The ID of an available replacement mentor, or null if none found
  */
-export async function findRandomAvailableMentor(
+export async function findAvailableReplacementMentor(
     scheduledAt: Date,
     duration: number,
     excludeMentorId: string

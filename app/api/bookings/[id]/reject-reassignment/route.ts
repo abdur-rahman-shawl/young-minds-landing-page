@@ -58,10 +58,11 @@ export async function POST(
             );
         }
 
-        // Verify this is a reassigned session pending acceptance
-        if (!booking.wasReassigned || booking.reassignmentStatus !== 'pending_acceptance') {
+        // Verify this is a session that can be rejected (either auto-reassigned or awaiting choice)
+        const validStatuses = ['pending_acceptance', 'awaiting_mentee_choice'];
+        if (!validStatuses.includes(booking.reassignmentStatus || '')) {
             return NextResponse.json(
-                { error: 'This session is not pending reassignment acceptance' },
+                { error: 'This session is not pending reassignment decision' },
                 { status: 400 }
             );
         }

@@ -6,7 +6,7 @@ import { sessions, notifications, sessionPolicies, sessionAuditLog, mentors, use
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { CANCELLATION_REASONS, MENTOR_CANCELLATION_REASONS, DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
-import { findRandomAvailableMentor } from '@/lib/services/mentor-matching';
+import { findAvailableReplacementMentor } from '@/lib/services/mentor-matching';
 
 // All valid cancellation reason values (mentee + mentor combined)
 const allReasonValues = [
@@ -182,7 +182,7 @@ export async function POST(
         // =========================================================================================
         if (isMentor) {
             // Attempt to find a replacement mentor
-            const newMentorId = await findRandomAvailableMentor(
+            const newMentorId = await findAvailableReplacementMentor(
                 booking.scheduledAt,
                 booking.duration,
                 session.user.id
@@ -200,6 +200,10 @@ export async function POST(
                 const newMentorName = newMentorUser?.name || 'Another Mentor';
 
                 // Reassign session
+                // Build the cancelled mentors list (original mentor + any previous)
+                const existingCancelledMentors = (booking.cancelledMentorIds as string[]) || [];
+                const updatedCancelledMentors = [...existingCancelledMentors, booking.mentorId];
+
                 const [updatedBooking] = await db
                     .update(sessions)
                     .set({
@@ -210,6 +214,7 @@ export async function POST(
                         reassignedFromMentorId: booking.mentorId,
                         reassignedAt: new Date(),
                         reassignmentStatus: 'pending_acceptance',
+                        cancelledMentorIds: updatedCancelledMentors,
                         updatedAt: new Date(),
                     })
                     .where(eq(sessions.id, id))
@@ -274,11 +279,81 @@ export async function POST(
                     booking: updatedBooking,
                     message: `Session reassigned to ${newMentorName}.`
                 });
+            } else {
+                // NO REPLACEMENT MENTOR FOUND
+                // Instead of cancelling, set status to awaiting_mentee_choice so mentee can browse alternatives
+                const existingCancelledMentors = (booking.cancelledMentorIds as string[]) || [];
+                const updatedCancelledMentors = [...existingCancelledMentors, booking.mentorId];
+
+                const [updatedBooking] = await db
+                    .update(sessions)
+                    .set({
+                        // Clear the mentor since they cancelled
+                        mentorId: booking.mentorId, // Keep original for now, mentee will select new one
+                        mentorNotes: `Original mentor (${session.user.name || 'Unknown'}) cancelled: ${reasonCategory}. Awaiting mentee to select new mentor.`,
+                        wasReassigned: false, // Not auto-reassigned
+                        reassignedFromMentorId: booking.mentorId,
+                        reassignmentStatus: 'awaiting_mentee_choice',
+                        cancelledMentorIds: updatedCancelledMentors,
+                        cancelledBy: 'mentor',
+                        cancellationReason: reasonDetails || reasonCategory,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(sessions.id, id))
+                    .returning();
+
+                // Notify Mentee - need to browse and select
+                await db.insert(notifications).values({
+                    userId: booking.menteeId,
+                    type: 'SESSION_MENTOR_CANCELLED',
+                    title: 'Your Mentor Cancelled - Action Required',
+                    message: `Your mentor for "${booking.title}" has cancelled. No immediate replacement was found. Please browse other mentors or cancel for a full refund.`,
+                    relatedId: booking.id,
+                    relatedType: 'session',
+                    actionUrl: `/sessions/${booking.id}/select-mentor`,
+                    actionText: 'Browse Mentors',
+                });
+
+                // Notify Old Mentor (Cancellation Confirmed)
+                await db.insert(notifications).values({
+                    userId: booking.mentorId,
+                    type: 'BOOKING_CANCELLED',
+                    title: 'Session Cancellation Confirmed',
+                    message: `You cancelled "${booking.title}". The mentee has been notified to find a new mentor.`,
+                    relatedId: booking.id,
+                    relatedType: 'session',
+                    actionUrl: `/dashboard?section=schedule`,
+                    actionText: 'View Schedule',
+                });
+
+                // Audit Log
+                await db.insert(sessionAuditLog).values({
+                    sessionId: booking.id,
+                    userId: session.user.id,
+                    action: 'mentor_cancelled_no_replacement',
+                    reasonCategory: reasonCategory,
+                    reasonDetails: reasonDetails,
+                    policySnapshot: {
+                        originalMentor: booking.mentorId,
+                        newStatus: 'awaiting_mentee_choice',
+                        reason: 'Mentor cancelled, no auto-replacement available'
+                    },
+                    ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
+                    userAgent: req.headers.get('user-agent') || 'unknown',
+                });
+
+                return NextResponse.json({
+                    success: true,
+                    reassigned: false,
+                    awaitingMenteeChoice: true,
+                    booking: updatedBooking,
+                    message: `No replacement mentor available. The mentee has been notified to select a new mentor.`
+                });
             }
         }
         // =========================================================================================
 
-        // FALLBACK / STANDARD CANCELLATION (If mentee cancels OR mentor cancels loop failed)
+        // FALLBACK / STANDARD CANCELLATION (Mentee cancels)
 
         // Calculate refund
         const refundPercentage = calculateRefundPercentage(isMentor, hoursUntilSession, {

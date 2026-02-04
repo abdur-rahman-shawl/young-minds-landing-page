@@ -225,7 +225,7 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
                 )}
 
                 <div className="mt-auto pt-6 text-xs text-center text-muted-foreground">
-                  Powered by <span className="font-semibold text-foreground">Mentore</span>
+                  Powered by <span className="font-semibold text-foreground">SharingMinds</span>
                 </div>
               </div>
             </div>

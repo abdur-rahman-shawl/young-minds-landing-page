@@ -68,6 +68,7 @@ import { SessionLobbyModal } from './SessionLobbyModal';
 import { SessionActions } from './session-actions';
 import { RescheduleRequestBanner } from './reschedule-request-banner';
 import { ReassignmentResponseBanner } from './reassignment-response-banner';
+import { NoMentorFoundBanner } from './no-mentor-found-banner';
 import { CancelDialog } from './cancel-dialog';
 import { RescheduleDialog } from './reschedule-dialog';
 import {
@@ -111,7 +112,8 @@ interface Session {
   wasReassigned?: boolean;
   reassignedFromMentorId?: string;
   reassignedAt?: string;
-  reassignmentStatus?: 'pending_acceptance' | 'accepted' | 'rejected';
+  reassignmentStatus?: 'pending_acceptance' | 'accepted' | 'rejected' | 'awaiting_mentee_choice';
+  cancelledMentorIds?: string[];
 }
 
 type ViewType = 'month' | 'week' | 'day' | 'agenda';
@@ -1033,9 +1035,22 @@ export function SessionsCalendarView() {
                   />
                 )}
 
+                {/* No Mentor Found Alert - Show to mentee when mentor cancelled but no auto-replacement found */}
+                {isMentee && selectedSession.reassignmentStatus === 'awaiting_mentee_choice' && (
+                  <NoMentorFoundBanner
+                    sessionId={selectedSession.id}
+                    sessionTitle={selectedSession.title}
+                    sessionRate={selectedSession.rate}
+                    onSuccess={() => {
+                      fetchSessions();
+                      setDialogOpen(false);
+                    }}
+                  />
+                )}
+
                 {/* === ACTION BUTTONS === */}
-                {/* Hide all action buttons if pending reassignment acceptance - force mentee to decide first */}
-                {!(isMentee && selectedSession.wasReassigned && selectedSession.reassignmentStatus === 'pending_acceptance') && (
+                {/* Hide all action buttons if pending reassignment or awaiting mentee choice - force mentee to decide first */}
+                {!(isMentee && (selectedSession.reassignmentStatus === 'pending_acceptance' || selectedSession.reassignmentStatus === 'awaiting_mentee_choice')) && (
                   <div className="pt-2 border-t border-border space-y-3">
 
                     {/* SCHEDULED STATE: Show Join + Reschedule + Cancel */}

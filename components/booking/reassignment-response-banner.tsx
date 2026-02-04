@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,7 +16,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, CheckCircle, XCircle, Loader2, UserRoundX, DollarSign } from "lucide-react";
+import { AlertTriangle, CheckCircle, XCircle, Loader2, UserRoundX, DollarSign, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ReassignmentResponseBannerProps {
@@ -44,6 +45,7 @@ export function ReassignmentResponseBanner({
     const [isRejecting, setIsRejecting] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
     const { toast } = useToast();
+    const router = useRouter();
 
     // Normalize sessionRate to number (may come as string from database)
     const rate = typeof sessionRate === 'string' ? parseFloat(sessionRate) : (sessionRate || 0);
@@ -160,6 +162,15 @@ export function ReassignmentResponseBanner({
                                         <CheckCircle className="h-4 w-4 mr-2" />
                                     )}
                                     Continue with {newMentorName.split(' ')[0]}
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => router.push(`/sessions/${sessionId}/select-mentor`)}
+                                    disabled={isAccepting}
+                                    className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/50"
+                                >
+                                    <Users className="h-4 w-4 mr-2" />
+                                    Browse Other Mentors
                                 </Button>
                                 <Button
                                     variant="outline"

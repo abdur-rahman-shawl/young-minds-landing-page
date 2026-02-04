@@ -56,7 +56,8 @@ export const sessions = pgTable('sessions', {
   wasReassigned: boolean('was_reassigned').default(false).notNull(),
   reassignedFromMentorId: text('reassigned_from_mentor_id'),
   reassignedAt: timestamp('reassigned_at'),
-  reassignmentStatus: text('reassignment_status'), // 'pending_acceptance' | 'accepted' | 'rejected'
+  reassignmentStatus: text('reassignment_status'), // 'pending_acceptance' | 'accepted' | 'rejected' | 'awaiting_mentee_choice'
+  cancelledMentorIds: jsonb('cancelled_mentor_ids').default([]).notNull(), // Array of mentor IDs who cancelled this session
 
   // Recording configuration
   recordingConfig: jsonb('recording_config')

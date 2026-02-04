@@ -16,19 +16,20 @@ The booking system allows a **mentee** to book a session with a **mentor** throu
 Located in `components/booking/`:
 
 | Component | Purpose |
-|-----------|---------|
+|-----------|---------| 
 | `booking-modal.tsx` | Main wizard container (4 steps: time-selection → details → confirmation → success) |
 | `time-slot-selector-v2.tsx` | Step 1: Calendar & time slot selection (also used in reschedule) |
 | `booking-form.tsx` | Step 2: Duration, meeting type, session title/description |
 | `booking-confirmation.tsx` | Step 3: Review summary, pricing, payment form |
 | `sessions-calendar-view.tsx` | **Mentee's** session calendar with popup details, inline actions |
-| `mentor-schedule-view.tsx` | **New: Mentor's** dedicated schedule view (Week/List toggle, stats, popup) |
+| `mentor-schedule-view.tsx` | **Mentor's** dedicated schedule view (Week/List toggle, stats, popup) |
 | `session-actions.tsx` | Action buttons (Join, Reschedule, Cancel, No-Show) |
 | `cancel-dialog.tsx` | Cancel confirmation with reason selection |
 | `reschedule-dialog.tsx` | Reschedule UI with mentor's availability slots |
-| `reschedule-response-dialog.tsx` | **New:** UI for responding to reschedule requests (Accept/Counter/Reject) |
+| `reschedule-response-dialog.tsx` | UI for responding to reschedule requests (Accept/Counter/Reject) |
 | `reschedule-request-banner.tsx` | Shows pending reschedule status or respond button |
-| `reassignment-response-banner.tsx` | **New:** Mentee accept/reject UI for auto-reassigned sessions |
+| `reassignment-response-banner.tsx` | Mentee accept/browse/reject UI for auto-reassigned sessions |
+| `no-mentor-found-banner.tsx` | **New:** Mentee browse/cancel UI when no auto-replacement found |
 
 ### Wizard Flow
 ```
@@ -253,14 +254,14 @@ Other party responds via RescheduleResponseDialog:
 
 ### Auto-Reassignment Flow (When Mentor Cancels)
 
-When a **mentor** cancels a session, the system automatically tries to assign a replacement mentor. The mentee can then accept or reject this reassignment.
+When a **mentor** cancels a session, the system automatically tries to assign a replacement mentor. The mentee can then accept, browse other mentors, or cancel.
 
 #### Flow Diagram
 
 ```
 Mentor clicks "Cancel" → Selects reason → Confirms
         ↓
-System calls findRandomAvailableMentor()
+System calls findAvailableReplacementMentor()
         ↓
     ┌───────────────────────────────────────┐
     │ Replacement mentor found?             │
@@ -268,23 +269,22 @@ System calls findRandomAvailableMentor()
         │                      │
        YES                     NO
         ↓                      ↓
-Session reassigned to      Session cancelled
-new mentor                 100% refund to mentee
-        ↓
-Set wasReassigned = true
-Set reassignmentStatus = 'pending_acceptance'
-        ↓
-Notify mentee: "Your mentor changed"
-        ↓
-Mentee sees ReassignmentResponseBanner
-        │
-    ┌───┴───┐
-    │       │
-Accept   Reject
-    ↓       ↓
-Continue  Cancel session
-with new  100% refund
-mentor
+Session reassigned         Set status = 'awaiting_mentee_choice'
+to new mentor              Store cancelled mentor IDs
+        ↓                      ↓
+Set wasReassigned = true   Notify mentee: "Browse other mentors"
+Set status = 'pending_acceptance'    ↓
+        ↓                  Mentee sees NoMentorFoundBanner
+Notify mentee: "Your mentor changed"   │
+        ↓                      ├── Browse Mentors → Select new mentor + time
+Mentee sees ReassignmentResponseBanner │
+        │                      └── Cancel (Full Refund)
+    ┌───┼───────┐
+    │   │       │
+Accept  Browse  Cancel
+    ↓   ↓       ↓
+Continue with   Go to    100% refund
+new mentor     /sessions/[id]/select-mentor
 ```
 
 #### Database Fields (sessions table)
@@ -294,14 +294,44 @@ mentor
 | `wasReassigned` | boolean | True if session was auto-reassigned |
 | `reassignedFromMentorId` | text | Original mentor's user ID |
 | `reassignedAt` | timestamp | When reassignment occurred |
-| `reassignmentStatus` | text | `pending_acceptance`, `accepted`, `rejected` |
+| `reassignmentStatus` | text | `pending_acceptance`, `accepted`, `rejected`, `awaiting_mentee_choice` |
+| `cancelledMentorIds` | jsonb | Array of mentor IDs who cancelled this session (excluded from browse) |
 
 #### API Endpoints
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/bookings/[id]/accept-reassignment` | POST | Mentee confirms new mentor |
+| `/api/bookings/[id]/accept-reassignment` | POST | Mentee confirms auto-assigned mentor |
 | `/api/bookings/[id]/reject-reassignment` | POST | Mentee rejects → 100% refund |
+| `/api/bookings/[id]/alternative-mentors` | GET | Fetch available mentors for browsing |
+| `/api/bookings/[id]/select-alternative-mentor` | POST | Mentee selects different mentor |
+
+#### Browse Alternative Mentors Flow
+
+**Scenario A: Auto-assigned mentor exists**
+- Mentee sees: Accept | Browse Other Mentors | Cancel
+- Browse shows mentors available at **same date/time only**
+- No payment required (uses existing session payment)
+
+**Scenario B: No mentor found**
+- Mentee sees: Browse Mentors | Cancel  
+- Browse shows all available mentors with **date/time selector**
+- Mentee picks mentor + available slot
+- No payment required (uses existing session payment)
+
+**Excluded mentors:** All mentors in `cancelledMentorIds` are excluded from results.
+
+#### Mentor Matching Service
+
+`lib/services/mentor-matching.ts` → `findAvailableReplacementMentor()`
+
+**Checks performed:**
+1. Mentor is active, verified, and has active schedule
+2. Mentor's weekly pattern allows the day/time
+3. No blocking exceptions for the date
+4. No conflicting bookings (with buffer time)
+
+**Returns:** Mentor user ID or `null` if no suitable mentor found
 
 #### Accept Reassignment API
 
@@ -340,6 +370,8 @@ Shown in `SessionsCalendarView` when `reassignmentStatus === 'pending_acceptance
 - Displays new mentor name and avatar
 - **"Continue with [Mentor]"** button → calls accept-reassignment
 - **"Cancel (Full Refund)"** button → opens confirmation dialog → calls reject-reassignment
+
+**Blocking UI:** When a session is pending acceptance, all action buttons (Join Session, Reschedule, Cancel) are **hidden**. The mentee must accept or reject the reassignment before any other action is available.
 
 #### Notification Types
 
