@@ -205,6 +205,11 @@ export async function POST(
                     .set({
                         mentorId: newMentorId,
                         mentorNotes: `Auto-reassigned from original mentor (${session.user.name || 'Unknown'}) who cancelled due to: ${reasonCategory}`,
+                        // Reassignment tracking
+                        wasReassigned: true,
+                        reassignedFromMentorId: booking.mentorId,
+                        reassignedAt: new Date(),
+                        reassignmentStatus: 'pending_acceptance',
                         updatedAt: new Date(),
                     })
                     .where(eq(sessions.id, id))
@@ -213,13 +218,13 @@ export async function POST(
                 // Notify Mentee
                 await db.insert(notifications).values({
                     userId: booking.menteeId,
-                    type: 'SYSTEM_ALERT', // Or a new type like SESSION_REASSIGNED
-                    title: 'Session Reassigned',
-                    message: `Your session "${booking.title}" has been reassigned to ${newMentorName} because the original mentor had to cancel. The time remains the same.`,
+                    type: 'SESSION_REASSIGNED',
+                    title: 'Mentor Changed - Your Session Has Been Reassigned',
+                    message: `Your original mentor for "${booking.title}" had to cancel. You've been reassigned to ${newMentorName}. You can continue with the new mentor or cancel for a full refund.`,
                     relatedId: booking.id,
                     relatedType: 'session',
                     actionUrl: `/dashboard?section=sessions`,
-                    actionText: 'View Session',
+                    actionText: 'View Options',
                 });
 
                 // Notify Old Mentor (Cancellation Confirmed)

@@ -413,6 +413,11 @@ export async function GET(req: NextRequest) {
         pendingRescheduleRequestId: sessions.pendingRescheduleRequestId,
         pendingRescheduleTime: sessions.pendingRescheduleTime,
         pendingRescheduleBy: sessions.pendingRescheduleBy,
+        // Auto-reassignment fields
+        wasReassigned: sessions.wasReassigned,
+        reassignedFromMentorId: sessions.reassignedFromMentorId,
+        reassignedAt: sessions.reassignedAt,
+        reassignmentStatus: sessions.reassignmentStatus,
         // Mentor info (from JOIN with mentors table)
         mentorName: mentors.fullName,
         mentorAvatar: mentors.profileImageUrl,

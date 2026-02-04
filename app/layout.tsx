@@ -7,13 +7,14 @@ import { ThemeProvider } from "next-themes"
 import { AuthProvider } from "@/contexts/auth-context"
 import { ErrorBoundary } from "@/components/common/error-boundary"
 import { QueryProvider } from "@/providers/query-provider"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "SharingMinds",
   description: "A personalized mentor and mentee connect platform.",
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -29,6 +30,7 @@ export default function RootLayout({
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
               <AuthProvider>
                 {children}
+                <Toaster />
               </AuthProvider>
             </ThemeProvider>
           </QueryProvider>

@@ -23,6 +23,10 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'RESCHEDULE_REJECTED',
   'RESCHEDULE_COUNTER',
   'RESCHEDULE_WITHDRAWN',
+  // Session reassignment (when mentor cancels)
+  'SESSION_REASSIGNED',
+  'REASSIGNMENT_ACCEPTED',
+  'REASSIGNMENT_REJECTED',
 ]);
 
 export const notifications = pgTable('notifications', {

@@ -52,6 +52,12 @@ export const sessions = pgTable('sessions', {
   pendingRescheduleTime: timestamp('pending_reschedule_time'),
   pendingRescheduleBy: text('pending_reschedule_by'), // 'mentor' | 'mentee'
 
+  // Auto-reassignment tracking (when mentor cancels and a new mentor is assigned)
+  wasReassigned: boolean('was_reassigned').default(false).notNull(),
+  reassignedFromMentorId: text('reassigned_from_mentor_id'),
+  reassignedAt: timestamp('reassigned_at'),
+  reassignmentStatus: text('reassignment_status'), // 'pending_acceptance' | 'accepted' | 'rejected'
+
   // Recording configuration
   recordingConfig: jsonb('recording_config')
     .default({ enabled: true, resolution: '1280x720', fps: 30 })

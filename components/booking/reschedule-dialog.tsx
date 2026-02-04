@@ -164,8 +164,9 @@ export function RescheduleDialog({
       }
 
       toast({
-        title: "Reschedule Request Sent",
-        description: `Your reschedule request has been sent to the ${otherPartyLabel} for approval.`,
+        title: "📅 Reschedule Request Sent",
+        description: `Your request to reschedule to ${format(selectedTime, "MMMM d 'at' h:mm a")} has been sent to the ${otherPartyLabel} for approval.`,
+        duration: 5000,
       });
 
       onOpenChange(false);

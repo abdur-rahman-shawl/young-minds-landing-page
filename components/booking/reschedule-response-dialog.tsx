@@ -104,22 +104,27 @@ export function RescheduleResponseDialog({
                 throw new Error(data.error || "Failed to process response");
             }
 
+            let successTitle = "";
             let successMessage = "";
             switch (action) {
                 case "accept":
-                    successMessage = `Session rescheduled to ${format(new Date(proposedTime), "EEEE, MMMM d 'at' h:mm a")}`;
+                    successTitle = "✅ Session Rescheduled";
+                    successMessage = `Session confirmed for ${format(new Date(proposedTime), "EEEE, MMMM d 'at' h:mm a")}. Both parties have been notified.`;
                     break;
                 case "counter_propose":
-                    successMessage = "Counter-proposal sent successfully";
+                    successTitle = "📅 Counter-Proposal Sent";
+                    successMessage = `Your alternative time of ${format(counterTime!, "MMMM d 'at' h:mm a")} has been sent for approval.`;
                     break;
                 case "cancel_session":
-                    successMessage = "Session cancelled. Full refund will be processed.";
+                    successTitle = "✅ Session Cancelled";
+                    successMessage = "The session has been cancelled. You will receive a full refund.";
                     break;
             }
 
             toast({
-                title: "Success",
+                title: successTitle,
                 description: successMessage,
+                duration: 5000,
             });
 
             onOpenChange(false);

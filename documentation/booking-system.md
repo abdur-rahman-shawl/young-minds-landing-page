@@ -28,6 +28,7 @@ Located in `components/booking/`:
 | `reschedule-dialog.tsx` | Reschedule UI with mentor's availability slots |
 | `reschedule-response-dialog.tsx` | **New:** UI for responding to reschedule requests (Accept/Counter/Reject) |
 | `reschedule-request-banner.tsx` | Shows pending reschedule status or respond button |
+| `reassignment-response-banner.tsx` | **New:** Mentee accept/reject UI for auto-reassigned sessions |
 
 ### Wizard Flow
 ```
@@ -51,6 +52,8 @@ time-selection → details → confirmation → success
 | `/api/bookings/[id]/reschedule/respond` | POST | Respond to reschedule (accept/reject/counter) |
 | `/api/bookings/[id]/reschedule/withdraw` | POST | Withdraw own reschedule request |
 | `/api/bookings/[id]/no-show` | POST | Mark as no-show |
+| `/api/bookings/[id]/accept-reassignment` | POST | Mentee accepts auto-assigned mentor |
+| `/api/bookings/[id]/reject-reassignment` | POST | Mentee rejects → full refund |
 | `/api/mentor/mentees-sessions` | GET | **New:** Get unique mentees & session stats for mentor view |
 | `/api/session-policies` | GET | Fetch session policies (optional `?role=mentor\|mentee`) |
 
@@ -240,16 +243,125 @@ Other party responds via RescheduleResponseDialog:
 3. **Status Check** - Cannot cancel completed/cancelled sessions
 4. **Roles-specific behavior**:
    - **Mentee:** Standard cancellation with refund calculation.
-   - **Mentor:**
-     - **Auto-Reassignment Attempt:** System tries to find another available mentor for the same time slot.
-     - **If Reassigned:** Updates session to new mentor, notifies all parties (Mentee, Old Mentor, New Mentor).
-     - **If No Replacement:** Falls back to standard cancellation (100% refund).
+   - **Mentor:** See Auto-Reassignment Flow below.
 
 5. **Update Session** - Set status/refund info
 6. **Audit Log** - Record action
 7. **Notify** - Send alerts
 
+---
+
+### Auto-Reassignment Flow (When Mentor Cancels)
+
+When a **mentor** cancels a session, the system automatically tries to assign a replacement mentor. The mentee can then accept or reject this reassignment.
+
+#### Flow Diagram
+
+```
+Mentor clicks "Cancel" → Selects reason → Confirms
+        ↓
+System calls findRandomAvailableMentor()
+        ↓
+    ┌───────────────────────────────────────┐
+    │ Replacement mentor found?             │
+    └───────────────────────────────────────┘
+        │                      │
+       YES                     NO
+        ↓                      ↓
+Session reassigned to      Session cancelled
+new mentor                 100% refund to mentee
+        ↓
+Set wasReassigned = true
+Set reassignmentStatus = 'pending_acceptance'
+        ↓
+Notify mentee: "Your mentor changed"
+        ↓
+Mentee sees ReassignmentResponseBanner
+        │
+    ┌───┴───┐
+    │       │
+Accept   Reject
+    ↓       ↓
+Continue  Cancel session
+with new  100% refund
+mentor
+```
+
+#### Database Fields (sessions table)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `wasReassigned` | boolean | True if session was auto-reassigned |
+| `reassignedFromMentorId` | text | Original mentor's user ID |
+| `reassignedAt` | timestamp | When reassignment occurred |
+| `reassignmentStatus` | text | `pending_acceptance`, `accepted`, `rejected` |
+
+#### API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/bookings/[id]/accept-reassignment` | POST | Mentee confirms new mentor |
+| `/api/bookings/[id]/reject-reassignment` | POST | Mentee rejects → 100% refund |
+
+#### Accept Reassignment API
+
+`POST /api/bookings/[id]/accept-reassignment`:
+
+1. **Auth Check** - Must be mentee
+2. **Validation** - Session must have `wasReassigned = true` and `reassignmentStatus = 'pending_acceptance'`
+3. **Update** - Set `reassignmentStatus = 'accepted'`
+4. **Notify** - New mentor receives confirmation
+5. **Audit Log** - Record `reassignment_accepted`
+
+#### Reject Reassignment API
+
+`POST /api/bookings/[id]/reject-reassignment`:
+
+**Request Body:**
+```json
+{
+  "reason": "optional text"
+}
+```
+
+**Logic:**
+1. **Auth Check** - Must be mentee
+2. **Validation** - Session must have `wasReassigned = true` and `reassignmentStatus = 'pending_acceptance'`
+3. **Cancel Session** - Status = 'cancelled', 100% refund
+4. **Update** - Set `reassignmentStatus = 'rejected'`
+5. **Notify** - New mentor, original mentor, mentee all notified
+6. **Audit Log** - Record `reassignment_rejected` with full context
+
+#### Frontend Component
+
+`ReassignmentResponseBanner` (`components/booking/reassignment-response-banner.tsx`):
+
+Shown in `SessionsCalendarView` when `reassignmentStatus === 'pending_acceptance'`:
+- Displays new mentor name and avatar
+- **"Continue with [Mentor]"** button → calls accept-reassignment
+- **"Cancel (Full Refund)"** button → opens confirmation dialog → calls reject-reassignment
+
+#### Notification Types
+
+| Type | Recipient | Trigger |
+|------|-----------|---------|
+| `SESSION_REASSIGNED` | Mentee | Mentor cancelled, new mentor assigned |
+| `REASSIGNMENT_ACCEPTED` | New Mentor | Mentee confirmed session |
+| `REASSIGNMENT_REJECTED` | New Mentor, Original Mentor | Mentee rejected, session cancelled |
+
+---
+
 ### Refund Rules
+
+| Scenario | Refund |
+|----------|--------|
+| Mentor cancels (no replacement) | 100% |
+| Mentor cancels (mentee rejects reassignment) | 100% |
+| Mentee cancels ≥24h before | 100% |
+| Mentee cancels 2-24h before | 70% (configurable) |
+| Mentee cancels <2h before | 0% (configurable) |
+
+---
 
 ## Availability Slot Generation
 

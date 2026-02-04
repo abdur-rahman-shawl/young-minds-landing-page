@@ -67,6 +67,7 @@ import { cn } from '@/lib/utils';
 import { SessionLobbyModal } from './SessionLobbyModal';
 import { SessionActions } from './session-actions';
 import { RescheduleRequestBanner } from './reschedule-request-banner';
+import { ReassignmentResponseBanner } from './reassignment-response-banner';
 import { CancelDialog } from './cancel-dialog';
 import { RescheduleDialog } from './reschedule-dialog';
 import {
@@ -106,6 +107,11 @@ interface Session {
   pendingRescheduleRequestId?: string;
   pendingRescheduleTime?: string;
   pendingRescheduleBy?: 'mentor' | 'mentee';
+  // Auto-reassignment fields
+  wasReassigned?: boolean;
+  reassignedFromMentorId?: string;
+  reassignedAt?: string;
+  reassignmentStatus?: 'pending_acceptance' | 'accepted' | 'rejected';
 }
 
 type ViewType = 'month' | 'week' | 'day' | 'agenda';
@@ -1010,6 +1016,21 @@ export function SessionsCalendarView() {
                       />
                     )}
                   </div>
+                )}
+
+                {/* Auto-Reassignment Alert - Show to mentee when session was reassigned and pending acceptance */}
+                {isMentee && selectedSession.wasReassigned && selectedSession.reassignmentStatus === 'pending_acceptance' && (
+                  <ReassignmentResponseBanner
+                    sessionId={selectedSession.id}
+                    sessionTitle={selectedSession.title}
+                    newMentorName={selectedSession.mentorName || 'New Mentor'}
+                    newMentorAvatar={selectedSession.mentorAvatar}
+                    sessionRate={selectedSession.rate}
+                    onSuccess={() => {
+                      fetchSessions();
+                      setDialogOpen(false);
+                    }}
+                  />
                 )}
 
                 {/* === ACTION BUTTONS === */}

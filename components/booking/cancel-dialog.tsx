@@ -148,15 +148,32 @@ export function CancelDialog({
                 throw new Error(data.error || "Failed to cancel session");
             }
 
-            const otherParty = userRole === "mentor" ? "mentee" : "mentor";
-            const refundMessage = data.refundAmount > 0
-                ? ` A refund of $${data.refundAmount.toFixed(2)} (${data.refundPercentage}%) will be processed.`
-                : "";
+            // Check if session was reassigned to a new mentor
+            if (data.reassigned) {
+                toast({
+                    title: "✅ Session Reassigned Successfully",
+                    description: "Your session has been reassigned to another mentor. The mentee will be notified and can choose to continue or cancel for a full refund.",
+                    duration: 6000,
+                });
+            } else if (userRole === "mentor") {
+                // Mentor cancelled, no replacement found
+                toast({
+                    title: "✅ Session Cancelled",
+                    description: `The session has been cancelled. The mentee has been notified and will receive a full refund of $${rate.toFixed(2)}.`,
+                    duration: 5000,
+                });
+            } else {
+                // Mentee cancelled
+                const refundMessage = data.refundAmount > 0
+                    ? `You will receive a refund of $${data.refundAmount.toFixed(2)} (${data.refundPercentage}%).`
+                    : "No refund is applicable for this cancellation.";
 
-            toast({
-                title: "Session Cancelled",
-                description: `The session has been cancelled successfully. The ${otherParty} has been notified.${refundMessage}`,
-            });
+                toast({
+                    title: "✅ Session Cancelled",
+                    description: `The session has been cancelled successfully. Your mentor has been notified. ${refundMessage}`,
+                    duration: 5000,
+                });
+            }
 
             onOpenChange(false);
             setReasonCategory("");
@@ -199,29 +216,46 @@ export function CancelDialog({
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                    {/* Refund Preview */}
+                    {/* Payment Impact Notice - Role-specific */}
                     {rate > 0 && (
-                        <div className="rounded-lg bg-green-50 dark:bg-green-950/30 p-3 text-sm text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800">
-                            <div className="flex items-center gap-2 font-medium">
-                                <DollarSign className="h-4 w-4" />
-                                Refund Preview
+                        userRole === "mentor" ? (
+                            // Mentor view: Explain what happens to the session/payment
+                            <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3 text-sm text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+                                <div className="flex items-center gap-2 font-medium">
+                                    <DollarSign className="h-4 w-4" />
+                                    What Happens Next
+                                </div>
+                                <ul className="mt-2 list-disc list-inside space-y-1 text-xs">
+                                    <li>We'll try to find another mentor for this session</li>
+                                    <li>If found, the mentee can accept or cancel for a full refund</li>
+                                    <li>If no replacement is found, the mentee receives a 100% refund (${rate.toFixed(2)})</li>
+                                    <li>No payment will be issued to you for this session</li>
+                                </ul>
                             </div>
-                            {loadingPolicies ? (
-                                <div className="mt-2 flex items-center gap-2 text-xs">
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                    Calculating...
+                        ) : (
+                            // Mentee view: Show refund preview
+                            <div className="rounded-lg bg-green-50 dark:bg-green-950/30 p-3 text-sm text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800">
+                                <div className="flex items-center gap-2 font-medium">
+                                    <DollarSign className="h-4 w-4" />
+                                    Refund Preview
                                 </div>
-                            ) : (
-                                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                                    <div className="text-muted-foreground">Session Rate:</div>
-                                    <div className="font-medium">${rate.toFixed(2)}</div>
-                                    <div className="text-muted-foreground">Refund:</div>
-                                    <div className="font-medium">
-                                        {refundPreview.percentage}% (${refundPreview.amount.toFixed(2)})
+                                {loadingPolicies ? (
+                                    <div className="mt-2 flex items-center gap-2 text-xs">
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        Calculating...
                                     </div>
-                                </div>
-                            )}
-                        </div>
+                                ) : (
+                                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                        <div className="text-muted-foreground">Session Rate:</div>
+                                        <div className="font-medium">${rate.toFixed(2)}</div>
+                                        <div className="text-muted-foreground">Your Refund:</div>
+                                        <div className="font-medium">
+                                            {refundPreview.percentage}% (${refundPreview.amount.toFixed(2)})
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )
                     )}
 
                     {/* Reason Category (Required) */}
@@ -259,7 +293,7 @@ export function CancelDialog({
                         </p>
                     </div>
 
-                    {/* Policy Notice */}
+                    {/* Policy Notice - Role-specific */}
                     <div className="rounded-lg bg-yellow-50 dark:bg-yellow-950/30 p-3 text-sm text-yellow-800 dark:text-yellow-200">
                         <p className="font-medium">Cancellation Policy:</p>
                         {loadingPolicies ? (
@@ -267,7 +301,15 @@ export function CancelDialog({
                                 <Loader2 className="h-3 w-3 animate-spin" />
                                 Loading policy...
                             </div>
+                        ) : userRole === "mentor" ? (
+                            // Mentor policy notice
+                            <ul className="mt-1 list-disc list-inside space-y-1 text-xs">
+                                <li>The mentee will receive a full refund if no replacement is found</li>
+                                <li>Frequent cancellations may affect your mentor rating</li>
+                                <li>The mentee will be notified of the cancellation</li>
+                            </ul>
                         ) : (
+                            // Mentee policy notice
                             <ul className="mt-1 list-disc list-inside space-y-1 text-xs">
                                 <li>Free cancellation: {policyData?.freeCancellationHours ?? 24}+ hours before session (100% refund)</li>
                                 <li>Partial refund: {cutoffHours}–{policyData?.freeCancellationHours ?? 24} hours before ({policyData?.partialRefundPercentage ?? 70}%)</li>
