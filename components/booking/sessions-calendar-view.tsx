@@ -1034,130 +1034,133 @@ export function SessionsCalendarView() {
                 )}
 
                 {/* === ACTION BUTTONS === */}
-                <div className="pt-2 border-t border-border space-y-3">
+                {/* Hide all action buttons if pending reassignment acceptance - force mentee to decide first */}
+                {!(isMentee && selectedSession.wasReassigned && selectedSession.reassignmentStatus === 'pending_acceptance') && (
+                  <div className="pt-2 border-t border-border space-y-3">
 
-                  {/* SCHEDULED STATE: Show Join + Reschedule + Cancel */}
-                  {selectedSession.status === 'scheduled' && (
-                    <>
-                      {/* Join Button - Only show if NOT pending reschedule and session is upcoming */}
-                      {!hasPendingReschedule && !isSessionPast && (
-                        <Button
-                          className="w-full"
-                          size="lg"
-                          onClick={() => {
-                            setDialogOpen(false);
-                            setLobbySession(selectedSession);
-                          }}
-                        >
-                          <Video className="w-4 h-4 mr-2" />
-                          Join Session
-                        </Button>
-                      )}
+                    {/* SCHEDULED STATE: Show Join + Reschedule + Cancel */}
+                    {selectedSession.status === 'scheduled' && (
+                      <>
+                        {/* Join Button - Only show if NOT pending reschedule and session is upcoming */}
+                        {!hasPendingReschedule && !isSessionPast && (
+                          <Button
+                            className="w-full"
+                            size="lg"
+                            onClick={() => {
+                              setDialogOpen(false);
+                              setLobbySession(selectedSession);
+                            }}
+                          >
+                            <Video className="w-4 h-4 mr-2" />
+                            Join Session
+                          </Button>
+                        )}
 
-                      {/* Withdraw Reschedule Button - Only for initiator */}
-                      {hasPendingReschedule && isInitiator && ALLOW_WITHDRAW_RESCHEDULE && (
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => setShowWithdrawDialog(true)}
-                        >
-                          <Undo2 className="w-4 h-4 mr-2" />
-                          Withdraw Reschedule Request
-                        </Button>
-                      )}
+                        {/* Withdraw Reschedule Button - Only for initiator */}
+                        {hasPendingReschedule && isInitiator && ALLOW_WITHDRAW_RESCHEDULE && (
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setShowWithdrawDialog(true)}
+                          >
+                            <Undo2 className="w-4 h-4 mr-2" />
+                            Withdraw Reschedule Request
+                          </Button>
+                        )}
 
-                      {/* Secondary Actions Row */}
-                      <div className="flex gap-2">
-                        {/* Reschedule Button - Disabled if pending */}
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          disabled={hasPendingReschedule}
-                          onClick={() => setShowRescheduleDialog(true)}
-                        >
-                          <CalendarX className="w-4 h-4 mr-2" />
-                          Reschedule
-                        </Button>
+                        {/* Secondary Actions Row */}
+                        <div className="flex gap-2">
+                          {/* Reschedule Button - Disabled if pending */}
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            disabled={hasPendingReschedule}
+                            onClick={() => setShowRescheduleDialog(true)}
+                          >
+                            <CalendarX className="w-4 h-4 mr-2" />
+                            Reschedule
+                          </Button>
 
-                        {/* Cancel Button - Always available */}
-                        <Button
-                          variant="outline"
-                          className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setShowCancelDialog(true)}
-                        >
-                          <XCircle className="w-4 h-4 mr-2" />
-                          Cancel Session
-                        </Button>
-                      </div>
-                    </>
-                  )}
-
-                  {/* COMPLETED STATE: Show View Recording + Rebook */}
-                  {selectedSession.status === 'completed' && (
-                    <>
-                      <Button
-                        className="w-full"
-                        variant="outline"
-                        disabled
-                      >
-                        <Film className="w-4 h-4 mr-2" />
-                        View Recording
-                        <span className="ml-2 text-xs text-muted-foreground">(Coming Soon)</span>
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        disabled
-                      >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Rebook with {isMentee ? 'Mentor' : 'Mentee'}
-                        <span className="ml-2 text-xs text-muted-foreground">(Coming Soon)</span>
-                      </Button>
-                    </>
-                  )}
-
-                  {/* CANCELLED STATE: Show Refund Status + Rebook */}
-                  {selectedSession.status === 'cancelled' && (
-                    <>
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <div className="flex items-center gap-2 text-sm">
-                          <DollarSign className="w-4 h-4 text-muted-foreground" />
-                          <span className="font-medium">Refund Status:</span>
-                          <Badge variant="outline">Processing</Badge>
+                          {/* Cancel Button - Always available */}
+                          <Button
+                            variant="outline"
+                            className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setShowCancelDialog(true)}
+                          >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Cancel Session
+                          </Button>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Refunds typically process within 5-7 business days
-                        </p>
-                      </div>
+                      </>
+                    )}
 
+                    {/* COMPLETED STATE: Show View Recording + Rebook */}
+                    {selectedSession.status === 'completed' && (
+                      <>
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          disabled
+                        >
+                          <Film className="w-4 h-4 mr-2" />
+                          View Recording
+                          <span className="ml-2 text-xs text-muted-foreground">(Coming Soon)</span>
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          disabled
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Rebook with {isMentee ? 'Mentor' : 'Mentee'}
+                          <span className="ml-2 text-xs text-muted-foreground">(Coming Soon)</span>
+                        </Button>
+                      </>
+                    )}
+
+                    {/* CANCELLED STATE: Show Refund Status + Rebook */}
+                    {selectedSession.status === 'cancelled' && (
+                      <>
+                        <div className="p-3 bg-muted/50 rounded-lg">
+                          <div className="flex items-center gap-2 text-sm">
+                            <DollarSign className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-medium">Refund Status:</span>
+                            <Badge variant="outline">Processing</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Refunds typically process within 5-7 business days
+                          </p>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          disabled
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Rebook with {isMentee ? 'Mentor' : 'Mentee'}
+                          <span className="ml-2 text-xs text-muted-foreground">(Coming Soon)</span>
+                        </Button>
+                      </>
+                    )}
+
+                    {/* IN_PROGRESS STATE: Just show Join */}
+                    {selectedSession.status === 'in_progress' && (
                       <Button
-                        variant="outline"
                         className="w-full"
-                        disabled
+                        size="lg"
+                        onClick={() => {
+                          setDialogOpen(false);
+                          setLobbySession(selectedSession);
+                        }}
                       >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Rebook with {isMentee ? 'Mentor' : 'Mentee'}
-                        <span className="ml-2 text-xs text-muted-foreground">(Coming Soon)</span>
+                        <Video className="w-4 h-4 mr-2" />
+                        Rejoin Session
                       </Button>
-                    </>
-                  )}
-
-                  {/* IN_PROGRESS STATE: Just show Join */}
-                  {selectedSession.status === 'in_progress' && (
-                    <Button
-                      className="w-full"
-                      size="lg"
-                      onClick={() => {
-                        setDialogOpen(false);
-                        setLobbySession(selectedSession);
-                      }}
-                    >
-                      <Video className="w-4 h-4 mr-2" />
-                      Rejoin Session
-                    </Button>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })()}

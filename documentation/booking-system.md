@@ -1,6 +1,6 @@
 # Booking System Documentation
 
-> **Last Updated:** 2026-02-01
+> **Last Updated:** 2026-02-04
 > **Purpose:** Documents the mentor-mentee session booking flow
 
 ---
@@ -360,6 +360,72 @@ Shown in `SessionsCalendarView` when `reassignmentStatus === 'pending_acceptance
 | Mentee cancels ≥24h before | 100% |
 | Mentee cancels 2-24h before | 70% (configurable) |
 | Mentee cancels <2h before | 0% (configurable) |
+
+---
+
+## Toast Notifications & User Feedback
+
+All booking actions provide immediate visual confirmation via toast notifications. Toasts are displayed using shadcn/ui's `Toaster` component (mounted in `app/layout.tsx`).
+
+### Cancellation Toasts
+
+| Scenario | Title | Description |
+|----------|-------|-------------|
+| Mentor cancels → Reassigned | ✅ Session Reassigned Successfully | "Your session has been reassigned to another mentor. The mentee will be notified and can choose to continue or cancel for a full refund." |
+| Mentor cancels → No replacement | ✅ Session Cancelled | "The session has been cancelled. The mentee has been notified and will receive a full refund of $X." |
+| Mentee cancels | ✅ Session Cancelled | "The session has been cancelled successfully. Your mentor has been notified. [Refund details]" |
+
+### Reschedule Toasts
+
+| Action | Title | Description |
+|--------|-------|-------------|
+| Request sent | 📅 Reschedule Request Sent | "Your request to reschedule to [date/time] has been sent to the [mentor/mentee] for approval." |
+| Accept | ✅ Session Rescheduled | "Session confirmed for [date/time]. Both parties have been notified." |
+| Counter-propose | 📅 Counter-Proposal Sent | "Your alternative time of [date/time] has been sent for approval." |
+| Cancel (during reschedule) | ✅ Session Cancelled | "The session has been cancelled. You will receive a full refund." |
+
+### Reassignment Response Toasts
+
+| Action | Title | Description |
+|--------|-------|-------------|
+| Accept new mentor | ✅ Session Confirmed | "You've confirmed the session with [new mentor]." |
+| Reject reassignment | ✅ Session Cancelled | "Session cancelled. A full refund will be processed." |
+
+### Toast Configuration
+
+- **Duration**: 5-6 seconds for important messages
+- **Location**: Top-right corner (default shadcn/ui positioning)
+- **Variants**: Default (success), Destructive (errors)
+
+---
+
+## Cancel Dialog Role-Specific UI
+
+The cancel dialog (`components/booking/cancel-dialog.tsx`) displays different content based on user role:
+
+### Mentor View
+
+**"What Happens Next" Box (blue):**
+- We'll try to find another mentor for this session
+- If found, the mentee can accept or cancel for a full refund
+- If no replacement is found, the mentee receives a 100% refund
+- No payment will be issued to you for this session
+
+**Cancellation Policy:**
+- The mentee will receive a full refund if no replacement is found
+- Frequent cancellations may affect your mentor rating
+- The mentee will be notified
+
+### Mentee View
+
+**"Refund Preview" Box (green):**
+- Session Rate: $X.XX
+- Your Refund: X% ($X.XX)
+
+**Cancellation Policy:**
+- Free cancellation: 24+ hours before session (100% refund)
+- Partial refund: 2-24 hours before (70%)
+- The mentor will be notified
 
 ---
 

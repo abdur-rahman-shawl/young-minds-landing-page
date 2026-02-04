@@ -45,6 +45,9 @@ export function ReassignmentResponseBanner({
     const [rejectReason, setRejectReason] = useState("");
     const { toast } = useToast();
 
+    // Normalize sessionRate to number (may come as string from database)
+    const rate = typeof sessionRate === 'string' ? parseFloat(sessionRate) : (sessionRate || 0);
+
     const handleAccept = async () => {
         setIsAccepting(true);
         try {
@@ -187,14 +190,14 @@ export function ReassignmentResponseBanner({
                     </AlertDialogHeader>
 
                     {/* Refund Info */}
-                    {sessionRate > 0 && (
+                    {rate > 0 && (
                         <div className="rounded-lg bg-green-50 dark:bg-green-950/30 p-3 text-sm border border-green-200 dark:border-green-800">
                             <div className="flex items-center gap-2 font-medium text-green-800 dark:text-green-200">
                                 <DollarSign className="h-4 w-4" />
                                 Full Refund Guaranteed
                             </div>
                             <p className="text-green-700 dark:text-green-300 mt-1">
-                                You will receive a 100% refund of ${sessionRate.toFixed(2)} since your original mentor cancelled.
+                                You will receive a 100% refund of ${rate.toFixed(2)} since your original mentor cancelled.
                             </p>
                         </div>
                     )}
