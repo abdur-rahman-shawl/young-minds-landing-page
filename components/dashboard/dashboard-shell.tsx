@@ -28,6 +28,7 @@ import { AdminMentors } from "@/components/admin/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/admin/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
+import { AdminSessions } from "@/components/admin/dashboard/admin-sessions"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { useAuth } from "@/contexts/auth-context"
 import { AlertTriangle, Sparkles } from "lucide-react"
@@ -141,6 +142,9 @@ export function DashboardShell() {
           break
         case "mentees":
           content = <AdminMentees />
+          break
+        case "sessions":
+          content = <AdminSessions />
           break
         case "analytics":
           content = <AdminAnalytics />

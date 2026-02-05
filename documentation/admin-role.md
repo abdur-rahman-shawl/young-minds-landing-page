@@ -13,9 +13,10 @@
 4. [Admin API Endpoints](#4-admin-api-endpoints)
 5. [Admin Dashboard Components](#5-admin-dashboard-components)
 6. [Admin Actions & Workflows](#6-admin-actions--workflows)
-7. [Audit Trail System](#7-audit-trail-system)
-8. [Email Notifications](#8-email-notifications)
-9. [File Structure Reference](#9-file-structure-reference)
+7. [Admin Sessions Management](#7-admin-sessions-management) ⭐ NEW
+8. [Audit Trail System](#8-audit-trail-system)
+9. [Email Notifications](#9-email-notifications)
+10. [File Structure Reference](#10-file-structure-reference)
 
 ---
 
@@ -24,6 +25,7 @@
 The Admin role provides full administrative control over the platform, including:
 - Mentor application verification (approve/reject/request updates)
 - Mentee profile viewing
+- **Session management and intervention** (force cancel, refund, reassign, etc.)
 - Subscription and plan management
 - Platform analytics and KPIs
 - Contact enquiry management
@@ -474,6 +476,7 @@ const items = [
   { key: "dashboard", title: "Overview", icon: LayoutDashboard },
   { key: "mentors", title: "Mentors", icon: GraduationCap },
   { key: "mentees", title: "Mentees", icon: Users },
+  { key: "sessions", title: "Sessions", icon: CalendarClock },  // NEW
   { key: "subscriptions", title: "Subscriptions", icon: CreditCard },
   { key: "analytics", title: "Analytics", icon: BarChart3 },
   { key: "enquiries", title: "Enquiries", icon: Inbox },
@@ -645,7 +648,82 @@ const items = [
 
 ---
 
-## 7. Audit Trail System
+## 7. Admin Sessions Management
+
+> **Status:** Planned  
+> **Full Documentation:** See [booking-system.md → Admin Sessions Management](./booking-system.md#admin-sessions-management)
+
+The Admin Sessions Dashboard provides full visibility and control over all platform sessions.
+
+### 7.1 Dashboard Features
+
+| Feature | Description |
+|---------|-------------|
+| **KPI Cards** | Total sessions, completed, cancelled, no-show rate, revenue, refunds |
+| **Sessions Table** | Filterable, sortable, paginated list of all sessions |
+| **Session Detail Panel** | Full session info with mentor/mentee profiles, timeline, notes |
+| **Bulk Actions** | Export to CSV, bulk cancel |
+
+### 7.2 Admin Actions on Sessions
+
+| Action | API Endpoint | Audit Action |
+|--------|--------------|---------------|
+| **Force Cancel** | `POST /api/admin/sessions/[id]/cancel` | `ADMIN_FORCE_CANCEL` |
+| **Force Complete** | `POST /api/admin/sessions/[id]/complete` | `ADMIN_FORCE_COMPLETE` |
+| **Issue Refund** | `POST /api/admin/sessions/[id]/refund` | `ADMIN_MANUAL_REFUND` |
+| **Reassign Session** | `POST /api/admin/sessions/[id]/reassign` | `ADMIN_REASSIGN_SESSION` |
+| **Clear No-Show** | `POST /api/admin/sessions/[id]/clear-no-show` | `ADMIN_CLEAR_NO_SHOW` |
+| **Override Policy** | `POST /api/admin/sessions/[id]/override-policy` | `ADMIN_POLICY_OVERRIDE` |
+| **Add Note** | `POST /api/admin/sessions/[id]/notes` | `ADMIN_NOTE_ADDED` |
+
+### 7.3 New Database Tables
+
+| Table | File | Purpose |
+|-------|------|---------|
+| `admin_session_audit_trail` | `lib/db/schema/admin-session-audit-trail.ts` | Logs all admin session actions |
+| `admin_session_notes` | `lib/db/schema/admin-session-notes.ts` | Internal notes on sessions |
+| `session_disputes` | `lib/db/schema/session-disputes.ts` | Dispute tracking (optional) |
+
+### 7.4 Session-Specific API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/admin/sessions` | GET | Fetch all sessions (paginated, filtered) |
+| `/api/admin/sessions/stats` | GET | Dashboard statistics |
+| `/api/admin/sessions/export` | GET | Export to CSV |
+| `/api/admin/sessions/[id]` | GET | Session details |
+| `/api/admin/sessions/[id]/cancel` | POST | Force cancel |
+| `/api/admin/sessions/[id]/complete` | POST | Force complete |
+| `/api/admin/sessions/[id]/refund` | POST | Manual refund |
+| `/api/admin/sessions/[id]/reassign` | POST | Reassign to different mentor |
+| `/api/admin/sessions/[id]/clear-no-show` | POST | Clear no-show flag |
+| `/api/admin/sessions/[id]/override-policy` | POST | Bypass policy limits |
+| `/api/admin/sessions/[id]/notes` | GET/POST | Admin notes |
+
+### 7.5 Session Admin Emails
+
+| Email | Trigger | Recipients |
+|-------|---------|------------|
+| `sendAdminCancelledSessionEmail` | Admin force-cancels | Mentor + Mentee |
+| `sendAdminRefundIssuedEmail` | Admin issues refund | Mentee |
+| `sendAdminReassignedToMenteeEmail` | Admin reassigns | Mentee |
+| `sendAdminAssignedToMentorEmail` | Admin reassigns | New Mentor |
+
+### 7.6 Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `AdminSessions` | `admin-sessions.tsx` | Main sessions dashboard |
+| `SessionDetailPanel` | `session-detail-panel.tsx` | Side panel with full details |
+| `SessionsTable` | `sessions/sessions-table.tsx` | Data table component |
+| `SessionsFilters` | `sessions/sessions-filters.tsx` | Filter controls |
+| Action Dialogs | `sessions/*.tsx` | Force cancel, refund, reassign dialogs |
+
+> 📖 **For full implementation details**, see [booking-system.md → Admin Sessions Management](./booking-system.md#admin-sessions-management)
+
+---
+
+## 8. Audit Trail System
 
 ### 7.1 Logging Function
 
@@ -689,7 +767,7 @@ export async function logAdminAction({
 
 ---
 
-## 8. Email Notifications
+## 9. Email Notifications
 
 ### 8.1 Mentor Application Emails
 
@@ -703,7 +781,7 @@ export async function logAdminAction({
 
 ---
 
-## 9. File Structure Reference
+## 10. File Structure Reference
 
 ```
 young-minds-landing-page/
@@ -726,6 +804,21 @@ young-minds-landing-page/
 │           │   └── [mentorId]/
 │           │       └── audit/
 │           │           └── route.ts        # GET mentor audit
+│           ├── sessions/
+│           │   ├── route.ts                # GET all sessions
+│           │   ├── stats/
+│           │   │   └── route.ts            # GET dashboard stats
+│           │   ├── export/
+│           │   │   └── route.ts            # GET CSV export
+│           │   └── [id]/
+│           │       ├── route.ts            # GET session details
+│           │       ├── cancel/route.ts     # POST force cancel
+│           │       ├── complete/route.ts   # POST force complete
+│           │       ├── refund/route.ts     # POST manual refund
+│           │       ├── reassign/route.ts   # POST reassign
+│           │       ├── clear-no-show/route.ts
+│           │       ├── override-policy/route.ts
+│           │       └── notes/route.ts      # GET/POST admin notes
 │           └── subscriptions/
 │               ├── stats/
 │               │   └── route.ts            # GET subscription stats
@@ -741,9 +834,17 @@ young-minds-landing-page/
 │       │   ├── admin-overview.tsx          # Overview section
 │       │   ├── admin-mentors.tsx           # Mentors management (1400+ lines)
 │       │   ├── admin-mentees.tsx           # Mentees management
+│       │   ├── admin-sessions.tsx          # Sessions management (NEW)
+│       │   ├── session-detail-panel.tsx    # Session detail side panel (NEW)
 │       │   ├── admin-enquiries.tsx         # Enquiries management
 │       │   ├── admin-subscriptions.tsx     # Subscriptions management
 │       │   ├── MentorAuditView.tsx         # Profile change diff viewer
+│       │   ├── sessions/                   # Session action dialogs (NEW)
+│       │   │   ├── sessions-table.tsx
+│       │   │   ├── sessions-filters.tsx
+│       │   │   ├── force-cancel-dialog.tsx
+│       │   │   ├── manual-refund-dialog.tsx
+│       │   │   └── reassign-dialog.tsx
 │       │   └── subscriptions/
 │       │       ├── plans-management.tsx
 │       │       ├── features-management.tsx
@@ -766,6 +867,9 @@ young-minds-landing-page/
 │           ├── roles.ts                    # roles table
 │           ├── user-roles.ts               # user_roles table
 │           ├── admin-audit-trail.ts        # admin_audit_trail table
+│           ├── admin-session-audit-trail.ts # Session action audit (NEW)
+│           ├── admin-session-notes.ts      # Internal session notes (NEW)
+│           ├── session-disputes.ts         # Dispute tracking (NEW)
 │           ├── mentors.ts                  # mentors table
 │           ├── mentees.ts                  # mentees table
 │           └── contact-submissions.ts      # contact_submissions table
@@ -783,7 +887,7 @@ young-minds-landing-page/
 
 ---
 
-## 10. Utility Scripts
+## 11. Utility Scripts
 
 ### Make User Admin
 
@@ -797,7 +901,7 @@ npx tsx make-user-admin.ts <user-email>
 
 ---
 
-## 11. Future Considerations
+## 12. Future Considerations
 
 - [ ] Admin settings page implementation
 - [ ] Role-based permissions (super admin vs regular admin)
@@ -805,3 +909,8 @@ npx tsx make-user-admin.ts <user-email>
 - [ ] Export functionality for mentors/mentees data
 - [ ] Admin activity dashboard (view all admin actions)
 - [ ] Two-factor authentication for admin accounts
+- [ ] Real-time session status updates (WebSocket)
+- [ ] Automated no-show detection
+- [ ] Session quality scoring
+- [ ] Slack/Discord notifications for disputes
+- [ ] Two-admin approval for high-value refunds

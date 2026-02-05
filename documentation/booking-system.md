@@ -525,3 +525,906 @@ All emails are logged via `recordEmailEvent()` with:
 - Session ID and related details
 
 ---
+
+## Admin Sessions Management
+
+> **Status:** Planned  
+> **Purpose:** Provides administrators with full visibility and control over all platform sessions.
+
+This section documents the Admin Sessions Dashboard, a dedicated admin interface for viewing, managing, and intervening in mentor-mentee sessions.
+
+---
+
+### Admin Sessions Dashboard Overview
+
+The admin sessions dashboard provides:
+- **Full visibility** into all platform sessions
+- **Intervention capabilities** for stuck or disputed sessions
+- **Analytics** to identify patterns and issues
+- **Audit trail** for accountability
+
+#### Dashboard Sidebar Navigation
+
+Add to `components/admin/sidebars/admin-sidebar.tsx`:
+```typescript
+{ key: "sessions", title: "Sessions", icon: CalendarClock }
+```
+
+---
+
+### Dashboard KPI Cards
+
+| KPI | Description | Calculation |
+|-----|-------------|-------------|
+| **Total Sessions** | All-time session count | `COUNT(*)` from sessions |
+| **Completed Sessions** | Successfully completed | `WHERE status = 'completed'` |
+| **Cancelled Sessions** | All cancellations | `WHERE status = 'cancelled'` |
+| **No-Show Rate** | Percentage of no-shows | `no_show / total * 100` |
+| **Avg Session Rating** | Average review rating | From reviews table |
+| **Active Sessions Today** | Sessions scheduled today | `WHERE DATE(scheduledAt) = today` |
+| **Total Revenue** | Sum of completed session rates | `SUM(rate) WHERE status = 'completed'` |
+| **Refunds Issued** | Total refund amount | `SUM(refundAmount) WHERE refundStatus = 'processed'` |
+
+---
+
+### Sessions List View
+
+#### Filterable Table Columns
+
+| Column | Type | Sortable | Description |
+|--------|------|----------|-------------|
+| Session ID | UUID | ✅ | Unique identifier (truncated) |
+| Title | text | ✅ | Session topic |
+| Mentor | user | ✅ | Name + avatar |
+| Mentee | user | ✅ | Name + avatar |
+| Scheduled At | timestamp | ✅ | Date and time |
+| Duration | integer | ✅ | Minutes |
+| Status | badge | ✅ | Colored status badge |
+| Meeting Type | text | ❌ | video/audio/chat |
+| Rate | decimal | ✅ | Session price |
+| Refund Status | badge | ✅ | none/pending/processed |
+| Reschedule Count | integer | ✅ | Total reschedules |
+| Created At | timestamp | ✅ | When booked |
+| Actions | buttons | ❌ | View, Cancel, etc. |
+
+#### Filter Options
+
+| Filter | Type | Options |
+|--------|------|---------|
+| Status | multi-select | scheduled, in_progress, completed, cancelled, no_show |
+| Date Range | date picker | Start date, End date |
+| Mentor | autocomplete | Search by mentor name |
+| Mentee | autocomplete | Search by mentee name |
+| Meeting Type | select | video, audio, chat |
+| Refund Status | select | none, pending, processed, failed |
+| Reassigned | toggle | Show only reassigned sessions |
+| Has Pending Reschedule | toggle | Sessions with pending requests |
+
+#### Bulk Actions
+
+| Action | Description |
+|--------|-------------|
+| **Export to CSV** | Download filtered sessions as CSV |
+| **Bulk Cancel** | Cancel multiple sessions (requires confirmation) |
+
+---
+
+### Admin Actions on Sessions
+
+#### Action: View Full Details
+
+**Purpose:** View complete session information including recordings and notes.
+
+**Access Level:** Read-only, no audit log entry required.
+
+**Details Panel Shows:**
+- Session metadata (ID, title, description)
+- Mentor profile card
+- Mentee profile card
+- Full timeline (created → scheduled → started → ended)
+- Reschedule history
+- Cancellation details (if applicable)
+- Refund information
+- Recording links (if enabled)
+- Related notifications sent
+- Admin notes (internal)
+
+---
+
+#### Action: Force Cancel
+
+**Purpose:** Admin cancels a session on behalf of either party.
+
+**API Endpoint:** `POST /api/admin/sessions/[id]/cancel`
+
+**Request Body:**
+```typescript
+{
+  reason: string;              // Required: Reason for cancellation
+  refundPercentage: number;    // 0-100, default: 100
+  notifyParties: boolean;      // Default: true
+}
+```
+
+**Logic:**
+1. Validate admin role via `ensureAdmin()`
+2. Check session exists and is not already cancelled/completed
+3. Update session status to `cancelled`
+4. Set `cancelledBy: 'admin'`
+5. Calculate and apply refund
+6. Log to `admin_session_audit_trail`
+7. Send email notifications (if `notifyParties: true`)
+
+**Audit Log Entry:**
+```typescript
+{
+  action: 'ADMIN_FORCE_CANCEL',
+  previousStatus: 'scheduled',
+  newStatus: 'cancelled',
+  reason: 'Reported by mentee - mentor unresponsive',
+  details: {
+    refundPercentage: 100,
+    refundAmount: 50.00,
+    notificationsSent: true,
+  }
+}
+```
+
+---
+
+#### Action: Force Complete
+
+**Purpose:** Mark a stuck session as completed (e.g., when system failed to auto-complete).
+
+**API Endpoint:** `POST /api/admin/sessions/[id]/complete`
+
+**Request Body:**
+```typescript
+{
+  reason: string;              // Required: Why forcing completion
+  actualDuration?: number;     // Override duration in minutes
+}
+```
+
+**Audit Log Entry:**
+```typescript
+{
+  action: 'ADMIN_FORCE_COMPLETE',
+  previousStatus: 'in_progress',
+  newStatus: 'completed',
+  reason: 'Session stuck in progress after meeting ended',
+  details: {
+    actualDuration: 45,
+    originalDuration: 60,
+  }
+}
+```
+
+---
+
+#### Action: Issue Manual Refund
+
+**Purpose:** Process refund outside normal cancellation flow.
+
+**API Endpoint:** `POST /api/admin/sessions/[id]/refund`
+
+**Request Body:**
+```typescript
+{
+  amount: number;              // Refund amount
+  reason: string;              // Required: Justification
+  refundType: 'full' | 'partial' | 'bonus';  // Type of refund
+}
+```
+
+**Audit Log Entry:**
+```typescript
+{
+  action: 'ADMIN_MANUAL_REFUND',
+  reason: 'Mentee reported poor session quality',
+  details: {
+    refundAmount: 25.00,
+    refundType: 'partial',
+    originalRate: 50.00,
+  }
+}
+```
+
+---
+
+#### Action: Reassign Session
+
+**Purpose:** Manually assign a different mentor to a session.
+
+**API Endpoint:** `POST /api/admin/sessions/[id]/reassign`
+
+**Request Body:**
+```typescript
+{
+  newMentorId: string;         // New mentor's user ID
+  reason: string;              // Required: Reason for reassignment
+  notifyParties: boolean;      // Default: true
+}
+```
+
+**Logic:**
+1. Validate new mentor exists and is verified
+2. Check new mentor is available at scheduled time
+3. Update session `mentorId` to new mentor
+4. Set `wasReassigned: true`, `reassignedFromMentorId`
+5. Set `reassignmentStatus: 'accepted'` (admin override)
+6. Log action
+7. Notify all parties
+
+**Audit Log Entry:**
+```typescript
+{
+  action: 'ADMIN_REASSIGN_SESSION',
+  reason: 'Original mentor account suspended',
+  details: {
+    previousMentorId: 'user_abc',
+    newMentorId: 'user_xyz',
+    previousMentorName: 'John Doe',
+    newMentorName: 'Jane Smith',
+  }
+}
+```
+
+---
+
+#### Action: Clear No-Show Flag
+
+**Purpose:** Remove incorrect no-show status from a session.
+
+**API Endpoint:** `POST /api/admin/sessions/[id]/clear-no-show`
+
+**Request Body:**
+```typescript
+{
+  reason: string;              // Required: Why clearing the flag
+  restoreStatus: 'completed' | 'cancelled';  // What to restore to
+}
+```
+
+**Audit Log Entry:**
+```typescript
+{
+  action: 'ADMIN_CLEAR_NO_SHOW',
+  previousStatus: 'no_show',
+  newStatus: 'completed',
+  reason: 'Mentee provided proof of attendance - system error',
+}
+```
+
+---
+
+#### Action: Override Policy
+
+**Purpose:** Bypass session policies (reschedule limits, cancellation windows).
+
+**API Endpoint:** `POST /api/admin/sessions/[id]/override-policy`
+
+**Request Body:**
+```typescript
+{
+  overrideType: 'allow_reschedule' | 'allow_cancellation' | 'extend_time';
+  reason: string;              // Required
+  expiresAt?: timestamp;       // When override expires
+}
+```
+
+**Audit Log Entry:**
+```typescript
+{
+  action: 'ADMIN_POLICY_OVERRIDE',
+  reason: 'Mentee had medical emergency, allowing extra reschedule',
+  details: {
+    overrideType: 'allow_reschedule',
+    previousRescheduleCount: 2,
+    maxReschedules: 2,
+    expiresAt: '2026-02-10T00:00:00Z',
+  }
+}
+```
+
+---
+
+#### Action: Add Admin Note
+
+**Purpose:** Add internal note to session (not visible to users).
+
+**API Endpoint:** `POST /api/admin/sessions/[id]/notes`
+
+**Request Body:**
+```typescript
+{
+  note: string;                // The internal note
+}
+```
+
+**Audit Log Entry:**
+```typescript
+{
+  action: 'ADMIN_NOTE_ADDED',
+  details: {
+    notePreview: 'User complained about...' // First 100 chars
+  }
+}
+```
+
+---
+
+### Database Schema Additions
+
+#### Admin Session Audit Trail
+
+**File:** `lib/db/schema/admin-session-audit-trail.ts`
+
+```typescript
+import { pgTable, text, timestamp, uuid, jsonb, decimal, integer } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
+import { users } from './users';
+import { sessions } from './sessions';
+
+export const adminSessionAuditTrail = pgTable('admin_session_audit_trail', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  adminId: text('admin_id').references(() => users.id, { onDelete: 'set null' }),
+  sessionId: uuid('session_id').references(() => sessions.id, { onDelete: 'cascade' }),
+  
+  // Action details
+  action: text('action').notNull(),
+  // Actions: ADMIN_FORCE_CANCEL, ADMIN_FORCE_COMPLETE, ADMIN_MANUAL_REFUND,
+  //          ADMIN_REASSIGN_SESSION, ADMIN_CLEAR_NO_SHOW, ADMIN_POLICY_OVERRIDE,
+  //          ADMIN_NOTE_ADDED, ADMIN_DISPUTE_RESOLVED
+  
+  previousStatus: text('previous_status'),
+  newStatus: text('new_status'),
+  reason: text('reason'),
+  details: jsonb('details'),
+  
+  // Metadata
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const adminSessionAuditTrailRelations = relations(adminSessionAuditTrail, ({ one }) => ({
+  admin: one(users, {
+    fields: [adminSessionAuditTrail.adminId],
+    references: [users.id],
+  }),
+  session: one(sessions, {
+    fields: [adminSessionAuditTrail.sessionId],
+    references: [sessions.id],
+  }),
+}));
+
+export type AdminSessionAudit = typeof adminSessionAuditTrail.$inferSelect;
+export type NewAdminSessionAudit = typeof adminSessionAuditTrail.$inferInsert;
+```
+
+---
+
+#### Admin Session Notes
+
+**File:** `lib/db/schema/admin-session-notes.ts`
+
+```typescript
+import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
+import { users } from './users';
+import { sessions } from './sessions';
+
+export const adminSessionNotes = pgTable('admin_session_notes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sessionId: uuid('session_id').references(() => sessions.id, { onDelete: 'cascade' }).notNull(),
+  adminId: text('admin_id').references(() => users.id, { onDelete: 'set null' }),
+  note: text('note').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const adminSessionNotesRelations = relations(adminSessionNotes, ({ one }) => ({
+  admin: one(users, {
+    fields: [adminSessionNotes.adminId],
+    references: [users.id],
+  }),
+  session: one(sessions, {
+    fields: [adminSessionNotes.sessionId],
+    references: [sessions.id],
+  }),
+}));
+
+export type AdminSessionNote = typeof adminSessionNotes.$inferSelect;
+export type NewAdminSessionNote = typeof adminSessionNotes.$inferInsert;
+```
+
+---
+
+#### Session Disputes (Optional)
+
+**File:** `lib/db/schema/session-disputes.ts`
+
+```typescript
+import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
+import { users } from './users';
+import { sessions } from './sessions';
+
+export const sessionDisputes = pgTable('session_disputes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sessionId: uuid('session_id').references(() => sessions.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Reporter
+  reportedBy: text('reported_by').references(() => users.id, { onDelete: 'set null' }),
+  reporterRole: text('reporter_role'), // 'mentor' | 'mentee'
+  
+  // Dispute details
+  reason: text('reason').notNull(),
+  category: text('category'), // 'no_show', 'quality', 'behavior', 'technical', 'refund', 'other'
+  description: text('description'),
+  evidence: jsonb('evidence'), // Array of file URLs or references
+  
+  // Resolution
+  status: text('status').notNull().default('open'),
+  // Status: 'open', 'in_progress', 'resolved', 'dismissed'
+  
+  priority: text('priority').default('medium'), // 'low', 'medium', 'high', 'urgent'
+  assignedTo: text('assigned_to').references(() => users.id), // Admin handling
+  
+  resolutionNotes: text('resolution_notes'),
+  resolutionAction: text('resolution_action'),
+  // Actions: 'refund_issued', 'warning_sent', 'account_suspended', 'no_action', 'session_rescheduled'
+  
+  resolvedBy: text('resolved_by').references(() => users.id),
+  
+  // Timestamps
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  resolvedAt: timestamp('resolved_at'),
+});
+
+export const sessionDisputesRelations = relations(sessionDisputes, ({ one }) => ({
+  session: one(sessions, {
+    fields: [sessionDisputes.sessionId],
+    references: [sessions.id],
+  }),
+  reporter: one(users, {
+    fields: [sessionDisputes.reportedBy],
+    references: [users.id],
+  }),
+  assignee: one(users, {
+    fields: [sessionDisputes.assignedTo],
+    references: [users.id],
+  }),
+  resolver: one(users, {
+    fields: [sessionDisputes.resolvedBy],
+    references: [users.id],
+  }),
+}));
+
+export type SessionDispute = typeof sessionDisputes.$inferSelect;
+export type NewSessionDispute = typeof sessionDisputes.$inferInsert;
+```
+
+---
+
+### API Endpoints
+
+#### GET /api/admin/sessions
+
+**File:** `app/api/admin/sessions/route.ts`
+
+**Purpose:** Fetch all sessions with filtering and pagination.
+
+**Query Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | number | Page number (default: 1) |
+| `limit` | number | Items per page (default: 20, max: 100) |
+| `status` | string | Comma-separated statuses |
+| `mentorId` | string | Filter by mentor |
+| `menteeId` | string | Filter by mentee |
+| `startDate` | ISO date | Filter from date |
+| `endDate` | ISO date | Filter to date |
+| `meetingType` | string | video, audio, chat |
+| `refundStatus` | string | none, pending, processed, failed |
+| `hasReschedule` | boolean | Has pending reschedule request |
+| `wasReassigned` | boolean | Was auto-reassigned |
+| `search` | string | Search term (title, mentor name, mentee name) |
+| `sortBy` | string | Column to sort by |
+| `sortOrder` | string | asc or desc |
+
+**Response:**
+```typescript
+{
+  success: true,
+  data: {
+    sessions: Session[],
+    pagination: {
+      page: number,
+      limit: number,
+      total: number,
+      totalPages: number,
+    }
+  }
+}
+```
+
+---
+
+#### GET /api/admin/sessions/stats
+
+**File:** `app/api/admin/sessions/stats/route.ts`
+
+**Purpose:** Fetch dashboard statistics.
+
+**Query Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `startDate` | ISO date | Stats from date |
+| `endDate` | ISO date | Stats to date |
+
+**Response:**
+```typescript
+{
+  success: true,
+  data: {
+    totalSessions: number,
+    completedSessions: number,
+    cancelledSessions: number,
+    noShowCount: number,
+    noShowRate: number,           // percentage
+    avgSessionRating: number,
+    totalRevenue: number,
+    refundsIssued: number,
+    netRevenue: number,
+    sessionsToday: number,
+    pendingReschedules: number,
+    
+    // Breakdown by role
+    cancellationsByMentor: number,
+    cancellationsByMentee: number,
+    
+    // Trends (for charts)
+    sessionsOverTime: Array<{ date: string, count: number }>,
+    statusBreakdown: Array<{ status: string, count: number }>,
+  }
+}
+```
+
+---
+
+#### GET /api/admin/sessions/[id]
+
+**File:** `app/api/admin/sessions/[id]/route.ts`
+
+**Purpose:** Fetch complete session details.
+
+**Response:**
+```typescript
+{
+  success: true,
+  data: {
+    session: Session & {
+      mentor: User,
+      mentee: User,
+      rescheduleRequests: RescheduleRequest[],
+      auditLog: SessionAuditLog[],
+      adminNotes: AdminSessionNote[],
+      adminActions: AdminSessionAudit[],
+      dispute: SessionDispute | null,
+    }
+  }
+}
+```
+
+---
+
+#### POST /api/admin/sessions/[id]/cancel
+
+**File:** `app/api/admin/sessions/[id]/cancel/route.ts`
+
+See [Action: Force Cancel](#action-force-cancel) for details.
+
+---
+
+#### POST /api/admin/sessions/[id]/complete
+
+**File:** `app/api/admin/sessions/[id]/complete/route.ts`
+
+See [Action: Force Complete](#action-force-complete) for details.
+
+---
+
+#### POST /api/admin/sessions/[id]/refund
+
+**File:** `app/api/admin/sessions/[id]/refund/route.ts`
+
+See [Action: Issue Manual Refund](#action-issue-manual-refund) for details.
+
+---
+
+#### POST /api/admin/sessions/[id]/reassign
+
+**File:** `app/api/admin/sessions/[id]/reassign/route.ts`
+
+See [Action: Reassign Session](#action-reassign-session) for details.
+
+---
+
+#### POST /api/admin/sessions/[id]/clear-no-show
+
+**File:** `app/api/admin/sessions/[id]/clear-no-show/route.ts`
+
+See [Action: Clear No-Show Flag](#action-clear-no-show-flag) for details.
+
+---
+
+#### POST /api/admin/sessions/[id]/override-policy
+
+**File:** `app/api/admin/sessions/[id]/override-policy/route.ts`
+
+See [Action: Override Policy](#action-override-policy) for details.
+
+---
+
+#### GET/POST /api/admin/sessions/[id]/notes
+
+**File:** `app/api/admin/sessions/[id]/notes/route.ts`
+
+**GET Response:**
+```typescript
+{
+  success: true,
+  data: AdminSessionNote[]
+}
+```
+
+**POST Body:**
+```typescript
+{
+  note: string
+}
+```
+
+---
+
+#### GET /api/admin/sessions/export
+
+**File:** `app/api/admin/sessions/export/route.ts`
+
+**Purpose:** Export sessions as CSV.
+
+**Query Parameters:** Same as `/api/admin/sessions` (filters apply to export).
+
+**Response:** CSV file download.
+
+---
+
+### Frontend Components
+
+#### Admin Sessions Dashboard
+
+**File:** `components/admin/dashboard/admin-sessions.tsx`
+
+**Features:**
+- KPI cards row (stats overview)
+- Filter bar with date range, status, search
+- Sessions table with sorting
+- Pagination controls
+- Bulk action toolbar
+- Session detail side panel
+
+---
+
+#### Session Detail Panel
+
+**File:** `components/admin/dashboard/session-detail-panel.tsx`
+
+**Features:**
+- Session header (title, status badge, ID)
+- Mentor/Mentee cards with links to profiles
+- Timeline view (created → scheduled → started → ended)
+- Reschedule history accordion
+- Admin actions dropdown:
+  - Force Cancel
+  - Force Complete
+  - Issue Refund
+  - Reassign
+  - Clear No-Show
+  - Override Policy
+- Admin notes section (add/view)
+- Audit log accordion
+
+---
+
+#### Session Action Dialogs
+
+**Files:**
+- `components/admin/dashboard/sessions/force-cancel-dialog.tsx`
+- `components/admin/dashboard/sessions/force-complete-dialog.tsx`
+- `components/admin/dashboard/sessions/manual-refund-dialog.tsx`
+- `components/admin/dashboard/sessions/reassign-dialog.tsx`
+- `components/admin/dashboard/sessions/clear-no-show-dialog.tsx`
+- `components/admin/dashboard/sessions/override-policy-dialog.tsx`
+
+Each dialog includes:
+- Confirmation message
+- Required reason textarea
+- Action-specific inputs
+- Submit/Cancel buttons
+- Loading state
+
+---
+
+### Email Notifications for Admin Actions
+
+#### Admin Cancelled Session Email
+
+**Recipient:** Mentor AND Mentee
+
+**Trigger:** Admin force-cancels a session
+
+**Template Function:** `sendAdminCancelledSessionEmail(recipientEmail, recipientName, sessionDetails, reason, refundInfo)`
+
+**Content:**
+- Subject: "Your session has been cancelled by support"
+- Body: Session details, cancellation reason, refund information, contact support link
+
+---
+
+#### Admin Refund Issued Email
+
+**Recipient:** Mentee
+
+**Trigger:** Admin issues manual refund
+
+**Template Function:** `sendAdminRefundIssuedEmail(email, name, sessionDetails, refundAmount, reason)`
+
+**Content:**
+- Subject: "Refund issued for your session"
+- Body: Session details, refund amount, reason, processing time
+
+---
+
+#### Admin Session Reassigned Email
+
+**Recipient:** Mentee AND New Mentor
+
+**Trigger:** Admin reassigns session to different mentor
+
+**Template Functions:**
+- `sendAdminReassignedToMenteeEmail(email, name, sessionDetails, newMentorInfo, reason)`
+- `sendAdminAssignedToMentorEmail(email, name, sessionDetails, menteeInfo)`
+
+---
+
+### Cancellation & Reschedule Analytics
+
+#### Analytics Queries
+
+**Top Cancellation Reasons:**
+```sql
+SELECT 
+  cancellationReason,
+  COUNT(*) as count,
+  cancelledBy
+FROM sessions
+WHERE status = 'cancelled'
+GROUP BY cancellationReason, cancelledBy
+ORDER BY count DESC
+LIMIT 10;
+```
+
+**Cancellation Rate by Role:**
+```sql
+SELECT 
+  cancelledBy,
+  COUNT(*) as count,
+  ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM sessions WHERE status = 'cancelled'), 2) as percentage
+FROM sessions
+WHERE status = 'cancelled'
+GROUP BY cancelledBy;
+```
+
+**Reschedule Patterns:**
+```sql
+SELECT 
+  initiatedBy,
+  AVG(counterProposalCount) as avgNegotiations,
+  COUNT(*) as totalRequests,
+  SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) as acceptedCount
+FROM reschedule_requests
+GROUP BY initiatedBy;
+```
+
+**Repeat No-Show Offenders:**
+```sql
+SELECT 
+  u.id,
+  u.name,
+  u.email,
+  COUNT(*) as noShowCount,
+  CASE 
+    WHEN s.menteeId = u.id THEN 'mentee'
+    ELSE 'mentor'
+  END as role
+FROM sessions s
+JOIN users u ON (s.menteeId = u.id OR s.mentorId = u.id)
+WHERE s.status = 'no_show'
+GROUP BY u.id, u.name, u.email, role
+HAVING COUNT(*) > 1
+ORDER BY noShowCount DESC;
+```
+
+---
+
+### File Structure Reference
+
+```
+young-minds-landing-page/
+├── app/
+│   └── api/
+│       └── admin/
+│           └── sessions/
+│               ├── route.ts                    # GET all sessions
+│               ├── stats/
+│               │   └── route.ts                # GET dashboard stats
+│               ├── export/
+│               │   └── route.ts                # GET CSV export
+│               └── [id]/
+│                   ├── route.ts                # GET session details
+│                   ├── cancel/
+│                   │   └── route.ts            # POST force cancel
+│                   ├── complete/
+│                   │   └── route.ts            # POST force complete
+│                   ├── refund/
+│                   │   └── route.ts            # POST manual refund
+│                   ├── reassign/
+│                   │   └── route.ts            # POST reassign
+│                   ├── clear-no-show/
+│                   │   └── route.ts            # POST clear no-show
+│                   ├── override-policy/
+│                   │   └── route.ts            # POST policy override
+│                   └── notes/
+│                       └── route.ts            # GET/POST admin notes
+│
+├── components/
+│   └── admin/
+│       └── dashboard/
+│           ├── admin-sessions.tsx              # Main sessions dashboard
+│           ├── session-detail-panel.tsx        # Session detail side panel
+│           └── sessions/
+│               ├── sessions-table.tsx          # Sessions data table
+│               ├── sessions-filters.tsx        # Filter controls
+│               ├── sessions-stats-cards.tsx    # KPI cards
+│               ├── force-cancel-dialog.tsx
+│               ├── force-complete-dialog.tsx
+│               ├── manual-refund-dialog.tsx
+│               ├── reassign-dialog.tsx
+│               ├── clear-no-show-dialog.tsx
+│               └── override-policy-dialog.tsx
+│
+├── lib/
+│   └── db/
+│       └── schema/
+│           ├── admin-session-audit-trail.ts    # Admin action audit
+│           ├── admin-session-notes.ts          # Internal notes
+│           └── session-disputes.ts             # Dispute tracking
+```
+
+---
+
+### Future Enhancements
+
+- [ ] Real-time session status updates (WebSocket)
+- [ ] Automated no-show detection and flagging
+- [ ] Session quality scoring based on reviews
+- [ ] Mentor/Mentee reliability scores integration
+- [ ] Automated dispute escalation rules
+- [ ] Slack/Discord notifications for high-priority disputes
+- [ ] Session recording access controls
+- [ ] Two-admin approval for refunds above threshold
+
+---
