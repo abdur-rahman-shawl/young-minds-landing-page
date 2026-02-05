@@ -6,14 +6,15 @@ import { adminSessionAuditTrail } from './schema/admin-session-audit-trail';
  */
 interface LogAdminSessionActionParams {
     adminId: string;
-    sessionId: string;
+    sessionId: string | null;
     action: string;
-    previousStatus?: string;
-    newStatus?: string;
+    previousStatus?: string | null;
+    newStatus?: string | null;
     reason?: string;
     details?: Record<string, any>;
     ipAddress?: string;
     userAgent?: string;
+    request?: Request; // Optional: extract IP and UA automatically
 }
 
 /**
@@ -26,6 +27,8 @@ export const ADMIN_SESSION_ACTIONS = {
     REASSIGN_SESSION: 'ADMIN_REASSIGN_SESSION',
     CLEAR_NO_SHOW: 'ADMIN_CLEAR_NO_SHOW',
     POLICY_OVERRIDE: 'ADMIN_POLICY_OVERRIDE',
+    POLICY_UPDATED: 'ADMIN_POLICY_UPDATED',
+    POLICY_RESET: 'ADMIN_POLICY_RESET',
     NOTE_ADDED: 'ADMIN_NOTE_ADDED',
     DISPUTE_RESOLVED: 'ADMIN_DISPUTE_RESOLVED',
 } as const;
@@ -45,8 +48,16 @@ export async function logAdminSessionAction({
     details,
     ipAddress,
     userAgent,
+    request,
 }: LogAdminSessionActionParams) {
     try {
+        // Extract IP and User Agent from request if provided
+        const finalIpAddress = ipAddress ||
+            request?.headers.get('x-forwarded-for')?.split(',')[0] ||
+            request?.headers.get('x-real-ip') ||
+            undefined;
+        const finalUserAgent = userAgent || request?.headers.get('user-agent') || undefined;
+
         await db.insert(adminSessionAuditTrail).values({
             adminId,
             sessionId,
@@ -55,8 +66,8 @@ export async function logAdminSessionAction({
             newStatus,
             reason,
             details,
-            ipAddress,
-            userAgent,
+            ipAddress: finalIpAddress,
+            userAgent: finalUserAgent,
         });
     } catch (error) {
         console.error('Failed to log admin session action:', error);

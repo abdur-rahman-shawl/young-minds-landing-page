@@ -13,10 +13,11 @@
 4. [Admin API Endpoints](#4-admin-api-endpoints)
 5. [Admin Dashboard Components](#5-admin-dashboard-components)
 6. [Admin Actions & Workflows](#6-admin-actions--workflows)
-7. [Admin Sessions Management](#7-admin-sessions-management) ⭐ NEW
-8. [Audit Trail System](#8-audit-trail-system)
-9. [Email Notifications](#9-email-notifications)
-10. [File Structure Reference](#10-file-structure-reference)
+7. [Admin Sessions Management](#7-admin-sessions-management)
+8. [Session Policies Configuration](#8-session-policies-configuration) ⭐ NEW
+9. [Audit Trail System](#9-audit-trail-system)
+10. [Email Notifications](#10-email-notifications)
+11. [File Structure Reference](#11-file-structure-reference)
 
 ---
 
@@ -723,7 +724,85 @@ The Admin Sessions Dashboard provides full visibility and control over all platf
 
 ---
 
-## 8. Audit Trail System
+## 8. Session Policies Configuration
+
+Admins can configure session cancellation, rescheduling, and refund policies from the dashboard.
+
+### 8.1 Overview
+
+The Session Policies settings allow admins to dynamically adjust platform rules without code changes:
+
+- **Mentee Rules:** Cancellation cutoff, reschedule cutoff, max reschedules
+- **Mentor Rules:** Same settings for mentors
+- **Refund Rules:** Free cancellation window, partial/late refund percentages
+- **Reschedule Settings:** Request expiry, max counter proposals
+
+### 8.2 Database Schema
+
+**File:** `lib/db/schema/session-policies.ts`
+
+```typescript
+export const sessionPolicies = pgTable('session_policies', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    policyKey: text('policy_key').notNull().unique(),
+    policyValue: text('policy_value').notNull(),
+    policyType: text('policy_type').notNull().default('string'),
+    description: text('description'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+```
+
+### 8.3 API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/admin/policies` | GET | Fetch all policies with current values |
+| `/api/admin/policies` | PATCH | Update one or more policies |
+| `/api/admin/policies` | POST | Reset all policies to defaults |
+
+**File:** `app/api/admin/policies/route.ts`
+
+### 8.4 Configurable Policies
+
+| Policy Key | Type | Default | Description |
+|------------|------|---------|-------------|
+| `cancellation_cutoff_hours` | int | 2 | Min hours before session for mentee cancellation |
+| `reschedule_cutoff_hours` | int | 4 | Min hours before session for mentee reschedule |
+| `max_reschedules_per_session` | int | 2 | Max times mentee can reschedule |
+| `mentor_cancellation_cutoff_hours` | int | 1 | Min hours for mentor cancellation |
+| `mentor_reschedule_cutoff_hours` | int | 2 | Min hours for mentor reschedule |
+| `mentor_max_reschedules_per_session` | int | 2 | Max times mentor can reschedule |
+| `free_cancellation_hours` | int | 24 | Hours before session for 100% refund |
+| `partial_refund_percentage` | int | 70 | Refund % between free and cutoff |
+| `late_cancellation_refund_percentage` | int | 0 | Refund % after cutoff |
+| `require_cancellation_reason` | bool | true | Require reason for cancellation |
+| `reschedule_request_expiry_hours` | int | 48 | Hours until reschedule request expires |
+| `max_counter_proposals` | int | 3 | Max counter-proposals per reschedule |
+
+### 8.5 Frontend Component
+
+**File:** `components/admin/dashboard/admin-policies.tsx`
+
+Access via: Dashboard → Settings
+
+Features:
+- Grouped policy cards (Mentee Rules, Mentor Rules, Refund Rules, Reschedule Settings)
+- Visual change indicators (modified fields highlighted)
+- Save Changes button (only enabled when changes exist)
+- Reset Defaults button (with confirmation dialog)
+- All changes logged to audit trail
+
+### 8.6 Audit Actions
+
+| Action | Description |
+|--------|-------------|
+| `ADMIN_POLICY_UPDATED` | One or more policies were modified |
+| `ADMIN_POLICY_RESET` | All policies reset to defaults |
+
+---
+
+## 9. Audit Trail System
 
 ### 7.1 Logging Function
 
@@ -757,7 +836,7 @@ export async function logAdminAction({
 
 ---
 
-### 7.2 Action Types Logged
+### 9.1 Action Types Logged
 
 | Action | Description |
 |--------|-------------|
@@ -767,9 +846,9 @@ export async function logAdminAction({
 
 ---
 
-## 9. Email Notifications
+## 10. Email Notifications
 
-### 8.1 Mentor Application Emails
+### 10.1 Mentor Application Emails
 
 **File:** `lib/email.ts`
 
@@ -781,7 +860,7 @@ export async function logAdminAction({
 
 ---
 
-## 10. File Structure Reference
+## 11. File Structure Reference
 
 ```
 young-minds-landing-page/
