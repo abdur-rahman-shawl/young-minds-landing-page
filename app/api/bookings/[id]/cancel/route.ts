@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { sessions, notifications, sessionPolicies, sessionAuditLog } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -8,6 +7,7 @@ import { z } from 'zod';
 import { CANCELLATION_REASONS, DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 import { trackFeatureUsage } from '@/lib/subscriptions/enforcement';
+import { requireMentee } from '@/lib/api/guards';
 
 const cancelBookingSchema = z.object({
   reasonCategory: z.enum([
@@ -38,16 +38,11 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please log in' },
-        { status: 401 }
-      );
+    const guard = await requireMentee(req, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const session = guard.session;
 
     const body = await req.json();
     const { reasonCategory, reasonDetails } = cancelBookingSchema.parse(body);

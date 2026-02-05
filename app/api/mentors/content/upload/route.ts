@@ -1,26 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { storage } from '@/lib/storage';
 import { mentors } from '@/lib/db/schema';
 import { db } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { requireMentor } from '@/lib/api/guards';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
 
     // Get mentor info
     const mentor = await db.select()
       .from(mentors)
-      .where(eq(mentors.userId, session.user.id))
+      .where(eq(mentors.userId, guard.session.user.id))
       .limit(1);
 
     if (!mentor.length) {
@@ -37,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     if (fileType === 'document') {
       const access = await checkFeatureAccess(
-        session.user.id,
+        guard.session.user.id,
         FEATURE_KEYS.ROADMAP_UPLOAD_ACCESS
       );
       if (!access.has_access) {
@@ -50,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     if (fileType === 'video' || fileType === 'content') {
       const access = await checkFeatureAccess(
-        session.user.id,
+        guard.session.user.id,
         FEATURE_KEYS.CONTENT_POSTING_ACCESS
       );
       if (!access.has_access) {

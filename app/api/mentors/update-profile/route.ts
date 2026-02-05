@@ -1,23 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { mentors, mentorsProfileAudit, type Mentor } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { uploadProfilePicture, uploadResume, uploadBannerImage, storage } from '@/lib/storage';
+import { requireMentor } from '@/lib/api/guards';
 
 export async function POST(request: NextRequest) {
   console.log('🚀 === MENTOR PROFILE UPDATE API CALLED ===');
 
   try {
-    const session = await auth.api.getSession({ headers: request.headers });
-    const sessionUserId = session?.user?.id;
-
-    if (!sessionUserId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const sessionUserId = guard.session.user.id;
 
     // Try to get FormData first, fall back to JSON for backward compatibility
     let userId: string;

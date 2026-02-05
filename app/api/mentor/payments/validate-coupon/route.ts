@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { mentors } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { requireMentor } from '@/lib/api/guards';
 
 const bodySchema = z.object({
   couponCode: z.string().trim().min(1, 'Coupon code is required'),
@@ -11,15 +11,9 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
 
     const parsedBody = bodySchema.safeParse(await request.json());
@@ -41,7 +35,7 @@ export async function POST(request: NextRequest) {
         isCouponCodeEnabled: mentors.isCouponCodeEnabled,
       })
       .from(mentors)
-      .where(eq(mentors.userId, session.user.id))
+      .where(eq(mentors.userId, guard.session.user.id))
       .limit(1);
 
     if (!mentor) {

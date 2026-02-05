@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/api/guards";
 
 const updateFeatureSchema = z.object({
   name: z.string().min(1).optional(),
@@ -17,6 +18,11 @@ export async function PATCH(
   { params }: { params: Promise<{ featureId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if ("error" in guard) {
+      return guard.error;
+    }
+
     const { featureId } = await params;
     const body = await request.json();
     const updates = updateFeatureSchema.parse(body);

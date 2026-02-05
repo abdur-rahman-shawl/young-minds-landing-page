@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { sessions, notifications, sessionPolicies, sessionAuditLog } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
 import { format } from 'date-fns';
+import { requireMentee } from '@/lib/api/guards';
 
 const rescheduleBookingSchema = z.object({
   scheduledAt: z.string()
@@ -43,16 +43,11 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please log in' },
-        { status: 401 }
-      );
+    const guard = await requireMentee(req, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const session = guard.session;
 
     const body = await req.json();
     const { scheduledAt, duration } = rescheduleBookingSchema.parse(body);

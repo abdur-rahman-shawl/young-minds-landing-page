@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/api/guards";
 
 const updatePriceSchema = z.object({
   price_type: z.enum(["standard", "introductory"]).optional(),
@@ -18,6 +19,11 @@ export async function PATCH(
   { params }: { params: Promise<{ planId: string; priceId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if ("error" in guard) {
+      return guard.error;
+    }
+
     const { planId, priceId } = await params;
     const body = await request.json();
     const updates = updatePriceSchema.parse(body);

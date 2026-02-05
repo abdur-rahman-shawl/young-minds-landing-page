@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/api/guards";
 
 const createPriceSchema = z.object({
   price_type: z.enum(["standard", "introductory"]),
@@ -18,6 +19,11 @@ export async function GET(
   { params }: { params: Promise<{ planId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if ("error" in guard) {
+      return guard.error;
+    }
+
     const { planId } = await params;
     const supabase = await createClient();
 
@@ -46,6 +52,11 @@ export async function POST(
   { params }: { params: Promise<{ planId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if ("error" in guard) {
+      return guard.error;
+    }
+
     const { planId } = await params;
     const body = await request.json();
     const payload = createPriceSchema.parse(body);

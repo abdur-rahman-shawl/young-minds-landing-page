@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { mentorContent, courses, mentors } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { requireMentor } from '@/lib/api/guards';
 
 // Validation schemas
 const createContentSchema = z.object({
@@ -30,18 +30,15 @@ const updateContentSchema = createContentSchema.partial();
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
 
     // Get mentor info
     const mentor = await db.select()
       .from(mentors)
-      .where(eq(mentors.userId, session.user.id))
+      .where(eq(mentors.userId, guard.session.user.id))
       .limit(1);
 
     if (!mentor.length) {
@@ -81,18 +78,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
 
     // Get mentor info
     const mentor = await db.select()
       .from(mentors)
-      .where(eq(mentors.userId, session.user.id))
+      .where(eq(mentors.userId, guard.session.user.id))
       .limit(1);
 
     if (!mentor.length) {
@@ -100,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     const access = await checkFeatureAccess(
-      session.user.id,
+      guard.session.user.id,
       FEATURE_KEYS.CONTENT_POSTING_ACCESS
     );
     if (!access.has_access) {

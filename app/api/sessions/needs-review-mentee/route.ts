@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { requireMentee } from '@/lib/api/guards';
 import { db } from '@/lib/db';
 import { sessions, users } from '@/lib/db/schema';
 import { and, eq, desc } from 'drizzle-orm';
@@ -8,12 +7,11 @@ import { and, eq, desc } from 'drizzle-orm';
 export async function GET(req: NextRequest) {
   try {
     console.log('*****Inside mentee needs review*********');
-    // 1. Authenticate the user and ensure they are logged in
-    const userSession = await auth.api.getSession({ headers: await headers() });
-    if (!userSession?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await requireMentee(req, true);
+    if ('error' in guard) {
+      return guard.error;
     }
-    const currentUserId = userSession.user.id;
+    const currentUserId = guard.session.user.id;
 
     // 2. Fetch sessions that need review by the mentee
     const sessionsToReview = await db

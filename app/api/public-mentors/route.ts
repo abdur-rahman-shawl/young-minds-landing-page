@@ -103,7 +103,6 @@ export async function GET(req: NextRequest) {
         isAvailable: mentors.isAvailable,
         // joined user basics
         name: users.name,
-        email: users.email,
         image: users.image,
       })
       .from(mentors)

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import {
   getAdminDashboardKpis,
   getAdminSessionsOverTime,
@@ -6,6 +6,7 @@ import {
   getTopMenteeQuestions,
   getTopUniversitiesSearched,
 } from '@/lib/db/queries/analytics.queries';
+import { requireAdmin } from '@/lib/api/guards';
 
 // Helper to calculate percentage change
 const calculateChange = (current: number, previous: number): number => {
@@ -13,8 +14,13 @@ const calculateChange = (current: number, previous: number): number => {
   return parseFloat((((current - previous) / previous) * 100).toFixed(2));
 };
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const guard = await requireAdmin(request);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const { searchParams } = new URL(request.url);
     const endDate = new Date(searchParams.get('endDate') || new Date().toISOString());
     const startDate = new Date(searchParams.get('startDate') || new Date(new Date().setDate(endDate.getDate() - 29)).toISOString());

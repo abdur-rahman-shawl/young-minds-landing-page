@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { sessions, mentoringRelationships } from '@/lib/db/schema';
 import { and, eq, gte, lte, sql, or } from 'drizzle-orm';
 import { headers } from 'next/headers';
+import { requireMentee } from '@/lib/api/guards';
 
 /**
  * PRODUCTION-GRADE OPTIMIZED DASHBOARD STATS API
@@ -19,18 +19,12 @@ import { headers } from 'next/headers';
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please log in' },
-        { status: 401 }
-      );
+    const guard = await requireMentee(req, true);
+    if ('error' in guard) {
+      return guard.error;
     }
 
-    const userId = session.user.id;
+    const userId = guard.session.user.id;
     const now = new Date();
 
     // Calculate date ranges

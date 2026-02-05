@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { auth } from '@/lib/auth';
 import { 
   learnerProfiles,
   learningSessions,
@@ -14,26 +13,20 @@ import {
 import { eq, and, desc, asc, gte, lte, sql, count, avg, sum } from 'drizzle-orm';
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { requireMentee } from '@/lib/api/guards';
 
 // GET /api/student/learning-analytics - Get comprehensive learning analytics
 export async function GET(request: NextRequest) {
   try {
+    const guard = await requireMentee(request, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const { searchParams } = new URL(request.url);
     const timeRange = searchParams.get('timeRange') || '30'; // days
     
-    // Get user from auth
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    const userId = session.user.id;
+    const userId = guard.session.user.id;
 
     const access = await checkFeatureAccess(userId, FEATURE_KEYS.ANALYTICS_ACCESS_LEVEL);
     if (!access.has_access) {

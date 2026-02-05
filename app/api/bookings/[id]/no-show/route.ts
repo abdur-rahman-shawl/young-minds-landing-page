@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { sessions, notifications, users } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { requireMentor } from '@/lib/api/guards';
 
 // POST /api/bookings/[id]/no-show - Mark a booking as no-show
 export async function POST(
@@ -11,16 +12,11 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please log in' },
-        { status: 401 }
-      );
+    const guard = await requireMentor(req, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const session = guard.session;
 
     // Get the existing booking
     const existingBooking = await db

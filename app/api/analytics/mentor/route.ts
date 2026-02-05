@@ -1,14 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import {
   getMentorDashboardStats,
   getMentorEarningsOverTime,
   getMentorRecentSessions,
   getMentorRecentReviews,
 } from '@/lib/db/queries/analytics.queries';
-import { auth } from '@/lib/auth'; // Placeholder for your authentication utility
-import { headers } from 'next/headers';
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { requireMentor } from '@/lib/api/guards';
 
 /**
  * API Endpoint for the Mentor Analytics Dashboard.
@@ -16,18 +15,14 @@ import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
  * This endpoint is secure and fetches data scoped to the currently
  * authenticated mentor.
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    // STEP 1: Securely get the authenticated user's session.
-    // This is a critical security step. The mentorId is derived from the
-    // server-side session, not from a client-side parameter.
-    const session = await auth.api.getSession({
-          headers: await headers(),
-        }); // Replace with your actual session logic (e.g., from NextAuth.js)
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
-    const mentorId = session.user.id;
+
+    const mentorId = guard.session.user.id;
 
     const access = await checkFeatureAccess(mentorId, FEATURE_KEYS.ANALYTICS_ACCESS_LEVEL);
     if (!access.has_access) {

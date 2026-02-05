@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/api/guards';
 
 const DEFAULT_PAGE_SIZE = 25;
 
@@ -12,6 +13,11 @@ function parsePositiveInt(value: string | null, fallback: number) {
 
 export async function GET(request: NextRequest) {
   try {
+    const guard = await requireAdmin(request);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const statusParam = searchParams.get('status');

@@ -21,6 +21,11 @@ import { db } from '@/lib/db';
 import { livekitRecordings } from '@/lib/db/schema';
 import { extractSessionIdFromRoomName } from '@/lib/livekit/config';
 import { startRecording, stopRecording } from '@/lib/livekit/recording-manager';
+import {
+  LivekitWebhookAuthError,
+  LivekitWebhookPayloadError,
+  verifyLivekitWebhook,
+} from '@/lib/livekit/webhook';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -112,7 +117,20 @@ export async function POST(request: NextRequest) {
     // ======================================================================
     // PARSE WEBHOOK PAYLOAD
     // ======================================================================
-    const payload = await request.json();
+    let payload: any;
+    try {
+      const rawBody = await verifyLivekitWebhook(request);
+      payload = JSON.parse(rawBody);
+    } catch (error) {
+      console.error('❌ Webhook verification failed:', error);
+      if (error instanceof LivekitWebhookPayloadError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      if (error instanceof LivekitWebhookAuthError) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      return NextResponse.json({ error: 'Webhook verification failed' }, { status: 401 });
+    }
     const eventType: string | undefined = payload?.event;
 
     if (!eventType) {

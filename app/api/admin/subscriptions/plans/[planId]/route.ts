@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/api/guards';
 
 const updatePlanSchema = z.object({
   name: z.string().min(1).optional(),
@@ -15,6 +16,11 @@ export async function PATCH(
   { params }: { params: Promise<{ planId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const { planId } = await params;
     const body = await request.json();
     const updates = updatePlanSchema.parse(body);
@@ -53,6 +59,11 @@ export async function DELETE(
   { params }: { params: Promise<{ planId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const { planId } = await params;
     const supabase = await createClient();
 

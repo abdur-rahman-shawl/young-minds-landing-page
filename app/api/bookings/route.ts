@@ -19,6 +19,7 @@ import { getDay, isWithinInterval, addMinutes, setHours, setMinutes, setSeconds 
 import { LiveKitRoomManager } from '@/lib/livekit/room-manager';
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 import { checkFeatureAccess, getPlanFeatures, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
+import { requireMentee } from '@/lib/api/guards';
 
 // Remove duplicate schema definition since it's imported
 
@@ -28,16 +29,11 @@ export async function POST(req: NextRequest) {
     // Apply rate limiting
     bookingRateLimit.check(req);
 
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please log in' },
-        { status: 401 }
-      );
+    const guard = await requireMentee(req, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const session = guard.session;
 
     const body = await req.json();
     const validatedData = createBookingSchema.parse(body);

@@ -23,6 +23,7 @@ import {
   addHours
 } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { requireMentee } from '@/lib/api/guards';
 
 interface TimeBlock {
   startTime: string;
@@ -45,6 +46,11 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
+    const guard = await requireMentee(req, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     // Get query parameters
     const startDate = req.nextUrl.searchParams.get('startDate');
     const endDate = req.nextUrl.searchParams.get('endDate');
