@@ -11,7 +11,7 @@ import {
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/auth-context";
-import { LayoutDashboard, Users, GraduationCap, Settings, BarChart3, Inbox, CreditCard } from "lucide-react";
+import { LayoutDashboard, Users, GraduationCap, Settings, BarChart3, Inbox, CreditCard, CalendarClock } from "lucide-react";
 
 interface AdminSidebarProps {
   active: string;
@@ -25,6 +25,7 @@ export function AdminSidebar({ active, onChange }: AdminSidebarProps) {
     { key: "dashboard", title: "Overview", icon: LayoutDashboard },
     { key: "mentors", title: "Mentors", icon: GraduationCap },
     { key: "mentees", title: "Mentees", icon: Users },
+    { key: "sessions", title: "Sessions", icon: CalendarClock },
     { key: "subscriptions", title: "Subscriptions", icon: CreditCard },
     { key: "analytics", title: "Analytics", icon: BarChart3 },
     { key: "enquiries", title: "Enquiries", icon: Inbox },
@@ -56,11 +57,10 @@ export function AdminSidebar({ active, onChange }: AdminSidebarProps) {
           {items.map((it) => (
             <SidebarMenuItem key={it.key}>
               <SidebarMenuButton
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-150 ease-out ${
-                  active === it.key
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-150 ease-out ${active === it.key
                     ? "bg-blue-500 text-white shadow-sm ring-1 ring-blue-500/20"
                     : "text-gray-600 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/20 hover:shadow-sm"
-                }`}
+                  }`}
                 onClick={() => onChange(it.key)}
               >
                 <it.icon className="w-4 h-4" />

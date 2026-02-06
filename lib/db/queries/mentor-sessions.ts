@@ -57,7 +57,7 @@ export async function getMentorMenteesFromSessions(
       .groupBy(sessions.menteeId, users.id)
       .orderBy(desc(sql`COUNT(${sessions.id})`));
 
-    return menteesWithSessions.map((row) => ({
+    return menteesWithSessions.map((row: any) => ({
       menteeId: row.menteeId,
       mentee: row.mentee || {
         id: row.menteeId,
@@ -109,16 +109,14 @@ export async function getMenteeSessionDetails(
 
 export async function getMentorSessionStats(mentorId: string) {
   try {
-    const now = new Date();
-    
     const stats = await db
       .select({
         totalMentees: sql<number>`COUNT(DISTINCT ${sessions.menteeId})::int`,
         totalSessions: sql<number>`COUNT(${sessions.id})::int`,
         completedSessions: sql<number>`SUM(CASE WHEN ${sessions.status} = 'completed' THEN 1 ELSE 0 END)::int`,
-        upcomingSessions: sql<number>`SUM(CASE WHEN ${sessions.status} = 'scheduled' AND ${sessions.scheduledAt} >= ${now} THEN 1 ELSE 0 END)::int`,
+        upcomingSessions: sql<number>`SUM(CASE WHEN ${sessions.status} = 'scheduled' AND ${sessions.scheduledAt} >= NOW() THEN 1 ELSE 0 END)::int`,
         cancelledSessions: sql<number>`SUM(CASE WHEN ${sessions.status} = 'cancelled' THEN 1 ELSE 0 END)::int`,
-        activeMentees: sql<number>`COUNT(DISTINCT CASE WHEN ${sessions.status} = 'scheduled' AND ${sessions.scheduledAt} >= ${now} THEN ${sessions.menteeId} END)::int`,
+        activeMentees: sql<number>`COUNT(DISTINCT CASE WHEN ${sessions.status} = 'scheduled' AND ${sessions.scheduledAt} >= NOW() THEN ${sessions.menteeId} END)::int`,
       })
       .from(sessions)
       .where(eq(sessions.mentorId, mentorId));

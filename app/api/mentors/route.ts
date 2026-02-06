@@ -30,8 +30,11 @@ export async function GET(request: NextRequest) {
         isAvailable: mentors.isAvailable,
         profileImageUrl: mentors.profileImageUrl,
         bannerImageUrl: mentors.bannerImageUrl,
-        // User info
-        name: users.name,
+        // Mentor profile fullName (set during mentor application)
+        fullName: mentors.fullName,
+        // User info (fallback)
+        userName: users.name,
+        email: users.email,
         userImage: users.image,
       })
       .from(mentors)
@@ -39,9 +42,12 @@ export async function GET(request: NextRequest) {
       .where(eq(mentors.verificationStatus, 'VERIFIED'))
       .orderBy(mentors.createdAt);
 
-    // Map the results to handle image fallback priority
-    const mappedMentors = mentosList.map(mentor => ({
+    // Map the results to handle name and image fallback priority
+    const mappedMentors = mentosList.map((mentor: typeof mentosList[number]) => ({
       ...mentor,
+      // Use mentor's fullName if available, otherwise fallback to user's name
+      name: mentor.fullName || mentor.userName,
+      // Use mentor's profileImageUrl if available, otherwise fallback to user's image
       image: mentor.profileImageUrl || mentor.userImage
     }));
 

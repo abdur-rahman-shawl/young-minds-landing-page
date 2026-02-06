@@ -39,9 +39,27 @@ export const sessions = pgTable('sessions', {
   cancelledBy: text('cancelled_by'), // 'mentor' | 'mentee'
   cancellationReason: text('cancellation_reason'),
   rescheduledFrom: uuid('rescheduled_from').references(() => sessions.id),
-  rescheduleCount: integer('reschedule_count').default(0).notNull(), // Track times rescheduled
+  rescheduleCount: integer('reschedule_count').default(0).notNull(), // Track times rescheduled by mentee
+  mentorRescheduleCount: integer('mentor_reschedule_count').default(0).notNull(), // Track times rescheduled by mentor
   noShowMarkedBy: text('no_show_marked_by'), // 'mentor' | 'system'
   noShowMarkedAt: timestamp('no_show_marked_at'),
+
+  // Refund tracking
+  refundAmount: decimal('refund_amount', { precision: 10, scale: 2 }),
+  refundPercentage: integer('refund_percentage'),
+  refundStatus: text('refund_status').default('none'), // 'none', 'pending', 'processed', 'failed'
+
+  // Pending reschedule request (for quick access)
+  pendingRescheduleRequestId: uuid('pending_reschedule_request_id'),
+  pendingRescheduleTime: timestamp('pending_reschedule_time'),
+  pendingRescheduleBy: text('pending_reschedule_by'), // 'mentor' | 'mentee'
+
+  // Auto-reassignment tracking (when mentor cancels and a new mentor is assigned)
+  wasReassigned: boolean('was_reassigned').default(false).notNull(),
+  reassignedFromMentorId: text('reassigned_from_mentor_id'),
+  reassignedAt: timestamp('reassigned_at'),
+  reassignmentStatus: text('reassignment_status'), // 'pending_acceptance' | 'accepted' | 'rejected' | 'awaiting_mentee_choice'
+  cancelledMentorIds: jsonb('cancelled_mentor_ids').default([]).notNull(), // Array of mentor IDs who cancelled this session
 
   // Recording configuration
   recordingConfig: jsonb('recording_config')

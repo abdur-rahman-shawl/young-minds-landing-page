@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { 
+import {
   mentorAvailabilitySchedules,
   mentorWeeklyPatterns,
   mentorAvailabilityExceptions,
@@ -8,12 +8,12 @@ import {
   sessions
 } from '@/lib/db/schema';
 import { eq, and, gte, lte, or } from 'drizzle-orm';
-import { 
-  addDays, 
-  addMinutes, 
-  format, 
-  isBefore, 
-  isAfter, 
+import {
+  addDays,
+  addMinutes,
+  format,
+  isBefore,
+  isAfter,
   isSameDay,
   startOfDay,
   endOfDay,
@@ -94,7 +94,7 @@ export async function GET(
     }
 
     const scheduleData = schedule[0];
-    
+
     // Get weekly patterns
     const weeklyPatterns = await db
       .select()
@@ -147,13 +147,13 @@ export async function GET(
 
     while (currentDate <= endDateObj) {
       const dayOfWeek = getDay(currentDate);
-      
+
       // Find the weekly pattern for this day
       const dayPattern = weeklyPatterns.find(p => p.dayOfWeek === dayOfWeek);
-      
+
       if (dayPattern && dayPattern.isEnabled) {
         const timeBlocks = dayPattern.timeBlocks as TimeBlock[];
-        
+
         // Process each available time block for the day
         for (const block of timeBlocks) {
           if (block.type !== 'AVAILABLE') continue;
@@ -161,19 +161,19 @@ export async function GET(
           // Parse time strings and create date objects
           const [startHour, startMinute] = block.startTime.split(':').map(Number);
           const [endHour, endMinute] = block.endTime.split(':').map(Number);
-          
+
           const blockStart = new Date(currentDate);
           blockStart.setHours(startHour, startMinute, 0, 0);
-          
+
           const blockEnd = new Date(currentDate);
           blockEnd.setHours(endHour, endMinute, 0, 0);
 
           // Generate slots within this block
           let slotStart = new Date(blockStart);
-          
+
           while (addMinutes(slotStart, requestDuration) <= blockEnd) {
             const slotEnd = addMinutes(slotStart, requestDuration);
-            
+
             // Check if slot is within booking window
             if (slotStart < minBookingTime || slotStart > maxBookingTime) {
               slotStart = addMinutes(slotStart, 30); // Move to next potential slot
@@ -183,11 +183,11 @@ export async function GET(
             // Check for exceptions
             let isException = false;
             let exceptionReason = '';
-            
+
             for (const exception of exceptions) {
               const exceptionStart = new Date(exception.startDate);
               const exceptionEnd = new Date(exception.endDate);
-              
+
               if (exception.isFullDay && isSameDay(slotStart, exceptionStart)) {
                 isException = true;
                 exceptionReason = exception.reason || 'Unavailable';
@@ -198,13 +198,13 @@ export async function GET(
                 for (const exBlock of exceptionBlocks) {
                   const [exStartHour, exStartMin] = exBlock.startTime.split(':').map(Number);
                   const [exEndHour, exEndMin] = exBlock.endTime.split(':').map(Number);
-                  
+
                   const exBlockStart = new Date(slotStart);
                   exBlockStart.setHours(exStartHour, exStartMin, 0, 0);
-                  
+
                   const exBlockEnd = new Date(slotStart);
                   exBlockEnd.setHours(exEndHour, exEndMin, 0, 0);
-                  
+
                   if (
                     (slotStart >= exBlockStart && slotStart < exBlockEnd) ||
                     (slotEnd > exBlockStart && slotEnd <= exBlockEnd)
@@ -233,11 +233,11 @@ export async function GET(
             for (const booking of existingBookings) {
               const bookingStart = new Date(booking.scheduledAt);
               const bookingEnd = addMinutes(bookingStart, booking.duration);
-              
+
               // Add buffer time before and after booking
               const bufferedBookingStart = addMinutes(bookingStart, -bufferTime);
               const bufferedBookingEnd = addMinutes(bookingEnd, bufferTime);
-              
+
               if (
                 (slotStart >= bufferedBookingStart && slotStart < bufferedBookingEnd) ||
                 (slotEnd > bufferedBookingStart && slotEnd <= bufferedBookingEnd) ||
@@ -261,7 +261,7 @@ export async function GET(
           }
         }
       }
-      
+
       // Move to next day
       currentDate.setDate(currentDate.getDate() + 1);
     }
@@ -272,7 +272,7 @@ export async function GET(
         // Convert from mentor's timezone to requested timezone
         const zonedStart = toZonedTime(slot.startTime, scheduleData.timezone);
         const zonedEnd = toZonedTime(slot.endTime, scheduleData.timezone);
-        
+
         return {
           ...slot,
           startTime: fromZonedTime(zonedStart, timezone),

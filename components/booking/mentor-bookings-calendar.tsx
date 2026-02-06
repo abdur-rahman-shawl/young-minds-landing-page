@@ -26,6 +26,10 @@ interface Session {
   menteeAvatar?: string;
   rate?: number;
   currency?: string;
+  // Pending reschedule fields
+  pendingRescheduleBy?: 'mentor' | 'mentee';
+  pendingRescheduleTime?: string;
+  pendingRescheduleRequestId?: string;
 }
 
 const MEETING_TYPE_ICONS = {
@@ -39,6 +43,16 @@ const STATUS_COLORS = {
   in_progress: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   completed: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300',
   cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  no_show: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  reschedule_pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+};
+
+// Helper to get display status color
+const getSessionStatusColor = (sessionData: Session) => {
+  if (sessionData.pendingRescheduleBy) {
+    return STATUS_COLORS.reschedule_pending;
+  }
+  return STATUS_COLORS[sessionData.status] || STATUS_COLORS.scheduled;
 };
 
 export function MentorBookingsCalendar() {
@@ -147,13 +161,12 @@ export function MentorBookingsCalendar() {
               return (
                 <div
                   key={day.toISOString()}
-                  className={`rounded-xl border p-3 transition hover:border-primary/50 ${
-                    isToday(day)
-                      ? 'border-primary/40 bg-primary/5'
-                      : isSelected
+                  className={`rounded-xl border p-3 transition hover:border-primary/50 ${isToday(day)
+                    ? 'border-primary/40 bg-primary/5'
+                    : isSelected
                       ? 'border-primary bg-primary/10'
                       : 'border-gray-200 dark:border-gray-800'
-                  }`}
+                    }`}
                   onClick={() => setSelectedDate(day)}
                 >
                   <div className="mb-3 flex items-center justify-between">
@@ -174,7 +187,6 @@ export function MentorBookingsCalendar() {
                     )}
                     {daySessions.map((bookingSession) => {
                       const MeetingIcon = MEETING_TYPE_ICONS[bookingSession.meetingType];
-                      const statusColor = STATUS_COLORS[bookingSession.status];
 
                       return (
                         <div key={bookingSession.id} className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
@@ -185,8 +197,8 @@ export function MentorBookingsCalendar() {
                                 {format(new Date(bookingSession.scheduledAt), 'HH:mm')}
                               </span>
                             </div>
-                            <Badge className={`h-4 px-1 py-0 text-xs ${statusColor}`}>
-                              {bookingSession.status}
+                            <Badge className={`h-4 px-1 py-0 text-xs ${getSessionStatusColor(bookingSession)}`}>
+                              {bookingSession.pendingRescheduleBy ? '⏳ Reschedule' : bookingSession.status}
                             </Badge>
                           </div>
 

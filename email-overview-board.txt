@@ -1,0 +1,184 @@
+================================================================================
+                    SHARINGMINDS EMAIL CONTENT
+                     What Users Actually Receive
+================================================================================
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EMAIL 1: VERIFICATION CODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Subject: Your Verification Code
+
+─────────────────────────────────────────────────────────────────────────────────
+
+                           Email Verification
+
+Thank you for signing up. Please use the following code to verify your 
+email address:
+
+                              ┌─────────────┐
+                              │   847293    │
+                              └─────────────┘
+
+This code will expire in 10 minutes.
+
+─────────────────────────────────────────────────────────────────────────────────
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EMAIL 2: APPLICATION RECEIVED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Subject: We've Received Your SharingMinds Application!
+
+─────────────────────────────────────────────────────────────────────────────────
+
+         Thank You for Applying to SharingMinds!
+
+Hi Alex,
+
+We're thrilled you want to join our community of mentors. This email 
+confirms we've successfully received your application.
+
+Our team will carefully review your profile. We'll get back to you 
+within 5-7 business days with the next steps. You can check the 
+status of your application on your dashboard.
+
+In the meantime, feel free to explore our website and learn more 
+about our mission.
+
+                        [ Go to Dashboard ]
+
+Best regards,
+The SharingMinds Team
+
+─────────────────────────────────────────────────────────────────────────────────
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EMAIL 3: APPLICATION APPROVED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Subject: Congratulations! Your SharingMinds Mentor Application is Approved
+
+─────────────────────────────────────────────────────────────────────────────────
+
+         Congratulations, Alex!
+
+We are excited to welcome you to the SharingMinds community of mentors. 
+Your application has been approved!
+
+You can now access your mentor dashboard to set up your availability 
+and start connecting with mentees.
+
+    ┌──────────────────────────────────────────────────────────────┐
+    │                                                              │
+    │   Onboarding coupon unlocked                                 │
+    │                                                              │
+    │   Use the code below on your payment screen to skip the      │
+    │   mentor onboarding fee:                                     │
+    │                                                              │
+    │                      WELCOME50                               │
+    │                                                              │
+    │   Keep this code safe. It can be used once to waive your     │
+    │   activation payment.                                        │
+    │                                                              │
+    └──────────────────────────────────────────────────────────────┘
+
+                        [ Go to Dashboard ]
+
+Best regards,
+The SharingMinds Team
+
+─────────────────────────────────────────────────────────────────────────────────
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EMAIL 4: APPLICATION REJECTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Subject: Important: Update Regarding Your SharingMinds Mentor Application
+
+─────────────────────────────────────────────────────────────────────────────────
+
+         Update on Your Mentor Application, Alex
+
+Thank you for your interest in becoming a mentor with SharingMinds.
+
+After careful review, we regret to inform you that your application 
+has not been approved at this time.
+
+Reason for rejection:
+The profile information provided was incomplete. Specifically, the 
+LinkedIn URL was invalid and the bio was too short.
+
+We encourage you to review your application based on the feedback 
+provided and consider reapplying in the future if you meet our 
+updated criteria.
+
+Best regards,
+The SharingMinds Team
+
+─────────────────────────────────────────────────────────────────────────────────
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EMAIL 5: MORE INFORMATION NEEDED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Subject: Action Required: Updates Needed for Your SharingMinds Mentor Application
+
+─────────────────────────────────────────────────────────────────────────────────
+
+         Updates Requested for Your Mentor Application, Alex
+
+Thank you for your application to become a mentor with SharingMinds.
+
+Our team has reviewed your profile and requires some additional 
+information or updates before we can proceed with your approval.
+
+Details for updates:
+Please upload a clearer profile picture and add more details to 
+your 'Experience' section.
+
+Please log in to your dashboard to view the specific details and 
+make the necessary changes. Once updated, your application will 
+be re-reviewed.
+
+                        [ Go to Dashboard ]
+
+Best regards,
+The SharingMinds Team
+
+─────────────────────────────────────────────────────────────────────────────────
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EMAIL 6: CONTACT FORM ENQUIRY (TO ADMINS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Subject: New Contact Enquiry: Course Availability Question
+
+─────────────────────────────────────────────────────────────────────────────────
+
+         New Contact Enquiry
+
+Name:    Jane Mentee
+Email:   jane.mentee@example.com
+Subject: Course Availability Question
+
+    ┌──────────────────────────────────────────────────────────────┐
+    │  Message                                                     │
+    │                                                              │
+    │  Hi, I was wondering when the Advanced React course will     │
+    │  be available? I am very interested in enrolling.            │
+    │                                                              │
+    └──────────────────────────────────────────────────────────────┘
+
+─────────────────────────────────────────────────────────────────────────────────
+
+
+================================================================================
+                              END OF EMAIL CONTENT
+================================================================================
