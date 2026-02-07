@@ -80,6 +80,9 @@ export function BookingModal({
   const [sessionAvailability, setSessionAvailability] = useState<{
     freeAvailable: boolean;
     paidAvailable: boolean;
+    freeRemaining?: number | null;
+    paidRemaining?: number | null;
+    mentorSessionsRemaining?: number | null;
   } | null>(null);
 
   // Steps definition for UI mapping
@@ -120,18 +123,21 @@ export function BookingModal({
           setSessionAvailability({
             freeAvailable: Boolean(data.data?.free_available),
             paidAvailable: Boolean(data.data?.paid_available),
+            freeRemaining: data.data?.free_remaining ?? null,
+            paidRemaining: data.data?.paid_remaining ?? null,
+            mentorSessionsRemaining: data.data?.mentor_sessions_remaining ?? null,
           });
         } else {
-          setSessionAvailability({
-            freeAvailable: true,
-            paidAvailable: true,
-          });
+      setSessionAvailability({
+        freeAvailable: true,
+        paidAvailable: true,
+      });
         }
       } catch (error) {
-        setSessionAvailability({
-          freeAvailable: true,
-          paidAvailable: true,
-        });
+      setSessionAvailability({
+        freeAvailable: true,
+        paidAvailable: true,
+      });
       } finally {
         setAvailabilityLoading(false);
       }

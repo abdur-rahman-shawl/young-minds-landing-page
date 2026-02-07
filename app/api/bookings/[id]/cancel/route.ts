@@ -559,13 +559,23 @@ export async function POST(
                     booking.id
                 );
 
-                await trackFeatureUsage(
-                    booking.mentorId,
-                    FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY,
-                    { count: -1, minutes: -(booking.duration || 0) },
-                    'session',
-                    booking.id
-                );
+                if (booking.sessionType === 'FREE') {
+                    await trackFeatureUsage(
+                        booking.mentorId,
+                        FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY,
+                        { count: -1, minutes: -(booking.duration || 0) },
+                        'session',
+                        booking.id
+                    );
+                } else {
+                    await trackFeatureUsage(
+                        booking.mentorId,
+                        FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY,
+                        { count: -1, minutes: -(booking.duration || 0) },
+                        'session',
+                        booking.id
+                    );
+                }
             } catch (error) {
                 console.error('Usage rollback failed:', error);
             }

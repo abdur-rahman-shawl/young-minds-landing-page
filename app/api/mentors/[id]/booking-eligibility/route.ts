@@ -9,22 +9,24 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const [freeAccess, paidAccess, mentorSessionsAccess] = await Promise.all([
+    const [freeAccess, paidAccess, mentorAccess] = await Promise.all([
       checkFeatureAccess(id, FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY).catch(() => null),
       checkFeatureAccess(id, FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY).catch(() => null),
       checkFeatureAccess(id, FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY).catch(() => null),
     ]);
 
-    const mentorSessionsAvailable = mentorSessionsAccess?.has_access ?? false;
+    const mentorSessionsAvailable = mentorAccess?.has_access ?? false;
 
     return NextResponse.json({
       success: true,
       data: {
-        free_available: (freeAccess?.has_access ?? false) && mentorSessionsAvailable,
+        free_available: freeAccess?.has_access ?? false,
         free_remaining: freeAccess?.remaining ?? null,
-        paid_available: (paidAccess?.has_access ?? false) && mentorSessionsAvailable,
+        paid_available: paidAccess?.has_access ?? false,
         paid_remaining: paidAccess?.remaining ?? null,
         mentor_sessions_available: mentorSessionsAvailable,
+        mentor_sessions_remaining: mentorAccess?.remaining ?? null,
+        mentor_sessions_limit: mentorAccess?.limit ?? null,
       },
     });
   } catch (error) {

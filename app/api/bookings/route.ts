@@ -357,13 +357,23 @@ export async function POST(req: NextRequest) {
           newBooking.id
         );
 
-        await trackFeatureUsage(
-          validatedData.mentorId,
-          FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY,
-          { count: 1, minutes: validatedData.duration },
-          'session',
-          newBooking.id
-        );
+        if (validatedData.sessionType === 'FREE') {
+          await trackFeatureUsage(
+            validatedData.mentorId,
+            FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY,
+            { count: 1, minutes: validatedData.duration },
+            'session',
+            newBooking.id
+          );
+        } else {
+          await trackFeatureUsage(
+            validatedData.mentorId,
+            FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY,
+            { count: 1, minutes: validatedData.duration },
+            'session',
+            newBooking.id
+          );
+        }
       } catch (error) {
         console.error('Usage tracking failed:', error);
         return NextResponse.json(
