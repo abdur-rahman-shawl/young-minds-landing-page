@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { 
-  messageRequests, 
-  messagingPermissions, 
+import {
+  messageRequests,
+  messagingPermissions,
   messageQuotas,
   notifications,
   users,
@@ -46,14 +46,14 @@ async function checkAndUpdateQuota(userId: string) {
   }
 
   const currentQuota = quota[0];
-  
+
   const shouldResetDaily = currentQuota.lastResetDaily < startOfDay;
   const shouldResetWeekly = currentQuota.lastResetWeekly < startOfWeek;
   const shouldResetMonthly = currentQuota.lastResetMonthly < startOfMonth;
 
   if (shouldResetDaily || shouldResetWeekly || shouldResetMonthly) {
     const updates: any = {};
-    
+
     if (shouldResetDaily) {
       updates.requestsSentToday = 0;
       updates.messagesSentToday = 0;
@@ -314,14 +314,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error creating message request:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { success: false, error: error.errors[0].message },
         { status: 400 }
       );
     }
-    
+
     if (error instanceof Error && error.message.includes('limit exceeded')) {
       return NextResponse.json(
         { success: false, error: error.message },

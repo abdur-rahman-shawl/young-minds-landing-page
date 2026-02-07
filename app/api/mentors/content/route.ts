@@ -13,13 +13,13 @@ const createContentSchema = z.object({
   description: z.string().optional(),
   type: z.enum(['COURSE', 'FILE', 'URL']),
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
-  
+
   // For FILE type
   fileUrl: z.string().optional(),
   fileName: z.string().optional(),
   fileSize: z.number().optional(),
   mimeType: z.string().optional(),
-  
+
   // For URL type
   url: z.string().url().optional(),
   urlTitle: z.string().optional(),
@@ -62,9 +62,9 @@ export async function GET(request: NextRequest) {
       createdAt: mentorContent.createdAt,
       updatedAt: mentorContent.updatedAt,
     })
-    .from(mentorContent)
-    .where(eq(mentorContent.mentorId, mentor[0].id))
-    .orderBy(mentorContent.createdAt);
+      .from(mentorContent)
+      .where(eq(mentorContent.mentorId, mentor[0].id))
+      .orderBy(mentorContent.createdAt);
 
     const hydratedContent = await Promise.all(
       content.map(async (item) => ({

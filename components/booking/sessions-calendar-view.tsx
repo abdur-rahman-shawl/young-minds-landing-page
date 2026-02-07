@@ -31,7 +31,13 @@ import {
   ExternalLink,
   MapPin,
   DollarSign,
-  CalendarDays
+  CalendarDays,
+  RefreshCw,
+  XCircle,
+  Undo2,
+  Film,
+  CalendarX,
+  AlertCircle
 } from 'lucide-react';
 import {
   format,
@@ -60,6 +66,24 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { SessionLobbyModal } from './SessionLobbyModal';
 import { SessionActions } from './session-actions';
+import { RescheduleRequestBanner } from './reschedule-request-banner';
+import { ReassignmentResponseBanner } from './reassignment-response-banner';
+import { NoMentorFoundBanner } from './no-mentor-found-banner';
+import { CancelDialog } from './cancel-dialog';
+import { RescheduleDialog } from './reschedule-dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+// Feature flag for withdraw reschedule functionality
+const ALLOW_WITHDRAW_RESCHEDULE = true;
 
 interface Session {
   id: string;
@@ -78,6 +102,18 @@ interface Session {
   rate?: number;
   currency?: string;
   rescheduleCount?: number;
+  mentorRescheduleCount?: number;
+  cancelledBy?: string;
+  // Pending reschedule fields
+  pendingRescheduleRequestId?: string;
+  pendingRescheduleTime?: string;
+  pendingRescheduleBy?: 'mentor' | 'mentee';
+  // Auto-reassignment fields
+  wasReassigned?: boolean;
+  reassignedFromMentorId?: string;
+  reassignedAt?: string;
+  reassignmentStatus?: 'pending_acceptance' | 'accepted' | 'rejected' | 'awaiting_mentee_choice';
+  cancelledMentorIds?: string[];
 }
 
 type ViewType = 'month' | 'week' | 'day' | 'agenda';
@@ -113,7 +149,20 @@ const STATUS_COLORS = {
     bg: 'bg-orange-200/50 hover:bg-orange-200/40 dark:bg-orange-400/25 dark:hover:bg-orange-400/20',
     text: 'text-orange-900/90 dark:text-orange-200',
     border: 'shadow-orange-700/8'
+  },
+  reschedule_pending: {
+    bg: 'bg-amber-200/50 hover:bg-amber-200/40 dark:bg-amber-400/25 dark:hover:bg-amber-400/20',
+    text: 'text-amber-900/90 dark:text-amber-200',
+    border: 'shadow-amber-700/8'
   }
+};
+
+// Helper to get display colors - uses amber for pending reschedule
+const getSessionColors = (sessionData: Session) => {
+  if (sessionData.pendingRescheduleBy) {
+    return STATUS_COLORS.reschedule_pending;
+  }
+  return STATUS_COLORS[sessionData.status];
 };
 
 export function SessionsCalendarView() {
@@ -125,6 +174,12 @@ export function SessionsCalendarView() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [lobbySession, setLobbySession] = useState<Session | null>(null);
+
+  // Dialog states for inline actions
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
 
   // Get user info for SessionActions
   const userId = session?.user?.id || '';
@@ -251,6 +306,55 @@ export function SessionsCalendarView() {
       style: 'currency',
       currency: currency,
     }).format(amount);
+  };
+
+  // Calculate time until session for display
+  const getTimeUntilSession = (scheduledAt: string | Date) => {
+    const sessionTime = new Date(scheduledAt);
+    const now = new Date();
+    const diffMs = sessionTime.getTime() - now.getTime();
+
+    if (diffMs <= 0) return 'Session started';
+
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) {
+      return `Starts in ${days} day${days > 1 ? 's' : ''}`;
+    } else if (hours > 0) {
+      return `Starts in ${hours} hour${hours > 1 ? 's' : ''}`;
+    } else {
+      const minutes = Math.floor(diffMs / (1000 * 60));
+      return `Starts in ${minutes} minute${minutes > 1 ? 's' : ''}`;
+    }
+  };
+
+  // Handle withdraw reschedule request
+  const handleWithdrawReschedule = async () => {
+    if (!selectedSession) return;
+
+    setWithdrawLoading(true);
+    try {
+      const response = await fetch(`/api/bookings/${selectedSession.id}/reschedule/withdraw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to withdraw reschedule request');
+      }
+
+      toast.success('Reschedule request withdrawn. Session remains at original time.');
+      setShowWithdrawDialog(false);
+      setDialogOpen(false);
+      fetchSessions();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to withdraw request');
+    } finally {
+      setWithdrawLoading(false);
+    }
   };
 
   // Get header title based on view
@@ -773,138 +877,370 @@ export function SessionsCalendarView() {
         )}
       </div>
 
-      {/* Session Details Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {/* Session Details Dialog - Redesigned */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => {
+        setDialogOpen(open);
+        if (!open) {
+          // Reset dialog states when closing
+          setShowCancelDialog(false);
+          setShowRescheduleDialog(false);
+          setShowWithdrawDialog(false);
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{selectedSession?.title}</DialogTitle>
-            <DialogDescription>
-              Session details and information
+            <DialogTitle className="sr-only">Session Details</DialogTitle>
+            <DialogDescription className="sr-only">
+              View and manage your session
             </DialogDescription>
           </DialogHeader>
 
-          {selectedSession && (
-            <div className="space-y-4">
-              {/* Status Badge */}
-              <div>
-                <Badge className={cn(
-                  "font-medium",
-                  STATUS_COLORS[selectedSession.status].bg,
-                  STATUS_COLORS[selectedSession.status].text,
-                  STATUS_COLORS[selectedSession.status].border
-                )}>
-                  {selectedSession.status.replace('_', ' ').toUpperCase()}
-                </Badge>
-              </div>
+          {selectedSession && (() => {
+            const userRole = userId === selectedSession.mentorId ? 'mentor' : 'mentee';
+            const isMentee = userRole === 'mentee';
+            const hasPendingReschedule = !!selectedSession.pendingRescheduleBy;
+            const isInitiator = selectedSession.pendingRescheduleBy === userRole;
+            const sessionDate = new Date(selectedSession.scheduledAt);
+            const isSessionPast = isPast(sessionDate);
+            const MeetingIcon = MEETING_TYPE_ICONS[selectedSession.meetingType];
 
-              {/* Session Info */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Calendar className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm">
-                    {format(new Date(selectedSession.scheduledAt), 'EEEE, MMMM d, yyyy')}
-                  </span>
+            return (
+              <div className="space-y-5">
+                {/* Mentor/Mentee Info Card */}
+                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={selectedSession.mentorAvatar || undefined} />
+                    <AvatarFallback className="bg-primary/10 text-primary">
+                      {(selectedSession.mentorName || 'M').charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">
+                      {isMentee ? selectedSession.mentorName || 'Your Mentor' : 'Your Mentee'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {isMentee ? 'Mentor' : 'Mentee'} • {selectedSession.meetingType} session
+                    </p>
+                  </div>
+                  <Badge className={cn(
+                    "shrink-0",
+                    getSessionColors(selectedSession).bg,
+                    getSessionColors(selectedSession).text
+                  )}>
+                    {hasPendingReschedule
+                      ? 'PENDING'
+                      : selectedSession.status.replace('_', ' ').toUpperCase()}
+                  </Badge>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <Clock className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm">
-                    {format(new Date(selectedSession.scheduledAt), 'HH:mm')} • {selectedSession.duration} minutes
-                  </span>
-                </div>
-
-                {selectedSession.mentorName && (
-                  <div className="flex items-center gap-3">
-                    <User className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm">
-                      with {selectedSession.mentorName}
-                    </span>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-3">
-                  {(() => {
-                    const Icon = MEETING_TYPE_ICONS[selectedSession.meetingType];
-                    return (
-                      <>
-                        <Icon className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm capitalize">
-                          {selectedSession.meetingType} Call
-                        </span>
-                      </>
-                    );
-                  })()}
-                </div>
-
-                {selectedSession.location && (
-                  <div className="flex items-center gap-3">
-                    <MapPin className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm">
-                      {selectedSession.location}
-                    </span>
-                  </div>
-                )}
-
-                {selectedSession.rate && (
-                  <div className="flex items-center gap-3">
-                    <DollarSign className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm">
-                      {formatCurrency(selectedSession.rate, selectedSession.currency)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Description */}
-              {selectedSession.description && (
+                {/* Session Title */}
                 <div>
-                  <h4 className="text-sm font-medium mb-1">Description</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {selectedSession.description}
-                  </p>
+                  <h3 className="font-semibold text-lg leading-tight">{selectedSession.title}</h3>
+                  {selectedSession.description && (
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                      {selectedSession.description}
+                    </p>
+                  )}
                 </div>
-              )}
 
-              {/* Actions */}
-              {selectedSession.status === 'scheduled' && (
-                <div className="pt-4 space-y-3">
-                  {/* Join Button (only if not past) */}
-                  {!isPast(new Date(selectedSession.scheduledAt)) && (
-                    <Button
-                      className="w-full"
-                      onClick={() => {
-                        setDialogOpen(false);
-                        setLobbySession(selectedSession);
-                      }}
-                    >
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      Join Session
-                    </Button>
+                {/* Session Details */}
+                <div className="space-y-2.5 text-sm">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span>{format(sessionDate, 'EEEE, MMMM d, yyyy')}</span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span>
+                      {format(sessionDate, 'h:mm a')} • {selectedSession.duration} min
+                      {!isSessionPast && selectedSession.status === 'scheduled' && (
+                        <span className="ml-2 text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full">
+                          {getTimeUntilSession(selectedSession.scheduledAt)}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <MeetingIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="capitalize">{selectedSession.meetingType} Call</span>
+                  </div>
+
+                  {selectedSession.rate && (
+                    <div className="flex items-center gap-3">
+                      <DollarSign className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span>{formatCurrency(selectedSession.rate, selectedSession.currency)}</span>
+                    </div>
                   )}
 
-                  {/* Cancel/Reschedule Actions (via SessionActions) */}
-                  <div className="flex items-center justify-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-800">
-                    <SessionActions
-                      session={{
-                        ...selectedSession,
-                        scheduledAt: new Date(selectedSession.scheduledAt),
-                        menteeId: selectedSession.menteeId || userId,
-                        rescheduleCount: selectedSession.rescheduleCount || 0,
-                      }}
-                      userId={userId}
-                      userRole={selectedSession.mentorId === userId ? 'mentor' : 'mentee'}
-                      onUpdate={() => {
-                        fetchSessions();
-                        setDialogOpen(false);
-                      }}
-                    />
-                  </div>
+                  {selectedSession.location && (
+                    <div className="flex items-center gap-3">
+                      <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span>{selectedSession.location}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+
+                {/* Pending Reschedule Alert */}
+                {hasPendingReschedule && selectedSession.pendingRescheduleTime && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                          {isInitiator
+                            ? 'Awaiting response to your reschedule request'
+                            : `${selectedSession.pendingRescheduleBy === 'mentor' ? 'Mentor' : 'Mentee'} requested to reschedule`
+                          }
+                        </p>
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                          Proposed: {format(new Date(selectedSession.pendingRescheduleTime), 'EEEE, MMMM d, yyyy \'at\' h:mm a')}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Response actions for responder */}
+                    {!isInitiator && selectedSession.pendingRescheduleRequestId && (
+                      <RescheduleRequestBanner
+                        sessionId={selectedSession.id}
+                        sessionTitle={selectedSession.title}
+                        pendingRescheduleTime={new Date(selectedSession.pendingRescheduleTime)}
+                        pendingRescheduleBy={selectedSession.pendingRescheduleBy!}
+                        originalTime={sessionDate}
+                        mentorId={selectedSession.mentorId}
+                        userRole={userRole}
+                        requestId={selectedSession.pendingRescheduleRequestId}
+                        onResponse={() => {
+                          fetchSessions();
+                          setDialogOpen(false);
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Auto-Reassignment Alert - Show to mentee when session was reassigned and pending acceptance */}
+                {isMentee && selectedSession.wasReassigned && selectedSession.reassignmentStatus === 'pending_acceptance' && (
+                  <ReassignmentResponseBanner
+                    sessionId={selectedSession.id}
+                    sessionTitle={selectedSession.title}
+                    newMentorName={selectedSession.mentorName || 'New Mentor'}
+                    newMentorAvatar={selectedSession.mentorAvatar}
+                    sessionRate={selectedSession.rate}
+                    onSuccess={() => {
+                      fetchSessions();
+                      setDialogOpen(false);
+                    }}
+                  />
+                )}
+
+                {/* No Mentor Found Alert - Show to mentee when mentor cancelled but no auto-replacement found */}
+                {isMentee && selectedSession.reassignmentStatus === 'awaiting_mentee_choice' && (
+                  <NoMentorFoundBanner
+                    sessionId={selectedSession.id}
+                    sessionTitle={selectedSession.title}
+                    sessionRate={selectedSession.rate}
+                    onSuccess={() => {
+                      fetchSessions();
+                      setDialogOpen(false);
+                    }}
+                  />
+                )}
+
+                {/* === ACTION BUTTONS === */}
+                {/* Hide all action buttons if pending reassignment or awaiting mentee choice - force mentee to decide first */}
+                {!(isMentee && (selectedSession.reassignmentStatus === 'pending_acceptance' || selectedSession.reassignmentStatus === 'awaiting_mentee_choice')) && (
+                  <div className="pt-2 border-t border-border space-y-3">
+
+                    {/* SCHEDULED STATE: Show Join + Reschedule + Cancel */}
+                    {selectedSession.status === 'scheduled' && (
+                      <>
+                        {/* Join Button - Only show if NOT pending reschedule and session is upcoming */}
+                        {!hasPendingReschedule && !isSessionPast && (
+                          <Button
+                            className="w-full"
+                            size="lg"
+                            onClick={() => {
+                              setDialogOpen(false);
+                              setLobbySession(selectedSession);
+                            }}
+                          >
+                            <Video className="w-4 h-4 mr-2" />
+                            Join Session
+                          </Button>
+                        )}
+
+                        {/* Withdraw Reschedule Button - Only for initiator */}
+                        {hasPendingReschedule && isInitiator && ALLOW_WITHDRAW_RESCHEDULE && (
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setShowWithdrawDialog(true)}
+                          >
+                            <Undo2 className="w-4 h-4 mr-2" />
+                            Withdraw Reschedule Request
+                          </Button>
+                        )}
+
+                        {/* Secondary Actions Row */}
+                        <div className="flex gap-2">
+                          {/* Reschedule Button - Disabled if pending */}
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            disabled={hasPendingReschedule}
+                            onClick={() => setShowRescheduleDialog(true)}
+                          >
+                            <CalendarX className="w-4 h-4 mr-2" />
+                            Reschedule
+                          </Button>
+
+                          {/* Cancel Button - Always available */}
+                          <Button
+                            variant="outline"
+                            className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setShowCancelDialog(true)}
+                          >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Cancel Session
+                          </Button>
+                        </div>
+                      </>
+                    )}
+
+                    {/* COMPLETED STATE: Show View Recording + Rebook */}
+                    {selectedSession.status === 'completed' && (
+                      <>
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          disabled
+                        >
+                          <Film className="w-4 h-4 mr-2" />
+                          View Recording
+                          <span className="ml-2 text-xs text-muted-foreground">(Coming Soon)</span>
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          disabled
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Rebook with {isMentee ? 'Mentor' : 'Mentee'}
+                          <span className="ml-2 text-xs text-muted-foreground">(Coming Soon)</span>
+                        </Button>
+                      </>
+                    )}
+
+                    {/* CANCELLED STATE: Show Refund Status + Rebook */}
+                    {selectedSession.status === 'cancelled' && (
+                      <>
+                        <div className="p-3 bg-muted/50 rounded-lg">
+                          <div className="flex items-center gap-2 text-sm">
+                            <DollarSign className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-medium">Refund Status:</span>
+                            <Badge variant="outline">Processing</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Refunds typically process within 5-7 business days
+                          </p>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          disabled
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Rebook with {isMentee ? 'Mentor' : 'Mentee'}
+                          <span className="ml-2 text-xs text-muted-foreground">(Coming Soon)</span>
+                        </Button>
+                      </>
+                    )}
+
+                    {/* IN_PROGRESS STATE: Just show Join */}
+                    {selectedSession.status === 'in_progress' && (
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={() => {
+                          setDialogOpen(false);
+                          setLobbySession(selectedSession);
+                        }}
+                      >
+                        <Video className="w-4 h-4 mr-2" />
+                        Rejoin Session
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
+
+      {/* Cancel Dialog */}
+      {selectedSession && (
+        <CancelDialog
+          open={showCancelDialog}
+          onOpenChange={setShowCancelDialog}
+          sessionId={selectedSession.id}
+          sessionTitle={selectedSession.title}
+          scheduledAt={new Date(selectedSession.scheduledAt)}
+          userRole={userId === selectedSession.mentorId ? 'mentor' : 'mentee'}
+          onSuccess={() => {
+            setShowCancelDialog(false);
+            setDialogOpen(false);
+            fetchSessions();
+            toast.success('Session cancelled successfully');
+          }}
+        />
+      )}
+
+      {/* Reschedule Dialog */}
+      {selectedSession && (
+        <RescheduleDialog
+          open={showRescheduleDialog}
+          onOpenChange={setShowRescheduleDialog}
+          sessionId={selectedSession.id}
+          sessionTitle={selectedSession.title}
+          mentorId={selectedSession.mentorId}
+          currentDate={new Date(selectedSession.scheduledAt)}
+          currentDuration={selectedSession.duration}
+          userRole={userId === selectedSession.mentorId ? 'mentor' : 'mentee'}
+          onSuccess={() => {
+            setShowRescheduleDialog(false);
+            setDialogOpen(false);
+            fetchSessions();
+            toast.success('Reschedule request submitted');
+          }}
+        />
+      )}
+
+      {/* Withdraw Reschedule Confirmation Dialog */}
+      <AlertDialog open={showWithdrawDialog} onOpenChange={setShowWithdrawDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Withdraw Reschedule Request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will cancel your reschedule request. The session will remain scheduled at its original time.
+              The mentor will be notified of this change.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={withdrawLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleWithdrawReschedule}
+              disabled={withdrawLoading}
+            >
+              {withdrawLoading ? 'Withdrawing...' : 'Withdraw Request'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <SessionLobbyModal
         isOpen={!!lobbySession}

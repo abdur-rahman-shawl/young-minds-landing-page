@@ -21,13 +21,18 @@ interface Mentor {
   currency?: string;
 }
 
+interface BookingAvailability {
+  freeAvailable: boolean;
+  paidAvailable: boolean;
+  freeRemaining?: number | null;
+  paidRemaining?: number | null;
+  mentorSessionsRemaining?: number | null;
+}
+
 interface BookingFormProps {
   scheduledAt: Date;
   mentor: Mentor;
-  availability?: {
-    freeAvailable: boolean;
-    paidAvailable: boolean;
-  };
+  availability?: BookingAvailability;
   freeDisabledReason?: string;
   hideFreeOption?: boolean;
   hideSessionTypeSelector?: boolean;
@@ -80,6 +85,9 @@ export function BookingForm({
   const paidAvailable = availability?.paidAvailable ?? true;
   const hasAnyAvailability = freeAvailable || paidAvailable;
   const showFreeOption = !hideFreeOption;
+  const freeRemaining = availability?.freeRemaining ?? null;
+  const paidRemaining = availability?.paidRemaining ?? null;
+  const mentorRemaining = availability?.mentorSessionsRemaining ?? null;
 
   const initialSessionType = initialData?.sessionType
     || (freeAvailable ? 'FREE' : paidAvailable ? 'PAID' : 'PAID');
@@ -201,6 +209,23 @@ export function BookingForm({
                         {option.label}
                       </p>
                       <p className="text-xs text-slate-500">{option.helper}</p>
+                      {option.value === 'FREE' && freeRemaining !== null && (
+                        <p className="text-[10px] text-slate-400">Remaining: {freeRemaining}</p>
+                      )}
+                      {option.value === 'PAID' && (
+                        <>
+                          {mentorRemaining !== null && (
+                            <p className="text-[10px] text-slate-400">
+                              Mentor sessions left: {mentorRemaining}
+                            </p>
+                          )}
+                          {paidRemaining !== null && (
+                            <p className="text-[10px] text-slate-400">
+                              Paid quotas left: {paidRemaining}
+                            </p>
+                          )}
+                        </>
+                      )}
                     </div>
                   );
                 })}

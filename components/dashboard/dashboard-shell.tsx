@@ -28,6 +28,8 @@ import { AdminMentors } from "@/components/admin/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/admin/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
+import { AdminSessions } from "@/components/admin/dashboard/admin-sessions"
+import { AdminPolicies } from "@/components/admin/dashboard/admin-policies"
 import { AdminSubscriptions } from "@/components/admin/dashboard/admin-subscriptions"
 import { MentorSubscription } from "@/components/mentor/dashboard/mentor-subscription"
 import { MenteeSubscription } from "@/components/mentee/dashboard/mentee-subscription"
@@ -50,12 +52,12 @@ const AdminAnalytics = dynamic(() => import("@/app/admins/analytics/page"), {
   loading: () => <WidgetLoader text="Loading analytics..." />,
 })
 
-const MentorBookingsCalendar = dynamic(
+const MentorScheduleView = dynamic(
   () =>
-    import("@/components/booking/mentor-bookings-calendar").then(
-      (mod) => mod.MentorBookingsCalendar
+    import("@/components/booking/mentor-schedule-view").then(
+      (mod) => mod.MentorScheduleView
     ),
-  { ssr: false, loading: () => <WidgetLoader text="Loading calendar..." /> }
+  { ssr: false, loading: () => <WidgetLoader text="Loading schedule..." /> }
 )
 
 const MentorAvailabilityManager = dynamic(
@@ -148,6 +150,9 @@ export function DashboardShell() {
         case "mentees":
           content = <AdminMentees />
           break
+        case "sessions":
+          content = <AdminSessions />
+          break
         case "analytics":
           content = <AdminAnalytics />
           break
@@ -156,6 +161,9 @@ export function DashboardShell() {
           break
         case "subscriptions":
           content = <AdminSubscriptions />
+          break
+        case "settings":
+          content = <AdminPolicies />
           break
         default:
           content = <AdminOverview />
@@ -178,7 +186,7 @@ export function DashboardShell() {
           content = (
             <div className="p-4 md:p-8">
               <div className="mx-auto max-w-7xl">
-                <MentorBookingsCalendar />
+                <MentorScheduleView />
               </div>
             </div>
           )

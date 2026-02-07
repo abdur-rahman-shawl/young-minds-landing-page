@@ -32,7 +32,7 @@ export async function GET(
 ) {
   try {
     const { moduleId } = await params;
-    
+
     const guard = await requireMentor(request, true);
     if ('error' in guard) {
       return guard.error;
@@ -54,14 +54,14 @@ export async function GET(
       course: courses,
       content: mentorContent,
     })
-    .from(courseModules)
-    .innerJoin(courses, eq(courseModules.courseId, courses.id))
-    .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-    .where(and(
-      eq(courseModules.id, moduleId),
-      eq(mentorContent.mentorId, mentor[0].id)
-    ))
-    .limit(1);
+      .from(courseModules)
+      .innerJoin(courses, eq(courseModules.courseId, courses.id))
+      .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
+      .where(and(
+        eq(courseModules.id, moduleId),
+        eq(mentorContent.mentorId, mentor[0].id)
+      ))
+      .limit(1);
 
     if (!moduleWithCourse.length) {
       return NextResponse.json({ error: 'Module not found' }, { status: 404 });
@@ -110,7 +110,7 @@ export async function POST(
 ) {
   try {
     const { moduleId } = await params;
-    
+
     const guard = await requireMentor(request, true);
     if ('error' in guard) {
       return guard.error;
@@ -132,14 +132,14 @@ export async function POST(
       course: courses,
       content: mentorContent,
     })
-    .from(courseModules)
-    .innerJoin(courses, eq(courseModules.courseId, courses.id))
-    .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-    .where(and(
-      eq(courseModules.id, moduleId),
-      eq(mentorContent.mentorId, mentor[0].id)
-    ))
-    .limit(1);
+      .from(courseModules)
+      .innerJoin(courses, eq(courseModules.courseId, courses.id))
+      .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
+      .where(and(
+        eq(courseModules.id, moduleId),
+        eq(mentorContent.mentorId, mentor[0].id)
+      ))
+      .limit(1);
 
     if (!moduleWithCourse.length) {
       return NextResponse.json({ error: 'Module not found' }, { status: 404 });

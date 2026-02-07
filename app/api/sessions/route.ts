@@ -66,12 +66,12 @@ export async function GET(request: NextRequest) {
     let filteredSessions = userSessions;
     if (type === 'upcoming') {
       const now = new Date();
-      filteredSessions = userSessions.filter(s => 
+      filteredSessions = userSessions.filter(s =>
         s.scheduledAt && new Date(s.scheduledAt) > now
       );
     } else if (type === 'past') {
       const now = new Date();
-      filteredSessions = userSessions.filter(s => 
+      filteredSessions = userSessions.filter(s =>
         s.scheduledAt && new Date(s.scheduledAt) <= now
       );
     }
@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'cancel') {
       const { sessionId } = body;
-      
+
       if (!sessionId) {
         return NextResponse.json(
           { success: false, error: 'Session ID is required' },
@@ -299,7 +299,7 @@ export async function POST(request: NextRequest) {
       // Update session status
       const [updatedSession] = await db
         .update(sessions)
-        .set({ 
+        .set({
           status: 'cancelled',
           updatedAt: new Date()
         })

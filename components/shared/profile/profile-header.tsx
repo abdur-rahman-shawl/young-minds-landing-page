@@ -44,22 +44,22 @@ export const ProfileHeader = React.memo<ProfileHeaderProps>(({
   }
 
   return (
-    <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm">
-      <CardContent className="p-8">
-        <div className="flex items-start gap-8">
-          <div className="relative group">
-            <Avatar className="h-24 w-24 ring-4 ring-white shadow-xl">
-              <AvatarImage 
-                src={user.image || undefined} 
+    <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm dark:bg-slate-900/80">
+      <CardContent className="p-4 sm:p-6 md:p-8">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 md:gap-8">
+          <div className="relative group flex-shrink-0">
+            <Avatar className="h-20 w-20 sm:h-24 sm:w-24 ring-4 ring-white dark:ring-slate-800 shadow-xl">
+              <AvatarImage
+                src={user.image || undefined}
                 alt={user.name}
                 className="object-cover"
               />
-              <AvatarFallback className="text-xl font-semibold bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+              <AvatarFallback className="text-lg sm:text-xl font-semibold bg-gradient-to-br from-blue-500 to-purple-600 text-white">
                 {userInitials}
               </AvatarFallback>
             </Avatar>
             {showImageUpload && isEditing && (
-              <div 
+              <div
                 className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 onClick={onImageUpload}
                 role="button"
@@ -79,78 +79,78 @@ export const ProfileHeader = React.memo<ProfileHeaderProps>(({
               </div>
             )}
           </div>
-          
-          <div className="flex-1 space-y-4">
+
+          <div className="flex-1 space-y-3 sm:space-y-4 text-center sm:text-left min-w-0">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900" data-testid="profile-name">
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate" data-testid="profile-name">
                 {user.name}
               </h2>
-              <div className="flex items-center gap-2 mt-1">
-                <Mail className="h-4 w-4 text-slate-500" />
-                <span className="text-slate-600" data-testid="profile-email">
+              <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+                <Mail className="h-4 w-4 text-slate-500 flex-shrink-0" />
+                <span className="text-sm sm:text-base text-slate-600 dark:text-slate-400 truncate" data-testid="profile-email">
                   {user.email}
                 </span>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <Badge 
-                variant="secondary" 
-                className={`px-3 py-1 ${roleColors[userRole]}`}
+
+            <div className="flex items-center justify-center sm:justify-start gap-2 sm:gap-3 flex-wrap">
+              <Badge
+                variant="secondary"
+                className={`px-2 sm:px-3 py-1 text-xs sm:text-sm ${roleColors[userRole]}`}
                 data-testid="user-role-badge"
               >
                 <User className="h-3 w-3 mr-1" />
                 {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
               </Badge>
-              <Badge variant="outline" className="px-3 py-1 border-green-200 text-green-700">
+              <Badge variant="outline" className="px-2 sm:px-3 py-1 text-xs sm:text-sm border-green-200 text-green-700 dark:border-green-800 dark:text-green-400">
                 Active
               </Badge>
             </div>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3 w-full sm:w-auto justify-center sm:justify-end flex-shrink-0">
             {!isEditing ? (
-              <Button 
+              <Button
                 onClick={onToggleEdit}
-                variant="outline" 
-                size="sm" 
-                className="gap-2"
+                variant="outline"
+                size="sm"
+                className="gap-2 w-full sm:w-auto"
                 data-testid="edit-profile-button"
               >
                 <Edit3 className="h-4 w-4" />
-                Edit Profile
+                <span>Edit Profile</span>
               </Button>
             ) : (
-              <div className="flex gap-2">
-                <Button 
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button
                   onClick={onSave}
-                  size="sm" 
-                  className="gap-2 bg-green-600 hover:bg-green-700"
+                  size="sm"
+                  className="gap-2 bg-green-600 hover:bg-green-700 flex-1 sm:flex-none"
                   disabled={isSaving}
                   data-testid="save-profile-button"
                 >
                   {isSaving ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                      Saving...
+                      <span className="hidden xs:inline">Saving...</span>
                     </>
                   ) : (
                     <>
                       <Save className="h-4 w-4" />
-                      Save
+                      <span>Save</span>
                     </>
                   )}
                 </Button>
-                <Button 
+                <Button
                   onClick={onCancel}
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-2"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 flex-1 sm:flex-none"
                   disabled={isSaving}
                   data-testid="cancel-edit-button"
                 >
                   <X className="h-4 w-4" />
-                  Cancel
+                  <span>Cancel</span>
                 </Button>
               </div>
             )}

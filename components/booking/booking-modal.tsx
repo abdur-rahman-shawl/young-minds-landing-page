@@ -80,6 +80,9 @@ export function BookingModal({
   const [sessionAvailability, setSessionAvailability] = useState<{
     freeAvailable: boolean;
     paidAvailable: boolean;
+    freeRemaining?: number | null;
+    paidRemaining?: number | null;
+    mentorSessionsRemaining?: number | null;
   } | null>(null);
 
   // Steps definition for UI mapping
@@ -120,17 +123,26 @@ export function BookingModal({
           setSessionAvailability({
             freeAvailable: Boolean(data.data?.free_available),
             paidAvailable: Boolean(data.data?.paid_available),
+            freeRemaining: data.data?.free_remaining ?? null,
+            paidRemaining: data.data?.paid_remaining ?? null,
+            mentorSessionsRemaining: data.data?.mentor_sessions_remaining ?? null,
           });
         } else {
           setSessionAvailability({
             freeAvailable: true,
             paidAvailable: true,
+            freeRemaining: null,
+            paidRemaining: null,
+            mentorSessionsRemaining: null,
           });
         }
       } catch (error) {
         setSessionAvailability({
           freeAvailable: true,
           paidAvailable: true,
+          freeRemaining: null,
+          paidRemaining: null,
+          mentorSessionsRemaining: null,
         });
       } finally {
         setAvailabilityLoading(false);
@@ -144,12 +156,18 @@ export function BookingModal({
     ? {
         freeAvailable: allowFreeBooking ? sessionAvailability.freeAvailable : false,
         paidAvailable: sessionAvailability.paidAvailable,
+        freeRemaining: sessionAvailability.freeRemaining ?? null,
+        paidRemaining: sessionAvailability.paidRemaining ?? null,
+        mentorSessionsRemaining: sessionAvailability.mentorSessionsRemaining ?? null,
       }
     : allowFreeBooking
       ? null
       : {
           freeAvailable: false,
           paidAvailable: true,
+          freeRemaining: null,
+          paidRemaining: null,
+          mentorSessionsRemaining: null,
         };
 
   const handleAttemptClose = () => {
@@ -298,7 +316,7 @@ export function BookingModal({
                 )}
 
                 <div className="mt-auto pt-6 text-xs text-center text-muted-foreground">
-                  Powered by <span className="font-semibold text-foreground">Mentore</span>
+                  Powered by <span className="font-semibold text-foreground">SharingMinds</span>
                 </div>
               </div>
             </div>

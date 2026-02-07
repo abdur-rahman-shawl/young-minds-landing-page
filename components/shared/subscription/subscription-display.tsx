@@ -120,48 +120,48 @@ export function SubscriptionDisplay() {
   const [selectingPlanId, setSelectingPlanId] = useState<string | null>(null);
 
   const loadSubscription = async () => {
-      try {
-        const preferredAudience = isMentor ? "mentor" : isMentee ? "mentee" : null;
-        const audienceQuery = preferredAudience ? `?audience=${preferredAudience}` : "";
+    try {
+      const preferredAudience = isMentor ? "mentor" : isMentee ? "mentee" : null;
+      const audienceQuery = preferredAudience ? `?audience=${preferredAudience}` : "";
 
-        const [subRes, usageRes] = await Promise.all([
-          fetch(`/api/subscriptions/me${audienceQuery}`, { credentials: "include" }),
-          fetch(`/api/subscriptions/me/usage${audienceQuery}`, { credentials: "include" }),
-        ]);
+      const [subRes, usageRes] = await Promise.all([
+        fetch(`/api/subscriptions/me${audienceQuery}`, { credentials: "include" }),
+        fetch(`/api/subscriptions/me/usage${audienceQuery}`, { credentials: "include" }),
+      ]);
 
-        const subData = await subRes.json();
-        const usageData = await usageRes.json();
+      const subData = await subRes.json();
+      const usageData = await usageRes.json();
 
-        if (!subRes.ok || !subData.success) {
-          setError(subData.message || "Failed to load subscription details");
-          return;
-        }
-
-        const subscriptionInfo = subData.data.subscription;
-        setSubscription(subscriptionInfo);
-        setFeatures(subData.data.features || []);
-
-        if (usageRes.ok && usageData.success) {
-          setUsage(usageData.data || []);
-        }
-
-        const fallbackAudience = preferredAudience;
-        const audienceParam = subscriptionInfo?.audience || fallbackAudience;
-        const planUrl = audienceParam
-          ? `/api/subscriptions/plans/public?audience=${audienceParam}`
-          : "/api/subscriptions/plans/public";
-        const planRes = await fetch(planUrl, { credentials: "include" });
-        const planData = await planRes.json();
-        if (planRes.ok && planData.success) {
-          setPlans(planData.data || []);
-        }
-      } catch (err) {
-        console.error("Failed to load subscription details:", err);
-        setError("Failed to load subscription details");
-      } finally {
-        setLoading(false);
+      if (!subRes.ok || !subData.success) {
+        setError(subData.message || "Failed to load subscription details");
+        return;
       }
-    };
+
+      const subscriptionInfo = subData.data.subscription;
+      setSubscription(subscriptionInfo);
+      setFeatures(subData.data.features || []);
+
+      if (usageRes.ok && usageData.success) {
+        setUsage(usageData.data || []);
+      }
+
+      const fallbackAudience = preferredAudience;
+      const audienceParam = subscriptionInfo?.audience || fallbackAudience;
+      const planUrl = audienceParam
+        ? `/api/subscriptions/plans/public?audience=${audienceParam}`
+        : "/api/subscriptions/plans/public";
+      const planRes = await fetch(planUrl, { credentials: "include" });
+      const planData = await planRes.json();
+      if (planRes.ok && planData.success) {
+        setPlans(planData.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load subscription details:", err);
+      setError("Failed to load subscription details");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadSubscription();
@@ -262,26 +262,24 @@ export function SubscriptionDisplay() {
               const isCurrent = subscription ? plan.id === subscription.plan_id : false;
               const priceLabel = monthlyPrice
                 ? new Intl.NumberFormat("en-US", {
-                    style: "currency",
-                    currency: monthlyPrice.currency || "USD",
-                  }).format(monthlyPrice.amount)
+                  style: "currency",
+                  currency: monthlyPrice.currency || "USD",
+                }).format(monthlyPrice.amount)
                 : "Custom";
 
               return (
                 <div
                   key={plan.id}
-                  className={`relative overflow-hidden rounded-2xl border ${
-                    isCurrent
+                  className={`relative overflow-hidden rounded-2xl border ${isCurrent
                       ? "border-emerald-300 bg-emerald-50"
                       : "border-slate-200 bg-white"
-                  } shadow-sm`}
+                    } shadow-sm`}
                 >
                   <div
-                    className={`absolute inset-x-0 top-0 h-24 ${
-                      isCurrent
+                    className={`absolute inset-x-0 top-0 h-24 ${isCurrent
                         ? "bg-gradient-to-r from-emerald-200 via-emerald-100 to-transparent"
                         : "bg-gradient-to-r from-amber-100 via-amber-50 to-transparent"
-                    }`}
+                      }`}
                   />
                   <div className="relative flex h-full flex-col p-6">
                     <div className="flex items-start justify-between gap-4">
@@ -339,9 +337,8 @@ export function SubscriptionDisplay() {
                       <Button
                         disabled={isCurrent}
                         onClick={() => handleSelectPlan(plan)}
-                        className={`w-full ${
-                          isCurrent ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"
-                        }`}
+                        className={`w-full ${isCurrent ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"
+                          }`}
                       >
                         {isCurrent
                           ? "Current Plan"

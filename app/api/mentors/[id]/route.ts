@@ -136,12 +136,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const responseMentor = isAdmin
       ? formattedMentor
       : {
-          ...formattedMentor,
-          email: null,
-          phone: null,
-          resumeUrl: null,
-          userEmail: null,
-        };
+        ...formattedMentor,
+        email: null,
+        phone: null,
+        resumeUrl: null,
+        userEmail: null,
+      };
 
     return NextResponse.json({
       success: true,

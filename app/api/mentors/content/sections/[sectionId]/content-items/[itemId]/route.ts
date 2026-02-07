@@ -26,7 +26,7 @@ export async function GET(
 ) {
   try {
     const { sectionId, itemId } = await params;
-    
+
     const guard = await requireMentor(request, true);
     if ('error' in guard) {
       return guard.error;
@@ -49,15 +49,15 @@ export async function GET(
       course: courses,
       content: mentorContent,
     })
-    .from(courseSections)
-    .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
-    .innerJoin(courses, eq(courseModules.courseId, courses.id))
-    .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-    .where(and(
-      eq(courseSections.id, sectionId),
-      eq(mentorContent.mentorId, mentor[0].id)
-    ))
-    .limit(1);
+      .from(courseSections)
+      .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
+      .innerJoin(courses, eq(courseModules.courseId, courses.id))
+      .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
+      .where(and(
+        eq(courseSections.id, sectionId),
+        eq(mentorContent.mentorId, mentor[0].id)
+      ))
+      .limit(1);
 
     if (!sectionWithCourse.length) {
       return NextResponse.json({ error: 'Section not found' }, { status: 404 });
@@ -95,7 +95,7 @@ export async function PUT(
 ) {
   try {
     const { sectionId, itemId } = await params;
-    
+
     const guard = await requireMentor(request, true);
     if ('error' in guard) {
       return guard.error;
@@ -118,15 +118,15 @@ export async function PUT(
       course: courses,
       content: mentorContent,
     })
-    .from(courseSections)
-    .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
-    .innerJoin(courses, eq(courseModules.courseId, courses.id))
-    .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-    .where(and(
-      eq(courseSections.id, sectionId),
-      eq(mentorContent.mentorId, mentor[0].id)
-    ))
-    .limit(1);
+      .from(courseSections)
+      .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
+      .innerJoin(courses, eq(courseModules.courseId, courses.id))
+      .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
+      .where(and(
+        eq(courseSections.id, sectionId),
+        eq(mentorContent.mentorId, mentor[0].id)
+      ))
+      .limit(1);
 
     if (!sectionWithCourse.length) {
       return NextResponse.json({ error: 'Section not found' }, { status: 404 });
@@ -184,7 +184,7 @@ export async function DELETE(
 ) {
   try {
     const { sectionId, itemId } = await params;
-    
+
     const guard = await requireMentor(request, true);
     if ('error' in guard) {
       return guard.error;
@@ -207,15 +207,15 @@ export async function DELETE(
       course: courses,
       content: mentorContent,
     })
-    .from(courseSections)
-    .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
-    .innerJoin(courses, eq(courseModules.courseId, courses.id))
-    .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-    .where(and(
-      eq(courseSections.id, sectionId),
-      eq(mentorContent.mentorId, mentor[0].id)
-    ))
-    .limit(1);
+      .from(courseSections)
+      .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
+      .innerJoin(courses, eq(courseModules.courseId, courses.id))
+      .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
+      .where(and(
+        eq(courseSections.id, sectionId),
+        eq(mentorContent.mentorId, mentor[0].id)
+      ))
+      .limit(1);
 
     if (!sectionWithCourse.length) {
       return NextResponse.json({ error: 'Section not found' }, { status: 404 });

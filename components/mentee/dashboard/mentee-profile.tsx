@@ -12,13 +12,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/contexts/auth-context"
 import { motion } from "framer-motion"
-import { 
-  Briefcase, 
-  GraduationCap, 
-  Target, 
-  Code, 
-  Heart, 
-  Brain, 
+import {
+  Briefcase,
+  GraduationCap,
+  Target,
+  Code,
+  Heart,
+  Brain,
   Calendar,
   CheckCircle2,
   AlertTriangle,
@@ -29,13 +29,13 @@ import {
 import { ProfileHeader } from "@/components/shared/profile/profile-header"
 import { useProfileLoader, ProfileApiService, ProfileValidators } from "@/components/shared/profile/base-profile"
 import { ProfileErrorBoundary } from "@/components/shared/profile/profile-error-boundary"
-import type { 
-  MenteeProfile, 
-  BaseUser, 
+import type {
+  MenteeProfile as MenteeProfileData,
+  BaseUser,
   MenteeProfileFields
 } from "@/components/shared/profile/profile-types"
 
-const INITIAL_MENTEE_DATA: MenteeProfile = {
+const INITIAL_MENTEE_DATA: MenteeProfileData = {
   currentRole: '',
   currentCompany: '',
   education: '',
@@ -49,7 +49,7 @@ const INITIAL_MENTEE_DATA: MenteeProfile = {
 
 const MenteeProfileComponent = React.memo(() => {
   const { session } = useAuth()
-  
+
   const baseUser: BaseUser = useMemo(() => ({
     id: session?.user?.id || '',
     name: session?.user?.name || 'User',
@@ -57,10 +57,10 @@ const MenteeProfileComponent = React.memo(() => {
     image: session?.user?.image
   }), [session])
 
-  const extractMenteeProfile = useCallback((data: any): MenteeProfile => {
+  const extractMenteeProfile = useCallback((data: any): MenteeProfileData => {
     const profile = data.menteeProfile
     if (!profile) return INITIAL_MENTEE_DATA
-    
+
     return {
       currentRole: profile.currentRole || '',
       currentCompany: profile.currentCompany || '',
@@ -102,7 +102,7 @@ const MenteeProfileComponent = React.memo(() => {
       ProfileValidators.maxLength(state.data.skillsToLearn, 500, 'Skills to Learn'),
       ProfileValidators.maxLength(state.data.interests, 500, 'Interests')
     ]
-    
+
     return validators.find(error => error !== null) || null
   }, [state.data])
 
@@ -121,13 +121,13 @@ const MenteeProfileComponent = React.memo(() => {
     try {
       actions.setIsSaving(true)
       actions.setError(null)
-      
+
       const result = await ProfileApiService.saveProfile(
         baseUser.id,
         state.data,
         'create-mentee-profile'
       )
-      
+
       if (result.success) {
         actions.setSuccess('Profile updated successfully!')
         setTimeout(() => actions.setSuccess(null), 3000)
@@ -152,10 +152,10 @@ const MenteeProfileComponent = React.memo(() => {
   if (state.isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-         <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="text-muted-foreground animate-pulse">Loading your profile...</p>
-         </div>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-muted-foreground animate-pulse">Loading your profile...</p>
+        </div>
       </div>
     )
   }
@@ -163,7 +163,7 @@ const MenteeProfileComponent = React.memo(() => {
   // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: { 
+    visible: {
       opacity: 1,
       transition: { staggerChildren: 0.1 }
     }
@@ -175,19 +175,19 @@ const MenteeProfileComponent = React.memo(() => {
   }
 
   return (
-    <motion.div 
+    <motion.div
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="min-h-screen pb-20"
+      className="min-h-screen pb-12 sm:pb-20"
     >
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        <motion.div variants={itemVariants} className="space-y-8">
-          
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
+        <motion.div variants={itemVariants} className="space-y-4 sm:space-y-6 md:space-y-8">
+
           {/* Page Header */}
           <div className="flex flex-col gap-1">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">My Profile</h1>
-            <p className="text-muted-foreground">Manage your mentee identity and preferences to find the best match.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">My Profile</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Manage your mentee identity and preferences to find the best match.</p>
           </div>
 
           {/* Status Messages */}
@@ -222,23 +222,23 @@ const MenteeProfileComponent = React.memo(() => {
 
           {/* Main Form Content */}
           <Card className="border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
+            <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 p-4 sm:p-6">
               <div className="flex items-center gap-2 text-primary">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Target className="h-5 w-5" />
+                <div className="p-1.5 sm:p-2 bg-primary/10 rounded-lg">
+                  <Target className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
-                <CardTitle className="text-xl font-semibold text-foreground">
-                   Career Information
+                <CardTitle className="text-lg sm:text-xl font-semibold text-foreground">
+                  Career Information
                 </CardTitle>
               </div>
-              <CardDescription>
+              <CardDescription className="text-sm">
                 Your professional background helps mentors understand your path.
               </CardDescription>
             </CardHeader>
-            
-            <CardContent className="space-y-8 p-6 md:p-8">
+
+            <CardContent className="space-y-6 sm:space-y-8 p-4 sm:p-6 md:p-8">
               {/* Current Role & Company */}
-              <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div className="space-y-3">
                   <Label className="text-sm font-medium text-foreground flex items-center gap-2">
                     <Briefcase className="h-4 w-4 text-muted-foreground" />
@@ -467,7 +467,7 @@ const MenteeProfileComponent = React.memo(() => {
                       </Select>
                     ) : (
                       <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-md border border-slate-100 dark:border-slate-800 flex items-center">
-                         {state.data.preferredMeetingFrequency ? (
+                        {state.data.preferredMeetingFrequency ? (
                           <span className="capitalize">{state.data.preferredMeetingFrequency.replace('-', ' ')}</span>
                         ) : (
                           <span className="text-muted-foreground italic">Not specified</span>

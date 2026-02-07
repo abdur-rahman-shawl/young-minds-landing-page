@@ -16,30 +16,40 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'SYSTEM_ANNOUNCEMENT',
   'MENTOR_APPLICATION_APPROVED',
   'MENTOR_APPLICATION_REJECTED',
-  'MENTOR_APPLICATION_UPDATE_REQUESTED'
+  'MENTOR_APPLICATION_UPDATE_REQUESTED',
+  // Reschedule approval flow
+  'RESCHEDULE_REQUEST',
+  'RESCHEDULE_ACCEPTED',
+  'RESCHEDULE_REJECTED',
+  'RESCHEDULE_COUNTER',
+  'RESCHEDULE_WITHDRAWN',
+  // Session reassignment (when mentor cancels)
+  'SESSION_REASSIGNED',
+  'REASSIGNMENT_ACCEPTED',
+  'REASSIGNMENT_REJECTED',
 ]);
 
 export const notifications = pgTable('notifications', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  
+
   // Notification content
   type: notificationTypeEnum('type').notNull(),
   title: text('title').notNull(),
   message: text('message').notNull(),
-  
+
   // Related resources
   relatedId: uuid('related_id'), // Could be session_id, booking_id, etc.
   relatedType: text('related_type'), // 'session', 'booking', 'message', etc.
-  
+
   // Notification state
   isRead: boolean('is_read').default(false).notNull(),
   isArchived: boolean('is_archived').default(false).notNull(),
-  
+
   // Optional action data
   actionUrl: text('action_url'), // URL to navigate when clicking notification
   actionText: text('action_text'), // Text for action button
-  
+
   // Timestamps
   createdAt: timestamp('created_at').defaultNow().notNull(),
   readAt: timestamp('read_at'),

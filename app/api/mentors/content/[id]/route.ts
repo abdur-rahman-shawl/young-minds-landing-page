@@ -10,13 +10,13 @@ const updateContentSchema = z.object({
   title: z.string().min(1, 'Title is required').optional(),
   description: z.string().optional(),
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
-  
+
   // For FILE type
   fileUrl: z.string().optional(),
   fileName: z.string().optional(),
   fileSize: z.number().optional(),
   mimeType: z.string().optional(),
-  
+
   // For URL type
   url: z.string().refine((val) => !val || val === '' || /^https?:\/\/.+/.test(val), {
     message: 'Invalid URL format'

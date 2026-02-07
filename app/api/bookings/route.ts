@@ -384,6 +384,50 @@ export async function POST(req: NextRequest) {
       actionText: 'View Sessions',
     });
 
+    // Send booking confirmation emails
+    const bookingEmailData = {
+      sessionId: newBooking.id,
+      sessionTitle: validatedData.title,
+      scheduledAt: scheduledAt,
+      duration: validatedData.duration,
+      meetingType: validatedData.meetingType as 'video' | 'audio' | 'chat',
+    };
+
+    // Fetch mentor email data first (needed for both emails)
+    const mentorEmailData = await db
+      .select({ name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.id, validatedData.mentorId))
+      .limit(1);
+
+    const mentorNameForEmail = mentorEmailData[0]?.name || 'Your Mentor';
+
+    // Email to mentee (booking confirmed)
+    const menteeData = await db
+      .select({ name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1);
+
+    if (menteeData[0]?.email) {
+      await sendBookingConfirmedEmail(
+        menteeData[0].email,
+        menteeData[0].name || 'Mentee',
+        mentorNameForEmail,
+        bookingEmailData
+      );
+    }
+
+    // Email to mentor (new booking alert)
+    if (mentorEmailData[0]?.email) {
+      await sendNewBookingAlertEmail(
+        mentorEmailData[0].email,
+        mentorEmailData[0].name || 'Mentor',
+        session.user.name || 'A Mentee',
+        bookingEmailData
+      );
+    }
+
     // ========================================================================
     // CREATE LIVEKIT ROOM FOR THE SESSION
     // ========================================================================
@@ -522,15 +566,32 @@ export async function GET(req: NextRequest) {
         currency: sessions.currency,
         mentorNotes: sessions.mentorNotes,
         menteeNotes: sessions.menteeNotes,
-        //mentorRating: sessions.mentorRating,
-        // menteeRating: sessions.menteeRating,
         createdAt: sessions.createdAt,
         updatedAt: sessions.updatedAt,
         mentorId: sessions.mentorId,
         menteeId: sessions.menteeId,
         rescheduleCount: sessions.rescheduleCount,
+        mentorRescheduleCount: sessions.mentorRescheduleCount,
+        cancelledBy: sessions.cancelledBy,
+        // Pending reschedule fields
+        pendingRescheduleRequestId: sessions.pendingRescheduleRequestId,
+        pendingRescheduleTime: sessions.pendingRescheduleTime,
+        pendingRescheduleBy: sessions.pendingRescheduleBy,
+        // Auto-reassignment fields
+        wasReassigned: sessions.wasReassigned,
+        reassignedFromMentorId: sessions.reassignedFromMentorId,
+        reassignedAt: sessions.reassignedAt,
+        reassignmentStatus: sessions.reassignmentStatus,
+        // Mentor info (from JOIN with mentors table)
+        mentorName: mentors.fullName,
+        mentorAvatar: mentors.profileImageUrl,
+        // Mentee info (from JOIN with users table)
+        menteeName: users.name,
+        menteeAvatar: users.image,
       })
       .from(sessions)
+      .leftJoin(mentors, eq(sessions.mentorId, mentors.userId))
+      .leftJoin(users, eq(sessions.menteeId, users.id))
       .where(whereCondition)
       .orderBy(desc(sessions.scheduledAt));
 

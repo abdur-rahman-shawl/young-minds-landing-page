@@ -82,13 +82,13 @@ export async function POST(request: NextRequest) {
         options = {
           maxSize: 500 * 1024 * 1024, // 500MB for videos
           allowedTypes: [
-            'video/mp4', 
-            'video/mpeg', 
-            'video/quicktime', 
+            'video/mp4',
+            'video/mpeg',
+            'video/quicktime',
             'video/x-msvideo',
-            'mp4', 
-            'mpeg', 
-            'mov', 
+            'mp4',
+            'mpeg',
+            'mov',
             'avi'
           ],
           public: false,
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
       });
     } catch (uploadError: any) {
       console.error('Upload error:', uploadError);
-      
+
       // Try fallback for document uploads
       if (fileType === 'document' || fileType === 'content') {
         try {
@@ -168,9 +168,9 @@ export async function POST(request: NextRequest) {
             ...options,
             contentType: 'application/octet-stream',
           };
-          
+
           const result = await storage.upload(file, path, fallbackOptions);
-          
+
           return NextResponse.json({
             url: result.url,
             path: result.path,

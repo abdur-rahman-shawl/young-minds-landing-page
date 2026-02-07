@@ -1,181 +1,340 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { CANCELLATION_REASONS } from "@/lib/db/schema/session-policies";
+import { CANCELLATION_REASONS, MENTOR_CANCELLATION_REASONS } from "@/lib/db/schema/session-policies";
 
 interface CancelDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  sessionId: string;
-  sessionTitle: string;
-  onSuccess?: () => void;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    sessionId: string;
+    sessionTitle: string;
+    userRole: "mentor" | "mentee";
+    sessionRate?: number;
+    scheduledAt?: Date;
+    onSuccess?: () => void;
+}
+
+interface PolicyData {
+    cancellationCutoffHours: number;
+    freeCancellationHours: number;
+    partialRefundPercentage: number;
+    lateCancellationRefundPercentage: number;
 }
 
 export function CancelDialog({
-  open,
-  onOpenChange,
-  sessionId,
-  sessionTitle,
-  onSuccess,
+    open,
+    onOpenChange,
+    sessionId,
+    sessionTitle,
+    userRole,
+    sessionRate = 0,
+    scheduledAt,
+    onSuccess,
 }: CancelDialogProps) {
-  const [reasonCategory, setReasonCategory] = useState<string>("");
-  const [reasonDetails, setReasonDetails] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+    const [reasonCategory, setReasonCategory] = useState<string>("");
+    const [reasonDetails, setReasonDetails] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [policyData, setPolicyData] = useState<PolicyData | null>(null);
+    const [loadingPolicies, setLoadingPolicies] = useState(false);
+    const { toast } = useToast();
 
-  const handleCancel = async () => {
-    if (!reasonCategory) {
-      toast({
-        title: "Reason Required",
-        description: "Please select a reason for cancellation.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Normalize sessionRate to number (may come as string from db)
+    const rate = typeof sessionRate === 'string' ? parseFloat(sessionRate) : (sessionRate || 0);
 
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/bookings/${sessionId}/cancel`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          reasonCategory,
-          reasonDetails: reasonDetails.trim() || undefined
-        }),
-      });
+    // Select appropriate cancellation reasons based on role
+    const cancellationReasons = userRole === "mentor" ? MENTOR_CANCELLATION_REASONS : CANCELLATION_REASONS;
 
-      const data = await response.json();
+    // Calculate refund preview
+    const calculateRefundPreview = () => {
+        if (!policyData || !scheduledAt) return { percentage: 0, amount: 0 };
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to cancel session");
-      }
+        const now = new Date();
+        const scheduled = new Date(scheduledAt);
+        const hoursUntilSession = (scheduled.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-      toast({
-        title: "Session Cancelled",
-        description: "The session has been cancelled successfully. The mentor has been notified.",
-      });
+        // Mentor cancels → always 100%
+        if (userRole === "mentor") return { percentage: 100, amount: rate };
 
-      onOpenChange(false);
-      setReasonCategory("");
-      setReasonDetails("");
-      onSuccess?.();
-    } catch (error) {
-      console.error("Error cancelling session:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to cancel session",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        // Session in the past
+        if (hoursUntilSession <= 0) return { percentage: 0, amount: 0 };
 
-  const handleClose = (open: boolean) => {
-    if (!open) {
-      setReasonCategory("");
-      setReasonDetails("");
-    }
-    onOpenChange(open);
-  };
+        // Free cancellation window
+        if (hoursUntilSession >= policyData.freeCancellationHours) {
+            return { percentage: 100, amount: rate };
+        }
 
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-yellow-500" />
-            Cancel Session
-          </DialogTitle>
-          <DialogDescription>
-            Are you sure you want to cancel "{sessionTitle}"? This action cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          {/* Reason Category (Required) */}
-          <div className="grid gap-2">
-            <Label htmlFor="reason-category">
-              Reason for Cancellation <span className="text-red-500">*</span>
-            </Label>
-            <Select value={reasonCategory} onValueChange={setReasonCategory}>
-              <SelectTrigger id="reason-category">
-                <SelectValue placeholder="Select a reason..." />
-              </SelectTrigger>
-              <SelectContent>
-                {CANCELLATION_REASONS.map((reason) => (
-                  <SelectItem key={reason.value} value={reason.value}>
-                    {reason.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        // Between free and cutoff
+        if (hoursUntilSession >= policyData.cancellationCutoffHours) {
+            const amount = (rate * policyData.partialRefundPercentage) / 100;
+            return { percentage: policyData.partialRefundPercentage, amount };
+        }
 
-          {/* Additional Details (Optional) */}
-          <div className="grid gap-2">
-            <Label htmlFor="reason-details">Additional Details (Optional)</Label>
-            <Textarea
-              id="reason-details"
-              placeholder="Please provide any additional context..."
-              value={reasonDetails}
-              onChange={(e) => setReasonDetails(e.target.value)}
-              className="min-h-[80px]"
-              maxLength={500}
-            />
-            <p className="text-xs text-muted-foreground">
-              {reasonDetails.length}/500 characters
-            </p>
-          </div>
+        // After cutoff (late cancellation)
+        const amount = (rate * policyData.lateCancellationRefundPercentage) / 100;
+        return { percentage: policyData.lateCancellationRefundPercentage, amount };
+    };
 
-          {/* Policy Notice */}
-          <div className="rounded-lg bg-yellow-50 dark:bg-yellow-950/30 p-3 text-sm text-yellow-800 dark:text-yellow-200">
-            <p className="font-medium">Cancellation Policy:</p>
-            <ul className="mt-1 list-disc list-inside space-y-1 text-xs">
-              <li>Sessions cannot be cancelled within 2 hours of the scheduled time</li>
-              <li>The mentor will be notified of the cancellation</li>
-              <li>Frequent cancellations may affect your account standing</li>
-            </ul>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => handleClose(false)}
-            disabled={isLoading}
-          >
-            Keep Session
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={handleCancel}
-            disabled={isLoading || !reasonCategory}
-          >
-            {isLoading ? "Cancelling..." : "Cancel Session"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+    const refundPreview = calculateRefundPreview();
+
+    // Fetch policies when dialog opens
+    useEffect(() => {
+        const fetchPolicies = async () => {
+            if (!open) return;
+
+            setLoadingPolicies(true);
+            try {
+                const response = await fetch(`/api/session-policies?role=${userRole}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    setPolicyData(data);
+                }
+            } catch (error) {
+                console.error("Error fetching policies:", error);
+            } finally {
+                setLoadingPolicies(false);
+            }
+        };
+
+        fetchPolicies();
+    }, [open, userRole]);
+
+    const handleCancel = async () => {
+        if (!reasonCategory) {
+            toast({
+                title: "Reason Required",
+                description: "Please select a reason for cancellation.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const response = await fetch(`/api/bookings/${sessionId}/cancel`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    reasonCategory,
+                    reasonDetails: reasonDetails.trim() || undefined
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to cancel session");
+            }
+
+            // Check if session was reassigned to a new mentor
+            if (data.reassigned) {
+                toast({
+                    title: "✅ Session Reassigned Successfully",
+                    description: "Your session has been reassigned to another mentor. The mentee will be notified and can choose to continue or cancel for a full refund.",
+                    duration: 6000,
+                });
+            } else if (userRole === "mentor") {
+                // Mentor cancelled, no replacement found
+                toast({
+                    title: "✅ Session Cancelled",
+                    description: `The session has been cancelled. The mentee has been notified and will receive a full refund of $${rate.toFixed(2)}.`,
+                    duration: 5000,
+                });
+            } else {
+                // Mentee cancelled
+                const refundMessage = data.refundAmount > 0
+                    ? `You will receive a refund of $${data.refundAmount.toFixed(2)} (${data.refundPercentage}%).`
+                    : "No refund is applicable for this cancellation.";
+
+                toast({
+                    title: "✅ Session Cancelled",
+                    description: `The session has been cancelled successfully. Your mentor has been notified. ${refundMessage}`,
+                    duration: 5000,
+                });
+            }
+
+            onOpenChange(false);
+            setReasonCategory("");
+            setReasonDetails("");
+            onSuccess?.();
+        } catch (error) {
+            console.error("Error cancelling session:", error);
+            toast({
+                title: "Error",
+                description: error instanceof Error ? error.message : "Failed to cancel session",
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleClose = (open: boolean) => {
+        if (!open) {
+            setReasonCategory("");
+            setReasonDetails("");
+            setPolicyData(null);
+        }
+        onOpenChange(open);
+    };
+
+    const cutoffHours = policyData?.cancellationCutoffHours ?? (userRole === "mentor" ? 1 : 2);
+    const otherPartyLabel = userRole === "mentor" ? "mentee" : "mentor";
+
+    return (
+        <Dialog open={open} onOpenChange={handleClose}>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                        Cancel Session
+                    </DialogTitle>
+                    <DialogDescription>
+                        Are you sure you want to cancel &quot;{sessionTitle}&quot;? This action cannot be undone.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    {/* Payment Impact Notice - Role-specific */}
+                    {rate > 0 && (
+                        userRole === "mentor" ? (
+                            // Mentor view: Explain what happens to the session/payment
+                            <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3 text-sm text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+                                <div className="flex items-center gap-2 font-medium">
+                                    <DollarSign className="h-4 w-4" />
+                                    What Happens Next
+                                </div>
+                                <ul className="mt-2 list-disc list-inside space-y-1 text-xs">
+                                    <li>We'll try to find another mentor for this session</li>
+                                    <li>If found, the mentee can accept or cancel for a full refund</li>
+                                    <li>If no replacement is found, the mentee receives a 100% refund (${rate.toFixed(2)})</li>
+                                    <li>No payment will be issued to you for this session</li>
+                                </ul>
+                            </div>
+                        ) : (
+                            // Mentee view: Show refund preview
+                            <div className="rounded-lg bg-green-50 dark:bg-green-950/30 p-3 text-sm text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800">
+                                <div className="flex items-center gap-2 font-medium">
+                                    <DollarSign className="h-4 w-4" />
+                                    Refund Preview
+                                </div>
+                                {loadingPolicies ? (
+                                    <div className="mt-2 flex items-center gap-2 text-xs">
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        Calculating...
+                                    </div>
+                                ) : (
+                                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                        <div className="text-muted-foreground">Session Rate:</div>
+                                        <div className="font-medium">${rate.toFixed(2)}</div>
+                                        <div className="text-muted-foreground">Your Refund:</div>
+                                        <div className="font-medium">
+                                            {refundPreview.percentage}% (${refundPreview.amount.toFixed(2)})
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    )}
+
+                    {/* Reason Category (Required) */}
+                    <div className="grid gap-2">
+                        <Label htmlFor="reason-category">
+                            Reason for Cancellation <span className="text-red-500">*</span>
+                        </Label>
+                        <Select value={reasonCategory} onValueChange={setReasonCategory}>
+                            <SelectTrigger id="reason-category">
+                                <SelectValue placeholder="Select a reason..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {cancellationReasons.map((reason) => (
+                                    <SelectItem key={reason.value} value={reason.value}>
+                                        {reason.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Additional Details (Optional) */}
+                    <div className="grid gap-2">
+                        <Label htmlFor="reason-details">Additional Details (Optional)</Label>
+                        <Textarea
+                            id="reason-details"
+                            placeholder="Please provide any additional context..."
+                            value={reasonDetails}
+                            onChange={(e) => setReasonDetails(e.target.value)}
+                            className="min-h-[80px]"
+                            maxLength={500}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            {reasonDetails.length}/500 characters
+                        </p>
+                    </div>
+
+                    {/* Policy Notice - Role-specific */}
+                    <div className="rounded-lg bg-yellow-50 dark:bg-yellow-950/30 p-3 text-sm text-yellow-800 dark:text-yellow-200">
+                        <p className="font-medium">Cancellation Policy:</p>
+                        {loadingPolicies ? (
+                            <div className="mt-1 flex items-center gap-2 text-xs">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Loading policy...
+                            </div>
+                        ) : userRole === "mentor" ? (
+                            // Mentor policy notice
+                            <ul className="mt-1 list-disc list-inside space-y-1 text-xs">
+                                <li>The mentee will receive a full refund if no replacement is found</li>
+                                <li>Frequent cancellations may affect your mentor rating</li>
+                                <li>The mentee will be notified of the cancellation</li>
+                            </ul>
+                        ) : (
+                            // Mentee policy notice
+                            <ul className="mt-1 list-disc list-inside space-y-1 text-xs">
+                                <li>Free cancellation: {policyData?.freeCancellationHours ?? 24}+ hours before session (100% refund)</li>
+                                <li>Partial refund: {cutoffHours}–{policyData?.freeCancellationHours ?? 24} hours before ({policyData?.partialRefundPercentage ?? 70}%)</li>
+                                <li>The {otherPartyLabel} will be notified of the cancellation</li>
+                            </ul>
+                        )}
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button
+                        variant="outline"
+                        onClick={() => handleClose(false)}
+                        disabled={isLoading}
+                    >
+                        Keep Session
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        onClick={handleCancel}
+                        disabled={isLoading || !reasonCategory}
+                    >
+                        {isLoading ? "Cancelling..." : "Cancel Session"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }
