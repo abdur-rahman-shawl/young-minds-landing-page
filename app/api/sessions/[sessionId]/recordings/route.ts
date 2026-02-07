@@ -22,6 +22,8 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { livekitRooms, livekitRecordings, sessions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
 
 export async function GET(
   request: NextRequest,
@@ -70,6 +72,20 @@ export async function GET(
         {
           error: 'Forbidden',
           message: 'You are not authorized to view recordings for this session',
+        },
+        { status: 403 }
+      );
+    }
+
+    const { has_access, reason } = await checkFeatureAccess(
+      userId,
+      FEATURE_KEYS.SESSION_RECORDINGS_ACCESS
+    );
+    if (!has_access) {
+      return NextResponse.json(
+        {
+          error: 'Forbidden',
+          message: reason || 'Session recordings are not included in your plan',
         },
         { status: 403 }
       );

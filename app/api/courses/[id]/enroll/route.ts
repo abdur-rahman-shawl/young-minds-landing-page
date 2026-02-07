@@ -10,6 +10,8 @@ import {
   paymentTransactions
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { checkFeatureAccess, getPlanFeatures, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -116,6 +118,35 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const coursesAccess = await checkFeatureAccess(
+      userId,
+      FEATURE_KEYS.COURSES_ACCESS
+    );
+    if (!coursesAccess.has_access) {
+      return NextResponse.json(
+        { success: false, error: coursesAccess.reason || 'Courses are not included in your plan' },
+        { status: 403 }
+      );
+    }
+
+    const accessLevelText = typeof coursesAccess.limit === 'string' ? coursesAccess.limit : null;
+    const shouldEnforceCourseLimit = accessLevelText
+      ? accessLevelText.toLowerCase() !== 'unlimited'
+      : true;
+
+    if (shouldEnforceCourseLimit) {
+      const { has_access, reason } = await checkFeatureAccess(
+        userId,
+        FEATURE_KEYS.FREE_COURSES_LIMIT
+      );
+      if (!has_access) {
+        return NextResponse.json(
+          { success: false, error: reason || 'Course enrollment limit reached' },
+          { status: 403 }
+        );
+      }
+    }
+
     const {
       paymentMethodId,
       isGift = false,
@@ -128,6 +159,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const coursePrice = parseFloat(course.price || '0');
     let finalPrice = coursePrice;
     let discountAmount = 0;
+
+    try {
+      const planFeatures = await getPlanFeatures(userId);
+      const discountFeature = planFeatures.find(
+        feature => feature.feature_key === FEATURE_KEYS.COURSE_DISCOUNT_PERCENT
+      );
+      const discountPercent = discountFeature?.limit_percent ?? null;
+
+      if (discountPercent !== null && discountPercent > 0) {
+        discountAmount = (coursePrice * Number(discountPercent)) / 100;
+        finalPrice = Math.max(0, Number((coursePrice - discountAmount).toFixed(2)));
+      }
+    } catch (error) {
+      console.error('Course discount lookup failed:', error);
+    }
 
     // Handle coupon codes here if needed
     if (couponCode) {
@@ -236,6 +282,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         enrollmentCount: courseData.length > 0 ? (course.id ? 1 : 0) + 1 : 1
       })
       .where(eq(courses.id, courseId));
+
+    await trackFeatureUsage(
+      userId,
+      FEATURE_KEYS.FREE_COURSES_LIMIT,
+      { count: 1 },
+      'course_enrollment',
+      enrollmentId
+    );
 
     // Return success response
     return NextResponse.json({

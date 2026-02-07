@@ -6,6 +6,8 @@ import { sessions, notifications, sessionPolicies, sessionAuditLog, mentors, use
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { CANCELLATION_REASONS, MENTOR_CANCELLATION_REASONS, DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { trackFeatureUsage } from '@/lib/subscriptions/enforcement';
 import { findAvailableReplacementMentor } from '@/lib/services/mentor-matching';
 import {
     sendMentorCancelledReassignedEmail,
@@ -538,6 +540,46 @@ export async function POST(
         const refundMessage = refundAmount > 0
             ? ` A refund of ${refundPercentage}% ($${refundAmount.toFixed(2)}) will be processed.`
             : '';
+
+        // Roll back subscription usage for mentee cancellations (when not from explore flow)
+        if (!isMentor && booking.bookingSource !== 'explore') {
+            const menteeFeatureKey =
+                booking.sessionType === 'FREE'
+                    ? FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY
+                    : booking.sessionType === 'COUNSELING'
+                        ? FEATURE_KEYS.COUNSELING_SESSIONS_MONTHLY
+                        : FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY;
+
+            try {
+                await trackFeatureUsage(
+                    booking.menteeId,
+                    menteeFeatureKey,
+                    { count: -1, minutes: -(booking.duration || 0) },
+                    'session',
+                    booking.id
+                );
+
+                if (booking.sessionType === 'FREE') {
+                    await trackFeatureUsage(
+                        booking.mentorId,
+                        FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY,
+                        { count: -1, minutes: -(booking.duration || 0) },
+                        'session',
+                        booking.id
+                    );
+                } else {
+                    await trackFeatureUsage(
+                        booking.mentorId,
+                        FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY,
+                        { count: -1, minutes: -(booking.duration || 0) },
+                        'session',
+                        booking.id
+                    );
+                }
+            } catch (error) {
+                console.error('Usage rollback failed:', error);
+            }
+        }
 
         // Notify the other party
         if (isMentor) {

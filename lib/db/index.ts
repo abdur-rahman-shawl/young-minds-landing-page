@@ -1,5 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import type { Postgres } from 'postgres';
+import type { DrizzleClient } from 'drizzle-orm';
 import * as schema from './schema';
 
 // Ensure this only runs on server-side
@@ -7,16 +9,18 @@ if (typeof window !== 'undefined') {
   throw new Error('Database connection cannot be used on client-side');
 }
 
-// Only initialize database in server environment
-let dbInstance: any;
-let clientInstance: any;
+declare global {
+  var __youngMindsDb: {
+    db: DrizzleClient;
+    client: Postgres;
+  } | undefined;
+}
 
 function initializeDatabase() {
-  if (dbInstance && clientInstance) {
-    return { db: dbInstance, client: clientInstance };
+  if (global.__youngMindsDb) {
+    return global.__youngMindsDb;
   }
 
-  // Load environment variables only on server
   try {
     require('dotenv').config({ path: '.env.local' });
   } catch (error) {
@@ -27,19 +31,13 @@ function initializeDatabase() {
     throw new Error('DATABASE_URL is not defined in environment variables');
   }
 
-  // Create the connection
-  const connectionString = process.env.DATABASE_URL;
+  const client = postgres(process.env.DATABASE_URL, { prepare: false });
+  const db = drizzle(client, { schema });
 
-  // Disable prefetch as it's not supported for "Transaction" pool mode
-  clientInstance = postgres(connectionString, { prepare: false });
-
-  // CRITICAL: Pass schema to enable query API (db.query.*)
-  dbInstance = drizzle(clientInstance, { schema });
-
-  return { db: dbInstance, client: clientInstance };
+  global.__youngMindsDb = { db, client } as unknown as typeof global.__youngMindsDb;
+  return global.__youngMindsDb as Required<typeof global.__youngMindsDb>;
 }
 
-// Initialize and export
 const { db: database, client: pgClient } = initializeDatabase();
 
 export const db = database;

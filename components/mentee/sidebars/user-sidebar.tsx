@@ -54,6 +54,7 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
     { title: "My Learning", icon: BookOpen, key: "my-courses" },
     { title: "Messages", icon: Mail, key: "messages" },
     { title: "Sessions", icon: Calendar, key: "sessions" },
+    { title: "Subscription", icon: Sparkles, key: "subscription" },
     { title: "Profile", icon: User, key: "profile" }
   ], [])
 

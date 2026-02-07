@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { mentors, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { requireAdmin, requireMentee } from '@/lib/api/guards';
 
 export async function GET(request: NextRequest) {
   try {
+    const guard = await requireMentee(request, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     // Fetch all verified and available mentors with their user info
     const mentosList = await db
       .select({
@@ -61,6 +67,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const guard = await requireAdmin(request);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const body = await request.json();
     const {
       userId,

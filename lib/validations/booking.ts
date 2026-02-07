@@ -3,6 +3,7 @@ import { z } from 'zod';
 // Validation schemas for booking endpoints
 export const createBookingSchema = z.object({
   mentorId: z.string().min(1, 'Mentor ID is required').max(255),
+  sessionType: z.enum(['FREE', 'PAID', 'COUNSELING']).default('PAID'),
   title: z.string()
     .min(1, 'Session title is required')
     .max(200, 'Title must be less than 200 characters')
@@ -34,6 +35,7 @@ export const createBookingSchema = z.object({
 
 export const updateBookingSchema = z.object({
   status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled', 'no_show']).optional(),
+  sessionType: z.enum(['FREE', 'PAID', 'COUNSELING']).optional(),
   title: z.string()
     .min(1, 'Session title is required')
     .max(200, 'Title must be less than 200 characters')

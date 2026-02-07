@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { mentors, users } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { requireMentee } from '@/lib/api/guards';
 
 interface RouteParams {
   params: { id: string };
@@ -9,6 +10,12 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    const guard = await requireMentee(request, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+
     const { id } = await params;
     console.log('🚀 Fetching mentor details for ID:', id);
 
@@ -119,9 +126,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         ) : null,
     };
 
+    const responseMentor = isAdmin
+      ? formattedMentor
+      : {
+          ...formattedMentor,
+          email: null,
+          phone: null,
+          resumeUrl: null,
+          userEmail: null,
+        };
+
     return NextResponse.json({
       success: true,
-      data: formattedMentor
+      data: responseMentor
     });
 
   } catch (error) {

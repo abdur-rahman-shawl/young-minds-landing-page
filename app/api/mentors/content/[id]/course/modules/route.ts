@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { mentorContent, courses, courseModules, mentors } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+import { requireMentor } from '@/lib/api/guards';
 
 const createModuleSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -18,13 +18,11 @@ export async function GET(
   try {
     const { id } = await params;
     
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const session = guard.session;
 
     const mentor = await db.select()
       .from(mentors)
@@ -82,13 +80,11 @@ export async function POST(
   try {
     const { id } = await params;
     
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const session = guard.session;
 
     const mentor = await db.select()
       .from(mentors)

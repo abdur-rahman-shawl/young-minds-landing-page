@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/api/guards';
 
 export async function GET(request: NextRequest) {
   try {
+    const guard = await requireAdmin(request);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const supabase = await createClient();
 
     const { data, error } = await supabase

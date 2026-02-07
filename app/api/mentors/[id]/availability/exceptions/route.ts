@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { 
   mentorAvailabilitySchedules,
@@ -9,6 +7,7 @@ import {
 } from '@/lib/db/schema';
 import { eq, and, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
+import { requireMentor } from '@/lib/api/guards';
 
 // Validation schema for exceptions
 const exceptionSchema = z.object({
@@ -30,6 +29,16 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const guard = await requireMentor(req, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    if (!isAdmin && params.id !== guard.session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     // Get query parameters for date range filtering
     const startDate = req.nextUrl.searchParams.get('startDate');
     const endDate = req.nextUrl.searchParams.get('endDate');
@@ -101,15 +110,14 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
+    const guard = await requireMentor(req, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
 
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please log in' },
-        { status: 401 }
-      );
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    if (!isAdmin && params.id !== guard.session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Verify the mentor exists and user has permission
@@ -224,15 +232,14 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
+    const guard = await requireMentor(req, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
 
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please log in' },
-        { status: 401 }
-      );
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    if (!isAdmin && params.id !== guard.session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Verify the mentor exists and user has permission

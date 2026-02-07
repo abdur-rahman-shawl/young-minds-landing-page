@@ -200,7 +200,26 @@ export function HeroSection() {
       });
 
       if (!res.ok || !res.body) {
-        throw new Error(`Chat route error: ${res.status}`);
+        let errorMessage = "Unable to reach AI chat right now.";
+        if (res.status === 401) {
+          errorMessage = "Please log in to use the AI assistant.";
+        } else if (res.status === 403) {
+          errorMessage = "AI assistant access is not included in your plan.";
+        } else if (res.status >= 500) {
+          errorMessage = "AI service is unavailable. Please try again shortly.";
+        }
+
+        setMessages(prev => [
+          ...prev,
+          {
+            id: uuidv4(),
+            type: "ai",
+            content: errorMessage,
+            timestamp: new Date(),
+          },
+        ]);
+        setIsAiTyping(false);
+        return;
       }
 
       const reader = res.body.getReader();
@@ -246,7 +265,7 @@ export function HeroSection() {
       await saveMessageToDB('ai', aiMessage.content, userMessageId);
 
       if (toolCallDetected) {
-        const mentors = await fetchMentorsFromApi();
+        const mentors = await fetchMentorsFromApi(true);
         if (mentors && mentors.length) {
           await logMentorExposure(mentors.map((mentor) => mentor.id));
         }
@@ -267,7 +286,8 @@ export function HeroSection() {
     }
   };
 
-  const fetchMentorsFromApi = async (): Promise<DbMentor[] | null> => {
+  // Fetch real mentors from your public route
+  const fetchMentorsFromApi = async (useAiSearch = false): Promise<DbMentor[] | null> => {
     try {
       setIsSearchingMentors(true)
       const params = new URLSearchParams({
@@ -275,6 +295,9 @@ export function HeroSection() {
         pageSize: '12',
         availableOnly: 'true',
       });
+      if (useAiSearch) {
+        params.set('ai', 'true');
+      }
 
       const res = await fetch(`/api/public-mentors?${params.toString()}`, { method: 'GET' })
       if (!res.ok) throw new Error(`Failed to fetch mentors: ${res.status}`)
@@ -759,13 +782,16 @@ export function HeroSection() {
       <Dialog open={isMentorModalOpen} onOpenChange={setIsMentorModalOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0">
           {selectedMentorIdForModal && (
-            <MentorDetailView
-              mentorId={selectedMentorIdForModal}
-              onBack={() => {
-                setIsMentorModalOpen(false)
-                setSelectedMentorIdForModal(null)
-              }}
-            />
+            <div className="pl-8 pr-12 pt-0 w-full mx-auto">
+              <MentorDetailView
+                mentorId={selectedMentorIdForModal}
+                bookingSource="ai"
+                onBack={() => {
+                  setIsMentorModalOpen(false)
+                  setSelectedMentorIdForModal(null)
+                }}
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>

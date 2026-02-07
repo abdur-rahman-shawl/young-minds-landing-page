@@ -1,13 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { contactSubmissions } from '@/lib/db/schema';
 import { eq } from "drizzle-orm";
+import { requireAdmin } from "@/lib/api/guards";
 
 export async function PATCH(
-  req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const guard = await requireAdmin(req);
+    if ("error" in guard) {
+      return guard.error;
+    }
+
     const { id } = await params;
 
     const body = await req.json();

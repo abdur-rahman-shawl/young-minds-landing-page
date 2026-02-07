@@ -19,10 +19,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
 import { LiveKitRoomManager } from '@/lib/livekit/room-manager';
 import { z } from 'zod';
+import { requireUserWithRoles } from '@/lib/api/guards';
+import { db } from '@/lib/db';
+import { sessions } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 // ============================================================================
 // VALIDATION SCHEMAS
@@ -44,20 +46,12 @@ export async function POST(
     // ========================================================================
     // AUTHENTICATION
     // ========================================================================
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session || !session.user) {
-      console.error('❌ Unauthorized attempt to create room - no session');
-      return NextResponse.json(
-        {
-          error: 'Unauthorized',
-          message: 'Authentication required. Please log in.',
-        },
-        { status: 401 }
-      );
+    const guard = await requireUserWithRoles(request);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const currentUserId = guard.session.user.id;
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
 
     // ========================================================================
     // INPUT VALIDATION
@@ -81,8 +75,34 @@ export async function POST(
     // ========================================================================
     // ROOM CREATION
     // ========================================================================
+    const sessionRecord = await db
+      .select({
+        mentorId: sessions.mentorId,
+        menteeId: sessions.menteeId,
+      })
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .limit(1);
+
+    if (!sessionRecord.length) {
+      return NextResponse.json(
+        { error: 'Session not found' },
+        { status: 404 }
+      );
+    }
+
+    const { mentorId, menteeId } = sessionRecord[0];
+    const isParticipant = mentorId === currentUserId || menteeId === currentUserId;
+
+    if (!isAdmin && !isParticipant) {
+      return NextResponse.json(
+        { error: 'Forbidden', message: 'You are not authorized to create this room' },
+        { status: 403 }
+      );
+    }
+
     console.log(
-      `📹 Creating LiveKit room for session ${sessionId} by user ${session.user.id}`
+      `📹 Creating LiveKit room for session ${sessionId} by user ${currentUserId}`
     );
 
     const roomData = await LiveKitRoomManager.createRoomForSession(sessionId);

@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { getMentorMenteesFromSessions, getMentorSessionStats } from '@/lib/db/queries/mentor-sessions';
+import { requireMentor } from '@/lib/api/guards';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
 
-    const mentees = await getMentorMenteesFromSessions(session.user.id);
-    const stats = await getMentorSessionStats(session.user.id);
+    const mentees = await getMentorMenteesFromSessions(guard.session.user.id);
+    const stats = await getMentorSessionStats(guard.session.user.id);
 
     return NextResponse.json({
       mentees,

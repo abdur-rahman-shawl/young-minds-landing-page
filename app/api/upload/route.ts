@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireMentor } from '@/lib/api/guards';
 import { storage } from '@/lib/storage';
 import { randomUUID } from 'crypto';
 
@@ -31,12 +31,9 @@ const generateFileName = (originalName: string, userId: string): string => {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
 
     const formData = await request.formData();
@@ -64,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate unique filename and path
-    const fileName = generateFileName(file.name, session.user.id);
+    const fileName = generateFileName(file.name, guard.session.user.id);
     const storagePath = `mentors/content/${type}/${fileName}`;
     
     try {
