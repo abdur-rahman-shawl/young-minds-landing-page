@@ -11,8 +11,7 @@ import {
   courseEnrollments
 } from '@/lib/db/schema';
 import { eq, and, desc, asc, gte, lte, sql, count, avg, sum } from 'drizzle-orm';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 import { requireMentee } from '@/lib/api/guards';
 
 // GET /api/student/learning-analytics - Get comprehensive learning analytics
@@ -28,16 +27,16 @@ export async function GET(request: NextRequest) {
     
     const userId = guard.session.user.id;
 
-    const access = await checkFeatureAccess(userId, FEATURE_KEYS.ANALYTICS_ACCESS_LEVEL);
-    if (!access.has_access) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: access.reason || 'Analytics access not included in your plan',
-          upgrade_required: true,
-        },
-        { status: 403 }
-      );
+    try {
+      await enforceFeature({
+        action: 'analytics.mentee',
+        userId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
     }
 
     // Get or create mentee and learner profile

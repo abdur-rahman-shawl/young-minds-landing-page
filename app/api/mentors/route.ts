@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { mentors, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { requireAdmin, requireMentee } from '@/lib/api/guards';
+import { resolveStorageUrl } from '@/lib/storage';
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,10 +41,18 @@ export async function GET(request: NextRequest) {
       .orderBy(mentors.createdAt);
 
     // Map the results to handle image fallback priority
-    const mappedMentors = mentosList.map(mentor => ({
-      ...mentor,
-      image: mentor.profileImageUrl || mentor.userImage
-    }));
+    const mappedMentors = await Promise.all(
+      mentosList.map(async (mentor) => {
+        const signedProfileImageUrl = await resolveStorageUrl(mentor.profileImageUrl);
+        const signedBannerImageUrl = await resolveStorageUrl(mentor.bannerImageUrl);
+        return {
+          ...mentor,
+          profileImageUrl: signedProfileImageUrl,
+          bannerImageUrl: signedBannerImageUrl,
+          image: signedProfileImageUrl || mentor.userImage,
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,

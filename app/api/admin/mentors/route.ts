@@ -7,6 +7,7 @@ import { getUserWithRoles } from '@/lib/db/user-helpers';
 import { z } from 'zod';
 import { sendMentorApplicationApprovedEmail, sendMentorApplicationRejectedEmail, sendMentorApplicationReverificationRequestEmail } from '@/lib/email';
 import { logAdminAction } from '@/lib/db/audit';
+import { resolveStorageUrl } from '@/lib/storage';
 
 const VERIFICATION_STATUSES = [
   'YET_TO_APPLY',
@@ -97,7 +98,9 @@ const parseJsonList = (value: string | null | undefined): string[] => {
   return value ? [value] : [];
 };
 
-const formatMentorRecord = (raw: Awaited<ReturnType<typeof fetchMentorRows>>[number]) => {
+const formatMentorRecord = async (raw: Awaited<ReturnType<typeof fetchMentorRows>>[number]) => {
+  const signedProfileImageUrl = await resolveStorageUrl(raw.profileImageUrl);
+  const signedResumeUrl = await resolveStorageUrl(raw.resumeUrl);
   return {
     id: raw.id,
     userId: raw.userId,
@@ -116,10 +119,10 @@ const formatMentorRecord = (raw: Awaited<ReturnType<typeof fetchMentorRows>>[num
     verificationStatus: raw.verificationStatus,
     verificationNotes: raw.verificationNotes,
     isAvailable: raw.isAvailable,
-    resumeUrl: raw.resumeUrl,
+    resumeUrl: signedResumeUrl,
     linkedinUrl: raw.linkedinUrl,
     websiteUrl: raw.websiteUrl,
-    profileImageUrl: raw.profileImageUrl,
+    profileImageUrl: signedProfileImageUrl,
     phone: raw.phone,
     githubUrl: raw.githubUrl,
     fullName: raw.fullName,
@@ -180,7 +183,7 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = await fetchMentorRows();
-    const data = rows.map(formatMentorRecord);
+    const data = await Promise.all(rows.map(formatMentorRecord));
 
     return NextResponse.json({ success: true, data });
   } catch (error) {

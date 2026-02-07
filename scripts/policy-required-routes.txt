@@ -1,0 +1,18 @@
+# Routes that must use the subscription policy runtime.
+# Keep this list updated when adding entitlement-sensitive endpoints.
+app/api/ai-chatbot-messages/route.ts
+app/api/analytics/mentor/route.ts
+app/api/bookings/[id]/cancel/route.ts
+app/api/bookings/route.ts
+app/api/chat/route.ts
+app/api/courses/[id]/enroll/route.ts
+app/api/mentors/[id]/booking-eligibility/route.ts
+app/api/mentors/content/route.ts
+app/api/mentors/content/upload/route.ts
+app/api/messaging/requests/route.ts
+app/api/messaging/threads/[id]/messages/route.ts
+app/api/public-mentors/route.ts
+app/api/recordings/[id]/playback-url/route.ts
+app/api/sessions/[sessionId]/recordings/route.ts
+app/api/sessions/route.ts
+app/api/student/learning-analytics/route.ts

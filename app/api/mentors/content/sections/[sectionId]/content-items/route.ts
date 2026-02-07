@@ -4,6 +4,7 @@ import { mentorContent, courses, courseModules, courseSections, sectionContentIt
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
+import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
 const createContentItemSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -68,7 +69,14 @@ export async function GET(
       .where(eq(sectionContentItems.sectionId, sectionId))
       .orderBy(sectionContentItems.orderIndex);
 
-    return NextResponse.json(contentItems);
+    const hydratedItems = await Promise.all(
+      contentItems.map(async (item) => ({
+        ...item,
+        fileUrl: await resolveStorageUrl(item.fileUrl),
+      }))
+    );
+
+    return NextResponse.json(hydratedItems);
   } catch (error) {
     console.error('Error fetching content items:', error);
     return NextResponse.json(
@@ -155,7 +163,7 @@ export async function POST(
         type: validatedData.type,
         orderIndex: validatedData.orderIndex,
         content: validatedData.content,
-        fileUrl: validatedData.fileUrl,
+        fileUrl: normalizeStorageValue(validatedData.fileUrl),
         fileName: validatedData.fileName,
         fileSize: validatedData.fileSize,
         mimeType: validatedData.mimeType,
@@ -164,7 +172,13 @@ export async function POST(
       })
       .returning();
 
-    return NextResponse.json(newContentItem[0], { status: 201 });
+    return NextResponse.json(
+      {
+        ...newContentItem[0],
+        fileUrl: await resolveStorageUrl(newContentItem[0].fileUrl),
+      },
+      { status: 201 }
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

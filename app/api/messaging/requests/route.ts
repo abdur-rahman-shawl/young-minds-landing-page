@@ -12,8 +12,11 @@ import {
 } from '@/lib/db/schema';
 import { eq, and, or, desc, gte, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
+import {
+  consumeFeature,
+  enforceFeature,
+  isSubscriptionPolicyError,
+} from '@/lib/subscriptions/policy-runtime';
 
 const createRequestSchema = z.object({
   recipientId: z.string().min(1),
@@ -199,15 +202,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { has_access, reason } = await checkFeatureAccess(
-      userId,
-      FEATURE_KEYS.MESSAGE_REQUESTS_DAILY
-    );
-    if (!has_access) {
-      return NextResponse.json(
-        { success: false, error: reason || 'Daily request limit reached. Upgrade your plan for more.' },
-        { status: 403 }
-      );
+    const requestAction =
+      validatedData.requestType === 'mentor_to_mentee'
+        ? 'messaging.request.mentor'
+        : 'messaging.request.mentee';
+
+    try {
+      await enforceFeature({
+        action: requestAction,
+        userId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
     }
 
     // Legacy quota system is superseded by subscription enforcement.
@@ -264,13 +273,12 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    await trackFeatureUsage(
+    await consumeFeature({
+      action: requestAction,
       userId,
-      FEATURE_KEYS.MESSAGE_REQUESTS_DAILY,
-      { count: 1 },
-      'message_request',
-      newRequest.id
-    );
+      resourceType: 'message_request',
+      resourceId: newRequest.id,
+    });
 
     const recipient = await db
       .select()

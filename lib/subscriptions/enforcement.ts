@@ -12,6 +12,15 @@
 
 import { createClient } from '@/lib/supabase/server';
 
+export type SubscriptionAudience = 'mentor' | 'mentee';
+export type SubscriptionActorRole = SubscriptionAudience | 'admin';
+
+export interface SubscriptionContext {
+  audience?: SubscriptionAudience;
+  actorRole?: SubscriptionActorRole;
+  allowAdminOverride?: boolean;
+}
+
 export interface SubscriptionPlanFeature {
   feature_key: string;
   feature_name: string;
@@ -40,7 +49,7 @@ export interface SubscriptionInfo {
   plan_id: string;
   plan_key: string;
   plan_name: string;
-  audience: 'mentor' | 'mentee';
+  audience: SubscriptionAudience;
   status: 'trialing' | 'active' | 'past_due' | 'paused' | 'canceled' | 'incomplete' | 'expired';
   current_period_start: string | null;
   current_period_end: string | null;
@@ -64,11 +73,71 @@ export interface UsageInfo {
   limit_reached: boolean;
 }
 
-/**
- * Get the active subscription for a user
- * Throws if no active subscription found
- */
-export async function getUserSubscription(userId: string): Promise<SubscriptionInfo> {
+function normalizeDeltaValue(value: number | undefined): number {
+  return Number.isFinite(value) ? Number(value) : 0;
+}
+
+function resolveUsageIdempotencyKey(
+  userId: string,
+  featureKey: string,
+  delta: { count?: number; minutes?: number; amount?: number },
+  resourceType?: string,
+  resourceId?: string,
+  idempotencyKey?: string
+) {
+  const explicitKey = idempotencyKey?.trim();
+  if (explicitKey) {
+    return explicitKey;
+  }
+
+  // Deterministic key when usage is tied to a concrete domain resource.
+  if (resourceType && resourceId) {
+    return [
+      'usage',
+      userId,
+      featureKey,
+      resourceType,
+      resourceId,
+      `count=${normalizeDeltaValue(delta.count)}`,
+      `minutes=${normalizeDeltaValue(delta.minutes)}`,
+      `amount=${normalizeDeltaValue(delta.amount)}`,
+    ].join(':');
+  }
+
+  // Fallback for legacy call sites without a resource identifier.
+  return globalThis.crypto?.randomUUID?.() || `usage-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function resolveExpectedAudience(context?: SubscriptionContext): SubscriptionAudience | undefined {
+  if (context?.audience) {
+    return context.audience;
+  }
+
+  if (context?.actorRole === 'mentor' || context?.actorRole === 'mentee') {
+    return context.actorRole;
+  }
+
+  return undefined;
+}
+
+function normalizeSubscriptionRow(row: any): SubscriptionInfo {
+  const plan = Array.isArray(row.subscription_plans)
+    ? row.subscription_plans[0]
+    : row.subscription_plans;
+
+  return {
+    subscription_id: row.id,
+    plan_id: plan.id,
+    plan_key: plan.plan_key,
+    plan_name: plan.name,
+    audience: plan.audience,
+    status: row.status,
+    current_period_start: row.current_period_start,
+    current_period_end: row.current_period_end,
+  };
+}
+
+async function getActiveSubscriptions(userId: string): Promise<SubscriptionInfo[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -88,36 +157,69 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionI
     `)
     .eq('user_id', userId)
     .in('status', ['trialing', 'active'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order('created_at', { ascending: false });
 
-  if (error || !data) {
-    throw new Error(`No active subscription found for user ${userId}: ${error?.message || 'Not found'}`);
+  if (error) {
+    throw new Error(`Failed to load active subscriptions for user ${userId}: ${error.message}`);
   }
 
-  const plan = Array.isArray(data.subscription_plans)
-    ? data.subscription_plans[0]
-    : data.subscription_plans;
+  return (data || []).map(normalizeSubscriptionRow);
+}
 
-  return {
-    subscription_id: data.id,
-    plan_id: plan.id,
-    plan_key: plan.plan_key,
-    plan_name: plan.name,
-    audience: plan.audience,
-    status: data.status,
-    current_period_start: data.current_period_start,
-    current_period_end: data.current_period_end,
-  };
+function resolveSubscriptionForContext(
+  subscriptions: SubscriptionInfo[],
+  userId: string,
+  context?: SubscriptionContext
+): SubscriptionInfo {
+  const expectedAudience = resolveExpectedAudience(context);
+  const matches = expectedAudience
+    ? subscriptions.filter((subscription) => subscription.audience === expectedAudience)
+    : subscriptions;
+
+  if (matches.length === 0) {
+    if (expectedAudience) {
+      throw new Error(`No active ${expectedAudience} subscription found for user ${userId}`);
+    }
+    throw new Error(`No active subscription found for user ${userId}`);
+  }
+
+  if (matches.length === 1) {
+    return matches[0];
+  }
+
+  if (expectedAudience) {
+    throw new Error(
+      `Multiple active ${expectedAudience} subscriptions found for user ${userId}; resolve data before enforcing limits`
+    );
+  }
+
+  const audiences = Array.from(new Set(matches.map((subscription) => subscription.audience))).join(', ');
+  throw new Error(
+    `Multiple active subscriptions found for user ${userId} across audiences (${audiences}); audience context is required`
+  );
+}
+
+/**
+ * Get the active subscription for a user
+ * Throws if no active subscription found
+ */
+export async function getUserSubscription(
+  userId: string,
+  context?: SubscriptionContext
+): Promise<SubscriptionInfo> {
+  const subscriptions = await getActiveSubscriptions(userId);
+  return resolveSubscriptionForContext(subscriptions, userId, context);
 }
 
 /**
  * Get all features included in a user's subscription plan
  * Throws if subscription or features cannot be loaded
  */
-export async function getPlanFeatures(userId: string): Promise<SubscriptionPlanFeature[]> {
-  const subscription = await getUserSubscription(userId);
+export async function getPlanFeatures(
+  userId: string,
+  context?: SubscriptionContext
+): Promise<SubscriptionPlanFeature[]> {
+  const subscription = await getUserSubscription(userId, context);
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -172,10 +274,24 @@ export async function getPlanFeatures(userId: string): Promise<SubscriptionPlanF
  */
 export async function checkFeatureAccess(
   userId: string,
-  featureKey: string
+  featureKey: string,
+  context?: SubscriptionContext
 ): Promise<FeatureAccess> {
   try {
-    const features = await getPlanFeatures(userId);
+    const expectedAudience = resolveExpectedAudience(context);
+
+    if (context?.actorRole === 'admin' && context.allowAdminOverride) {
+      return {
+        has_access: true,
+        reason: 'Access granted via explicit admin override',
+      };
+    }
+
+    if (context?.actorRole === 'admin' && !expectedAudience) {
+      throw new Error('Admin entitlement checks must specify audience or explicit override');
+    }
+
+    const features = await getPlanFeatures(userId, context);
     const feature = features.find(f => f.feature_key === featureKey);
 
     if (!feature) {
@@ -202,7 +318,7 @@ export async function checkFeatureAccess(
 
     // Metered features - check usage against limits
     if (feature.is_metered) {
-      const subscription = await getUserSubscription(userId);
+      const subscription = await getUserSubscription(userId, context);
       const usage = await getFeatureUsage(subscription.subscription_id, featureKey);
 
       // Count-based limits
@@ -328,19 +444,34 @@ async function getFeatureUsage(
  * @param delta - Amount to increment (count, minutes, or amount)
  * @param resourceType - Type of resource (e.g., 'session', 'message', 'course')
  * @param resourceId - ID of the resource being consumed
+ * @param context - Optional audience/actor context used to resolve the correct subscription
  */
 export async function trackFeatureUsage(
   userId: string,
   featureKey: string,
   delta: { count?: number; minutes?: number; amount?: number },
   resourceType?: string,
-  resourceId?: string
+  resourceId?: string,
+  idempotencyKey?: string,
+  context?: SubscriptionContext
 ): Promise<void> {
   const supabase = await createClient();
+  let resolvedIdempotencyKey: string | null = null;
+  let usageEventRecorded = false;
 
   try {
+    const expectedAudience = resolveExpectedAudience(context);
+
+    if (context?.actorRole === 'admin' && context.allowAdminOverride) {
+      return;
+    }
+
+    if (context?.actorRole === 'admin' && !expectedAudience) {
+      throw new Error('Admin usage tracking must specify audience or explicit override');
+    }
+
     // Get subscription
-    const subscription = await getUserSubscription(userId);
+    const subscription = await getUserSubscription(userId, context);
 
     // Get feature
     const { data: featureData, error: featureError } = await supabase
@@ -356,6 +487,40 @@ export async function trackFeatureUsage(
     if (!featureData.is_metered) {
       throw new Error(`Feature '${featureKey}' is not metered - cannot track usage`);
     }
+
+    resolvedIdempotencyKey = resolveUsageIdempotencyKey(
+      userId,
+      featureKey,
+      delta,
+      resourceType,
+      resourceId,
+      idempotencyKey
+    );
+
+    // Insert the event first so retries with the same idempotency key are safe no-ops.
+    const { error: eventInsertError } = await supabase
+      .from('subscription_usage_events')
+      .insert({
+        subscription_id: subscription.subscription_id,
+        feature_id: featureData.id,
+        user_id: userId,
+        event_type: 'increment',
+        count_delta: delta.count || 0,
+        minutes_delta: delta.minutes || 0,
+        amount_delta: delta.amount || 0,
+        resource_type: resourceType,
+        resource_id: resourceId,
+        limit_exceeded: false,
+        idempotency_key: resolvedIdempotencyKey,
+      });
+
+    if (eventInsertError) {
+      if (eventInsertError.code === '23505') {
+        return;
+      }
+      throw new Error(`Failed to record usage event: ${eventInsertError.message}`);
+    }
+    usageEventRecorded = true;
 
     // Get or create usage tracking record for current period
     const now = new Date();
@@ -407,51 +572,18 @@ export async function trackFeatureUsage(
       }
     }
 
-    // Log usage event for audit trail
-    await supabase
-      .from('subscription_usage_events')
-      .insert({
-        subscription_id: subscription.subscription_id,
-        feature_id: featureData.id,
-        user_id: userId,
-        event_type: 'increment',
-        count_delta: delta.count || 0,
-        minutes_delta: delta.minutes || 0,
-        amount_delta: delta.amount || 0,
-        resource_type: resourceType,
-        resource_id: resourceId,
-        limit_exceeded: false,
-      });
-
   } catch (error) {
+    if (usageEventRecorded && resolvedIdempotencyKey) {
+      const { error: rollbackError } = await supabase
+        .from('subscription_usage_events')
+        .delete()
+        .eq('idempotency_key', resolvedIdempotencyKey);
+
+      if (rollbackError) {
+        console.error('Failed to roll back usage event after tracking failure:', rollbackError);
+      }
+    }
+
     throw new Error(`Failed to track feature usage: ${error}`);
   }
-}
-
-/**
- * Enforce feature access - check and track in one call
- * Use this when consuming a feature to ensure limits are enforced
- *
- * @returns FeatureAccess object
- * @throws Error if access check or tracking fails
- */
-export async function enforceAndTrackFeature(
-  userId: string,
-  featureKey: string,
-  delta: { count?: number; minutes?: number; amount?: number },
-  resourceType?: string,
-  resourceId?: string
-): Promise<FeatureAccess> {
-  // Check access first
-  const access = await checkFeatureAccess(userId, featureKey);
-
-  if (!access.has_access) {
-    throw new Error(access.reason || `Access denied to feature '${featureKey}'`);
-  }
-
-  // Track usage
-  await trackFeatureUsage(userId, featureKey, delta, resourceType, resourceId);
-
-  // Return updated access info
-  return access;
 }

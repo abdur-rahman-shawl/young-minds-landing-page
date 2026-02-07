@@ -4,6 +4,7 @@ import { mentorContent, courses, courseModules, courseSections, sectionContentIt
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
+import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
 const updateContentItemSchema = z.object({
   title: z.string().min(1, 'Title is required').optional(),
@@ -75,7 +76,10 @@ export async function GET(
       return NextResponse.json({ error: 'Content item not found' }, { status: 404 });
     }
 
-    return NextResponse.json(contentItem[0]);
+    return NextResponse.json({
+      ...contentItem[0],
+      fileUrl: await resolveStorageUrl(contentItem[0].fileUrl),
+    });
   } catch (error) {
     console.error('Error fetching content item:', error);
     return NextResponse.json(
@@ -148,12 +152,16 @@ export async function PUT(
     const updatedItem = await db.update(sectionContentItems)
       .set({
         ...validatedData,
+        fileUrl: normalizeStorageValue(validatedData.fileUrl),
         updatedAt: new Date(),
       })
       .where(eq(sectionContentItems.id, itemId))
       .returning();
 
-    return NextResponse.json(updatedItem[0]);
+    return NextResponse.json({
+      ...updatedItem[0],
+      fileUrl: await resolveStorageUrl(updatedItem[0].fileUrl),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

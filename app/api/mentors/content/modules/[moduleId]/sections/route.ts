@@ -4,6 +4,7 @@ import { mentorContent, courses, courseModules, courseSections, sectionContentIt
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
+import { resolveStorageUrl } from '@/lib/storage';
 
 const createSectionSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -79,9 +80,16 @@ export async function GET(
           .where(eq(sectionContentItems.sectionId, section.id))
           .orderBy(sectionContentItems.orderIndex);
 
+        const hydratedItems = await Promise.all(
+          contentItems.map(async (item) => ({
+            ...item,
+            fileUrl: await resolveStorageUrl(item.fileUrl),
+          }))
+        );
+
         return {
           ...section,
-          contentItems,
+          contentItems: hydratedItems,
         };
       })
     );

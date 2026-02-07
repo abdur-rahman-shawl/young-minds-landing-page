@@ -3,8 +3,7 @@ import { storage } from '@/lib/storage';
 import { mentors } from '@/lib/db/schema';
 import { db } from '@/lib/db';
 import { eq } from 'drizzle-orm';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 import { requireMentor } from '@/lib/api/guards';
 
 export async function POST(request: NextRequest) {
@@ -33,28 +32,30 @@ export async function POST(request: NextRequest) {
     }
 
     if (fileType === 'document') {
-      const access = await checkFeatureAccess(
-        guard.session.user.id,
-        FEATURE_KEYS.ROADMAP_UPLOAD_ACCESS
-      );
-      if (!access.has_access) {
-        return NextResponse.json(
-          { error: access.reason || 'Document uploads are not included in your plan' },
-          { status: 403 }
-        );
+      try {
+        await enforceFeature({
+          action: 'mentor.roadmap_upload',
+          userId: guard.session.user.id,
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        throw error;
       }
     }
 
     if (fileType === 'video' || fileType === 'content') {
-      const access = await checkFeatureAccess(
-        guard.session.user.id,
-        FEATURE_KEYS.CONTENT_POSTING_ACCESS
-      );
-      if (!access.has_access) {
-        return NextResponse.json(
-          { error: access.reason || 'Content uploads are not included in your plan' },
-          { status: 403 }
-        );
+      try {
+        await enforceFeature({
+          action: 'mentor.content_post',
+          userId: guard.session.user.id,
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        throw error;
       }
     }
 
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
         options = {
           maxSize: 5 * 1024 * 1024, // 5MB
           allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'jpg', 'png', 'webp'],
-          public: true,
+          public: false,
         };
         break;
 
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
             'mov', 
             'avi'
           ],
-          public: true,
+          public: false,
         };
         break;
 
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
             'pptx',
             'txt'
           ],
-          public: true,
+          public: false,
         };
         break;
 
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
             'audio/mpeg', 'audio/wav', 'audio/ogg',
             'mp3', 'wav', 'ogg'
           ],
-          public: true,
+          public: false,
         };
         break;
     }

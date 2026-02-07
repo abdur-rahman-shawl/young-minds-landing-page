@@ -13,6 +13,8 @@ import {
   mentees
 } from '@/lib/db/schema';
 import { eq, and, desc, count, avg, sql } from 'drizzle-orm';
+import { resolveStorageUrl } from '@/lib/storage';
+import { auth } from '@/lib/auth';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -33,6 +35,34 @@ function safeJsonParse<T>(jsonString: string | null | undefined, defaultValue: T
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id || null;
+    const isAuthenticated = Boolean(userId);
+    let isEnrolled = false;
+    let menteeId: string | null = null;
+
+    if (isAuthenticated) {
+      const menteeRecord = await db
+        .select({ menteeId: mentees.id })
+        .from(mentees)
+        .where(eq(mentees.userId, userId as string))
+        .limit(1);
+
+      menteeId = menteeRecord[0]?.menteeId ?? null;
+
+      if (menteeId) {
+        const enrollment = await db
+          .select({ id: courseEnrollments.id })
+          .from(courseEnrollments)
+          .where(and(
+            eq(courseEnrollments.courseId, id),
+            eq(courseEnrollments.menteeId, menteeId)
+          ))
+          .limit(1);
+
+        isEnrolled = enrollment.length > 0;
+      }
+    }
 
     // Get course details with mentor info
     const courseData = await db
@@ -121,7 +151,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Structure the curriculum data
     const modulesMap = new Map();
     
-    curriculum.forEach((item) => {
+    for (const item of curriculum) {
       if (!modulesMap.has(item.moduleId)) {
         modulesMap.set(item.moduleId, {
           id: item.moduleId,
@@ -147,6 +177,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
 
       if (item.contentItemId && item.sectionId) {
+        if ((!isAuthenticated || !isEnrolled) && !item.isPreview) {
+          continue;
+        }
         const section = moduleData.sections.get(item.sectionId);
         section.contentItems.push({
           id: item.contentItemId,
@@ -156,11 +189,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           orderIndex: item.contentItemOrderIndex,
           duration: item.contentItemDuration,
           isPreview: item.isPreview,
-          fileUrl: item.fileUrl,
+          fileUrl: await resolveStorageUrl(item.fileUrl),
           content: item.content,
         });
       }
-    });
+    }
 
     // Convert maps to arrays and sort
     const structuredCurriculum = Array.from(modulesMap.values()).map(module => ({

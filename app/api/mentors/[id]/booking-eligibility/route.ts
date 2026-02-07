@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 
 export async function GET(
   request: NextRequest,
@@ -10,19 +9,28 @@ export async function GET(
     const { id } = await params;
 
     const [freeAccess, paidAccess, mentorSessionsAccess] = await Promise.all([
-      checkFeatureAccess(id, FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY).catch(() => null),
-      checkFeatureAccess(id, FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY).catch(() => null),
-      checkFeatureAccess(id, FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY).catch(() => null),
+      enforceFeature({ action: 'mentor.free_session_availability', userId: id }).catch((error) => {
+        if (isSubscriptionPolicyError(error)) return null;
+        throw error;
+      }),
+      enforceFeature({ action: 'mentor.paid_session_availability', userId: id }).catch((error) => {
+        if (isSubscriptionPolicyError(error)) return null;
+        throw error;
+      }),
+      enforceFeature({ action: 'booking.mentor.session', userId: id }).catch((error) => {
+        if (isSubscriptionPolicyError(error)) return null;
+        throw error;
+      }),
     ]);
 
-    const mentorSessionsAvailable = mentorSessionsAccess?.has_access ?? false;
+    const mentorSessionsAvailable = Boolean(mentorSessionsAccess?.has_access);
 
     return NextResponse.json({
       success: true,
       data: {
-        free_available: (freeAccess?.has_access ?? false) && mentorSessionsAvailable,
+        free_available: Boolean(freeAccess?.has_access) && mentorSessionsAvailable,
         free_remaining: freeAccess?.remaining ?? null,
-        paid_available: (paidAccess?.has_access ?? false) && mentorSessionsAvailable,
+        paid_available: Boolean(paidAccess?.has_access) && mentorSessionsAvailable,
         paid_remaining: paidAccess?.remaining ?? null,
         mentor_sessions_available: mentorSessionsAvailable,
       },

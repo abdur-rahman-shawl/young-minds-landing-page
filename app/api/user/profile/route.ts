@@ -5,6 +5,7 @@ import { users, mentees, mentors, userRoles, roles } from '@/lib/db/schema';
 import { menteesProfileAudit } from '@/lib/db/schema/mentee-profile-audit';
 import { eq } from 'drizzle-orm';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
+import { resolveStorageUrl } from '@/lib/storage';
 
 export async function GET(request: NextRequest) {
   try {
@@ -73,7 +74,13 @@ export async function GET(request: NextRequest) {
         .where(eq(mentors.userId, userId))
         .limit(1);
       
-      mentorProfile = mentor || null;
+      mentorProfile = mentor
+        ? {
+            ...mentor,
+            profileImageUrl: await resolveStorageUrl(mentor.profileImageUrl),
+            resumeUrl: await resolveStorageUrl(mentor.resumeUrl),
+          }
+        : null;
     }
 
     return NextResponse.json({

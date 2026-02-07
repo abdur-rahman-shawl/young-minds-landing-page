@@ -21,9 +21,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { livekitRecordings, livekitRooms, sessions } from '@/lib/db/schema';
 import { getPlaybackUrl } from '@/lib/livekit/recording-manager';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
+import { eq } from 'drizzle-orm';
 
 export async function GET(
   request: NextRequest,
@@ -55,18 +57,41 @@ export async function GET(
       `🎥 Playback URL request: recording=${recordingId}, user=${userId}`
     );
 
-    const { has_access, reason } = await checkFeatureAccess(
-      userId,
-      FEATURE_KEYS.SESSION_RECORDINGS_ACCESS
-    );
-    if (!has_access) {
+    const recording = await db.query.livekitRecordings.findFirst({
+      where: eq(livekitRecordings.id, recordingId),
+      with: {
+        room: {
+          with: {
+            session: true,
+          },
+        },
+      },
+    });
+
+    if (!recording?.room?.session) {
       return NextResponse.json(
         {
-          error: 'Forbidden',
-          message: reason || 'Session recordings are not included in your plan',
+          error: 'Not Found',
+          message: 'Recording not found',
         },
-        { status: 403 }
+        { status: 404 }
       );
+    }
+
+    const sessionData = recording.room.session;
+    const recordingsAction =
+      userId === sessionData.mentorId ? 'recordings.access.mentor' : 'recordings.access.mentee';
+
+    try {
+      await enforceFeature({
+        action: recordingsAction,
+        userId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
     }
 
     // ======================================================================

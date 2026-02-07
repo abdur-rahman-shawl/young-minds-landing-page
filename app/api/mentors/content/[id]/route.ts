@@ -4,6 +4,7 @@ import { mentorContent, courses, courseModules, courseSections, sectionContentIt
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
+import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
 const updateContentSchema = z.object({
   title: z.string().min(1, 'Title is required').optional(),
@@ -84,9 +85,16 @@ export async function GET(
                   .where(eq(sectionContentItems.sectionId, section.id))
                   .orderBy(sectionContentItems.orderIndex);
 
+                const hydratedItems = await Promise.all(
+                  contentItems.map(async (item) => ({
+                    ...item,
+                    fileUrl: await resolveStorageUrl(item.fileUrl),
+                  }))
+                );
+
                 return {
                   ...section,
-                  contentItems,
+                  contentItems: hydratedItems,
                 };
               })
             );
@@ -100,6 +108,7 @@ export async function GET(
 
         return NextResponse.json({
           ...content[0],
+          fileUrl: await resolveStorageUrl(content[0].fileUrl),
           course: {
             ...courseDetails[0],
             modules: modulesWithSections,
@@ -108,7 +117,10 @@ export async function GET(
       }
     }
 
-    return NextResponse.json(content[0]);
+    return NextResponse.json({
+      ...content[0],
+      fileUrl: await resolveStorageUrl(content[0].fileUrl),
+    });
   } catch (error) {
     console.error('Error fetching content:', error);
     return NextResponse.json(
@@ -147,6 +159,7 @@ export async function PUT(
     const updatedContent = await db.update(mentorContent)
       .set({
         ...validatedData,
+        fileUrl: normalizeStorageValue(validatedData.fileUrl),
         updatedAt: new Date(),
       })
       .where(and(
@@ -159,7 +172,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Content not found' }, { status: 404 });
     }
 
-    return NextResponse.json(updatedContent[0]);
+    return NextResponse.json({
+      ...updatedContent[0],
+      fileUrl: await resolveStorageUrl(updatedContent[0].fileUrl),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

@@ -3,9 +3,9 @@ import { db } from '@/lib/db';
 import { mentorContent, courses, mentors } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 import { requireMentor } from '@/lib/api/guards';
+import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
 // Validation schemas
 const createContentSchema = z.object({
@@ -66,7 +66,14 @@ export async function GET(request: NextRequest) {
     .where(eq(mentorContent.mentorId, mentor[0].id))
     .orderBy(mentorContent.createdAt);
 
-    return NextResponse.json(content);
+    const hydratedContent = await Promise.all(
+      content.map(async (item) => ({
+        ...item,
+        fileUrl: await resolveStorageUrl(item.fileUrl),
+      }))
+    );
+
+    return NextResponse.json(hydratedContent);
   } catch (error) {
     console.error('Error fetching mentor content:', error);
     return NextResponse.json(
@@ -93,15 +100,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
-    const access = await checkFeatureAccess(
-      guard.session.user.id,
-      FEATURE_KEYS.CONTENT_POSTING_ACCESS
-    );
-    if (!access.has_access) {
-      return NextResponse.json(
-        { error: access.reason || 'Content publishing is not included in your plan' },
-        { status: 403 }
-      );
+    try {
+      await enforceFeature({
+        action: 'mentor.content_post',
+        userId: guard.session.user.id,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
     }
 
     const body = await request.json();
@@ -126,11 +134,17 @@ export async function POST(request: NextRequest) {
     const newContent = await db.insert(mentorContent)
       .values({
         ...validatedData,
+        fileUrl: normalizeStorageValue(validatedData.fileUrl),
         mentorId: mentor[0].id,
       })
       .returning();
 
-    return NextResponse.json(newContent[0], { status: 201 });
+    const hydratedContent = {
+      ...newContent[0],
+      fileUrl: await resolveStorageUrl(newContent[0].fileUrl),
+    };
+
+    return NextResponse.json(hydratedContent, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

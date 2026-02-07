@@ -121,9 +121,12 @@ export function SubscriptionDisplay() {
 
   const loadSubscription = async () => {
       try {
+        const preferredAudience = isMentor ? "mentor" : isMentee ? "mentee" : null;
+        const audienceQuery = preferredAudience ? `?audience=${preferredAudience}` : "";
+
         const [subRes, usageRes] = await Promise.all([
-          fetch("/api/subscriptions/me", { credentials: "include" }),
-          fetch("/api/subscriptions/me/usage", { credentials: "include" }),
+          fetch(`/api/subscriptions/me${audienceQuery}`, { credentials: "include" }),
+          fetch(`/api/subscriptions/me/usage${audienceQuery}`, { credentials: "include" }),
         ]);
 
         const subData = await subRes.json();
@@ -142,7 +145,7 @@ export function SubscriptionDisplay() {
           setUsage(usageData.data || []);
         }
 
-        const fallbackAudience = isMentor ? "mentor" : isMentee ? "mentee" : null;
+        const fallbackAudience = preferredAudience;
         const audienceParam = subscriptionInfo?.audience || fallbackAudience;
         const planUrl = audienceParam
           ? `/api/subscriptions/plans/public?audience=${audienceParam}`

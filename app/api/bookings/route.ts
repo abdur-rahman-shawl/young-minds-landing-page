@@ -17,8 +17,13 @@ import { createBookingSchema, validateBookingTime, canUserAccessBooking } from '
 import { bookingRateLimit, RateLimitError } from '@/lib/rate-limit';
 import { getDay, isWithinInterval, addMinutes, setHours, setMinutes, setSeconds } from 'date-fns';
 import { LiveKitRoomManager } from '@/lib/livekit/room-manager';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess, getPlanFeatures, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
+import { getPlanFeatures } from '@/lib/subscriptions/enforcement';
+import {
+  consumeFeature,
+  enforceFeature,
+  isSubscriptionPolicyError,
+} from '@/lib/subscriptions/policy-runtime';
+import { ACTION_POLICIES, resolveMenteeBookingAction } from '@/lib/subscriptions/policies';
 import { requireMentee } from '@/lib/api/guards';
 
 // Remove duplicate schema definition since it's imported
@@ -57,109 +62,94 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const menteeSessionFeatureKey =
-      validatedData.sessionType === 'FREE'
-        ? FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY
-        : validatedData.sessionType === 'COUNSELING'
-          ? FEATURE_KEYS.COUNSELING_SESSIONS_MONTHLY
-          : FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY;
+    const menteeSessionAction = resolveMenteeBookingAction(validatedData.sessionType);
+    const menteeSessionFeatureKey = ACTION_POLICIES[menteeSessionAction].featureKey;
 
     const bookingSource = (body?.bookingSource || 'default') as string;
-    const skipSubscriptionChecks = bookingSource === 'explore';
 
-    if (!skipSubscriptionChecks) {
-      // Check subscription limits for MENTEE
-      try {
-        const { has_access, reason } = await checkFeatureAccess(
-          session.user.id,
-          menteeSessionFeatureKey
+    try {
+      await enforceFeature({
+        action: menteeSessionAction,
+        userId: session.user.id,
+        failureMessage: 'You have reached your session limit for this type',
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      console.error('Subscription check failed (mentee):', error);
+      return NextResponse.json(
+        { error: 'Unable to verify mentee subscription limits' },
+        { status: 500 }
+      );
+    }
+
+    // Enforce mentee per-session duration limit when configured on the session type feature
+    try {
+      const menteeFeatures = await getPlanFeatures(session.user.id, {
+        audience: 'mentee',
+        actorRole: 'mentee',
+      });
+      const menteeSessionFeature = menteeFeatures.find(
+        feature => feature.feature_key === menteeSessionFeatureKey
+      );
+      const menteeDurationLimit = menteeSessionFeature?.limit_minutes ?? null;
+
+      if (menteeDurationLimit !== null && validatedData.duration > menteeDurationLimit) {
+        return NextResponse.json(
+          { error: `Session duration exceeds your limit of ${menteeDurationLimit} minutes` },
+          { status: 403 }
         );
+      }
+    } catch (error) {
+      console.error('Duration limit check failed (mentee):', error);
+      return NextResponse.json(
+        { error: 'Unable to verify mentee session duration limits' },
+        { status: 500 }
+      );
+    }
 
-        if (!has_access) {
+    try {
+      await enforceFeature({
+        action: 'booking.mentor.session',
+        userId: validatedData.mentorId,
+        failureMessage: 'Mentor has reached their monthly session limit',
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      console.error('Subscription check failed:', error);
+      return NextResponse.json(
+        { error: 'Unable to verify mentor availability due to system error' },
+        { status: 500 }
+      );
+    }
+
+    // Enforce mentor per-session duration limit only for paid/counseling
+    if (validatedData.sessionType !== 'FREE') {
+      try {
+        const { limit } = await enforceFeature({
+          action: 'booking.mentor.duration',
+          userId: validatedData.mentorId,
+          failureMessage: 'Mentor session duration limit not included in plan',
+        });
+
+        if (typeof limit === 'number' && validatedData.duration > Number(limit)) {
           return NextResponse.json(
-            { error: reason || 'You have reached your session limit for this type' },
+            { error: `Session duration exceeds mentor limit of ${limit} minutes` },
             { status: 403 }
           );
         }
       } catch (error) {
-        console.error('Subscription check failed (mentee):', error);
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        console.error('Duration limit check failed (mentor):', error);
         return NextResponse.json(
-          { error: 'Unable to verify mentee subscription limits' },
+          { error: 'Unable to verify mentor session duration limits' },
           { status: 500 }
         );
-      }
-
-      // Enforce mentee per-session duration limit when configured on the session type feature
-      try {
-        const menteeFeatures = await getPlanFeatures(session.user.id);
-        const menteeSessionFeature = menteeFeatures.find(
-          feature => feature.feature_key === menteeSessionFeatureKey
-        );
-        const menteeDurationLimit = menteeSessionFeature?.limit_minutes ?? null;
-
-        if (menteeDurationLimit !== null && validatedData.duration > menteeDurationLimit) {
-          return NextResponse.json(
-            { error: `Session duration exceeds your limit of ${menteeDurationLimit} minutes` },
-            { status: 403 }
-          );
-        }
-      } catch (error) {
-        console.error('Duration limit check failed (mentee):', error);
-        return NextResponse.json(
-          { error: 'Unable to verify mentee session duration limits' },
-          { status: 500 }
-        );
-      }
-
-      // Check subscription limits for MENTOR
-      try {
-        const { has_access, reason } = await checkFeatureAccess(
-          validatedData.mentorId,
-          FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY
-        );
-
-        if (!has_access) {
-          return NextResponse.json(
-            { error: reason || 'Mentor has reached their monthly session limit' },
-            { status: 403 }
-          );
-        }
-      } catch (error) {
-        console.error('Subscription check failed:', error);
-        return NextResponse.json(
-          { error: 'Unable to verify mentor availability due to system error' },
-          { status: 500 }
-        );
-      }
-
-      // Enforce mentor per-session duration limit only for paid/counseling
-      if (validatedData.sessionType !== 'FREE') {
-        try {
-          const { has_access, reason, limit } = await checkFeatureAccess(
-            validatedData.mentorId,
-            FEATURE_KEYS.SESSION_DURATION_MINUTES
-          );
-
-          if (!has_access) {
-            return NextResponse.json(
-              { error: reason || 'Mentor session duration limit not included in plan' },
-              { status: 403 }
-            );
-          }
-
-          if (typeof limit === 'number' && validatedData.duration > limit) {
-            return NextResponse.json(
-              { error: `Session duration exceeds mentor limit of ${limit} minutes` },
-              { status: 403 }
-            );
-          }
-        } catch (error) {
-          console.error('Duration limit check failed (mentor):', error);
-          return NextResponse.json(
-            { error: 'Unable to verify mentor session duration limits' },
-            { status: 500 }
-          );
-        }
       }
     }
 
@@ -346,30 +336,28 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
-    if (!skipSubscriptionChecks) {
-      try {
-        await trackFeatureUsage(
-          session.user.id,
-          menteeSessionFeatureKey,
-          { count: 1, minutes: validatedData.duration },
-          'session',
-          newBooking.id
-        );
+    try {
+      await consumeFeature({
+        action: menteeSessionAction,
+        userId: session.user.id,
+        delta: { count: 1, minutes: validatedData.duration },
+        resourceType: 'session',
+        resourceId: newBooking.id,
+      });
 
-        await trackFeatureUsage(
-          validatedData.mentorId,
-          FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY,
-          { count: 1, minutes: validatedData.duration },
-          'session',
-          newBooking.id
-        );
-      } catch (error) {
-        console.error('Usage tracking failed:', error);
-        return NextResponse.json(
-          { error: 'Failed to track session usage' },
-          { status: 500 }
-        );
-      }
+      await consumeFeature({
+        action: 'booking.mentor.session',
+        userId: validatedData.mentorId,
+        delta: { count: 1, minutes: validatedData.duration },
+        resourceType: 'session',
+        resourceId: newBooking.id,
+      });
+    } catch (error) {
+      console.error('Usage tracking failed:', error);
+      return NextResponse.json(
+        { error: 'Failed to track session usage' },
+        { status: 500 }
+      );
     }
 
     // Create notification for mentor

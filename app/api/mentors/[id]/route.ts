@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { mentors, users } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { requireMentee } from '@/lib/api/guards';
+import { resolveStorageUrl } from '@/lib/storage';
 
 interface RouteParams {
   params: { id: string };
@@ -97,17 +98,23 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const mentor = mentorDetails[0];
+    const signedProfileImageUrl = await resolveStorageUrl(mentor.profileImageUrl);
+    const signedBannerImageUrl = await resolveStorageUrl(mentor.bannerImageUrl);
+    const signedResumeUrl = await resolveStorageUrl(mentor.resumeUrl);
     console.log('🚀 Mentor found:', mentor.userName || mentor.fullName, 'Company:', mentor.company);
 
     // Format the response
     const formattedMentor = {
       ...mentor,
+      profileImageUrl: signedProfileImageUrl,
+      bannerImageUrl: signedBannerImageUrl,
+      resumeUrl: signedResumeUrl,
       // Use fullName if available, otherwise fallback to userName
       name: mentor.fullName || mentor.userName,
       // Use mentor's email if available, otherwise fallback to user email
       email: mentor.email || mentor.userEmail,
       // Use profileImageUrl if available, otherwise fallback to userImage
-      image: mentor.profileImageUrl || mentor.userImage,
+      image: signedProfileImageUrl || mentor.userImage,
       // Parse expertise if it's a string
       expertiseArray: mentor.expertise ? mentor.expertise.split(',').map((s: string) => s.trim()) : [],
       // Parse availability if it's JSON, otherwise keep as string

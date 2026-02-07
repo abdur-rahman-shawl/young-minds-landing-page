@@ -11,7 +11,12 @@ import {
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess, getPlanFeatures, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
+import { getPlanFeatures } from '@/lib/subscriptions/enforcement';
+import {
+  consumeFeature,
+  enforceFeature,
+  isSubscriptionPolicyError,
+} from '@/lib/subscriptions/policy-runtime';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -118,15 +123,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const coursesAccess = await checkFeatureAccess(
-      userId,
-      FEATURE_KEYS.COURSES_ACCESS
-    );
-    if (!coursesAccess.has_access) {
-      return NextResponse.json(
-        { success: false, error: coursesAccess.reason || 'Courses are not included in your plan' },
-        { status: 403 }
-      );
+    let coursesAccess;
+    try {
+      coursesAccess = await enforceFeature({
+        action: 'courses.access',
+        userId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
     }
 
     const accessLevelText = typeof coursesAccess.limit === 'string' ? coursesAccess.limit : null;
@@ -135,15 +142,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       : true;
 
     if (shouldEnforceCourseLimit) {
-      const { has_access, reason } = await checkFeatureAccess(
-        userId,
-        FEATURE_KEYS.FREE_COURSES_LIMIT
-      );
-      if (!has_access) {
-        return NextResponse.json(
-          { success: false, error: reason || 'Course enrollment limit reached' },
-          { status: 403 }
-        );
+      try {
+        await enforceFeature({
+          action: 'courses.free_limit',
+          userId,
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        throw error;
       }
     }
 
@@ -161,7 +169,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     let discountAmount = 0;
 
     try {
-      const planFeatures = await getPlanFeatures(userId);
+      const planFeatures = await getPlanFeatures(userId, {
+        audience: 'mentee',
+        actorRole: 'mentee',
+      });
       const discountFeature = planFeatures.find(
         feature => feature.feature_key === FEATURE_KEYS.COURSE_DISCOUNT_PERCENT
       );
@@ -283,13 +294,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       })
       .where(eq(courses.id, courseId));
 
-    await trackFeatureUsage(
+    await consumeFeature({
+      action: 'courses.free_limit',
       userId,
-      FEATURE_KEYS.FREE_COURSES_LIMIT,
-      { count: 1 },
-      'course_enrollment',
-      enrollmentId
-    );
+      resourceType: 'course_enrollment',
+      resourceId: enrollmentId,
+    });
 
     // Return success response
     return NextResponse.json({
