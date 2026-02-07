@@ -65,11 +65,28 @@ export async function enforceFeature(input: EnforceFeatureInput): Promise<Featur
   try {
     access = await checkFeatureAccess(input.userId, policy.featureKey, context);
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown subscription check failure';
+    if (
+      message.includes('No active') ||
+      message.includes('audience context is required') ||
+      message.includes('Multiple active')
+    ) {
+      throw new SubscriptionPolicyError(
+        {
+          success: false,
+          error: 'Subscription required',
+          details: message,
+          feature: policy.featureKey,
+          upgrade_required: true,
+        },
+        403
+      );
+    }
     throw new SubscriptionPolicyError(
       {
         success: false,
         error: 'Unable to verify subscription limits',
-        details: error instanceof Error ? error.message : 'Unknown subscription check failure',
+        details: message,
         feature: policy.featureKey,
       },
       500

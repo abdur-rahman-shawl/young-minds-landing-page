@@ -18,6 +18,7 @@ import { bookingRateLimit, RateLimitError } from '@/lib/rate-limit';
 import { getDay, isWithinInterval, addMinutes, setHours, setMinutes, setSeconds } from 'date-fns';
 import { LiveKitRoomManager } from '@/lib/livekit/room-manager';
 import { getPlanFeatures } from '@/lib/subscriptions/enforcement';
+import { sendBookingConfirmedEmail, sendNewBookingAlertEmail } from '@/lib/email';
 import {
   consumeFeature,
   enforceFeature,

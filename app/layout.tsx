@@ -7,7 +7,7 @@ import { ThemeProvider } from "next-themes"
 import { AuthProvider } from "@/contexts/auth-context"
 import { ErrorBoundary } from "@/components/common/error-boundary"
 import { QueryProvider } from "@/providers/query-provider"
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from "@/components/ui/sonner"
 
 const inter = Inter({ subsets: ["latin"] })
 
