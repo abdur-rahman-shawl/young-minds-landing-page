@@ -4,7 +4,6 @@ import { db } from '@/lib/db'
 import { mentors, users } from '@/lib/db/schema'
 import { and, eq, ilike, or, desc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys'
 import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement'
 
@@ -43,6 +42,9 @@ export async function GET(req: NextRequest) {
       return { key: primaryKey, access: primary }
     }
 
+    type ResolveFeatureAccessResult = Awaited<ReturnType<typeof resolveFeatureAccess>>;
+    let requesterAccess: ResolveFeatureAccessResult | null = null;
+
     if (aiSearch) {
       const session = await auth.api.getSession({ headers: req.headers })
       requesterId = session?.user?.id || null
@@ -54,7 +56,7 @@ export async function GET(req: NextRequest) {
         )
       }
 
-      const requesterAccess = await resolveFeatureAccess(
+      requesterAccess = await resolveFeatureAccess(
         requesterId,
         FEATURE_KEYS.AI_SEARCH_SESSIONS,
         FEATURE_KEYS.AI_SEARCH_SESSIONS_MONTHLY
@@ -116,61 +118,39 @@ export async function GET(req: NextRequest) {
 
     if (aiSearch && requesterId) {
       if (filteredRows.length > 0) {
-        const supabase = await createClient()
-        const mentorUserIds = filteredRows.map((row) => row.userId)
-
-        const { data: subscriptions, error: subscriptionsError } = await supabase
-          .from('subscriptions')
-          .select('user_id')
-          .in('user_id', mentorUserIds)
-          .in('status', ['trialing', 'active'])
-
-        if (subscriptionsError) {
-          console.error('Failed to load mentor subscriptions:', subscriptionsError)
-        } else {
-          const eligibleMentorIds = new Set(subscriptions?.map((item) => item.user_id))
-          filteredRows = filteredRows.filter((row) => eligibleMentorIds.has(row.userId))
-        }
-      }
-
-      if (filteredRows.length > 0) {
         const eligibilityChecks = await Promise.all(
           filteredRows.map(async (row) => {
             try {
-              const [freeAccess, mentorAccess, visibilityAccess] = await Promise.all([
+              const [freeAccess, paidAccess, visibilityAccess] = await Promise.all([
                 checkFeatureAccess(row.userId, FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY),
-                checkFeatureAccess(row.userId, FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY),
+                checkFeatureAccess(row.userId, FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY),
                 resolveFeatureAccess(row.userId, FEATURE_KEYS.AI_VISIBILITY),
               ])
+              const hasFreeRemaining = freeAccess.has_access && (typeof freeAccess.remaining !== 'number' || freeAccess.remaining > 0)
+              const hasPaidRemaining = paidAccess.has_access && (typeof paidAccess.remaining !== 'number' || paidAccess.remaining > 0)
               return {
                 row,
-                eligible:
-                  freeAccess.has_access &&
-                  mentorAccess.has_access &&
-                  (visibilityAccess as any)?.access?.has_access === true,
-                visibilityKey: (visibilityAccess as any)?.key,
+                eligible: hasFreeRemaining || hasPaidRemaining,
+                visibilityKey: visibilityAccess?.key ?? null,
+                visibilityAccess,
               }
             } catch (error) {
               console.error('Failed to check mentor eligibility:', error)
-              return { row, eligible: false, visibilityKey: null }
+              return { row, eligible: false, visibilityKey: null, visibilityAccess: null }
             }
           })
         )
 
-        filteredRows = eligibilityChecks.filter((item) => item.eligible).map((item) => item.row)
+        const eligibleMentors = eligibilityChecks.filter((item) => item.eligible)
+        filteredRows = eligibleMentors.map((item) => item.row)
 
         const visibilityKeyByUser = new Map(
-          eligibilityChecks
-            .filter((item) => item.eligible)
-            .map((item) => [item.row.userId, item.visibilityKey || FEATURE_KEYS.AI_VISIBILITY])
+          eligibleMentors
+            .filter((item) => item.visibilityAccess?.access?.has_access && item.visibilityKey)
+            .map((item) => [item.row.userId, item.visibilityKey as string])
         )
 
-        const requesterAccess = await resolveFeatureAccess(
-          requesterId,
-          FEATURE_KEYS.AI_SEARCH_SESSIONS,
-          FEATURE_KEYS.AI_SEARCH_SESSIONS_MONTHLY
-        )
-        if (requesterAccess.access?.has_access) {
+        if (requesterAccess?.access?.has_access) {
           await trackFeatureUsage(
             requesterId,
             requesterAccess.key,

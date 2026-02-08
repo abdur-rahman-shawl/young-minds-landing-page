@@ -549,6 +549,10 @@ export async function POST(
                     : booking.sessionType === 'COUNSELING'
                         ? FEATURE_KEYS.COUNSELING_SESSIONS_MONTHLY
                         : FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY;
+            const mentorFeatureKey =
+                booking.sessionType === 'FREE'
+                    ? FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY
+                    : FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY;
 
             try {
                 await trackFeatureUsage(
@@ -559,23 +563,13 @@ export async function POST(
                     booking.id
                 );
 
-                if (booking.sessionType === 'FREE') {
-                    await trackFeatureUsage(
-                        booking.mentorId,
-                        FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY,
-                        { count: -1, minutes: -(booking.duration || 0) },
-                        'session',
-                        booking.id
-                    );
-                } else {
-                    await trackFeatureUsage(
-                        booking.mentorId,
-                        FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY,
-                        { count: -1, minutes: -(booking.duration || 0) },
-                        'session',
-                        booking.id
-                    );
-                }
+                await trackFeatureUsage(
+                    booking.mentorId,
+                    mentorFeatureKey,
+                    { count: -1, minutes: -(booking.duration || 0) },
+                    'session',
+                    booking.id
+                );
             } catch (error) {
                 console.error('Usage rollback failed:', error);
             }

@@ -9,13 +9,20 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const [freeAccess, paidAccess, mentorAccess] = await Promise.all([
+    const [freeAccess, paidAccess] = await Promise.all([
       checkFeatureAccess(id, FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY).catch(() => null),
       checkFeatureAccess(id, FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY).catch(() => null),
-      checkFeatureAccess(id, FEATURE_KEYS.MENTOR_SESSIONS_MONTHLY).catch(() => null),
     ]);
 
-    const mentorSessionsAvailable = mentorAccess?.has_access ?? false;
+    const hasFreeRemaining = freeAccess?.has_access && (typeof freeAccess.remaining !== 'number' || freeAccess.remaining > 0);
+    const hasPaidRemaining = paidAccess?.has_access && (typeof paidAccess.remaining !== 'number' || paidAccess.remaining > 0);
+
+    const mentorSessionsAvailable = hasFreeRemaining || hasPaidRemaining;
+    const remainingValues = [
+      typeof freeAccess?.remaining === 'number' ? freeAccess.remaining : null,
+      typeof paidAccess?.remaining === 'number' ? paidAccess.remaining : null,
+    ].filter((value): value is number => value !== null);
+    const mentorSessionsRemaining = remainingValues.length > 0 ? Math.max(...remainingValues) : null;
 
     return NextResponse.json({
       success: true,
@@ -25,8 +32,8 @@ export async function GET(
         paid_available: paidAccess?.has_access ?? false,
         paid_remaining: paidAccess?.remaining ?? null,
         mentor_sessions_available: mentorSessionsAvailable,
-        mentor_sessions_remaining: mentorAccess?.remaining ?? null,
-        mentor_sessions_limit: mentorAccess?.limit ?? null,
+        mentor_sessions_remaining: mentorSessionsRemaining,
+        mentor_sessions_limit: paidAccess?.limit ?? null,
       },
     });
   } catch (error) {
