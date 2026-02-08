@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { mentorContent, courses, mentors } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { mentorContent } from '@/lib/db/schema';
 import { z } from 'zod';
 import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 import { requireMentor } from '@/lib/api/guards';
+import { getMentorContentOwnershipCondition, getMentorForContent } from '@/lib/api/mentor-content';
 import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
 // Validation schemas
@@ -34,14 +34,13 @@ export async function GET(request: NextRequest) {
     if ('error' in guard) {
       return guard.error;
     }
-
-    // Get mentor info
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, guard.session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    const mentor = await getMentorForContent(guard.session.user.id);
+    if (!isAdmin && !mentor) {
+      return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
+    }
+    const ownershipCondition = getMentorContentOwnershipCondition(mentor?.id ?? null, isAdmin);
+    if (!ownershipCondition) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
@@ -63,7 +62,7 @@ export async function GET(request: NextRequest) {
       updatedAt: mentorContent.updatedAt,
     })
       .from(mentorContent)
-      .where(eq(mentorContent.mentorId, mentor[0].id))
+      .where(ownershipCondition)
       .orderBy(mentorContent.createdAt);
 
     const hydratedContent = await Promise.all(
@@ -89,31 +88,33 @@ export async function POST(request: NextRequest) {
     if ('error' in guard) {
       return guard.error;
     }
-
-    // Get mentor info
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, guard.session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    const mentor = await getMentorForContent(guard.session.user.id);
+    if (!isAdmin && !mentor) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
-    try {
-      await enforceFeature({
-        action: 'mentor.content_post',
-        userId: guard.session.user.id,
-      });
-    } catch (error) {
-      if (isSubscriptionPolicyError(error)) {
-        return NextResponse.json(error.payload, { status: error.status });
+    if (!isAdmin) {
+      try {
+        await enforceFeature({
+          action: 'mentor.content_post',
+          userId: guard.session.user.id,
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        throw error;
       }
-      throw error;
     }
 
     const body = await request.json();
     const validatedData = createContentSchema.parse(body);
+
+    // Admins can only create courses through this flow.
+    if (isAdmin && validatedData.type !== 'COURSE') {
+      return NextResponse.json({ error: 'Admins can only create courses' }, { status: 403 });
+    }
 
     // Validate type-specific fields
     if (validatedData.type === 'FILE' && !validatedData.fileUrl) {
@@ -135,7 +136,7 @@ export async function POST(request: NextRequest) {
       .values({
         ...validatedData,
         fileUrl: normalizeStorageValue(validatedData.fileUrl),
-        mentorId: mentor[0].id,
+        mentorId: isAdmin ? null : mentor?.id,
       })
       .returning();
 

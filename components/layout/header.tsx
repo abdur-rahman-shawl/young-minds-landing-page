@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Menu, Search, Settings, LogOut, SunMoon, MoreVertical, User, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/providers/theme-toggle"
+import { RadialThemeToggle } from "@/components/providers/radial-theme-toggle"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { SignInPopup } from "@/components/auth/sign-in-popup"
 import { NotificationBell } from "@/components/notifications/notification-bell"
@@ -72,8 +72,8 @@ export function Header({ onSearchClick, showSidebarTrigger = false, isDashboard 
   const handleGoToDashboard = () => router.push("/dashboard?section=dashboard")
 
   const headerClasses = `fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled
-      ? "bg-background/80 backdrop-blur-xl shadow-subtle border-b border-border"
-      : "bg-background/95 backdrop-blur-sm border-b border-transparent"
+    ? "bg-background/80 backdrop-blur-xl shadow-subtle border-b border-border"
+    : "bg-background/95 backdrop-blur-sm border-b border-transparent"
     }`
 
   const NavLinks = () => (
@@ -110,7 +110,7 @@ export function Header({ onSearchClick, showSidebarTrigger = false, isDashboard 
         <SunMoon className="h-4 w-4" />
         <span>Theme</span>
       </div>
-      <ThemeToggle />
+      <RadialThemeToggle />
     </div>
   )
 
@@ -152,7 +152,7 @@ export function Header({ onSearchClick, showSidebarTrigger = false, isDashboard 
                       Become an Expert
                     </Button>
                   )}
-                  <ThemeToggle />
+                  <RadialThemeToggle />
                   <Button variant="outline" size="sm" onClick={handleAuthClick}>
                     Logout
                   </Button>
@@ -195,7 +195,7 @@ export function Header({ onSearchClick, showSidebarTrigger = false, isDashboard 
             ) : (
               <>
                 <div className="hidden lg:flex items-center gap-2 sm:gap-3">
-                  <ThemeToggle />
+                  <RadialThemeToggle />
                   <Button
                     size="sm"
                     className="bg-amber-100 text-gray-900 hover:bg-amber-200 dark:bg-amber-200 dark:text-gray-900 dark:hover:bg-amber-300 px-4"
@@ -283,11 +283,11 @@ export function Header({ onSearchClick, showSidebarTrigger = false, isDashboard 
           <NotificationBell />
 
           <div className="hidden sm:inline-flex">
-            <ThemeToggle />
+            <RadialThemeToggle />
           </div>
           {/* Mobile Theme Toggle (visible only on mobile) */}
           <div className="sm:hidden">
-            <ThemeToggle />
+            <RadialThemeToggle />
           </div>
 
 

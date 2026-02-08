@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storage } from '@/lib/storage';
-import { mentors } from '@/lib/db/schema';
-import { db } from '@/lib/db';
-import { eq } from 'drizzle-orm';
 import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 import { requireMentor } from '@/lib/api/guards';
+import { getMentorForContent } from '@/lib/api/mentor-content';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,14 +10,9 @@ export async function POST(request: NextRequest) {
     if ('error' in guard) {
       return guard.error;
     }
-
-    // Get mentor info
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, guard.session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    const mentor = await getMentorForContent(guard.session.user.id);
+    if (!isAdmin && !mentor) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
@@ -31,7 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    if (fileType === 'document') {
+    if (!isAdmin && fileType === 'document') {
       try {
         await enforceFeature({
           action: 'mentor.roadmap_upload',
@@ -45,7 +38,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (fileType === 'video' || fileType === 'content') {
+    if (!isAdmin && (fileType === 'video' || fileType === 'content')) {
       try {
         await enforceFeature({
           action: 'mentor.content_post',
@@ -65,7 +58,8 @@ export async function POST(request: NextRequest) {
 
     const timestamp = Date.now();
     const fileExt = file.name.split('.').pop()?.toLowerCase();
-    const fileName = `${mentor[0].id}-${timestamp}.${fileExt}`;
+    const ownerToken = mentor?.id ?? `platform-${guard.session.user.id}`;
+    const fileName = `${ownerToken}-${timestamp}.${fileExt}`;
 
     switch (fileType) {
       case 'thumbnail':

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { mentorContent, courses, courseModules, courseSections, sectionContentItems, mentors } from '@/lib/db/schema';
+import { mentorContent, courses, courseModules, courseSections, sectionContentItems } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
+import { getMentorContentOwnershipCondition, getMentorForContent } from '@/lib/api/mentor-content';
 import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
 const updateContentSchema = z.object({
@@ -34,15 +35,16 @@ export async function GET(
     if ('error' in guard) {
       return guard.error;
     }
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
 
     const { id } = await params;
 
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, guard.session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const mentor = await getMentorForContent(guard.session.user.id);
+    if (!isAdmin && !mentor) {
+      return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
+    }
+    const ownershipCondition = getMentorContentOwnershipCondition(mentor?.id ?? null, isAdmin);
+    if (!ownershipCondition) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
@@ -50,7 +52,7 @@ export async function GET(
       .from(mentorContent)
       .where(and(
         eq(mentorContent.id, id),
-        eq(mentorContent.mentorId, mentor[0].id)
+        ownershipCondition
       ))
       .limit(1);
 
@@ -139,15 +141,16 @@ export async function PUT(
     if ('error' in guard) {
       return guard.error;
     }
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
 
     const { id } = await params;
 
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, guard.session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const mentor = await getMentorForContent(guard.session.user.id);
+    if (!isAdmin && !mentor) {
+      return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
+    }
+    const ownershipCondition = getMentorContentOwnershipCondition(mentor?.id ?? null, isAdmin);
+    if (!ownershipCondition) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
@@ -164,7 +167,7 @@ export async function PUT(
       })
       .where(and(
         eq(mentorContent.id, id),
-        eq(mentorContent.mentorId, mentor[0].id)
+        ownershipCondition
       ))
       .returning();
 
@@ -201,22 +204,23 @@ export async function DELETE(
     if ('error' in guard) {
       return guard.error;
     }
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
 
     const { id } = await params;
 
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, guard.session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const mentor = await getMentorForContent(guard.session.user.id);
+    if (!isAdmin && !mentor) {
+      return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
+    }
+    const ownershipCondition = getMentorContentOwnershipCondition(mentor?.id ?? null, isAdmin);
+    if (!ownershipCondition) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
     const deletedContent = await db.delete(mentorContent)
       .where(and(
         eq(mentorContent.id, id),
-        eq(mentorContent.mentorId, mentor[0].id)
+        ownershipCondition
       ))
       .returning();
 

@@ -1,41 +1,83 @@
 'use client';
 
+import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Bookmark, ExternalLink, Trash2, ArrowUpRight } from "lucide-react"
+import { Bookmark, Trash2, ArrowUpRight } from "lucide-react"
 import { motion } from "framer-motion"
+import { formatDistanceToNow } from "date-fns"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 interface SavedItemsProps {
   onMentorSelect: (mentorId: string) => void
 }
 
 export function SavedItems({ onMentorSelect }: SavedItemsProps) {
-  const savedItems = [
-    {
-      id: 1,
-      title: "Best Practices for React Development",
-      description: "A comprehensive guide to React best practices and patterns for 2025.",
-      url: "https://example.com/react-best-practices",
-      savedAt: "2 days ago",
-      tag: "Development"
-    },
-    {
-      id: 2,
-      title: "Career Growth in Tech Industry",
-      description: "How to advance your career in technology and negotiate better salaries.",
-      url: "https://example.com/career-growth",
-      savedAt: "1 week ago",
-      tag: "Career"
-    },
-    {
-      id: 3,
-      title: "Interview Preparation Guide",
-      description: "Complete guide to technical interviews, including algorithm challenges.",
-      url: "https://example.com/interview-prep",
-      savedAt: "2 weeks ago",
-      tag: "Interview"
+  const router = useRouter()
+  const [savedItems, setSavedItems] = useState<Array<{
+    id: string
+    title: string
+    description: string
+    url: string
+    savedAt: string
+    tag: string
+    courseId: string
+    itemId: string
+  }>>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadSavedItems = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/student/saved-items')
+      const data = await response.json()
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to load saved items')
+      }
+
+      const mapped = (data.data || []).map((item: any) => ({
+        id: item.contentItemId,
+        title: item.contentItemTitle,
+        description: `${item.courseTitle} • ${item.moduleTitle} / ${item.sectionTitle}`,
+        url: `/learn/${item.courseId}`,
+        savedAt: formatDistanceToNow(new Date(item.bookmarkedAt), { addSuffix: true }),
+        tag: item.contentItemType || 'Course',
+        courseId: item.courseId,
+        itemId: item.contentItemId,
+      }))
+
+      setSavedItems(mapped)
+    } catch (error) {
+      console.error('Failed to load saved items:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to load saved items')
+      setSavedItems([])
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
+
+  useEffect(() => {
+    loadSavedItems()
+  }, [])
+
+  const handleRemove = async (item: { courseId: string; itemId: string }) => {
+    try {
+      const response = await fetch(
+        `/api/student/saved-items?courseId=${item.courseId}&itemId=${item.itemId}`,
+        { method: 'DELETE' }
+      )
+      const data = await response.json()
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to remove saved item')
+      }
+      setSavedItems((prev) => prev.filter((entry) => entry.itemId !== item.itemId))
+      toast.success('Removed from saved items')
+    } catch (error) {
+      console.error('Failed to remove saved item:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to remove saved item')
+    }
+  }
 
   const container = {
     hidden: { opacity: 0 },
@@ -68,12 +110,22 @@ export function SavedItems({ onMentorSelect }: SavedItemsProps) {
         </div>
       </div>
 
-      <motion.div 
+      <motion.div
         variants={container}
         initial="hidden"
         animate="show"
         className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
       >
+        {loading && (
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Loading saved items...
+          </div>
+        )}
+        {!loading && savedItems.length === 0 && (
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            No saved course items yet.
+          </div>
+        )}
         {savedItems.map((item) => (
           <motion.div key={item.id} variants={itemAnim} whileHover={{ y: -5 }}>
             <Card className="h-full p-6 flex flex-col hover:shadow-lg transition-shadow border-slate-200 dark:border-slate-800 group relative overflow-hidden">
@@ -103,12 +155,18 @@ export function SavedItems({ onMentorSelect }: SavedItemsProps) {
                   size="sm" 
                   variant="ghost" 
                   className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 px-2"
+                  onClick={() => handleRemove({ courseId: item.courseId, itemId: item.itemId })}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Remove
                 </Button>
                 
-                <Button size="sm" variant="default" className="gap-1 shadow-sm">
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="gap-1 shadow-sm"
+                  onClick={() => router.push(item.url)}
+                >
                   View <ArrowUpRight className="w-3 h-3 ml-1" />
                 </Button>
               </div>

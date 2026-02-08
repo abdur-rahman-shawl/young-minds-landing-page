@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { mentorContent, courses, courseModules, mentors } from '@/lib/db/schema';
+import { mentorContent, courses, courseModules } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
+import { getMentorContentOwnershipCondition, getMentorForContent } from '@/lib/api/mentor-content';
 
 const createModuleSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -22,14 +23,14 @@ export async function GET(
     if ('error' in guard) {
       return guard.error;
     }
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
     const session = guard.session;
-
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const mentor = await getMentorForContent(session.user.id);
+    if (!isAdmin && !mentor) {
+      return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
+    }
+    const ownershipCondition = getMentorContentOwnershipCondition(mentor?.id ?? null, isAdmin);
+    if (!ownershipCondition) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
@@ -38,7 +39,7 @@ export async function GET(
       .from(mentorContent)
       .where(and(
         eq(mentorContent.id, id),
-        eq(mentorContent.mentorId, mentor[0].id),
+        ownershipCondition,
         eq(mentorContent.type, 'COURSE')
       ))
       .limit(1);
@@ -84,14 +85,14 @@ export async function POST(
     if ('error' in guard) {
       return guard.error;
     }
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
     const session = guard.session;
-
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const mentor = await getMentorForContent(session.user.id);
+    if (!isAdmin && !mentor) {
+      return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
+    }
+    const ownershipCondition = getMentorContentOwnershipCondition(mentor?.id ?? null, isAdmin);
+    if (!ownershipCondition) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
@@ -100,7 +101,7 @@ export async function POST(
       .from(mentorContent)
       .where(and(
         eq(mentorContent.id, id),
-        eq(mentorContent.mentorId, mentor[0].id),
+        ownershipCondition,
         eq(mentorContent.type, 'COURSE')
       ))
       .limit(1);

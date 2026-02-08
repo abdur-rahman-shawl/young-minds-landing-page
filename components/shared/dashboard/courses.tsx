@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDebounce } from '@/hooks/use-performance';
 import { cn } from '@/lib/utils';
+import { CourseDetailView } from '@/components/shared/courses/course-detail';
 
 // ... [Keep Interfaces Exactly the Same] ...
 interface Course {
@@ -51,15 +52,18 @@ interface Course {
   thumbnailUrl: string;
   category: string;
   tags: string[];
+  platformTags: string[];
+  platformName?: string | null;
+  ownerType: 'MENTOR' | 'PLATFORM';
   enrollmentCount: number;
   avgRating: number;
   reviewCount: number;
   mentor: {
-    id: string;
+    id: string | null;
     name: string;
-    image: string;
-    title: string;
-    company: string;
+    image: string | null;
+    title: string | null;
+    company: string | null;
   };
   createdAt: string;
 }
@@ -74,6 +78,8 @@ interface Category {
 
 export function Courses() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const courseId = searchParams.get('courseId');
 
   // State
   const [courses, setCourses] = useState<Course[]>([]);
@@ -139,6 +145,20 @@ export function Courses() {
       setLoading(false);
     }
   };
+
+  if (courseId) {
+    return (
+      <div className="space-y-4">
+        <Button variant="outline" onClick={() => router.push('/dashboard?section=courses')}>
+          Back to Courses
+        </Button>
+        <CourseDetailView
+          courseId={courseId}
+          onBack={() => router.push('/dashboard?section=courses')}
+        />
+      </div>
+    );
+  }
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -226,7 +246,7 @@ export function Courses() {
       transition={{ duration: 0.3 }}
     >
       <Card className="group h-full flex flex-col overflow-hidden border-slate-200 dark:border-slate-800 hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-slate-900/50 transition-all duration-300 cursor-pointer"
-            onClick={() => router.push(`/courses/${course.id}`)}>
+            onClick={() => router.push(`/dashboard?section=courses&courseId=${course.id}`)}>
         
         {/* Thumbnail */}
         <div className="aspect-video relative overflow-hidden bg-slate-100 dark:bg-slate-900">
@@ -260,9 +280,16 @@ export function Courses() {
         
         <CardHeader className="pb-2 pt-4 px-5">
           <div className="flex items-start justify-between gap-3 mb-1">
-            <Badge variant="outline" className="text-[10px] text-muted-foreground border-slate-200">
-              {course.category}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="text-[10px] text-muted-foreground border-slate-200">
+                {course.category}
+              </Badge>
+              {course.ownerType === 'PLATFORM' && (
+                <Badge className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {course.platformName || 'Platform'}
+                </Badge>
+              )}
+            </div>
             <div className="font-bold text-lg text-primary">
               {formatPrice(course.price, course.currency)}
             </div>
@@ -277,10 +304,37 @@ export function Courses() {
             {course.description}
           </CardDescription>
 
+          {(course.platformTags?.length || course.tags?.length) && (
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {(course.platformTags || []).slice(0, 2).map((tag) => (
+                <Badge
+                  key={`platform-${tag}`}
+                  className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200"
+                >
+                  {tag}
+                </Badge>
+              ))}
+              {(course.tags || []).slice(0, 2).map((tag) => (
+                <Badge
+                  key={`tag-${tag}`}
+                  variant="outline"
+                  className="text-[10px] text-muted-foreground border-slate-200"
+                >
+                  {tag}
+                </Badge>
+              ))}
+              {((course.platformTags?.length || 0) + (course.tags?.length || 0)) > 4 && (
+                <Badge variant="outline" className="text-[10px] text-muted-foreground border-slate-200">
+                  +{(course.platformTags?.length || 0) + (course.tags?.length || 0) - 4}
+                </Badge>
+              )}
+            </div>
+          )}
+
           <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
              <div className="flex items-center gap-2">
                 <Avatar className="w-6 h-6 border border-slate-200">
-                  <AvatarImage src={course.mentor.image} />
+                  <AvatarImage src={course.mentor.image || undefined} />
                   <AvatarFallback className="text-[10px]">{course.mentor.name.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col">

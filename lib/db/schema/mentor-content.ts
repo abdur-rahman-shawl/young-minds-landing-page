@@ -25,6 +25,12 @@ export const courseDifficultyEnum = pgEnum('course_difficulty', [
   'ADVANCED'
 ]);
 
+// Course ownership enum
+export const courseOwnerTypeEnum = pgEnum('course_owner_type', [
+  'MENTOR',
+  'PLATFORM'
+]);
+
 // Content status enum
 export const contentStatusEnum = pgEnum('content_status', [
   'DRAFT',
@@ -35,7 +41,7 @@ export const contentStatusEnum = pgEnum('content_status', [
 // Main content table
 export const mentorContent = pgTable('mentor_content', {
   id: uuid('id').primaryKey().defaultRandom(),
-  mentorId: uuid('mentor_id').references(() => mentors.id, { onDelete: 'cascade' }).notNull(),
+  mentorId: uuid('mentor_id').references(() => mentors.id, { onDelete: 'cascade' }),
   
   // Basic info
   title: text('title').notNull(),
@@ -63,6 +69,8 @@ export const mentorContent = pgTable('mentor_content', {
 export const courses = pgTable('courses', {
   id: uuid('id').primaryKey().defaultRandom(),
   contentId: uuid('content_id').references(() => mentorContent.id, { onDelete: 'cascade' }).notNull().unique(),
+  ownerType: courseOwnerTypeEnum('owner_type').default('MENTOR').notNull(),
+  ownerId: uuid('owner_id').references(() => mentors.id, { onDelete: 'set null' }),
   
   // Course details
   difficulty: courseDifficultyEnum('difficulty').notNull(),
@@ -74,6 +82,8 @@ export const courses = pgTable('courses', {
   thumbnailUrl: text('thumbnail_url'),
   category: text('category'),
   tags: text('tags'), // JSON array of tags
+  platformTags: text('platform_tags'), // JSON array of platform tags
+  platformName: text('platform_name'),
   prerequisites: text('prerequisites'), // JSON array
   learningOutcomes: text('learning_outcomes'), // JSON array
   
@@ -195,4 +205,5 @@ export type NewSectionContentItem = typeof sectionContentItems.$inferInsert;
 export type ContentType = typeof contentTypeEnum.enumValues[number];
 export type ContentItemType = typeof contentItemTypeEnum.enumValues[number];
 export type CourseDifficulty = typeof courseDifficultyEnum.enumValues[number];
+export type CourseOwnerType = typeof courseOwnerTypeEnum.enumValues[number];
 export type ContentStatus = typeof contentStatusEnum.enumValues[number];

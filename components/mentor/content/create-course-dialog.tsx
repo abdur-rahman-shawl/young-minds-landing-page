@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -17,9 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { useCreateCourse, useUploadFile, Course } from '@/hooks/queries/use-content-queries';
+import { useSaveCourse, useUploadFile, Course } from '@/hooks/queries/use-content-queries';
 import { safeJsonParse } from '@/lib/utils/safe-json';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/auth-context';
 
 const createCourseSchema = z.object({
   difficulty: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
@@ -28,6 +29,8 @@ const createCourseSchema = z.object({
   currency: z.string().default('USD'),
   category: z.string().min(1, 'Category is required'),
   tags: z.array(z.string()).default([]),
+  platformTags: z.array(z.string()).default([]),
+  platformName: z.string().optional().transform((val) => val?.trim() || undefined),
   prerequisites: z.array(z.string()).default([]),
   learningOutcomes: z.array(z.string()).min(1, 'At least one learning outcome is required'),
   // SEO fields
@@ -95,11 +98,13 @@ export function CreateCourseDialog({ contentId, existingCourse, open, onOpenChan
   const [selectedThumbnail, setSelectedThumbnail] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState('');
+  const [platformTagInput, setPlatformTagInput] = useState('');
   const [prerequisiteInput, setPrerequisiteInput] = useState('');
   const [outcomeInput, setOutcomeInput] = useState('');
   
-  const createCourseMutation = useCreateCourse();
+  const saveCourseMutation = useSaveCourse();
   const uploadFileMutation = useUploadFile();
+  const { isAdmin } = useAuth();
   
   const form = useForm<CourseFormData>({
     resolver: zodResolver(createCourseSchema),
@@ -110,6 +115,8 @@ export function CreateCourseDialog({ contentId, existingCourse, open, onOpenChan
       currency: existingCourse?.currency || 'USD',
       category: existingCourse?.category || '',
       tags: existingCourse?.tags ? safeJsonParse(existingCourse.tags) : [],
+      platformTags: existingCourse?.platformTags ? safeJsonParse(existingCourse.platformTags) : [],
+      platformName: existingCourse?.platformName || '',
       prerequisites: existingCourse?.prerequisites ? safeJsonParse(existingCourse.prerequisites) : [],
       learningOutcomes: existingCourse?.learningOutcomes ? safeJsonParse(existingCourse.learningOutcomes) : [],
       isPublic: true,
@@ -118,6 +125,28 @@ export function CreateCourseDialog({ contentId, existingCourse, open, onOpenChan
       seoDescription: '',
     },
   });
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    form.reset({
+      difficulty: existingCourse?.difficulty || 'BEGINNER',
+      duration: existingCourse?.duration || undefined,
+      price: existingCourse?.price || '',
+      currency: existingCourse?.currency || 'USD',
+      category: existingCourse?.category || '',
+      tags: existingCourse?.tags ? safeJsonParse(existingCourse.tags) : [],
+      platformTags: existingCourse?.platformTags ? safeJsonParse(existingCourse.platformTags) : [],
+      platformName: existingCourse?.platformName || '',
+      prerequisites: existingCourse?.prerequisites ? safeJsonParse(existingCourse.prerequisites) : [],
+      learningOutcomes: existingCourse?.learningOutcomes ? safeJsonParse(existingCourse.learningOutcomes) : [],
+      isPublic: true,
+      allowComments: true,
+      seoTitle: '',
+      seoDescription: '',
+    });
+  }, [open, existingCourse, form]);
   
   const handleThumbnailChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -140,10 +169,25 @@ export function CreateCourseDialog({ contentId, existingCourse, open, onOpenChan
       setTagInput('');
     }
   }, [tagInput, form]);
+
+  const addPlatformTag = useCallback(() => {
+    if (platformTagInput.trim()) {
+      const currentTags = form.getValues('platformTags');
+      if (!currentTags.includes(platformTagInput.trim())) {
+        form.setValue('platformTags', [...currentTags, platformTagInput.trim()]);
+      }
+      setPlatformTagInput('');
+    }
+  }, [platformTagInput, form]);
   
   const removeTag = useCallback((tag: string) => {
     const currentTags = form.getValues('tags');
     form.setValue('tags', currentTags.filter(t => t !== tag));
+  }, [form]);
+
+  const removePlatformTag = useCallback((tag: string) => {
+    const currentTags = form.getValues('platformTags');
+    form.setValue('platformTags', currentTags.filter(t => t !== tag));
   }, [form]);
   
   const addPrerequisite = useCallback(() => {
@@ -189,12 +233,13 @@ export function CreateCourseDialog({ contentId, existingCourse, open, onOpenChan
         thumbnailUrl = uploadResult.fileUrl;
       }
       
-      await createCourseMutation.mutateAsync({
+      await saveCourseMutation.mutateAsync({
         contentId,
         data: {
           ...data,
           thumbnailUrl,
         },
+        hasExisting: Boolean(existingCourse),
       });
       
       toast.success(existingCourse ? 'Course updated successfully!' : 'Course created successfully!');
@@ -204,7 +249,7 @@ export function CreateCourseDialog({ contentId, existingCourse, open, onOpenChan
     }
   };
   
-  const isLoading = createCourseMutation.isPending || uploadFileMutation.isPending;
+  const isLoading = saveCourseMutation.isPending || uploadFileMutation.isPending;
   const selectedCurrency = CURRENCY_OPTIONS.find(c => c.value === form.watch('currency'));
   
   return (
@@ -374,6 +419,53 @@ export function CreateCourseDialog({ contentId, existingCourse, open, onOpenChan
                       </div>
                     </div>
                     
+                    {isAdmin && (
+                      <div className="space-y-2">
+                        <Label>Platform Label</Label>
+                        <Input
+                          placeholder="e.g. SharingMinds"
+                          {...form.register('platformName')}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Displayed as the course creator label for platform courses.
+                        </p>
+                      </div>
+                    )}
+
+                    {isAdmin && (
+                      <div className="space-y-2">
+                        <Label>Platform Tags</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Add a platform tag"
+                            value={platformTagInput}
+                            onChange={(e) => setPlatformTagInput(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addPlatformTag())}
+                          />
+                          <Button type="button" onClick={addPlatformTag} size="sm">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {form.watch('platformTags').length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {form.watch('platformTags').map((tag) => (
+                              <Badge key={tag} variant="secondary" className="gap-1">
+                                <Tag className="h-3 w-3" />
+                                {tag}
+                                <button
+                                  type="button"
+                                  onClick={() => removePlatformTag(tag)}
+                                  className="ml-1 hover:text-red-600"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="space-y-2">
                       <Label>Tags</Label>
                       <div className="flex gap-2">

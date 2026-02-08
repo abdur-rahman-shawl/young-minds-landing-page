@@ -2,8 +2,91 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── View Transition: Radial Theme Wipe ─── */
+
+/*
+ * Override default view-transition pseudo-element behavior.
+ * We disable the default crossfade and control everything with clip-path.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+  will-change: clip-path, filter, opacity;
+}
+
+/*
+ * Old snapshot (the theme being replaced) sits underneath
+ * and shrinks to a point with a blur fade-out.
+ */
+::view-transition-old(root) {
+  z-index: 1;
+  animation: theme-wipe-out var(--theme-transition-duration) var(--theme-transition-ease) both;
+}
+
+/*
+ * New snapshot (the incoming theme) sits on top
+ * and expands from a point with a blur fade-in.
+ */
+::view-transition-new(root) {
+  z-index: 2;
+  animation: theme-wipe-in var(--theme-transition-duration) var(--theme-transition-ease) both;
+}
+
+/*
+ * Expand from nothing → full radius.
+ * Starts blurred and transparent, ends sharp and opaque.
+ */
+@keyframes theme-wipe-in {
+  from {
+    clip-path: circle(0px at var(--theme-transition-x) var(--theme-transition-y));
+    filter: blur(8px) saturate(1.1);
+    opacity: 0.8;
+  }
+
+  to {
+    clip-path: circle(var(--theme-transition-radius) at var(--theme-transition-x) var(--theme-transition-y));
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+
+/*
+ * Shrink from full radius → nothing.
+ * Starts sharp and opaque, ends blurred and faded.
+ */
+@keyframes theme-wipe-out {
+  from {
+    clip-path: circle(var(--theme-transition-radius) at var(--theme-transition-x) var(--theme-transition-y));
+    filter: blur(0);
+    opacity: 1;
+  }
+
+  to {
+    clip-path: circle(0px at var(--theme-transition-x) var(--theme-transition-y));
+    filter: blur(6px) saturate(0.95);
+    opacity: 0.7;
+  }
+}
+
+/* Respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 1ms;
+  }
+}
+
 @layer base {
   :root {
+    /* Theme transition defaults (overridden at runtime by JS) */
+    --theme-transition-x: 50vw;
+    --theme-transition-y: 10vh;
+    --theme-transition-radius: 0px;
+    --theme-transition-duration: 560ms;
+    --theme-transition-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
     /* Background & Surfaces */
     --background: 0 0% 100%;
     --foreground: 220 14% 10%;

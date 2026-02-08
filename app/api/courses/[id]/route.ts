@@ -78,6 +78,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         thumbnailUrl: courses.thumbnailUrl,
         category: courses.category,
         tags: courses.tags,
+        platformTags: courses.platformTags,
+        platformName: courses.platformName,
+        ownerType: courses.ownerType,
         prerequisites: courses.prerequisites,
         learningOutcomes: courses.learningOutcomes,
         enrollmentCount: courses.enrollmentCount,
@@ -88,6 +91,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         mentorId: mentors.id,
         mentorUserId: mentors.userId,
         mentorName: users.name,
+        mentorFullName: mentors.fullName,
         mentorImage: users.image,
         mentorTitle: mentors.title,
         mentorCompany: mentors.company,
@@ -99,8 +103,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       })
       .from(courses)
       .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-      .innerJoin(mentors, eq(mentorContent.mentorId, mentors.id))
-      .innerJoin(users, eq(mentors.userId, users.id))
+      .leftJoin(mentors, eq(mentorContent.mentorId, mentors.id))
+      .leftJoin(users, eq(mentors.userId, users.id))
       .where(eq(courses.id, id))
       .limit(1);
 
@@ -277,6 +281,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       });
     });
 
+    const mentorName = course.ownerType === 'PLATFORM'
+      ? (course.platformName || 'Platform')
+      : (course.mentorFullName || course.mentorName);
+
     // Parse JSON fields and structure response
     const courseDetails = {
       id: course.id,
@@ -289,20 +297,23 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       thumbnailUrl: course.thumbnailUrl,
       category: course.category,
       tags: safeJsonParse(course.tags, []),
+      platformTags: safeJsonParse(course.platformTags, []),
+      platformName: course.platformName,
+      ownerType: course.ownerType,
       prerequisites: safeJsonParse(course.prerequisites, []),
       learningOutcomes: safeJsonParse(course.learningOutcomes, []),
       mentor: {
-        id: course.mentorId,
-        userId: course.mentorUserId,
-        name: course.mentorName,
-        image: course.mentorImage,
-        title: course.mentorTitle,
-        company: course.mentorCompany,
-        bio: course.mentorAbout,
-        expertise: safeJsonParse(course.mentorExpertise, []),
-        experience: course.mentorExperience,
-        linkedinUrl: course.mentorLinkedinUrl,
-        websiteUrl: course.mentorWebsiteUrl,
+        id: course.ownerType === 'PLATFORM' ? null : course.mentorId,
+        userId: course.ownerType === 'PLATFORM' ? null : course.mentorUserId,
+        name: mentorName,
+        image: course.ownerType === 'PLATFORM' ? null : course.mentorImage,
+        title: course.ownerType === 'PLATFORM' ? null : course.mentorTitle,
+        company: course.ownerType === 'PLATFORM' ? null : course.mentorCompany,
+        bio: course.ownerType === 'PLATFORM' ? null : course.mentorAbout,
+        expertise: course.ownerType === 'PLATFORM' ? [] : safeJsonParse(course.mentorExpertise, []),
+        experience: course.ownerType === 'PLATFORM' ? null : course.mentorExperience,
+        linkedinUrl: course.ownerType === 'PLATFORM' ? null : course.mentorLinkedinUrl,
+        websiteUrl: course.ownerType === 'PLATFORM' ? null : course.mentorWebsiteUrl,
       },
       curriculum: structuredCurriculum,
       statistics: {

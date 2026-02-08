@@ -216,8 +216,8 @@ export function PlanFeatureEditor({ planId }: PlanFeatureEditorProps) {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[2fr_3fr]">
-      <Card className="h-full">
+    <div className="grid gap-4 lg:grid-cols-[2fr_3fr] items-start">
+      <Card className="h-full lg:max-h-[70vh]">
         <CardHeader>
           <CardTitle>Features</CardTitle>
         </CardHeader>
@@ -227,7 +227,7 @@ export function PlanFeatureEditor({ planId }: PlanFeatureEditorProps) {
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
           />
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[56vh] overflow-y-auto pr-1">
             {Object.entries(groupedFeatures).map(([category, categoryFeatures]) => (
               <div key={category} className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -275,7 +275,7 @@ export function PlanFeatureEditor({ planId }: PlanFeatureEditorProps) {
         </CardContent>
       </Card>
 
-      <Card className="h-full">
+      <Card className="h-full lg:sticky lg:top-6 lg:self-start">
         <CardHeader>
           <CardTitle>Configuration</CardTitle>
         </CardHeader>

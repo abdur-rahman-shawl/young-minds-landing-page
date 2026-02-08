@@ -337,14 +337,12 @@ export const CourseBuilder = memo(({ content, onBack }: CourseBuilderProps) => {
       )}
       
       {/* Dialogs */}
-      {createCourseOpen && (
-        <CreateCourseDialog
-          contentId={content.id}
-          existingCourse={fullContent?.course}
-          open={createCourseOpen}
-          onOpenChange={setCreateCourseOpen}
-        />
-      )}
+      <CreateCourseDialog
+        contentId={content.id}
+        existingCourse={fullContent?.course}
+        open={createCourseOpen}
+        onOpenChange={setCreateCourseOpen}
+      />
       
       {createModuleOpen && (
         <CreateModuleDialog
