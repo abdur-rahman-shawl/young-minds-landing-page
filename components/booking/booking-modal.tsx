@@ -128,16 +128,22 @@ export function BookingModal({
             mentorSessionsRemaining: data.data?.mentor_sessions_remaining ?? null,
           });
         } else {
-      setSessionAvailability({
-        freeAvailable: true,
-        paidAvailable: true,
-      });
+          setSessionAvailability({
+            freeAvailable: true,
+            paidAvailable: true,
+            freeRemaining: null,
+            paidRemaining: null,
+            mentorSessionsRemaining: null,
+          });
         }
       } catch (error) {
-      setSessionAvailability({
-        freeAvailable: true,
-        paidAvailable: true,
-      });
+        setSessionAvailability({
+          freeAvailable: true,
+          paidAvailable: true,
+          freeRemaining: null,
+          paidRemaining: null,
+          mentorSessionsRemaining: null,
+        });
       } finally {
         setAvailabilityLoading(false);
       }
@@ -150,12 +156,18 @@ export function BookingModal({
     ? {
         freeAvailable: allowFreeBooking ? sessionAvailability.freeAvailable : false,
         paidAvailable: sessionAvailability.paidAvailable,
+        freeRemaining: sessionAvailability.freeRemaining ?? null,
+        paidRemaining: sessionAvailability.paidRemaining ?? null,
+        mentorSessionsRemaining: sessionAvailability.mentorSessionsRemaining ?? null,
       }
     : allowFreeBooking
       ? null
       : {
           freeAvailable: false,
           paidAvailable: true,
+          freeRemaining: null,
+          paidRemaining: null,
+          mentorSessionsRemaining: null,
         };
 
   const handleAttemptClose = () => {
@@ -210,7 +222,18 @@ export function BookingModal({
 
       const data = await response.json();
 
-      if (!response.ok) throw new Error(data.error || 'Failed to book session');
+      if (!response.ok) {
+        const errorMessage = data?.error || 'Failed to book session';
+        const errorDetails = data?.details || data?.message;
+        if (data?.upgrade_required) {
+          toast.error(errorMessage, {
+            description: errorDetails || 'Upgrade your plan to continue.',
+          });
+          setIsSubmitting(false);
+          return;
+        }
+        throw new Error(errorMessage);
+      }
 
       setBookingId(data.booking.id);
       setCurrentStep('success');

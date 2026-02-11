@@ -22,8 +22,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { livekitRooms, livekitRecordings, sessions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 
 export async function GET(
   request: NextRequest,
@@ -77,18 +76,18 @@ export async function GET(
       );
     }
 
-    const { has_access, reason } = await checkFeatureAccess(
-      userId,
-      FEATURE_KEYS.SESSION_RECORDINGS_ACCESS
-    );
-    if (!has_access) {
-      return NextResponse.json(
-        {
-          error: 'Forbidden',
-          message: reason || 'Session recordings are not included in your plan',
-        },
-        { status: 403 }
-      );
+    try {
+      const recordingsAction =
+        userId === sessionData.mentorId ? 'recordings.access.mentor' : 'recordings.access.mentee';
+      await enforceFeature({
+        action: recordingsAction,
+        userId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
     }
 
     // ======================================================================

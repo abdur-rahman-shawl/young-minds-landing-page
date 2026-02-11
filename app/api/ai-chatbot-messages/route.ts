@@ -4,8 +4,11 @@ import { db } from '@/lib/db';
 import { aiChatbotMessages } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { recordChatInsight } from '@/lib/chatbot/insights';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
+import {
+  consumeFeature,
+  enforceFeature,
+  isSubscriptionPolicyError,
+} from '@/lib/subscriptions/policy-runtime';
 
 // GET: fetch all messages for a chat session
 export async function GET(request: NextRequest) {
@@ -51,9 +54,17 @@ export async function POST(request: NextRequest) {
 
     // Subscription Enforcement for Logged-in Users
     if (userId && senderType === 'user') {
-      const { has_access, reason } = await checkFeatureAccess(userId, FEATURE_KEYS.AI_HELPER_MESSAGES_LIMIT);
-      if (!has_access) {
-        return NextResponse.json({ success: false, error: reason || 'Message limit reached' }, { status: 403 });
+      try {
+        await enforceFeature({
+          action: 'ai.chat.message',
+          userId,
+          failureMessage: 'Message limit reached',
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        throw error;
       }
     }
 
@@ -82,7 +93,12 @@ export async function POST(request: NextRequest) {
 
     // Track usage for logged-in users
     if (userId && senderType === 'user') {
-      await trackFeatureUsage(userId, FEATURE_KEYS.AI_HELPER_MESSAGES_LIMIT, { count: 1 });
+      await consumeFeature({
+        action: 'ai.chat.message',
+        userId,
+        resourceType: 'chat_message',
+        resourceId: newMessage.id,
+      });
     }
 
     return NextResponse.json({ success: true, data: newMessage });

@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { users, mentors, userRoles, roles, mentorsFormAuditTrail } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { uploadProfilePicture, uploadResume } from '@/lib/storage';
+import { uploadProfilePicture, uploadResume, normalizeStorageValue } from '@/lib/storage';
 import { sendApplicationReceivedEmail } from '@/lib/email';
 
 const MAX_RESUME_SIZE = 5 * 1024 * 1024; // 5MB
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
     if (profilePicture instanceof File && profilePicture.size > 0) {
       try {
         const uploadResult = await uploadProfilePicture(profilePicture, userId);
-        profileImageUrl = uploadResult.url;
+        profileImageUrl = uploadResult.path;
         console.log('âœ… Profile picture uploaded:', profileImageUrl);
       } catch (uploadError) {
         console.error('âŒ Profile picture upload failed:', uploadError);
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
     if (resume instanceof File && resume.size > 0) {
       try {
         const uploadResult = await uploadResume(resume, userId);
-        resumeUrl = uploadResult.url;
+        resumeUrl = uploadResult.path;
         console.log('âœ… Resume uploaded successfully');
       } catch (uploadError) {
         console.error('âŒ Resume upload failed:', uploadError);
@@ -182,8 +182,8 @@ export async function POST(request: NextRequest) {
       country: country || null,
       state: state || null,
       availability: availability || null,
-      profileImageUrl: profileImageUrl ?? existingMentor?.profileImageUrl ?? null,
-      resumeUrl: resumeUrl ?? existingMentor?.resumeUrl ?? null,
+      profileImageUrl: normalizeStorageValue(profileImageUrl) ?? existingMentor?.profileImageUrl ?? null,
+      resumeUrl: normalizeStorageValue(resumeUrl) ?? existingMentor?.resumeUrl ?? null,
       updatedAt: new Date(),
     };
 
@@ -302,6 +302,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
 
 

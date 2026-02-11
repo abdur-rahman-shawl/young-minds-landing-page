@@ -4,8 +4,8 @@ import { db } from '@/lib/db'
 import { mentors, users } from '@/lib/db/schema'
 import { and, eq, ilike, or, desc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys'
-import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement'
+import { createClient } from '@/lib/supabase/server'
+import { enforceFeature, consumeFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime'
 
 // Force Node runtime (DB drivers), and avoid any ISR caching
 export const runtime = 'nodejs'
@@ -27,23 +27,30 @@ export async function GET(req: NextRequest) {
     const aiSearch = (searchParams.get('ai') ?? 'false') === 'true'
 
     let requesterId: string | null = null
-    const resolveFeatureAccess = async (userId: string, primaryKey: string, fallbackKey?: string) => {
-      const primary = await checkFeatureAccess(userId, primaryKey).catch(() => null)
+    const resolveFeatureAccess = async (
+      userId: string,
+      primaryAction: 'ai.search.sessions' | 'mentor.ai.visibility',
+      fallbackAction?: 'ai.search.sessions_monthly'
+    ) => {
+      const primary = await enforceFeature({ action: primaryAction, userId }).catch((error) => {
+        if (isSubscriptionPolicyError(error)) return null
+        throw error
+      })
       if (primary?.has_access) {
-        return { key: primaryKey, access: primary }
+        return { action: primaryAction, access: primary }
       }
-      if (fallbackKey) {
-        const fallback = await checkFeatureAccess(userId, fallbackKey).catch(() => null)
+      if (fallbackAction) {
+        const fallback = await enforceFeature({ action: fallbackAction, userId }).catch((error) => {
+          if (isSubscriptionPolicyError(error)) return null
+          throw error
+        })
         if (fallback?.has_access) {
-          return { key: fallbackKey, access: fallback }
+          return { action: fallbackAction, access: fallback }
         }
-        return { key: primaryKey, access: primary || fallback }
+        return { action: primaryAction, access: primary || fallback }
       }
-      return { key: primaryKey, access: primary }
+      return { action: primaryAction, access: primary }
     }
-
-    type ResolveFeatureAccessResult = Awaited<ReturnType<typeof resolveFeatureAccess>>;
-    let requesterAccess: ResolveFeatureAccessResult | null = null;
 
     if (aiSearch) {
       const session = await auth.api.getSession({ headers: req.headers })
@@ -56,14 +63,18 @@ export async function GET(req: NextRequest) {
         )
       }
 
-      requesterAccess = await resolveFeatureAccess(
+      const requesterAccess = await resolveFeatureAccess(
         requesterId,
-        FEATURE_KEYS.AI_SEARCH_SESSIONS,
-        FEATURE_KEYS.AI_SEARCH_SESSIONS_MONTHLY
+        'ai.search.sessions',
+        'ai.search.sessions_monthly'
       )
       if (!requesterAccess.access?.has_access) {
+        const errorPayload = (requesterAccess.access as any)?.payload
+        if (errorPayload) {
+          return NextResponse.json(errorPayload, { status: 403 })
+        }
         return NextResponse.json(
-          { success: false, error: requesterAccess.access?.reason || 'AI search not included in your plan' },
+          { success: false, error: 'AI search not included in your plan' },
           { status: 403 }
         )
       }
@@ -118,58 +129,84 @@ export async function GET(req: NextRequest) {
 
     if (aiSearch && requesterId) {
       if (filteredRows.length > 0) {
+        const supabase = await createClient()
+        const mentorUserIds = filteredRows.map((row) => row.userId)
+
+        const { data: subscriptions, error: subscriptionsError } = await supabase
+          .from('subscriptions')
+          .select('user_id')
+          .in('user_id', mentorUserIds)
+          .in('status', ['trialing', 'active'])
+
+        if (subscriptionsError) {
+          console.error('Failed to load mentor subscriptions:', subscriptionsError)
+        } else {
+          const eligibleMentorIds = new Set(subscriptions?.map((item) => item.user_id))
+          filteredRows = filteredRows.filter((row) => eligibleMentorIds.has(row.userId))
+        }
+      }
+
+      if (filteredRows.length > 0) {
         const eligibilityChecks = await Promise.all(
           filteredRows.map(async (row) => {
             try {
-              const [freeAccess, paidAccess, visibilityAccess] = await Promise.all([
-                checkFeatureAccess(row.userId, FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY),
-                checkFeatureAccess(row.userId, FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY),
-                resolveFeatureAccess(row.userId, FEATURE_KEYS.AI_VISIBILITY),
+              const [freeAccess, mentorAccess, visibilityAccess] = await Promise.all([
+                enforceFeature({ action: 'mentor.free_session_availability', userId: row.userId }).catch((error) => {
+                  if (isSubscriptionPolicyError(error)) return null
+                  throw error
+                }),
+                enforceFeature({ action: 'booking.mentor.session', userId: row.userId }).catch((error) => {
+                  if (isSubscriptionPolicyError(error)) return null
+                  throw error
+                }),
+                resolveFeatureAccess(row.userId, 'mentor.ai.visibility'),
               ])
-              const hasFreeRemaining = freeAccess.has_access && (typeof freeAccess.remaining !== 'number' || freeAccess.remaining > 0)
-              const hasPaidRemaining = paidAccess.has_access && (typeof paidAccess.remaining !== 'number' || paidAccess.remaining > 0)
               return {
                 row,
-                eligible: hasFreeRemaining || hasPaidRemaining,
-                visibilityKey: visibilityAccess?.key ?? null,
-                visibilityAccess,
+                eligible:
+                  Boolean((freeAccess as any)?.has_access) &&
+                  Boolean((mentorAccess as any)?.has_access) &&
+                  (visibilityAccess as any)?.access?.has_access === true,
+                visibilityAction: (visibilityAccess as any)?.action,
               }
             } catch (error) {
               console.error('Failed to check mentor eligibility:', error)
-              return { row, eligible: false, visibilityKey: null, visibilityAccess: null }
+              return { row, eligible: false, visibilityAction: null }
             }
           })
         )
 
-        const eligibleMentors = eligibilityChecks.filter((item) => item.eligible)
-        filteredRows = eligibleMentors.map((item) => item.row)
+        filteredRows = eligibilityChecks.filter((item) => item.eligible).map((item) => item.row)
 
         const visibilityKeyByUser = new Map(
-          eligibleMentors
-            .filter((item) => item.visibilityAccess?.access?.has_access && item.visibilityKey)
-            .map((item) => [item.row.userId, item.visibilityKey as string])
+          eligibilityChecks
+            .filter((item) => item.eligible)
+            .map((item) => [item.row.userId, item.visibilityAction || 'mentor.ai.visibility'])
         )
 
-        if (requesterAccess?.access?.has_access) {
-          await trackFeatureUsage(
-            requesterId,
-            requesterAccess.key,
-            { count: 1 },
-            'ai_search'
-          )
+        const requesterAccess = await resolveFeatureAccess(
+          requesterId,
+          'ai.search.sessions',
+          'ai.search.sessions_monthly'
+        )
+        if (requesterAccess.access?.has_access) {
+          await consumeFeature({
+            action: requesterAccess.action,
+            userId: requesterId,
+            resourceType: 'ai_search',
+          })
         }
 
         for (const row of filteredRows) {
-          const visibilityKey = visibilityKeyByUser.get(row.userId)
-          if (!visibilityKey) continue
+          const visibilityAction = visibilityKeyByUser.get(row.userId)
+          if (!visibilityAction) continue
           try {
-            await trackFeatureUsage(
-              row.userId,
-              visibilityKey,
-              { count: 1 },
-              'mentor_profile',
-              row.id
-            )
+            await consumeFeature({
+              action: visibilityAction,
+              userId: row.userId,
+              resourceType: 'mentor_profile',
+              resourceId: row.id,
+            })
           } catch (error) {
             console.error('Failed to track mentor visibility:', error)
           }

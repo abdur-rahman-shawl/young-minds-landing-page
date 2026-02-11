@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
-import { 
-  courseEnrollments, 
-  courses, 
+import {
+  courseEnrollments,
+  courses,
   mentorContent,
   mentees,
   users,
@@ -11,7 +11,12 @@ import {
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess, getPlanFeatures, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
+import { getPlanFeatures } from '@/lib/subscriptions/enforcement';
+import {
+  consumeFeature,
+  enforceFeature,
+  isSubscriptionPolicyError,
+} from '@/lib/subscriptions/policy-runtime';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -22,7 +27,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: courseId } = await params;
     const body = await request.json();
-    
+
     // Get user from auth
     const session = await auth.api.getSession({
       headers: request.headers,
@@ -67,7 +72,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           updatedAt: new Date(),
         })
         .returning({ id: mentees.id });
-      
+
       menteeId = newMentee[0].id;
     }
 
@@ -118,15 +123,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const coursesAccess = await checkFeatureAccess(
-      userId,
-      FEATURE_KEYS.COURSES_ACCESS
-    );
-    if (!coursesAccess.has_access) {
-      return NextResponse.json(
-        { success: false, error: coursesAccess.reason || 'Courses are not included in your plan' },
-        { status: 403 }
-      );
+    let coursesAccess;
+    try {
+      coursesAccess = await enforceFeature({
+        action: 'courses.access',
+        userId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
     }
 
     const accessLevelText = typeof coursesAccess.limit === 'string' ? coursesAccess.limit : null;
@@ -135,15 +142,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       : true;
 
     if (shouldEnforceCourseLimit) {
-      const { has_access, reason } = await checkFeatureAccess(
-        userId,
-        FEATURE_KEYS.FREE_COURSES_LIMIT
-      );
-      if (!has_access) {
-        return NextResponse.json(
-          { success: false, error: reason || 'Course enrollment limit reached' },
-          { status: 403 }
-        );
+      try {
+        await enforceFeature({
+          action: 'courses.free_limit',
+          userId,
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        throw error;
       }
     }
 
@@ -161,7 +169,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     let discountAmount = 0;
 
     try {
-      const planFeatures = await getPlanFeatures(userId);
+      const planFeatures = await getPlanFeatures(userId, {
+        audience: 'mentee',
+        actorRole: 'mentee',
+      });
       const discountFeature = planFeatures.find(
         feature => feature.feature_key === FEATURE_KEYS.COURSE_DISCOUNT_PERCENT
       );
@@ -208,7 +219,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (finalPrice > 0) {
       // For paid courses, we'll create a payment intent
       // This is where you'd integrate with Stripe or other payment processors
-      
+
       if (!paymentMethodId && !isGift) {
         return NextResponse.json(
           { success: false, error: 'Payment method required for paid courses' },
@@ -218,7 +229,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Create payment transaction record
       const transactionId = `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       try {
         // Here you would integrate with Stripe:
         // const paymentIntent = await stripe.paymentIntents.create({
@@ -261,7 +272,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       } catch (paymentError) {
         console.error('Payment processing error:', paymentError);
-        
+
         // Update enrollment status to failed
         await db
           .update(courseEnrollments)
@@ -283,13 +294,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       })
       .where(eq(courses.id, courseId));
 
-    await trackFeatureUsage(
+    await consumeFeature({
+      action: 'courses.free_limit',
       userId,
-      FEATURE_KEYS.FREE_COURSES_LIMIT,
-      { count: 1 },
-      'course_enrollment',
-      enrollmentId
-    );
+      resourceType: 'course_enrollment',
+      resourceId: enrollmentId,
+    });
 
     // Return success response
     return NextResponse.json({
@@ -306,8 +316,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         // In a real implementation, you might return payment client secret for Stripe
         // clientSecret: paymentIntent.client_secret,
       },
-      message: finalPrice > 0 
-        ? 'Enrollment successful! Payment processed.' 
+      message: finalPrice > 0
+        ? 'Enrollment successful! Payment processed.'
         : 'Enrollment successful! Welcome to the course.',
     });
 
@@ -324,12 +334,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: courseId } = await params;
-    
+
     // Get user from auth
     const session = await auth.api.getSession({
       headers: request.headers,
     });
-    
+
     if (!session?.user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },

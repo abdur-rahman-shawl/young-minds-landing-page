@@ -31,8 +31,8 @@ interface BookingAvailability {
 
 interface BookingFormProps {
   scheduledAt: Date;
-   mentor: Mentor;
-   availability?: BookingAvailability;
+  mentor: Mentor;
+  availability?: BookingAvailability;
   freeDisabledReason?: string;
   hideFreeOption?: boolean;
   hideSessionTypeSelector?: boolean;
@@ -208,24 +208,24 @@ export function BookingForm({
                       <p className={cn("font-semibold text-sm", isSelected ? "text-blue-900 dark:text-blue-100" : "text-slate-900 dark:text-slate-100")}>
                         {option.label}
                       </p>
-                    <p className="text-xs text-slate-500">{option.helper}</p>
-                    {option.value === 'FREE' && freeRemaining !== null && (
-                      <p className="text-[10px] text-slate-400">Remaining: {freeRemaining}</p>
-                    )}
-                    {option.value === 'PAID' && (
-                      <>
-                        {mentorRemaining !== null && (
-                          <p className="text-[10px] text-slate-400">
-                            Mentor sessions left: {mentorRemaining}
-                          </p>
-                        )}
-                        {paidRemaining !== null && (
-                          <p className="text-[10px] text-slate-400">
-                            Paid quotas left: {paidRemaining}
-                          </p>
-                        )}
-                      </>
-                    )}
+                      <p className="text-xs text-slate-500">{option.helper}</p>
+                      {option.value === 'FREE' && freeRemaining !== null && (
+                        <p className="text-[10px] text-slate-400">Remaining: {freeRemaining}</p>
+                      )}
+                      {option.value === 'PAID' && (
+                        <>
+                          {mentorRemaining !== null && (
+                            <p className="text-[10px] text-slate-400">
+                              Mentor sessions left: {mentorRemaining}
+                            </p>
+                          )}
+                          {paidRemaining !== null && (
+                            <p className="text-[10px] text-slate-400">
+                              Paid quotas left: {paidRemaining}
+                            </p>
+                          )}
+                        </>
+                      )}
                     </div>
                   );
                 })}

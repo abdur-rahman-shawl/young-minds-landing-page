@@ -3,8 +3,7 @@ import { streamObject, type CoreMessage } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 
 // Read from server env (NOT exposed to the browser)
 const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
@@ -49,10 +48,17 @@ export async function POST(req: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // Check AI Chat Feature Access
-  const { has_access, reason } = await checkFeatureAccess(session.user.id, FEATURE_KEYS.AI_HELPER_CHAT_ACCESS);
-  if (!has_access) {
-    return new Response(reason || "AI Chat access is not included in your plan", { status: 403 });
+  try {
+    await enforceFeature({
+      action: 'ai.chat.access',
+      userId: session.user.id,
+      failureMessage: 'AI Chat access is not included in your plan',
+    });
+  } catch (error) {
+    if (isSubscriptionPolicyError(error)) {
+      return new Response(error.payload.error, { status: error.status });
+    }
+    return new Response("Unable to verify AI chat access", { status: 500 });
   }
 
   if (!GOOGLE_API_KEY) {

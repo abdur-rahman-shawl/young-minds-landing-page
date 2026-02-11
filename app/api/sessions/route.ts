@@ -3,16 +3,13 @@ import { db } from '@/lib/db';
 import { sessions, mentors, users } from '@/lib/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
-
-const SESSION_DURATION_LIMITS = {
-  FREE: 30,
-  PAID: 45,
-  COUNSELING: 45,
-} as const;
-
-type SessionBookingType = keyof typeof SESSION_DURATION_LIMITS;
+import { getPlanFeatures } from '@/lib/subscriptions/enforcement';
+import {
+  consumeFeature,
+  enforceFeature,
+  isSubscriptionPolicyError,
+} from '@/lib/subscriptions/policy-runtime';
+import { ACTION_POLICIES, resolveMenteeBookingAction } from '@/lib/subscriptions/policies';
 
 async function requireSessionUser(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -69,12 +66,12 @@ export async function GET(request: NextRequest) {
     let filteredSessions = userSessions;
     if (type === 'upcoming') {
       const now = new Date();
-      filteredSessions = userSessions.filter(s => 
+      filteredSessions = userSessions.filter(s =>
         s.scheduledAt && new Date(s.scheduledAt) > now
       );
     } else if (type === 'past') {
       const now = new Date();
-      filteredSessions = userSessions.filter(s => 
+      filteredSessions = userSessions.filter(s =>
         s.scheduledAt && new Date(s.scheduledAt) <= now
       );
     }
@@ -129,42 +126,21 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const resolvedSessionType = (sessionType || 'PAID') as SessionBookingType;
-      const sessionDuration = duration ?? 60;
-      const sessionDurationLimit = SESSION_DURATION_LIMITS[resolvedSessionType];
-
-      if (sessionDuration > sessionDurationLimit) {
-        return NextResponse.json(
-          { success: false, error: `Session duration cannot exceed ${sessionDurationLimit} minutes` },
-          { status: 403 }
-        );
-      }
-
-      const menteeSessionFeatureKey =
-        resolvedSessionType === 'FREE'
-          ? FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY
-          : resolvedSessionType === 'COUNSELING'
-            ? FEATURE_KEYS.COUNSELING_SESSIONS_MONTHLY
-            : FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY;
-
-      const mentorSessionFeatureKey =
-        resolvedSessionType === 'FREE'
-          ? FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY
-          : FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY;
+      const resolvedSessionType = sessionType || 'PAID';
+      const sessionDuration = duration || 60;
+      const menteeSessionAction = resolveMenteeBookingAction(resolvedSessionType);
+      const menteeSessionFeatureKey = ACTION_POLICIES[menteeSessionAction].featureKey;
 
       try {
-        const { has_access, reason } = await checkFeatureAccess(
-          currentUserId,
-          menteeSessionFeatureKey
-        );
-
-        if (!has_access) {
-          return NextResponse.json(
-            { success: false, error: reason || 'You have reached your session limit for this type' },
-            { status: 403 }
-          );
-        }
+        await enforceFeature({
+          action: menteeSessionAction,
+          userId: currentUserId,
+          failureMessage: 'You have reached your session limit for this type',
+        });
       } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
         console.error('Subscription check failed (mentee):', error);
         return NextResponse.json(
           { success: false, error: 'Unable to verify mentee subscription limits' },
@@ -173,23 +149,70 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const { has_access, reason } = await checkFeatureAccess(
-          mentorId,
-          mentorSessionFeatureKey
+        const menteeFeatures = await getPlanFeatures(currentUserId, {
+          audience: 'mentee',
+          actorRole: 'mentee',
+        });
+        const menteeSessionFeature = menteeFeatures.find(
+          feature => feature.feature_key === menteeSessionFeatureKey
         );
+        const menteeDurationLimit = menteeSessionFeature?.limit_minutes ?? null;
 
-        if (!has_access) {
+        if (menteeDurationLimit !== null && sessionDuration > menteeDurationLimit) {
           return NextResponse.json(
-            { success: false, error: reason || 'Mentor has reached their session limit for this tier' },
+            { success: false, error: `Session duration exceeds your limit of ${menteeDurationLimit} minutes` },
             { status: 403 }
           );
         }
       } catch (error) {
-        console.error('Subscription check failed (mentor):', error);
+        console.error('Duration limit check failed (mentee):', error);
+        return NextResponse.json(
+          { success: false, error: 'Unable to verify mentee session duration limits' },
+          { status: 500 }
+        );
+      }
+
+      try {
+        await enforceFeature({
+          action: 'booking.mentor.session',
+          userId: mentorId,
+          failureMessage: 'Mentor has reached their monthly session limit',
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        console.error('Subscription check failed:', error);
         return NextResponse.json(
           { success: false, error: 'Unable to verify mentor subscription limits' },
           { status: 500 }
         );
+      }
+
+      if (resolvedSessionType !== 'FREE') {
+        try {
+          const { limit } = await enforceFeature({
+            action: 'booking.mentor.duration',
+            userId: mentorId,
+            failureMessage: 'Mentor session duration limit not included in plan',
+          });
+
+          if (typeof limit === 'number' && sessionDuration > limit) {
+            return NextResponse.json(
+              { success: false, error: `Session duration exceeds mentor limit of ${limit} minutes` },
+              { status: 403 }
+            );
+          }
+        } catch (error) {
+          if (isSubscriptionPolicyError(error)) {
+            return NextResponse.json(error.payload, { status: error.status });
+          }
+          console.error('Duration limit check failed (mentor):', error);
+          return NextResponse.json(
+            { success: false, error: 'Unable to verify mentor session duration limits' },
+            { status: 500 }
+          );
+        }
       }
 
       // Create new session
@@ -208,21 +231,21 @@ export async function POST(request: NextRequest) {
         .returning();
 
       try {
-        await trackFeatureUsage(
-          currentUserId,
-          menteeSessionFeatureKey,
-          { count: 1, minutes: sessionDuration },
-          'session',
-          newSession.id
-        );
+        await consumeFeature({
+          action: menteeSessionAction,
+          userId: currentUserId,
+          delta: { count: 1, minutes: sessionDuration },
+          resourceType: 'session',
+          resourceId: newSession.id,
+        });
 
-        await trackFeatureUsage(
-          mentorId,
-          mentorSessionFeatureKey,
-          { count: 1, minutes: sessionDuration },
-          'session',
-          newSession.id
-        );
+        await consumeFeature({
+          action: 'booking.mentor.session',
+          userId: mentorId,
+          delta: { count: 1, minutes: sessionDuration },
+          resourceType: 'session',
+          resourceId: newSession.id,
+        });
       } catch (error) {
         console.error('Usage tracking failed:', error);
         return NextResponse.json(
@@ -240,7 +263,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'cancel') {
       const { sessionId } = body;
-      
+
       if (!sessionId) {
         return NextResponse.json(
           { success: false, error: 'Session ID is required' },
@@ -276,7 +299,7 @@ export async function POST(request: NextRequest) {
       // Update session status
       const [updatedSession] = await db
         .update(sessions)
-        .set({ 
+        .set({
           status: 'cancelled',
           updatedAt: new Date()
         })

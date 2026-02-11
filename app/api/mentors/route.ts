@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { mentors, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { requireAdmin, requireMentee } from '@/lib/api/guards';
+import { resolveStorageUrl } from '@/lib/storage';
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,13 +44,22 @@ export async function GET(request: NextRequest) {
       .orderBy(mentors.createdAt);
 
     // Map the results to handle name and image fallback priority
-    const mappedMentors = mentosList.map((mentor: typeof mentosList[number]) => ({
-      ...mentor,
-      // Use mentor's fullName if available, otherwise fallback to user's name
-      name: mentor.fullName || mentor.userName,
-      // Use mentor's profileImageUrl if available, otherwise fallback to user's image
-      image: mentor.profileImageUrl || mentor.userImage
-    }));
+    const mappedMentors = await Promise.all(
+      mentosList.map(async (mentor) => {
+        const signedProfileImageUrl = await resolveStorageUrl(mentor.profileImageUrl);
+        const signedBannerImageUrl = await resolveStorageUrl(mentor.bannerImageUrl);
+
+        return {
+          ...mentor,
+          profileImageUrl: signedProfileImageUrl,
+          bannerImageUrl: signedBannerImageUrl,
+          // Use mentor's fullName if available, otherwise fallback to user's name
+          name: mentor.fullName || mentor.userName,
+          // Use mentor's profileImageUrl if available, otherwise fallback to user's image
+          image: signedProfileImageUrl || mentor.userImage,
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,

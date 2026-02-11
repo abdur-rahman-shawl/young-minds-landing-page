@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { mentors, mentorsProfileAudit, type Mentor } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { uploadProfilePicture, uploadResume, uploadBannerImage, storage } from '@/lib/storage';
+import {
+  uploadProfilePicture,
+  uploadResume,
+  uploadBannerImage,
+  storage,
+  extractStoragePath,
+  normalizeStorageValue,
+  resolveStorageUrl,
+} from '@/lib/storage';
 import { requireMentor } from '@/lib/api/guards';
 
 export async function POST(request: NextRequest) {
@@ -97,17 +105,15 @@ export async function POST(request: NextRequest) {
         // Delete old profile picture if it exists
         if (existingMentor.profileImageUrl) {
           try {
-            const oldPath = existingMentor.profileImageUrl.split('/').pop();
-            if (oldPath) {
-              await storage.delete(`profiles/${oldPath}`);
-            }
+            const oldPath = extractStoragePath(existingMentor.profileImageUrl);
+            if (oldPath) await storage.delete(oldPath);
           } catch (deleteError) {
             console.warn('⚠️ Could not delete old profile picture:', deleteError);
           }
         }
 
         const uploadResult = await uploadProfilePicture(profilePicture, userId);
-        newProfileImageUrl = uploadResult.url;
+        newProfileImageUrl = uploadResult.path;
         console.log('✅ New profile picture uploaded:', newProfileImageUrl);
       } catch (uploadError) {
         console.error('❌ Profile picture upload failed:', uploadError);
@@ -126,17 +132,15 @@ export async function POST(request: NextRequest) {
         // Delete old banner if it exists
         if (existingMentor.bannerImageUrl) {
           try {
-            const oldPath = existingMentor.bannerImageUrl.split('/').pop();
-            if (oldPath) {
-              await storage.delete(`banners/${oldPath}`);
-            }
+            const oldPath = extractStoragePath(existingMentor.bannerImageUrl);
+            if (oldPath) await storage.delete(oldPath);
           } catch (deleteError) {
             console.warn('⚠️ Could not delete old banner image:', deleteError);
           }
         }
 
         const uploadResult = await uploadBannerImage(bannerImage, userId);
-        newBannerImageUrl = uploadResult.url;
+        newBannerImageUrl = uploadResult.path;
         console.log('✅ New banner image uploaded:', newBannerImageUrl);
       } catch (uploadError) {
         console.error('❌ Banner image upload failed:', uploadError);
@@ -155,16 +159,18 @@ export async function POST(request: NextRequest) {
         // Delete old resume if it exists
         if (existingMentor.resumeUrl) {
           try {
-            const oldPath = existingMentor.resumeUrl.split('/').slice(-2).join('/'); // mentors/resumes/filename
-            console.log('🗑️ Deleting old resume:', oldPath);
-            await storage.delete(oldPath);
+            const oldPath = extractStoragePath(existingMentor.resumeUrl);
+            if (oldPath) {
+              console.log('🗑️ Deleting old resume:', oldPath);
+              await storage.delete(oldPath);
+            }
           } catch (deleteError) {
             console.warn('⚠️ Could not delete old resume:', deleteError);
           }
         }
 
         const uploadResult = await uploadResume(resume, userId);
-        newResumeUrl = uploadResult.url;
+        newResumeUrl = uploadResult.path;
         console.log('✅ New resume uploaded successfully:', newResumeUrl);
       } catch (uploadError) {
         console.error('❌ Resume upload failed in update-profile:', uploadError);
@@ -179,17 +185,17 @@ export async function POST(request: NextRequest) {
 
     // If profileImageUrl is provided in JSON and no new profilePicture file uploaded, use it
     if (!profilePicture && updateData.profileImageUrl) {
-      newProfileImageUrl = updateData.profileImageUrl as string
+      newProfileImageUrl = normalizeStorageValue(updateData.profileImageUrl as string)
     }
 
     // If bannerImageUrl is provided in JSON and no new bannerImage file uploaded, use it
     if (!bannerImage && updateData.bannerImageUrl) {
-      newBannerImageUrl = updateData.bannerImageUrl as string
+      newBannerImageUrl = normalizeStorageValue(updateData.bannerImageUrl as string)
     }
 
     // If resumeUrl is provided in JSON and no resume file uploaded, use it
     if (!resume && updateData.resumeUrl) {
-      newResumeUrl = updateData.resumeUrl as string
+      newResumeUrl = normalizeStorageValue(updateData.resumeUrl as string)
     }
 
     // Prepare update data
@@ -276,10 +282,17 @@ export async function POST(request: NextRequest) {
 
       console.log('🎉 SUCCESS: Mentor profile updated in database:', updatedMentor);
 
+      const responseMentor = {
+        ...updatedMentor,
+        profileImageUrl: await resolveStorageUrl(updatedMentor.profileImageUrl),
+        bannerImageUrl: await resolveStorageUrl(updatedMentor.bannerImageUrl),
+        resumeUrl: await resolveStorageUrl(updatedMentor.resumeUrl),
+      };
+
       return NextResponse.json({
         success: true,
         message: 'Mentor profile updated successfully',
-        data: updatedMentor
+        data: responseMentor
       });
 
     } catch (updateError) {

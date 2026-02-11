@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { mentorContent, courses, mentors } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { mentorContent } from '@/lib/db/schema';
 import { z } from 'zod';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 import { requireMentor } from '@/lib/api/guards';
+import { getMentorContentOwnershipCondition, getMentorForContent } from '@/lib/api/mentor-content';
+import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
 // Validation schemas
 const createContentSchema = z.object({
@@ -13,13 +13,13 @@ const createContentSchema = z.object({
   description: z.string().optional(),
   type: z.enum(['COURSE', 'FILE', 'URL']),
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
-  
+
   // For FILE type
   fileUrl: z.string().optional(),
   fileName: z.string().optional(),
   fileSize: z.number().optional(),
   mimeType: z.string().optional(),
-  
+
   // For URL type
   url: z.string().url().optional(),
   urlTitle: z.string().optional(),
@@ -34,14 +34,13 @@ export async function GET(request: NextRequest) {
     if ('error' in guard) {
       return guard.error;
     }
-
-    // Get mentor info
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, guard.session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    const mentor = await getMentorForContent(guard.session.user.id);
+    if (!isAdmin && !mentor) {
+      return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
+    }
+    const ownershipCondition = getMentorContentOwnershipCondition(mentor?.id ?? null, isAdmin);
+    if (!ownershipCondition) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
@@ -62,11 +61,18 @@ export async function GET(request: NextRequest) {
       createdAt: mentorContent.createdAt,
       updatedAt: mentorContent.updatedAt,
     })
-    .from(mentorContent)
-    .where(eq(mentorContent.mentorId, mentor[0].id))
-    .orderBy(mentorContent.createdAt);
+      .from(mentorContent)
+      .where(ownershipCondition)
+      .orderBy(mentorContent.createdAt);
 
-    return NextResponse.json(content);
+    const hydratedContent = await Promise.all(
+      content.map(async (item) => ({
+        ...item,
+        fileUrl: await resolveStorageUrl(item.fileUrl),
+      }))
+    );
+
+    return NextResponse.json(hydratedContent);
   } catch (error) {
     console.error('Error fetching mentor content:', error);
     return NextResponse.json(
@@ -82,30 +88,33 @@ export async function POST(request: NextRequest) {
     if ('error' in guard) {
       return guard.error;
     }
-
-    // Get mentor info
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, guard.session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    const mentor = await getMentorForContent(guard.session.user.id);
+    if (!isAdmin && !mentor) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
-    const access = await checkFeatureAccess(
-      guard.session.user.id,
-      FEATURE_KEYS.CONTENT_POSTING_ACCESS
-    );
-    if (!access.has_access) {
-      return NextResponse.json(
-        { error: access.reason || 'Content publishing is not included in your plan' },
-        { status: 403 }
-      );
+    if (!isAdmin) {
+      try {
+        await enforceFeature({
+          action: 'mentor.content_post',
+          userId: guard.session.user.id,
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        throw error;
+      }
     }
 
     const body = await request.json();
     const validatedData = createContentSchema.parse(body);
+
+    // Admins can only create courses through this flow.
+    if (isAdmin && validatedData.type !== 'COURSE') {
+      return NextResponse.json({ error: 'Admins can only create courses' }, { status: 403 });
+    }
 
     // Validate type-specific fields
     if (validatedData.type === 'FILE' && !validatedData.fileUrl) {
@@ -126,11 +135,17 @@ export async function POST(request: NextRequest) {
     const newContent = await db.insert(mentorContent)
       .values({
         ...validatedData,
-        mentorId: mentor[0].id,
+        fileUrl: normalizeStorageValue(validatedData.fileUrl),
+        mentorId: isAdmin ? null : mentor?.id,
       })
       .returning();
 
-    return NextResponse.json(newContent[0], { status: 201 });
+    const hydratedContent = {
+      ...newContent[0],
+      fileUrl: await resolveStorageUrl(newContent[0].fileUrl),
+    };
+
+    return NextResponse.json(hydratedContent, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

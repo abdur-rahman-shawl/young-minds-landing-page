@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storage } from '@/lib/storage';
-import { mentors } from '@/lib/db/schema';
-import { db } from '@/lib/db';
-import { eq } from 'drizzle-orm';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 import { requireMentor } from '@/lib/api/guards';
+import { getMentorForContent } from '@/lib/api/mentor-content';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,14 +10,9 @@ export async function POST(request: NextRequest) {
     if ('error' in guard) {
       return guard.error;
     }
-
-    // Get mentor info
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, guard.session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    const mentor = await getMentorForContent(guard.session.user.id);
+    if (!isAdmin && !mentor) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
@@ -32,29 +24,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    if (fileType === 'document') {
-      const access = await checkFeatureAccess(
-        guard.session.user.id,
-        FEATURE_KEYS.ROADMAP_UPLOAD_ACCESS
-      );
-      if (!access.has_access) {
-        return NextResponse.json(
-          { error: access.reason || 'Document uploads are not included in your plan' },
-          { status: 403 }
-        );
+    if (!isAdmin && fileType === 'document') {
+      try {
+        await enforceFeature({
+          action: 'mentor.roadmap_upload',
+          userId: guard.session.user.id,
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        throw error;
       }
     }
 
-    if (fileType === 'video' || fileType === 'content') {
-      const access = await checkFeatureAccess(
-        guard.session.user.id,
-        FEATURE_KEYS.CONTENT_POSTING_ACCESS
-      );
-      if (!access.has_access) {
-        return NextResponse.json(
-          { error: access.reason || 'Content uploads are not included in your plan' },
-          { status: 403 }
-        );
+    if (!isAdmin && (fileType === 'video' || fileType === 'content')) {
+      try {
+        await enforceFeature({
+          action: 'mentor.content_post',
+          userId: guard.session.user.id,
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        throw error;
       }
     }
 
@@ -64,7 +58,8 @@ export async function POST(request: NextRequest) {
 
     const timestamp = Date.now();
     const fileExt = file.name.split('.').pop()?.toLowerCase();
-    const fileName = `${mentor[0].id}-${timestamp}.${fileExt}`;
+    const ownerToken = mentor?.id ?? `platform-${guard.session.user.id}`;
+    const fileName = `${ownerToken}-${timestamp}.${fileExt}`;
 
     switch (fileType) {
       case 'thumbnail':
@@ -72,7 +67,7 @@ export async function POST(request: NextRequest) {
         options = {
           maxSize: 5 * 1024 * 1024, // 5MB
           allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'jpg', 'png', 'webp'],
-          public: true,
+          public: false,
         };
         break;
 
@@ -81,16 +76,16 @@ export async function POST(request: NextRequest) {
         options = {
           maxSize: 500 * 1024 * 1024, // 500MB for videos
           allowedTypes: [
-            'video/mp4', 
-            'video/mpeg', 
-            'video/quicktime', 
+            'video/mp4',
+            'video/mpeg',
+            'video/quicktime',
             'video/x-msvideo',
-            'mp4', 
-            'mpeg', 
-            'mov', 
+            'mp4',
+            'mpeg',
+            'mov',
             'avi'
           ],
-          public: true,
+          public: false,
         };
         break;
 
@@ -112,7 +107,7 @@ export async function POST(request: NextRequest) {
             'pptx',
             'txt'
           ],
-          public: true,
+          public: false,
         };
         break;
 
@@ -141,7 +136,7 @@ export async function POST(request: NextRequest) {
             'audio/mpeg', 'audio/wav', 'audio/ogg',
             'mp3', 'wav', 'ogg'
           ],
-          public: true,
+          public: false,
         };
         break;
     }
@@ -159,7 +154,7 @@ export async function POST(request: NextRequest) {
       });
     } catch (uploadError: any) {
       console.error('Upload error:', uploadError);
-      
+
       // Try fallback for document uploads
       if (fileType === 'document' || fileType === 'content') {
         try {
@@ -167,9 +162,9 @@ export async function POST(request: NextRequest) {
             ...options,
             contentType: 'application/octet-stream',
           };
-          
+
           const result = await storage.upload(file, path, fallbackOptions);
-          
+
           return NextResponse.json({
             url: result.url,
             path: result.path,

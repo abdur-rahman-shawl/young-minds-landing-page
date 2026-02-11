@@ -5,8 +5,7 @@ import {
   getMentorRecentSessions,
   getMentorRecentReviews,
 } from '@/lib/db/queries/analytics.queries';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 import { requireMentor } from '@/lib/api/guards';
 
 /**
@@ -24,12 +23,16 @@ export async function GET(request: NextRequest) {
 
     const mentorId = guard.session.user.id;
 
-    const access = await checkFeatureAccess(mentorId, FEATURE_KEYS.ANALYTICS_ACCESS_LEVEL);
-    if (!access.has_access) {
-      return NextResponse.json(
-        { message: access.reason || 'Analytics access not included in your plan', upgrade_required: true },
-        { status: 403 }
-      );
+    try {
+      await enforceFeature({
+        action: 'analytics.mentor',
+        userId: mentorId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
     }
 
     // STEP 2: Get date range from query parameters, with defaults.

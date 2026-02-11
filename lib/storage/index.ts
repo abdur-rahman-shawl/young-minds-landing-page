@@ -25,6 +25,56 @@ function createStorageProvider(): StorageProvider {
 // Singleton storage instance
 export const storage = createStorageProvider();
 
+export const extractStoragePath = (value: string): string | null => {
+  if (!value) return null;
+
+  if (!value.startsWith('http')) {
+    return value;
+  }
+
+  try {
+    const url = new URL(value);
+    const marker = '/storage/v1/object/';
+    const index = url.pathname.indexOf(marker);
+    if (index === -1) return null;
+
+    let tail = url.pathname.slice(index + marker.length);
+    if (tail.startsWith('public/')) {
+      tail = tail.slice('public/'.length);
+    }
+    if (tail.startsWith('sign/')) {
+      tail = tail.slice('sign/'.length);
+    }
+
+    const parts = tail.split('/').filter(Boolean);
+    if (parts.length < 2) return null;
+
+    return parts.slice(1).join('/');
+  } catch (error) {
+    return null;
+  }
+};
+
+export const normalizeStorageValue = (value: string | null | undefined): string | null => {
+  if (!value) return null;
+  return extractStoragePath(value) ?? value;
+};
+
+export const resolveStorageUrl = async (
+  value: string | null | undefined,
+  expiresIn: number = 3600
+): Promise<string | null> => {
+  if (!value) return null;
+  const path = extractStoragePath(value);
+  if (!path) return value;
+
+  if (storage.getSignedUrl) {
+    return storage.getSignedUrl(path, expiresIn);
+  }
+
+  return storage.getPublicUrl(path);
+};
+
 // Helper functions for common file operations
 export const uploadImage = async (file: File, folder: string, userId: string) => {
   const timestamp = Date.now();
@@ -35,7 +85,7 @@ export const uploadImage = async (file: File, folder: string, userId: string) =>
   return storage.upload(file, path, {
     maxSize: 5 * 1024 * 1024, // 5MB
     allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'jpg', 'png', 'webp'],
-    public: true,
+    public: false,
   });
 };
 
@@ -63,7 +113,7 @@ export const uploadResume = async (file: File, userId: string) => {
     const result = await storage.upload(file, path, {
       maxSize: 10 * 1024 * 1024, // 10MB for resume files
       allowedTypes: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'pdf', 'doc', 'docx'],
-      public: true,
+      public: false,
     });
 
     return result;
@@ -75,7 +125,7 @@ export const uploadResume = async (file: File, userId: string) => {
       const result = await storage.upload(file, path, {
         maxSize: 10 * 1024 * 1024,
         allowedTypes: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'pdf', 'doc', 'docx', 'application/octet-stream'],
-        public: true,
+        public: false,
         contentType: 'application/octet-stream', // Force binary type but keep extension
       });
 
@@ -87,7 +137,7 @@ export const uploadResume = async (file: File, userId: string) => {
       try {
         const result = await storage.upload(file, path, {
           maxSize: 10 * 1024 * 1024,
-          public: true,
+          public: false,
           contentType: 'text/plain',
         });
 
@@ -126,7 +176,7 @@ export const uploadContentFile = async (file: File, userId: string, type: string
     const result = await storage.upload(file, path, {
       maxSize: 100 * 1024 * 1024, // 100MB for content files
       allowedTypes,
-      public: true,
+      public: false,
     });
 
     return result;
@@ -137,7 +187,7 @@ export const uploadContentFile = async (file: File, userId: string, type: string
     try {
       const result = await storage.upload(file, path, {
         maxSize: 100 * 1024 * 1024,
-        public: true,
+        public: false,
         contentType: 'application/octet-stream',
       });
 

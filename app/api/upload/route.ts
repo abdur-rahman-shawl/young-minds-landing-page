@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       const uploadResult = await storage.upload(file, storagePath, {
         maxSize: MAX_FILE_SIZE,
         allowedTypes: ALLOWED_TYPES,
-        public: true,
+        public: false,
       });
     
       return NextResponse.json({
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       try {
         const fallbackResult = await storage.upload(file, storagePath, {
           maxSize: MAX_FILE_SIZE,
-          public: true,
+          public: false,
           contentType: 'application/octet-stream', // Fallback content type
         });
         

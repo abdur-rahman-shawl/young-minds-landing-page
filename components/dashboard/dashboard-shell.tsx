@@ -162,6 +162,9 @@ export function DashboardShell() {
         case "subscriptions":
           content = <AdminSubscriptions />
           break
+        case "content":
+          content = <MentorContent />
+          break
         case "settings":
           content = <AdminPolicies />
           break

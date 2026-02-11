@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { mentorContent, courses, courseModules, courseSections, sectionContentItems, mentors } from '@/lib/db/schema';
+import { mentorContent, courses, courseModules, courseSections, sectionContentItems } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
+import { getMentorContentOwnershipCondition, getMentorForContent } from '@/lib/api/mentor-content';
+import { resolveStorageUrl } from '@/lib/storage';
 
 const createSectionSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -31,19 +33,19 @@ export async function GET(
 ) {
   try {
     const { moduleId } = await params;
-    
+
     const guard = await requireMentor(request, true);
     if ('error' in guard) {
       return guard.error;
     }
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
     const session = guard.session;
-
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const mentor = await getMentorForContent(session.user.id);
+    if (!isAdmin && !mentor) {
+      return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
+    }
+    const ownershipCondition = getMentorContentOwnershipCondition(mentor?.id ?? null, isAdmin);
+    if (!ownershipCondition) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
@@ -53,14 +55,14 @@ export async function GET(
       course: courses,
       content: mentorContent,
     })
-    .from(courseModules)
-    .innerJoin(courses, eq(courseModules.courseId, courses.id))
-    .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-    .where(and(
-      eq(courseModules.id, moduleId),
-      eq(mentorContent.mentorId, mentor[0].id)
-    ))
-    .limit(1);
+      .from(courseModules)
+      .innerJoin(courses, eq(courseModules.courseId, courses.id))
+      .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
+      .where(and(
+        eq(courseModules.id, moduleId),
+        ownershipCondition
+      ))
+      .limit(1);
 
     if (!moduleWithCourse.length) {
       return NextResponse.json({ error: 'Module not found' }, { status: 404 });
@@ -79,9 +81,16 @@ export async function GET(
           .where(eq(sectionContentItems.sectionId, section.id))
           .orderBy(sectionContentItems.orderIndex);
 
+        const hydratedItems = await Promise.all(
+          contentItems.map(async (item) => ({
+            ...item,
+            fileUrl: await resolveStorageUrl(item.fileUrl),
+          }))
+        );
+
         return {
           ...section,
-          contentItems,
+          contentItems: hydratedItems,
         };
       })
     );
@@ -102,19 +111,19 @@ export async function POST(
 ) {
   try {
     const { moduleId } = await params;
-    
+
     const guard = await requireMentor(request, true);
     if ('error' in guard) {
       return guard.error;
     }
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
     const session = guard.session;
-
-    const mentor = await db.select()
-      .from(mentors)
-      .where(eq(mentors.userId, session.user.id))
-      .limit(1);
-
-    if (!mentor.length) {
+    const mentor = await getMentorForContent(session.user.id);
+    if (!isAdmin && !mentor) {
+      return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
+    }
+    const ownershipCondition = getMentorContentOwnershipCondition(mentor?.id ?? null, isAdmin);
+    if (!ownershipCondition) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
@@ -124,14 +133,14 @@ export async function POST(
       course: courses,
       content: mentorContent,
     })
-    .from(courseModules)
-    .innerJoin(courses, eq(courseModules.courseId, courses.id))
-    .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-    .where(and(
-      eq(courseModules.id, moduleId),
-      eq(mentorContent.mentorId, mentor[0].id)
-    ))
-    .limit(1);
+      .from(courseModules)
+      .innerJoin(courses, eq(courseModules.courseId, courses.id))
+      .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
+      .where(and(
+        eq(courseModules.id, moduleId),
+        ownershipCondition
+      ))
+      .limit(1);
 
     if (!moduleWithCourse.length) {
       return NextResponse.json({ error: 'Module not found' }, { status: 404 });

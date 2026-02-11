@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 
 export async function GET(
   request: NextRequest,
@@ -9,31 +8,31 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const [freeAccess, paidAccess] = await Promise.all([
-      checkFeatureAccess(id, FEATURE_KEYS.FREE_VIDEO_SESSIONS_MONTHLY).catch(() => null),
-      checkFeatureAccess(id, FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY).catch(() => null),
+    const [freeAccess, paidAccess, mentorSessionsAccess] = await Promise.all([
+      enforceFeature({ action: 'mentor.free_session_availability', userId: id }).catch((error) => {
+        if (isSubscriptionPolicyError(error)) return null;
+        throw error;
+      }),
+      enforceFeature({ action: 'mentor.paid_session_availability', userId: id }).catch((error) => {
+        if (isSubscriptionPolicyError(error)) return null;
+        throw error;
+      }),
+      enforceFeature({ action: 'booking.mentor.session', userId: id }).catch((error) => {
+        if (isSubscriptionPolicyError(error)) return null;
+        throw error;
+      }),
     ]);
 
-    const hasFreeRemaining = freeAccess?.has_access && (typeof freeAccess.remaining !== 'number' || freeAccess.remaining > 0);
-    const hasPaidRemaining = paidAccess?.has_access && (typeof paidAccess.remaining !== 'number' || paidAccess.remaining > 0);
-
-    const mentorSessionsAvailable = hasFreeRemaining || hasPaidRemaining;
-    const remainingValues = [
-      typeof freeAccess?.remaining === 'number' ? freeAccess.remaining : null,
-      typeof paidAccess?.remaining === 'number' ? paidAccess.remaining : null,
-    ].filter((value): value is number => value !== null);
-    const mentorSessionsRemaining = remainingValues.length > 0 ? Math.max(...remainingValues) : null;
+    const mentorSessionsAvailable = Boolean(mentorSessionsAccess?.has_access);
 
     return NextResponse.json({
       success: true,
       data: {
-        free_available: freeAccess?.has_access ?? false,
+        free_available: Boolean(freeAccess?.has_access) && mentorSessionsAvailable,
         free_remaining: freeAccess?.remaining ?? null,
-        paid_available: paidAccess?.has_access ?? false,
+        paid_available: Boolean(paidAccess?.has_access) && mentorSessionsAvailable,
         paid_remaining: paidAccess?.remaining ?? null,
         mentor_sessions_available: mentorSessionsAvailable,
-        mentor_sessions_remaining: mentorSessionsRemaining,
-        mentor_sessions_limit: paidAccess?.limit ?? null,
       },
     });
   } catch (error) {

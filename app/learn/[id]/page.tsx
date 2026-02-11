@@ -7,7 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
@@ -25,15 +28,16 @@ import {
   Award,
   Bookmark,
   BookmarkCheck,
-  MessageSquare,
   Download,
   Share2,
   MoreVertical,
   Menu,
+  Star,
   X
 } from 'lucide-react';
 import { VideoPlayer } from '@/components/ui/kibo-video-player';
 import { useAuth } from '@/contexts/auth-context';
+import { toast } from 'sonner';
 
 interface LearningProgress {
   enrollment: {
@@ -105,6 +109,19 @@ interface LearningContentItem {
   };
 }
 
+interface ContentItemReview {
+  id: string;
+  rating: number;
+  title: string | null;
+  review: string | null;
+  createdAt: string;
+  helpfulVotes: number;
+  instructorResponse: string | null;
+  instructorRespondedAt: string | null;
+  reviewerName: string | null;
+  reviewerImage: string | null;
+}
+
 export default function LearnCoursePage() {
   const params = useParams();
   const router = useRouter();
@@ -116,6 +133,16 @@ export default function LearnCoursePage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [studentNotes, setStudentNotes] = useState('');
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [itemReviews, setItemReviews] = useState<ContentItemReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewForm, setReviewForm] = useState({
+    rating: 0,
+    title: '',
+    review: '',
+  });
+  const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
+  const [reviewFormOpen, setReviewFormOpen] = useState(false);
 
   // Fetch course progress
   useEffect(() => {
@@ -150,11 +177,11 @@ export default function LearnCoursePage() {
         setCourseData(data.data);
       } else {
         // Not enrolled, redirect to course page
-        router.push(`/courses/${params.id}`);
+        router.push(`/dashboard?section=courses&courseId=${params.id}`);
       }
     } catch (error) {
       console.error('Error fetching course progress:', error);
-      router.push(`/courses/${params.id}`);
+      router.push(`/dashboard?section=courses&courseId=${params.id}`);
     } finally {
       setLoading(false);
     }
@@ -304,6 +331,88 @@ export default function LearnCoursePage() {
     }
   };
 
+  const fetchItemReviews = async (itemId: string) => {
+    try {
+      setReviewsLoading(true);
+      const response = await fetch(
+        `/api/courses/${params.id}/content-items/${itemId}/reviews?limit=20&offset=0`
+      );
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setItemReviews(data.data);
+      } else {
+        toast.error(data.error || 'Failed to load reviews');
+        setItemReviews([]);
+      }
+    } catch (error) {
+      console.error('Failed to load reviews:', error);
+      toast.error('Failed to load reviews');
+      setItemReviews([]);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!currentItem) return;
+    if (!reviewForm.rating) {
+      toast.error('Please select a rating.');
+      return;
+    }
+    if (!reviewForm.title.trim() && !reviewForm.review.trim()) {
+      toast.error('Please add a title or review text.');
+      return;
+    }
+
+    try {
+      setReviewSubmitting(true);
+      const response = await fetch(
+        `/api/courses/${params.id}/content-items/${currentItem.id}/reviews`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rating: reviewForm.rating,
+            title: reviewForm.title.trim() || undefined,
+            review: reviewForm.review.trim() || undefined,
+          }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to submit review');
+      }
+
+      toast.success('Review submitted');
+      setReviewForm({ rating: 0, title: '', review: '' });
+      await fetchItemReviews(currentItem.id);
+    } catch (error) {
+      console.error('Failed to submit review:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to submit review');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentItem?.id) {
+      setReviewForm({ rating: 0, title: '', review: '' });
+      setReviewPanelOpen(false);
+      setReviewFormOpen(false);
+      fetchItemReviews(currentItem.id);
+    }
+  }, [currentItem?.id]);
+
+  const renderStars = (rating: number) =>
+    Array.from({ length: 5 }).map((_, index) => (
+      <Star
+        key={index}
+        className={`h-4 w-4 ${
+          index < rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'
+        }`}
+      />
+    ));
+
   const getContentIcon = (type: string) => {
     switch (type) {
       case 'VIDEO': return <Video className="w-4 h-4" />;
@@ -330,6 +439,14 @@ export default function LearnCoursePage() {
     }
     return `${minutes}m`;
   };
+
+  const averageRating = itemReviews.length
+    ? Number(
+        (
+          itemReviews.reduce((sum, review) => sum + review.rating, 0) / itemReviews.length
+        ).toFixed(1)
+      )
+    : 0;
 
   if (loading) {
     return (
@@ -450,6 +567,14 @@ export default function LearnCoursePage() {
         {/* Top Bar */}
         <div className="border-b p-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push('/dashboard?section=my-courses')}
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Back
+            </Button>
             {!sidebarOpen && (
               <Button
                 variant="ghost"
@@ -580,6 +705,178 @@ export default function LearnCoursePage() {
                 </div>
               )}
 
+              {/* Reviews */}
+              <div className="border-t p-6 max-h-[45vh] overflow-hidden">
+                <div className="max-w-4xl mx-auto">
+                  <Card>
+                    <CardHeader className="pb-4">
+                      <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <CardTitle className="text-lg">Lesson Reviews</CardTitle>
+                          <CardDescription>Feedback for this specific item.</CardDescription>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1">
+                            {renderStars(Math.round(averageRating))}
+                          </div>
+                          <span className="text-sm font-medium">{averageRating || '0.0'}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({itemReviews.length})
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setReviewPanelOpen((prev) => !prev)}
+                          >
+                            {reviewPanelOpen ? 'Hide' : 'Show'}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    {reviewPanelOpen && (
+                      <CardContent className="space-y-5 max-h-[36vh] overflow-y-auto pr-1">
+                        <div className="rounded-lg border bg-muted/30 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium">Write a review</p>
+                              <p className="text-xs text-muted-foreground">
+                                Rate this lesson and share your thoughts.
+                              </p>
+                            </div>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => setReviewFormOpen((prev) => !prev)}
+                            >
+                              {reviewFormOpen ? 'Close' : 'Add Review'}
+                            </Button>
+                          </div>
+
+                          {reviewFormOpen && (
+                            <div className="mt-4 space-y-3">
+                              <div className="flex items-center gap-2">
+                                {Array.from({ length: 5 }).map((_, index) => {
+                                  const value = index + 1;
+                                  const isActive = value <= reviewForm.rating;
+                                  return (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      onClick={() =>
+                                        setReviewForm((prev) => ({ ...prev, rating: value }))
+                                      }
+                                      className="p-1"
+                                      aria-label={`Rate ${value} star${value === 1 ? '' : 's'}`}
+                                    >
+                                      <Star
+                                        className={`h-5 w-5 ${
+                                          isActive
+                                            ? 'fill-yellow-400 text-yellow-400'
+                                            : 'text-muted-foreground'
+                                        }`}
+                                      />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <Input
+                                  placeholder="Title (optional)"
+                                  value={reviewForm.title}
+                                  onChange={(event) =>
+                                    setReviewForm((prev) => ({
+                                      ...prev,
+                                      title: event.target.value,
+                                    }))
+                                  }
+                                />
+                                <Button
+                                  className="md:justify-self-end"
+                                  onClick={handleSubmitReview}
+                                  disabled={reviewSubmitting}
+                                >
+                                  {reviewSubmitting ? 'Submitting...' : 'Submit'}
+                                </Button>
+                              </div>
+                              <Textarea
+                                placeholder="Write your review..."
+                                rows={3}
+                                value={reviewForm.review}
+                                onChange={(event) =>
+                                  setReviewForm((prev) => ({
+                                    ...prev,
+                                    review: event.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <Separator />
+
+                        {reviewsLoading ? (
+                          <div className="space-y-3">
+                            <Skeleton className="h-6 w-2/3" />
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-5/6" />
+                          </div>
+                        ) : itemReviews.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            No reviews yet. Be the first to share feedback.
+                          </p>
+                        ) : (
+                          <div className="space-y-3">
+                            {itemReviews.map((review) => (
+                              <div key={review.id} className="rounded-lg border p-4">
+                                <div className="flex items-start gap-3">
+                                  <Avatar className="h-9 w-9">
+                                    <AvatarImage src={review.reviewerImage || undefined} />
+                                    <AvatarFallback>
+                                      {review.reviewerName?.charAt(0) || 'U'}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="text-sm font-medium">
+                                        {review.reviewerName || 'Anonymous'}
+                                      </p>
+                                      <div className="flex items-center gap-1">
+                                        {renderStars(review.rating)}
+                                      </div>
+                                      <span className="text-xs text-muted-foreground">
+                                        {new Date(review.createdAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    {review.title && (
+                                      <p className="mt-2 text-sm font-semibold">{review.title}</p>
+                                    )}
+                                    {review.review && (
+                                      <p className="mt-1 text-sm text-muted-foreground">
+                                        {review.review}
+                                      </p>
+                                    )}
+                                    {review.instructorResponse && (
+                                      <div className="mt-3 rounded-md bg-muted p-3 text-sm">
+                                        <p className="font-medium">Instructor response</p>
+                                        <p className="text-muted-foreground">
+                                          {review.instructorResponse}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    )}
+                  </Card>
+                </div>
+              </div>
+
               {/* Bottom Controls */}
               <div className="border-t p-4">
                 <div className="flex items-center justify-between">
@@ -611,7 +908,7 @@ export default function LearnCoursePage() {
                         navigateToItem(next);
                       } else {
                         // Course completed
-                        router.push(`/courses/${params.id}?completed=true`);
+                        router.push(`/dashboard?section=courses&courseId=${params.id}`);
                       }
                     }}
                     disabled={!getNextItem() && courseData.enrollment.overallProgress !== 100}

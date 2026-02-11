@@ -2,8 +2,8 @@
 
 ## FOR THE DEVELOPER CONTINUING THIS WORK
 
-**Last Updated:** 2026-01-10
-**Status:** Phase 1 Complete (Core Enforcement), Phase 2+ Pending
+**Last Updated:** 2026-02-06
+**Status:** Phase 1 Complete (Core Enforcement), Production Hardening In Progress, Phase 2+ Pending
 **Read Time:** 30 minutes
 **Implementation Time Remaining:** 40-60 hours
 
@@ -11,6 +11,7 @@
 
 ## TABLE OF CONTENTS
 
+0. [Production Hardening Addendum](#0-production-hardening-addendum-2026-02-06)
 1. [Project Context & Business Objectives](#1-project-context--business-objectives)
 2. [System Architecture Overview](#2-system-architecture-overview)
 3. [What Has Been Built So Far](#3-what-has-been-built-so-far)
@@ -38,7 +39,7 @@ If you only read one section, read this.
 - Plans list/create works
 - Plan edit/delete works
 - Plan feature assignment + limits editor works
-- Feature edit dialog works
+- Feature create/edit dialogs work
 - Plan pricing editor works (add/toggle active prices)
 
 **User experience**
@@ -98,6 +99,306 @@ If you only read one section, read this.
    - Partner offers + early access
 
 If you are starting work, begin with **Step 1 (Stripe)** unless business explicitly wants enforcement completion before payments.
+
+---
+
+## 0. PRODUCTION HARDENING ADDENDUM (2026-02-06)
+
+This section records key architecture decisions made after initial implementation.
+
+### 0.1 Non-Negotiable Enforcement Model
+
+For production-grade subscription control, each sensitive endpoint should follow this sequence:
+
+1) **Role Authorization** (identity/role): `requireAdmin`, `requireMentor`, `requireMentee`, or `requireUserWithRoles`  
+2) **Entitlement Authorization** (plan features/limits): `checkFeatureAccess` (audience-aware)  
+3) **State Change** (business action)  
+4) **Usage Metering** (audit + quota): `trackFeatureUsage` (idempotent, post-success)
+
+Do not collapse these into a single concern. They solve different problems.
+
+### 0.2 Role Guards Are Not Redundant
+
+`checkFeatureAccess` does **not** replace role guards.
+
+- Role guards answer: **"Can this caller access this endpoint at all?"**
+- Subscription checks answer: **"Can this user perform this action under their current plan?"**
+
+Both are required for defense-in-depth and least-privilege access.
+
+### 0.3 Audience-Aware Entitlement Is Required
+
+Current enforcement uses `userId + featureKey` and selects latest active subscription. For dual-role users (mentor + mentee), this can be ambiguous.
+
+Target behavior:
+
+- `checkFeatureAccess` and related helpers must accept explicit context, at minimum:
+  - expected audience: `mentor | mentee`
+  - actor role context where relevant (`mentor`, `mentee`, `admin` acting on behalf)
+- Subscription lookup should resolve by audience and fail loudly on ambiguity.
+- No endpoint should implicitly assume which subscription audience is intended.
+
+### 0.3.1 Audience vs Actor (Detailed)
+
+This distinction is critical and easy to misunderstand.
+
+| Term | Core Question | Typical Values | Purpose |
+|---|---|---|---|
+| `audience` | "Which subscription catalog/wallet is this check charged against?" | `mentor`, `mentee` | Picks the correct plan/features/limits |
+| `actorRole` | "Who is performing this action in this endpoint context?" | `mentor`, `mentee`, `admin` | Clarifies authorization context and admin behavior |
+
+Short version:
+
+- `audience` = **which wallet to charge**
+- `actorRole` = **who clicked / who initiated**
+
+### 0.3.2 One Context Object = One Entitlement Decision
+
+A context object represents one check/consume decision, not the whole request.
+
+If one request impacts multiple users (or multiple wallets), run multiple checks with multiple contexts.
+
+Example: booking request by mentee for mentor.
+
+1) Mentee wallet check:
+```ts
+await checkFeatureAccess(menteeUserId, 'paid_video_sessions_monthly', {
+  audience: 'mentee',
+  actorRole: 'mentee',
+});
+```
+
+2) Mentor wallet check:
+```ts
+await checkFeatureAccess(mentorUserId, 'mentor_sessions_monthly', {
+  audience: 'mentor',
+  actorRole: 'mentor',
+});
+```
+
+3) Post-success usage metering for each wallet:
+```ts
+await trackFeatureUsage(menteeUserId, 'paid_video_sessions_monthly', { count: 1 }, 'session', sessionId, undefined, {
+  audience: 'mentee',
+  actorRole: 'mentee',
+});
+
+await trackFeatureUsage(mentorUserId, 'mentor_sessions_monthly', { count: 1 }, 'session', sessionId, undefined, {
+  audience: 'mentor',
+  actorRole: 'mentor',
+});
+```
+
+### 0.3.3 Why Not Just `actorRole`?
+
+Because actor and charged subscription are not always the same.
+
+- A mentee can trigger an action that consumes both mentee and mentor quotas.
+- Admin can trigger actions on behalf of users.
+
+Without explicit `audience`, entitlement resolution can charge the wrong plan when a user has multiple active role-specific subscriptions.
+
+### 0.3.4 Why Not Just `audience`?
+
+Because actor context is still important for:
+
+- auditing/traceability (who initiated)
+- admin controls (override/no override)
+- future policy decisions that vary by actor type
+
+### 0.3.5 Admin Behavior
+
+Admin must be explicit. Two supported modes:
+
+1) **On-behalf enforcement (recommended default)**  
+Admin triggers a user action, but checks are evaluated against target user subscription:
+```ts
+await checkFeatureAccess(targetUserId, featureKey, {
+  audience: 'mentor', // or mentee
+  actorRole: 'admin',
+});
+```
+
+2) **Explicit admin override (rare, audited)**  
+Only when business permits bypass for operational tools:
+```ts
+await checkFeatureAccess(targetUserId, featureKey, {
+  actorRole: 'admin',
+  allowAdminOverride: true,
+});
+```
+
+Never do silent or implicit admin bypass.
+
+### 0.3.6 Failure Semantics (Expected)
+
+Fail loudly in these cases:
+
+- No active subscription for expected audience
+- Multiple active subscriptions and no audience provided
+- Admin actor without audience and without explicit override
+
+These failures are desirable. They prevent charging/checking the wrong plan silently.
+
+### 0.3.7 Endpoint Implementation Checklist
+
+For each entitlement-sensitive endpoint:
+
+1) Identify request actor (`mentor`, `mentee`, `admin`)
+2) Identify billed/limited users (one or many)
+3) For each billed user, run `checkFeatureAccess` with explicit context
+4) Execute business action
+5) For each billed user, run `trackFeatureUsage` with matching context
+6) Return standardized limit/upgrade payload on 403
+
+### 0.3.8 Anti-Patterns To Avoid
+
+- Relying on latest subscription without audience context for dual-role users
+- One global check for a request that should charge multiple actors
+- Client-controlled bypass flags for server-side entitlement checks
+- Admin implicit bypass without explicit audited override
+
+### 0.3.9 Mental Model
+
+Think per decision, not per request:
+
+- **Request** may contain many entitlement decisions
+- **Each decision** has exactly one `audience` + one `actorRole` context
+- Therefore, one request can legally contain multiple contexts
+
+### 0.4 Billing Actor Model (Who Gets Charged)
+
+Every metered action must explicitly define **billing actors**:
+
+- **Single-actor actions:** charge one user (e.g., direct messages, message requests)
+- **Dual-actor actions:** charge both users if business rules require it (e.g., booking consumes mentee session allowance and mentor session allowance)
+
+This must be encoded in policy, not scattered ad hoc inside route handlers.
+
+### 0.5 Centralized Policy Layer (Minimum-Effort, Maximum Consistency)
+
+**Status: Implemented**
+
+The policy layer now exists and must be the default for all entitlement checks and metering.
+
+**Files:**
+- `lib/subscriptions/policies.ts`
+- `lib/subscriptions/policy-runtime.ts`
+
+**What It Provides:**
+
+- A typed policy registry (`ACTION_POLICIES`) that maps actions to:
+  - `featureKey`
+  - `audience`
+  - `actorRole`
+  - `metered` flag
+  - default delta/resourceType/failure message
+- A runtime that enforces and meters consistently:
+  - `enforceFeature({ action, userId, ... })`
+  - `consumeFeature({ action, userId, ... })`
+  - `SubscriptionPolicyError` with standardized 403 payloads
+
+**Why This Matters:**
+
+- Consistent 401/403/upgrade responses
+- Easier onboarding and maintenance
+- Better performance opportunities (request-scoped caching of subscription/features)
+- Safer evolution when adding new gated endpoints
+
+**How To Add A New Gate (Pattern):**
+
+1) Add the action to `SubscriptionPolicyAction`  
+2) Add a policy entry in `ACTION_POLICIES` with the correct `featureKey`, `audience`, `actorRole`, and `metered` flag  
+3) Use `enforceFeature` before the action and `consumeFeature` after the action  
+
+Example (from bookings):
+```ts
+await enforceFeature({ action: 'booking.mentor.session', userId: mentorId });
+// ... create booking ...
+await consumeFeature({ action: 'booking.mentor.session', userId: mentorId, resourceId: bookingId });
+```
+
+**Non-Policy Checks Still Allowed (Rare):**
+
+If a rule depends on a plan limit field not represented by a single feature gate (e.g., minutes limit embedded in the same feature record), you may still read plan features directly. Keep those checks minimal and localized.
+
+### 0.6 Known Critical Gaps (Status Update)
+
+1. **Coverage is not universal across all sensitive operations**
+   - Policy coverage audit is complete for known entitlement-sensitive endpoints.
+   - Remaining work is to keep new routes aligned via guardrails.
+
+2. **Audience defaults in policies need validation**
+   - Messaging actions are now split by audience:
+     - `messaging.direct_message.mentor|mentee`
+     - `messaging.request.mentor|mentee`
+   - Runtime action selection is driven by request type and permission grant context.
+
+3. **Client-controlled bypass paths must be fully removed**
+   - Booking creation bypass was removed.
+   - Cancel flow rollback no longer branches on `bookingSource`.
+
+### 0.7 Migration Strategy (Pragmatic and Fast)
+
+**Pass 1: Critical safety fixes**
+- Remove client-controlled subscription bypass paths (booking create is fixed; audit remaining)
+- Fix known runtime enforcement bugs (sessions booking duration bug fixed)
+- Normalize response contract for limit errors (`upgrade_required`, `limit`, `usage`, `remaining`)
+
+**Pass 2: Centralization**
+- Policy registry + `enforceFeature`/`consumeFeature` is implemented
+- Continue migrating remaining sensitive routes until policy coverage is complete
+
+**Pass 3: Guardrails**
+- CI guardrail added: `pnpm subscription:policy-guard`
+- Add focused integration tests for limits and dual-actor metering paths
+
+### 0.8 Definition of “Final Production Grade” for Enforcement
+
+Before calling subscriptions “final”:
+
+- No client-controlled entitlement bypasses
+- Audience-aware entitlement checks in all sensitive endpoints
+- Explicit billing actor model in code
+- Central policy layer used consistently
+- Deterministic idempotent usage tracking on all metered actions
+- CI guardrails preventing policy bypass regressions
+
+### 0.9 Clear Next Steps (Production-Grade Completion)
+
+These are the concrete steps remaining to reach a production-grade enforcement system:
+
+1) **Finish policy coverage audit**
+   - Completed for known candidates:
+     - `app/api/public-mentors/route.ts`
+     - `app/api/recordings/[id]/playback-url/route.ts`
+     - `app/api/sessions/[sessionId]/recordings/route.ts`
+     - `app/api/mentors/[id]/booking-eligibility/route.ts`
+     - Messaging enforcement now uses policy runtime with audience-aware actions
+
+2) **Fix policy defaults that are likely wrong**
+   - Messaging actions split by audience and enforced dynamically based on request context
+
+3) **Remove all client-controlled bypasses**
+   - Cancel rollback no longer branches on `bookingSource`
+
+4) **Standardize error payloads**
+   - All policy errors should return the same structure:
+     - `upgrade_required`, `limit`, `usage`, `remaining`
+   - Enables consistent UI upgrade prompts
+
+5) **Add CI guardrail**
+   - Added `scripts/check-subscription-policy-usage.sh`
+   - Run via `pnpm subscription:policy-guard`
+   - Added `scripts/check-policy-required-routes.sh`
+   - Required list in `scripts/policy-required-routes.txt`
+   - Run via `pnpm subscription:policy-required-guard`
+
+6) **Add minimal integration tests**
+   - Single-actor metering
+   - Dual-actor metering
+   - Audience resolution for dual-role users
+   - Admin on-behalf vs explicit override behavior
 
 ---
 
@@ -273,17 +574,9 @@ trackFeatureUsage(
   featureKey: string,
   delta: { count?: number; minutes?: number; amount?: number },
   resourceType?: string,
-  resourceId?: string
+  resourceId?: string,
+  idempotencyKey?: string
 ): Promise<void>
-
-// Combined: check access AND track usage
-enforceAndTrackFeature(
-  userId: string,
-  featureKey: string,
-  delta: { count?: number; minutes?: number; amount?: number },
-  resourceType?: string,
-  resourceId?: string
-): Promise<FeatureAccess>
 ```
 
 **Key Features:**
@@ -293,7 +586,7 @@ enforceAndTrackFeature(
 - Logs all events to audit trail
 - Production-grade error handling
 
-### Admin Dashboard UI (Partial Complete)
+### Admin Dashboard UI (Core Views Implemented)
 
 **Files Created:**
 
@@ -313,6 +606,8 @@ enforceAndTrackFeature(
    - View all features grouped by category
    - Search features
    - Display feature details (type, unit, metered status)
+   - Create feature dialog (name, key, category, type, unit, metering)
+   - Edit feature dialog for existing features
 
 4. **`components/admin/dashboard/subscriptions/plan-feature-editor.tsx`**
    - Full plan-feature assignment UI
@@ -320,11 +615,17 @@ enforceAndTrackFeature(
    - Interval controls for metered features
    - Save updates per feature
 
-4. **`components/admin/dashboard/subscriptions/subscriptions-overview.tsx`**
-   - Placeholder for active subscriptions view
+5. **`components/admin/dashboard/subscriptions/subscriptions-overview.tsx`**
+   - Active subscription table for admin
+   - Search + filters (status, audience)
+   - User and plan enrichment details
+   - Pagination metadata support
 
-5. **`components/admin/dashboard/subscriptions/usage-analytics.tsx`**
-   - Placeholder for usage analytics
+6. **`components/admin/dashboard/subscriptions/usage-analytics.tsx`**
+   - Fully wired analytics dashboard
+   - Date range + audience filters
+   - KPI cards, charts, and detail tables
+   - Loading, error, and empty states
 
 **Navigation Updated:**
 - ✅ Added "Subscriptions" to admin sidebar
@@ -342,8 +643,9 @@ enforceAndTrackFeature(
    - GET: List all plans with feature/price counts
    - POST: Create new plan with validation
 
-3. **`app/api/admin/subscriptions/features/route.ts`** (GET)
-   - Returns all features with category names
+3. **`app/api/admin/subscriptions/features/route.ts`** (GET, POST)
+   - GET: Returns all features with category names
+   - POST: Creates a new feature with validation and duplicate key checks
 
 4. **`app/api/admin/subscriptions/plans/[planId]/route.ts`** (PATCH, DELETE)
    - Update plan fields
@@ -353,9 +655,13 @@ enforceAndTrackFeature(
    - GET: List all features with assignment status for plan
    - POST: Upsert feature limits for plan (conflict-safe)
 
+6. **`app/api/admin/subscriptions/analytics/route.ts`** (GET)
+   - Admin-only analytics endpoint
+   - Query params: `startDate`, `endDate`, `audience`
+   - Returns overview, usageByFeature, usageOverTime, limitBreaches, planDistribution, topConsumers
+
 **Missing API Routes:**
-- Feature creation/editing
-- Usage analytics endpoints
+- Feature archive/delete endpoint (optional, if you want lifecycle controls)
 
 ### Feature Enforcement (Phase 1 Complete - 75%)
 
@@ -375,7 +681,7 @@ enforceAndTrackFeature(
 
 3. **`app/api/messaging/threads/[id]/messages/route.ts`** ✅
    - **Line ~99:** REPLACED old `checkAndUpdateMessageQuota()` with subscription enforcement
-   - Uses `enforceAndTrackFeature()` for combined check+track
+   - Uses `checkFeatureAccess()` before write + `trackFeatureUsage()` after successful write
    - **Feature Key:** `'direct_messages_daily'`
    - **Tracks:** count: 1
 
@@ -716,9 +1022,7 @@ However, with service role key, RLS policies may not apply. The helper functions
 ### ⚠️ Partially Functional
 
 1. **Admin UI**
-   - Cannot create/edit features (no UI)
-   - Cannot view usage analytics (placeholder)
-   - Cannot view active subscriptions (placeholder)
+   - Revenue analytics cards/endpoints are not implemented yet
 
 2. **Enforcement**
    - Legacy messaging API not enforced
@@ -1089,169 +1393,99 @@ function LimitConfigForm({ feature, limits, onChange, onSave }) {
 
 ### Task 2: Usage Analytics Dashboard (6 hours)
 
-**Goal:** Show usage metrics and trends for all subscriptions
+**Status:** Implemented
 
-**File to Enhance:** `components/admin/dashboard/subscriptions/usage-analytics.tsx`
+**API Route Implemented:** `app/api/admin/subscriptions/analytics/route.ts`
 
-**Requirements:**
+**Endpoint:** `GET /api/admin/subscriptions/analytics`
 
-1. **Feature Usage Charts**
-   - Bar chart: Most used features
-   - Line chart: Usage trends over time (last 30 days)
-   - Table: Users at or near limits
+**Query Params:**
+- `startDate` (optional, ISO date or datetime; default = 30 days ago)
+- `endDate` (optional, ISO date or datetime; default = today)
+- `audience` (optional: `all | mentor | mentee`; default = `all`)
 
-2. **User Metrics**
-   - Total active subscriptions by plan
-   - New subscriptions this month
-   - Canceled subscriptions
-   - Churn rate
+**Validation + Access:**
+- Requires admin role via `requireAdmin(request)`
+- Returns `400` for invalid date format
+- Returns `400` when `startDate > endDate`
+- Returns `400` for invalid `audience`
 
-3. **Revenue Metrics**
-   - MRR (Monthly Recurring Revenue)
-   - ARR (Annual Recurring Revenue)
-   - Revenue by plan breakdown
-   - Average revenue per user (ARPU)
-
-**API Endpoints Needed:**
-
-**GET `/api/admin/subscriptions/analytics/usage`**
-
-```typescript
-// app/api/admin/subscriptions/analytics/usage/route.ts
-
-export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-
-  // Top features by usage
-  const { data: topFeatures } = await supabase
-    .from('subscription_usage_events')
-    .select(`
-      feature_id,
-      subscription_features(name),
-      count:count_delta
-    `)
-    .gte('created_at', new Date(Date.now() - 30*24*60*60*1000).toISOString());
-
-  // Users at limit
-  const { data: atLimit } = await supabase
-    .from('subscription_usage_tracking')
-    .select(`
-      subscription_id,
-      feature_id,
-      usage_count,
-      limit_reached,
-      subscriptions(user_id)
-    `)
-    .eq('limit_reached', true);
-
-  return NextResponse.json({
-    success: true,
-    data: { topFeatures, atLimit }
-  });
+**Returned Payload:**
+```json
+{
+  "success": true,
+  "data": {
+    "overview": {
+      "totalEvents": 0,
+      "uniqueActiveUsers": 0,
+      "featuresAtLimit": 0,
+      "limitBreachCount": 0
+    },
+    "usageByFeature": [
+      {
+        "featureKey": "direct_messages_daily",
+        "featureName": "Direct Messages Daily",
+        "unit": "messages",
+        "totalUsage": 0,
+        "averageLimit": 0
+      }
+    ],
+    "usageOverTime": [
+      {
+        "date": "2026-02-05",
+        "eventCount": 0,
+        "uniqueUsers": 0
+      }
+    ],
+    "limitBreaches": [
+      {
+        "userName": "User Name",
+        "userEmail": "user@example.com",
+        "featureName": "Feature",
+        "featureKey": "feature_key",
+        "usageCount": 0,
+        "limitCount": 0,
+        "limitReachedAt": "2026-02-05T00:00:00.000Z"
+      }
+    ],
+    "planDistribution": [
+      {
+        "planName": "Mentee Pro",
+        "planKey": "mentee_pro",
+        "audience": "mentee",
+        "activeCount": 0
+      }
+    ],
+    "topConsumers": [
+      {
+        "userName": "User Name",
+        "userEmail": "user@example.com",
+        "totalEvents": 0,
+        "totalCount": 0,
+        "totalMinutes": 0
+      }
+    ]
+  }
 }
 ```
 
-**GET `/api/admin/subscriptions/analytics/revenue`**
+**UI Component Implemented:** `components/admin/dashboard/subscriptions/usage-analytics.tsx`
 
-```typescript
-export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-
-  // Calculate MRR
-  const { data: activeSubscriptions } = await supabase
-    .from('subscriptions')
-    .select(`
-      quantity,
-      subscription_plan_prices(amount, billing_interval)
-    `)
-    .in('status', ['active', 'trialing']);
-
-  let mrr = 0;
-  activeSubscriptions?.forEach(sub => {
-    const price = sub.subscription_plan_prices;
-    if (price.billing_interval === 'month') {
-      mrr += price.amount * sub.quantity;
-    } else if (price.billing_interval === 'year') {
-      mrr += (price.amount / 12) * sub.quantity;
-    }
-  });
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      mrr,
-      arr: mrr * 12,
-      activeSubscriptions: activeSubscriptions?.length || 0
-    }
-  });
-}
-```
-
-**Component Implementation:**
-
-```typescript
-import { Card } from '@/components/ui/card';
-import { BarChart, LineChart } from 'recharts'; // or your charting library
-
-export function UsageAnalyticsFull() {
-  const [metrics, setMetrics] = useState(null);
-
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/admin/subscriptions/analytics/usage').then(r => r.json()),
-      fetch('/api/admin/subscriptions/analytics/revenue').then(r => r.json())
-    ]).then(([usage, revenue]) => {
-      setMetrics({ usage: usage.data, revenue: revenue.data });
-    });
-  }, []);
-
-  if (!metrics) return <div>Loading...</div>;
-
-  return (
-    <div className="space-y-6">
-      {/* Revenue Cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <h3>MRR</h3>
-          <p>${metrics.revenue.mrr.toLocaleString()}</p>
-        </Card>
-        <Card>
-          <h3>ARR</h3>
-          <p>${metrics.revenue.arr.toLocaleString()}</p>
-        </Card>
-        <Card>
-          <h3>Active Subs</h3>
-          <p>{metrics.revenue.activeSubscriptions}</p>
-        </Card>
-      </div>
-
-      {/* Charts */}
-      <Card>
-        <h3>Top Features by Usage</h3>
-        <BarChart data={metrics.usage.topFeatures} />
-      </Card>
-
-      {/* Users at Limit */}
-      <Card>
-        <h3>Users at Limit</h3>
-        <table>
-          {metrics.usage.atLimit.map(user => (
-            <tr key={user.subscription_id}>
-              <td>{user.subscriptions.user_id}</td>
-              <td>{user.subscription_features.name}</td>
-              <td>{user.usage_count}</td>
-            </tr>
-          ))}
-        </table>
-      </Card>
-    </div>
-  );
-}
-```
+**What the UI now renders:**
+- Header + filters (`startDate`, `endDate`, `audience`) + refresh action
+- KPI cards: Total Events, Active Users, Limit Breaches, Features at Limit
+- Usage by Feature horizontal bar chart (usage vs average limit)
+- Usage Over Time area chart (eventCount + uniqueUsers)
+- Plan Distribution bar chart
+- Limit Breaches table (top 20)
+- Top Consumers table (top 10)
+- Loading skeletons, error state with retry, and empty state
 
 ---
 
 ### Task 3: Feature Creation Interface (3 hours)
+
+**Status:** Implemented for create + edit. Archive/delete flow remains optional.
 
 **Goal:** Allow admins to create/edit features dynamically
 
@@ -1273,7 +1507,7 @@ export function UsageAnalyticsFull() {
    - Soft delete (set `is_active = false` if you add that column)
    - Or hard delete if no subscriptions use it
 
-**API Endpoints Needed:**
+**API Endpoints Implemented:**
 
 **POST `/api/admin/subscriptions/features`**
 
@@ -2497,6 +2731,8 @@ VALUES
 3. [ ] View plans and features
 4. [ ] Create new plan
 5. [ ] Change plan status
+6. [ ] Open Analytics tab and verify KPI cards + charts render
+7. [ ] Change date range/audience and verify data refreshes
 
 **Test Error Responses:**
 1. [ ] Verify error messages are user-friendly
@@ -2759,27 +2995,20 @@ AND period_end < NOW();
 ```typescript
 // app/api/courses/[courseId]/enroll/route.ts
 
-import { enforceAndTrackFeature } from '@/lib/subscriptions/enforcement';
+import { checkFeatureAccess, trackFeatureUsage } from '@/lib/subscriptions/enforcement';
 
 export async function POST(request: NextRequest, { params }) {
   const session = await auth.api.getSession({ headers: request.headers });
   const userId = session?.user?.id;
 
-  // 1. Check and track in one call
-  try {
-    await enforceAndTrackFeature(
-      userId,
-      'free_courses_limit',
-      { count: 1 },
-      'course_enrollment',
-      courseId
-    );
-  } catch (error) {
+  // 1. Pre-check access
+  const access = await checkFeatureAccess(userId, 'free_courses_limit');
+  if (!access.has_access) {
     return NextResponse.json(
       {
         success: false,
         error: 'Course enrollment limit reached',
-        details: error.message,
+        details: access.reason,
         upgrade_required: true
       },
       { status: 403 }
@@ -2791,6 +3020,15 @@ export async function POST(request: NextRequest, { params }) {
     user_id: userId,
     course_id: courseId
   });
+
+  // 3. Track usage after successful write
+  await trackFeatureUsage(
+    userId,
+    'free_courses_limit',
+    { count: 1 },
+    'course_enrollment',
+    courseId
+  );
 
   return NextResponse.json({ success: true, data: enrollment });
 }
