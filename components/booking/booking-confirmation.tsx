@@ -34,6 +34,8 @@ interface BookingConfirmationProps {
   onConfirm: () => void;
   onBack: () => void;
   isSubmitting: boolean;
+  bookingSource?: 'ai' | 'explore' | 'default';
+  aiSpecialRate?: number | null;
 }
 
 const MEETING_TYPE_ICONS = {
@@ -59,13 +61,21 @@ export function BookingConfirmation({
   mentor, 
   onConfirm, 
   onBack, 
-  isSubmitting 
+  isSubmitting,
+  bookingSource = 'default',
+  aiSpecialRate = null,
 }: BookingConfirmationProps) {
-  const calculatePrice = () => {
-    const hourlyRate = mentor.hourlyRate || 0;
-    const hours = bookingData.duration / 60;
-    return hourlyRate * hours;
-  };
+  const mentorHourlyRateValue = mentor.hourlyRate ? Number(mentor.hourlyRate) : 0;
+  const sessionHours = bookingData.duration / 60;
+  const basePrice = mentorHourlyRateValue * sessionHours;
+  const hasAiPlanPricing =
+    bookingSource === 'ai' &&
+    bookingData.sessionType === 'PAID' &&
+    typeof aiSpecialRate === 'number' &&
+    aiSpecialRate > 0;
+  const planTotal = hasAiPlanPricing ? aiSpecialRate * sessionHours : null;
+  const displayTotal = planTotal !== null ? planTotal : basePrice;
+  const savings = planTotal !== null ? Math.max(0, basePrice - planTotal) : 0;
 
   const formatCurrency = (amount: number, currency: string = 'USD') => {
     return new Intl.NumberFormat('en-US', {
@@ -181,8 +191,23 @@ export function BookingConfirmation({
                   <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 space-y-2">
                     <div className="flex justify-between text-sm">
                        <span className="text-gray-500">Session Cost</span>
-                       <span className="text-gray-900 dark:text-white font-medium">{formatCurrency(calculatePrice(), mentor.currency)}</span>
+                       <div className="text-right">
+                         <span className={`font-medium ${hasAiPlanPricing ? 'line-through text-slate-400' : 'text-gray-900 dark:text-white'}`}>
+                           {formatCurrency(basePrice, mentor.currency)}
+                         </span>
+                         {hasAiPlanPricing && (
+                           <p className="text-[10px] text-slate-500">Mentor listed rate</p>
+                         )}
+                       </div>
                     </div>
+                    {hasAiPlanPricing && planTotal !== null && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500">AI plan rate</span>
+                        <span className="text-blue-600 font-medium">
+                          {formatCurrency(planTotal, mentor.currency)}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm">
                        <span className="text-gray-500">Service Fee</span>
                        <span className="text-gray-900 dark:text-white font-medium">$0.00</span>
@@ -190,8 +215,13 @@ export function BookingConfirmation({
                     <Separator className="my-2" />
                     <div className="flex justify-between items-center">
                        <span className="font-bold text-gray-900 dark:text-white">Total</span>
-                       <span className="text-lg font-bold text-blue-600 dark:text-blue-400">{formatCurrency(calculatePrice(), mentor.currency)}</span>
+                       <span className="text-lg font-bold text-blue-600 dark:text-blue-400">{formatCurrency(displayTotal, mentor.currency)}</span>
                     </div>
+                    {hasAiPlanPricing && savings > 0 && (
+                      <p className="text-xs text-green-600 font-semibold">
+                        You save {formatCurrency(savings, mentor.currency)} with your plan rate
+                      </p>
+                    )}
                   </div>
                 )}
              </div>

@@ -40,6 +40,7 @@ export const FEATURE_KEYS = {
     ANALYTICS_ACCESS_LEVEL: 'analytics_access_level',
     CUSTOM_BRANDING: 'custom_branding',
     PRIORITY_SUPPORT: 'priority_support',
-} as const;
+    PRIORITY_MESSAGING: 'priority_messaging',
+  } as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[keyof typeof FEATURE_KEYS];

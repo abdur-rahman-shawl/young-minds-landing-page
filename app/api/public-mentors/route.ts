@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     const aiSearch = (searchParams.get('ai') ?? 'false') === 'true'
 
     let requesterId: string | null = null
+
     const resolveFeatureAccess = async (
       userId: string,
       primaryAction: 'ai.search.sessions' | 'mentor.ai.visibility',
@@ -36,20 +37,35 @@ export async function GET(req: NextRequest) {
         if (isSubscriptionPolicyError(error)) return null
         throw error
       })
-      if (primary?.has_access) {
+        if (primary?.has_access) {
+          return { action: primaryAction, access: primary }
+        }
+        if (fallbackAction) {
+          const fallback = await enforceFeature({ action: fallbackAction, userId }).catch((error) => {
+            if (isSubscriptionPolicyError(error)) return null
+            throw error
+          })
+          if (fallback?.has_access) {
+            return { action: fallbackAction, access: fallback }
+          }
+          return { action: primaryAction, access: primary || fallback }
+        }
         return { action: primaryAction, access: primary }
       }
-      if (fallbackAction) {
-        const fallback = await enforceFeature({ action: fallbackAction, userId }).catch((error) => {
-          if (isSubscriptionPolicyError(error)) return null
-          throw error
-        })
-        if (fallback?.has_access) {
-          return { action: fallbackAction, access: fallback }
-        }
-        return { action: primaryAction, access: primary || fallback }
-      }
-      return { action: primaryAction, access: primary }
+
+    const tryFeatureAccess = async (userId: string, action: string) => {
+      const result = await enforceFeature({ action, userId }).catch((error) => {
+        if (isSubscriptionPolicyError(error)) return null
+        throw error
+      })
+      return Boolean(result?.has_access)
+    }
+
+    const ensureMenteeSessionAvailability = async (userId: string) => {
+      const freeAvailable = await tryFeatureAccess(userId, 'booking.mentee.free_session')
+      if (freeAvailable) return true
+      const paidAvailable = await tryFeatureAccess(userId, 'booking.mentee.paid_session')
+      return paidAvailable
     }
 
     if (aiSearch) {
@@ -75,6 +91,14 @@ export async function GET(req: NextRequest) {
         }
         return NextResponse.json(
           { success: false, error: 'AI search not included in your plan' },
+          { status: 403 }
+        )
+      }
+
+      const sessionAvailability = await ensureMenteeSessionAvailability(requesterId)
+      if (!sessionAvailability) {
+        return NextResponse.json(
+          { success: false, error: 'Session bookings are not included in your plan' },
           { status: 403 }
         )
       }
@@ -150,22 +174,27 @@ export async function GET(req: NextRequest) {
         const eligibilityChecks = await Promise.all(
           filteredRows.map(async (row) => {
             try {
-              const [freeAccess, mentorAccess, visibilityAccess] = await Promise.all([
-                enforceFeature({ action: 'mentor.free_session_availability', userId: row.userId }).catch((error) => {
-                  if (isSubscriptionPolicyError(error)) return null
-                  throw error
-                }),
-                enforceFeature({ action: 'booking.mentor.session', userId: row.userId }).catch((error) => {
-                  if (isSubscriptionPolicyError(error)) return null
-                  throw error
-                }),
+              const [freeAccess, paidAccess, visibilityAccess] = await Promise.all([
+                enforceFeature({ action: 'mentor.free_session_availability', userId: row.userId }).catch(
+                  (error) => {
+                    if (isSubscriptionPolicyError(error)) return null
+                    throw error
+                  }
+                ),
+                enforceFeature({ action: 'mentor.paid_session_availability', userId: row.userId }).catch(
+                  (error) => {
+                    if (isSubscriptionPolicyError(error)) return null
+                    throw error
+                  }
+                ),
                 resolveFeatureAccess(row.userId, 'mentor.ai.visibility'),
               ])
+              const sessionAvailable =
+                Boolean((freeAccess as any)?.has_access) || Boolean((paidAccess as any)?.has_access)
               return {
                 row,
                 eligible:
-                  Boolean((freeAccess as any)?.has_access) &&
-                  Boolean((mentorAccess as any)?.has_access) &&
+                  sessionAvailable &&
                   (visibilityAccess as any)?.access?.has_access === true,
                 visibilityAction: (visibilityAccess as any)?.action,
               }

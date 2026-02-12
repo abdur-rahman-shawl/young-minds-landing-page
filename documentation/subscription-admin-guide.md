@@ -146,6 +146,7 @@ Use the feature keys below in the Plan Feature Editor:
 | Roadmap Download | `roadmap_download_access` | text | "Unlimited" |
 | Knowledge Hub Access | `knowledge_hub_access_level` | text | "Limited" or "Unlimited" |
 | Industry Expert Access | `industry_expert_access_level` | text | "Limited" or "Unlimited" |
+| AI Booking Special Rate | `paid_video_sessions_monthly` | amount | `limit_amount` defines the hourly price used when an AI search booking is created (only applies when `bookingSource=ai`). |
 | Live Sessions | `live_sessions_count_monthly` | count | limit_count + interval month |
 | Courses Access | `courses_access_level` | text | "Limited" or "Unlimited" |
 | Course Discount | `course_discount_percent` | percent | 10 / 20 / 30 |
@@ -313,4 +314,3 @@ Before setting a plan to **Active**:
 If you are unsure about a limit or feature:
 - Ask the product owner before saving the plan
 - Use `draft` status until confirmed
-

@@ -8,7 +8,7 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const [freeAccess, paidAccess, mentorSessionsAccess] = await Promise.all([
+    const [freeAccess, paidAccess] = await Promise.all([
       enforceFeature({ action: 'mentor.free_session_availability', userId: id }).catch((error) => {
         if (isSubscriptionPolicyError(error)) return null;
         throw error;
@@ -17,22 +17,15 @@ export async function GET(
         if (isSubscriptionPolicyError(error)) return null;
         throw error;
       }),
-      enforceFeature({ action: 'booking.mentor.session', userId: id }).catch((error) => {
-        if (isSubscriptionPolicyError(error)) return null;
-        throw error;
-      }),
     ]);
-
-    const mentorSessionsAvailable = Boolean(mentorSessionsAccess?.has_access);
 
     return NextResponse.json({
       success: true,
       data: {
-        free_available: Boolean(freeAccess?.has_access) && mentorSessionsAvailable,
+        free_available: Boolean(freeAccess?.has_access),
         free_remaining: freeAccess?.remaining ?? null,
-        paid_available: Boolean(paidAccess?.has_access) && mentorSessionsAvailable,
+        paid_available: Boolean(paidAccess?.has_access),
         paid_remaining: paidAccess?.remaining ?? null,
-        mentor_sessions_available: mentorSessionsAvailable,
       },
     });
   } catch (error) {

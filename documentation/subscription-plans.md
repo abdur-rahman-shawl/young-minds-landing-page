@@ -22,6 +22,8 @@
 | Early Access to New Features | ❌ | ❌ | ✔ | ✔ |
 
 
+> **AI booking rate:** If you want AI search bookings to show a different per-hour price than the mentor’s listed rate, populate the `limit_amount` for the `paid_video_sessions_monthly` feature. That value is applied whenever a mentee books a paid session with `bookingSource=ai`. Leave it blank to use the mentor’s base hours.
+
 
 ## Mentor Membership Plan
 **Verification & Registration:** Rs. 5000/-

@@ -333,6 +333,39 @@ export function PlanFeatureEditor({ planId }: PlanFeatureEditorProps) {
                 </div>
               )}
 
+              {selectedFeature.feature_key === "paid_video_sessions_monthly" && (
+                <div className="space-y-3">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>AI booking rate (per hour)</Label>
+                      <Input
+                        type="number"
+                        value={formState.limit_amount ?? ""}
+                        onChange={(event) =>
+                          setFormState((prev) => ({
+                            ...prev,
+                            limit_amount: event.target.value === "" ? null : Number(event.target.value),
+                          }))
+                        }
+                        placeholder="Leave empty to use mentor rate"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Currency</Label>
+                      <Input
+                        value={formState.limit_currency}
+                        onChange={(event) =>
+                          setFormState((prev) => ({ ...prev, limit_currency: event.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Applies only when booking through the AI search flow (`bookingSource=ai`).
+                  </p>
+                </div>
+              )}
+
               {selectedFeature.value_type === "minutes" && (
                 <div className="space-y-2">
                   <Label>Limit Minutes</Label>

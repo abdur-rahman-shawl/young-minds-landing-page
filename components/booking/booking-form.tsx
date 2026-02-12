@@ -53,6 +53,8 @@ interface BookingFormProps {
     description?: string;
     location?: string;
   }>;
+  bookingSource?: 'ai' | 'explore' | 'default';
+  aiSpecialRate?: number | null;
 }
 
 const MEETING_TYPES = [
@@ -79,6 +81,8 @@ export function BookingForm({
   onSubmit,
   onBack,
   initialData,
+  bookingSource = 'default',
+  aiSpecialRate = null,
 }: BookingFormProps) {
   const shouldHideSessionTypeSelector = Boolean(hideSessionTypeSelector);
   const freeAvailable = availability?.freeAvailable ?? true;
@@ -137,15 +141,21 @@ export function BookingForm({
     });
   };
 
-  const calculatePrice = () => {
-    const hourlyRate = mentor.hourlyRate || 0;
-    const hours = formData.duration / 60;
-    return hourlyRate * hours;
-  };
-
   const formatCurrency = (amount: number, currency: string = 'USD') => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
   };
+
+  const mentorHourlyRateValue = mentor.hourlyRate ? Number(mentor.hourlyRate) : 0;
+  const sessionHours = formData.duration / 60;
+  const basePrice = mentorHourlyRateValue * sessionHours;
+  const hasAiPlanPricing =
+    bookingSource === 'ai' &&
+    formData.sessionType === 'PAID' &&
+    typeof aiSpecialRate === 'number' &&
+    aiSpecialRate > 0;
+  const planTotal = hasAiPlanPricing ? aiSpecialRate * sessionHours : null;
+  const displayPrice = planTotal !== null ? planTotal : basePrice;
+  const savings = planTotal !== null ? Math.max(0, basePrice - planTotal) : 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -344,11 +354,30 @@ export function BookingForm({
             <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
                <div>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Estimated Total</p>
-                  <p className="text-xs text-slate-500">{formData.duration} mins @ {formatCurrency(mentor.hourlyRate, mentor.currency)}/hr</p>
+                  <p className="text-xs text-slate-500">
+                    {formData.duration} mins @ {formatCurrency(mentorHourlyRateValue, mentor.currency)}/hr
+                  </p>
                </div>
-               <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                  {formatCurrency(calculatePrice(), mentor.currency)}
-               </p>
+               <div className="flex flex-col items-end gap-1 text-right">
+                  {planTotal !== null && (
+                    <span className="text-xs text-slate-400 line-through">
+                      {formatCurrency(basePrice, mentor.currency)}
+                    </span>
+                  )}
+                  <span className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {formatCurrency(displayPrice, mentor.currency)}
+                  </span>
+                  {planTotal !== null && (
+                    <span className="text-xs text-blue-600 font-semibold uppercase tracking-wide">
+                      Your plan rate
+                    </span>
+                  )}
+                  {planTotal !== null && savings > 0 && (
+                    <span className="text-xs text-green-600 font-semibold">
+                      Save {formatCurrency(savings, mentor.currency)} with AI booking
+                    </span>
+                  )}
+               </div>
             </div>
           )}
 
