@@ -240,6 +240,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     const isStatusChanged = existingMentor.verificationStatus !== status;
+    const previousIsExpert = Boolean(existingMentor.isExpert);
+    const expertChanged = isExpert !== undefined && isExpert !== previousIsExpert;
     const noteToStore =
       notes === undefined
         ? existingMentor.verificationNotes
@@ -273,19 +275,37 @@ export async function PATCH(request: NextRequest) {
       .where(eq(mentors.id, mentorId))
       .returning({ id: mentors.id, userId: mentors.userId, fullName: mentors.fullName, email: mentors.email });
 
-    await logAdminAction({
-      adminId,
-      action: 'MENTOR_VERIFICATION_STATUS_CHANGED',
-      targetId: updatedMentor.userId,
-      targetType: 'mentor',
-      details: {
-        previousStatus: existingMentor.verificationStatus,
-        newStatus: status,
-        notes: noteToStore,
-        couponIssued: couponCode ?? undefined,
-        isExpertUpdated: isExpert !== undefined ? isExpert : undefined,
-      },
-    });
+    if (!updatedMentor) {
+      return NextResponse.json({ success: false, error: 'Mentor not found' }, { status: 404 });
+    }
+
+    if (isStatusChanged || notes !== undefined || enableCoupon !== undefined) {
+      await logAdminAction({
+        adminId,
+        action: 'MENTOR_VERIFICATION_STATUS_CHANGED',
+        targetId: updatedMentor.userId,
+        targetType: 'mentor',
+        details: {
+          previousStatus: existingMentor.verificationStatus,
+          newStatus: status,
+          notes: noteToStore,
+          couponIssued: couponCode ?? undefined,
+        },
+      });
+    }
+
+    if (expertChanged) {
+      await logAdminAction({
+        adminId,
+        action: 'MENTOR_EXPERT_FLAG_CHANGED',
+        targetId: updatedMentor.userId,
+        targetType: 'mentor',
+        details: {
+          previousIsExpert,
+          newIsExpert: isExpert,
+        },
+      });
+    }
 
     const { userId, fullName, email } = updatedMentor;
 
