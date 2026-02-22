@@ -68,7 +68,8 @@ export async function GET(request: NextRequest) {
           headline: mentors.headline,
           maxMentees: mentors.maxMentees,
           profileImageUrl: mentors.profileImageUrl,
-          resumeUrl: mentors.resumeUrl
+          resumeUrl: mentors.resumeUrl,
+          searchMode: mentors.searchMode,
         })
         .from(mentors)
         .where(eq(mentors.userId, userId))

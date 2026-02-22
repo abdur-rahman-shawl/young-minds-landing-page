@@ -40,6 +40,7 @@ interface MentorProfile {
   paymentStatus?: 'PENDING' | 'COMPLETED' | 'FAILED';
   couponCode?: string | null;
   isCouponCodeEnabled?: boolean;
+  searchMode?: 'AI_SEARCH' | 'EXCLUSIVE_SEARCH';
   isAvailable?: boolean;
   verificationNotes?: string;
   createdAt?: string;

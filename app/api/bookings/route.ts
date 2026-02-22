@@ -168,6 +168,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (isAiBooking && mentor[0].searchMode !== 'AI_SEARCH') {
+      return NextResponse.json(
+        { error: 'Mentor is not visible to AI search' },
+        { status: 403 }
+      );
+    }
+
     // Check mentor's availability settings
     const availabilitySchedule = await db
       .select()

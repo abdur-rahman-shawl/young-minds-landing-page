@@ -229,6 +229,10 @@ export async function POST(request: NextRequest) {
       return fallback;
     };
     const parsedIsAvailable = parseBooleanFlag(updateData.isAvailable, existingMentor.isAvailable !== false);
+    const parsedSearchMode =
+      updateData.searchMode === 'EXCLUSIVE_SEARCH' || updateData.searchMode === 'AI_SEARCH'
+        ? updateData.searchMode
+        : existingMentor.searchMode || 'AI_SEARCH';
 
     const mentorUpdateData = {
       fullName: toNullableString(updateData.fullName),
@@ -256,7 +260,8 @@ export async function POST(request: NextRequest) {
       resumeUrl: newResumeUrl,
       verificationStatus: 'UPDATED_PROFILE',
       verificationNotes: parsedVerificationNotes,
-      isAvailable: parsedIsAvailable
+      isAvailable: parsedIsAvailable,
+      searchMode: parsedSearchMode,
     };
 
     console.log('📝 Step 2: Updating mentor profile with data:', JSON.stringify(mentorUpdateData, null, 2));

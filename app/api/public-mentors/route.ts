@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
     const industry = (searchParams.get('industry') ?? '').trim()
     const availableOnly = (searchParams.get('availableOnly') ?? 'true') === 'true'
     const aiSearch = (searchParams.get('ai') ?? 'false') === 'true'
+    const aiFilterOnly = (searchParams.get('aiFilterOnly') ?? 'false') === 'true'
+    const requiresAiEligibilityFilters = aiSearch || aiFilterOnly
 
     let requesterId: string | null = null
 
@@ -107,6 +109,7 @@ export async function GET(req: NextRequest) {
     // WHERE clauses
     const whereClauses: any[] = [eq(mentors.verificationStatus, 'VERIFIED' as const)]
     if (availableOnly) whereClauses.push(eq(mentors.isAvailable, true))
+    if (requiresAiEligibilityFilters) whereClauses.push(eq(mentors.searchMode, 'AI_SEARCH'))
     if (industry) whereClauses.push(ilike(mentors.industry, `%${industry}%`))
     if (q) {
       // Adjust fields to match your schema (users.name/title/company present in your select below)
@@ -151,7 +154,7 @@ export async function GET(req: NextRequest) {
 
     let filteredRows = rows
 
-    if (aiSearch && requesterId) {
+    if (requiresAiEligibilityFilters) {
       if (filteredRows.length > 0) {
         const supabase = await createClient()
         const mentorUserIds = filteredRows.map((row) => row.userId)
@@ -169,7 +172,9 @@ export async function GET(req: NextRequest) {
           filteredRows = filteredRows.filter((row) => eligibleMentorIds.has(row.userId))
         }
       }
+    }
 
+    if (aiSearch && requesterId) {
       if (filteredRows.length > 0) {
         const eligibilityChecks = await Promise.all(
           filteredRows.map(async (row) => {

@@ -13,6 +13,11 @@ export const verificationStatusEnum = pgEnum('verification_status', [
   'UPDATED_PROFILE'
 ]);
 
+export const mentorSearchModeEnum = pgEnum('mentor_search_mode', [
+  'AI_SEARCH',
+  'EXCLUSIVE_SEARCH',
+]);
+
 export const mentors = pgTable('mentors', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull().unique(),
@@ -55,6 +60,7 @@ export const mentors = pgTable('mentors', {
   paymentStatus: text('payment_status').default('PENDING').notNull(),
   couponCode: text('coupon_code'),
   isCouponCodeEnabled: boolean('is_coupon_code_enabled').default(false).notNull(),
+  searchMode: mentorSearchModeEnum('search_mode').default('AI_SEARCH').notNull(),
 
   // Timestamps
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -72,3 +78,4 @@ export const mentorsRelations = relations(mentors, ({ one }) => ({
 export type Mentor = typeof mentors.$inferSelect;
 export type NewMentor = typeof mentors.$inferInsert;
 export type VerificationStatus = typeof verificationStatusEnum.enumValues[number];
+export type MentorSearchMode = typeof mentorSearchModeEnum.enumValues[number];

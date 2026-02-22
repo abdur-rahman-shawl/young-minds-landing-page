@@ -290,19 +290,32 @@ export function HeroSection() {
   const fetchMentorsFromApi = async (useAiSearch = false): Promise<DbMentor[] | null> => {
     try {
       setIsSearchingMentors(true)
-      const params = new URLSearchParams({
-        page: '1',
-        pageSize: '12',
-        availableOnly: 'true',
-      });
-      if (useAiSearch) {
-        params.set('ai', 'true');
+      const buildParams = (aiEnabled: boolean) => {
+        const params = new URLSearchParams({
+          page: '1',
+          pageSize: '12',
+          availableOnly: 'true',
+        });
+        if (aiEnabled) {
+          params.set('aiFilterOnly', 'true');
+        }
+        return params;
+      };
+
+      const requestMentors = async (aiEnabled: boolean) => {
+        const response = await fetch(`/api/public-mentors?${buildParams(aiEnabled).toString()}`, { method: 'GET' });
+        const payload = await response.json().catch(() => null);
+        return { response, payload };
+      };
+
+      const { response, payload } = await requestMentors(useAiSearch);
+
+      if (!response.ok) {
+        const apiError = payload?.error || payload?.message;
+        throw new Error(apiError ? `Failed to fetch mentors: ${response.status} ${apiError}` : `Failed to fetch mentors: ${response.status}`);
       }
 
-      const res = await fetch(`/api/public-mentors?${params.toString()}`, { method: 'GET' })
-      if (!res.ok) throw new Error(`Failed to fetch mentors: ${res.status}`)
-      const json = await res.json()
-      const list: DbMentor[] = json?.data ?? []
+      const list: DbMentor[] = payload?.data ?? []
       setDbMentors(list)
       setShowMentors(true)
       setCurrentMentorIndex(0)
