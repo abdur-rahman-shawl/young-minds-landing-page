@@ -29,17 +29,27 @@ interface UseMentorsReturn {
   refetch: () => void;
 }
 
-export function useMentors(): UseMentorsReturn {
+interface UseMentorsOptions {
+  expertOnly?: boolean;
+}
+
+export function useMentors(options?: UseMentorsOptions): UseMentorsReturn {
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const expertOnly = options?.expertOnly === true;
 
   const fetchMentors = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/mentors');
+      const params = new URLSearchParams();
+      if (expertOnly) {
+        params.set('expertOnly', 'true');
+      }
+      const query = params.toString();
+      const response = await fetch(query ? `/api/mentors?${query}` : '/api/mentors');
       const result = await response.json();
 
       if (result.success) {
@@ -56,7 +66,7 @@ export function useMentors(): UseMentorsReturn {
 
   useEffect(() => {
     fetchMentors();
-  }, []);
+  }, [expertOnly]);
 
   return {
     mentors,

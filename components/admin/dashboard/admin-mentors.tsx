@@ -43,7 +43,6 @@ import {
   Phone,
   Github,
   Mail,
-  Sparkles,
   Crown,
   Send,
 } from 'lucide-react';
@@ -95,6 +94,7 @@ type Mentor = {
   couponCode?: string | null;
   isCouponCodeEnabled?: boolean | null;
   paymentStatus?: 'PENDING' | 'COMPLETED' | 'FAILED' | null;
+  isExpert?: boolean | null;
 };
 
 type MentorAction = Extract<
@@ -190,7 +190,9 @@ export function AdminMentors() {
   const [auditData, setAuditData] = useState<any | null>(null);
   const [isAuditLoading, setIsAuditLoading] = useState(false);
   const [couponToggles, setCouponToggles] = useState<Record<string, boolean>>({});
+  const [expertToggles, setExpertToggles] = useState<Record<string, boolean>>({});
   const [sendingCouponId, setSendingCouponId] = useState<string | null>(null);
+  const [updatingExpertId, setUpdatingExpertId] = useState<string | null>(null);
   const [verifiedFilters, setVerifiedFilters] = useState({
     paymentPending: false,
     couponEnabled: false,
@@ -222,6 +224,12 @@ export function AdminMentors() {
       setCouponToggles(
         data.reduce<Record<string, boolean>>((acc, mentor) => {
           acc[mentor.id] = Boolean(mentor.isCouponCodeEnabled);
+          return acc;
+        }, {}),
+      );
+      setExpertToggles(
+        data.reduce<Record<string, boolean>>((acc, mentor) => {
+          acc[mentor.id] = Boolean(mentor.isExpert);
           return acc;
         }, {}),
       );
@@ -395,9 +403,54 @@ export function AdminMentors() {
   const selectedMentorCouponEnabled = selectedMentor
     ? couponToggles[selectedMentor.id] ?? Boolean(selectedMentor.isCouponCodeEnabled)
     : false;
+  const selectedMentorIsExpert = selectedMentor
+    ? expertToggles[selectedMentor.id] ?? Boolean(selectedMentor.isExpert)
+    : false;
 
   const handleCouponToggle = (mentorId: string, checked: boolean) => {
     setCouponToggles((prev) => ({ ...prev, [mentorId]: checked }));
+  };
+
+  const handleExpertToggle = async (mentor: Mentor, checked: boolean) => {
+    if (mentor.verificationStatus !== 'VERIFIED') {
+      toast.error('Only verified mentors can be marked as expert');
+      return;
+    }
+    const previousValue = expertToggles[mentor.id] ?? Boolean(mentor.isExpert);
+    setExpertToggles((prev) => ({ ...prev, [mentor.id]: checked }));
+    setUpdatingExpertId(mentor.id);
+    try {
+      const res = await fetch('/api/admin/mentors', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          mentorId: mentor.id,
+          status: mentor.verificationStatus,
+          isExpert: checked,
+        }),
+      });
+      const json = await res
+        .json()
+        .catch(() => ({ success: false, error: 'Unable to parse response' }));
+
+      if (!res.ok || !json?.success) {
+        const message = json?.error || 'Unable to update expert status';
+        setExpertToggles((prev) => ({ ...prev, [mentor.id]: previousValue }));
+        toast.error('Failed to update expert status', { description: message });
+        return;
+      }
+
+      toast.success(checked ? 'Mentor marked as expert' : 'Mentor removed from expert list');
+      await fetchMentors();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Something went wrong';
+      setExpertToggles((prev) => ({ ...prev, [mentor.id]: previousValue }));
+      toast.error('Failed to update expert status', { description: message });
+    } finally {
+      setUpdatingExpertId(null);
+    }
   };
   const getCouponButtonClasses = (isResend: boolean) =>
     isResend
@@ -473,6 +526,7 @@ export function AdminMentors() {
             const couponEnabled = options?.showCouponToggle
               ? couponToggles[mentor.id] ?? Boolean(mentor.isCouponCodeEnabled)
               : false;
+            const expertEnabled = expertToggles[mentor.id] ?? Boolean(mentor.isExpert);
 
             return (
               <article
@@ -500,6 +554,15 @@ export function AdminMentors() {
                         {statusCopy[mentor.verificationStatus]}
                       </Badge>
                       {renderAvailabilityBadge(mentor.isAvailable)}
+                      {expertEnabled && (
+                        <Badge
+                          variant='outline'
+                          className='border-amber-200 bg-amber-50 text-amber-700 text-xs'
+                        >
+                          <Crown className='mr-1 h-3 w-3' />
+                          Expert
+                        </Badge>
+                      )}
                     </div>
                     {mentor.headline && (
                       <p className='max-w-2xl text-sm text-muted-foreground'>
@@ -641,6 +704,22 @@ export function AdminMentors() {
                   </div>
 
                   <div className='flex flex-1 flex-col gap-3 md:items-end'>
+                    {mentor.verificationStatus === 'VERIFIED' && (
+                      <label className='inline-flex items-center gap-2 text-sm text-muted-foreground'>
+                        <Checkbox
+                          checked={expertEnabled}
+                          onCheckedChange={(checked) =>
+                            void handleExpertToggle(mentor, Boolean(checked))
+                          }
+                          disabled={updatingExpertId === mentor.id}
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                        <span>Mark as expert</span>
+                        {updatingExpertId === mentor.id && (
+                          <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                        )}
+                      </label>
+                    )}
                     {options?.showCouponToggle && (
                       <label className='inline-flex items-center gap-2 text-sm text-muted-foreground'>
                         <Checkbox
@@ -1060,6 +1139,15 @@ export function AdminMentors() {
                           >
                             {statusCopy[selectedMentor.verificationStatus]}
                           </Badge>
+                          {selectedMentorIsExpert && (
+                            <Badge
+                              variant='outline'
+                              className='border-amber-200 bg-amber-50 text-amber-700 text-xs'
+                            >
+                              <Crown className='mr-1 h-3 w-3' />
+                              Expert
+                            </Badge>
+                          )}
                           {renderAvailabilityBadge(selectedMentor.isAvailable)}
                           {selectedMentor.location && (
                             <span className='inline-flex items-center gap-1 text-xs text-muted-foreground'>

@@ -60,6 +60,7 @@ export const mentors = pgTable('mentors', {
   paymentStatus: text('payment_status').default('PENDING').notNull(),
   couponCode: text('coupon_code'),
   isCouponCodeEnabled: boolean('is_coupon_code_enabled').default(false).notNull(),
+  isExpert: boolean('is_expert').default(false).notNull(),
   searchMode: mentorSearchModeEnum('search_mode').default('AI_SEARCH').notNull(),
 
   // Timestamps

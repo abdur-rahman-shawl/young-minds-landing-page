@@ -16,9 +16,8 @@ const VERIFICATION_STATUSES = [
   'REJECTED',
   'REVERIFICATION',
   'RESUBMITTED',
+  'UPDATED_PROFILE',
 ] as const;
-
-type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
 
 const mentorSelectFields = {
   id: mentors.id,
@@ -53,6 +52,7 @@ const mentorSelectFields = {
   couponCode: mentors.couponCode,
   isCouponCodeEnabled: mentors.isCouponCodeEnabled,
   paymentStatus: mentors.paymentStatus,
+  isExpert: mentors.isExpert,
 };
 
 const COUPON_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -75,6 +75,7 @@ const updateMentorSchema = z.object({
     .max(1000, 'Notes must be 1000 characters or fewer')
     .optional(),
   enableCoupon: z.boolean().optional(),
+  isExpert: z.boolean().optional(),
 });
 
 const parseJsonList = (value: string | null | undefined): string[] => {
@@ -135,6 +136,7 @@ const formatMentorRecord = async (raw: Awaited<ReturnType<typeof fetchMentorRows
     couponCode: raw.couponCode,
     isCouponCodeEnabled: raw.isCouponCodeEnabled,
     paymentStatus: raw.paymentStatus,
+    isExpert: raw.isExpert,
   };
 };
 
@@ -229,10 +231,29 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { mentorId, status, notes, enableCoupon } = parsed.data;
-    const noteToStore = notes && notes.length > 0 ? notes : null;
-    const shouldEnableCoupon = status === 'VERIFIED' && Boolean(enableCoupon);
-    const couponCode = shouldEnableCoupon ? generateCouponCode() : null;
+    const { mentorId, status, notes, enableCoupon, isExpert } = parsed.data;
+
+    const existingRows = await fetchMentorRows(mentorId);
+    const existingMentor = existingRows[0];
+    if (!existingMentor) {
+      return NextResponse.json({ success: false, error: 'Mentor not found' }, { status: 404 });
+    }
+
+    const isStatusChanged = existingMentor.verificationStatus !== status;
+    const noteToStore =
+      notes === undefined
+        ? existingMentor.verificationNotes
+        : notes.length > 0
+          ? notes
+          : null;
+    const shouldEnableCoupon = status === 'VERIFIED'
+      ? enableCoupon === undefined
+        ? Boolean(existingMentor.isCouponCodeEnabled)
+        : Boolean(enableCoupon)
+      : false;
+    const couponCode = shouldEnableCoupon
+      ? existingMentor.couponCode || generateCouponCode()
+      : null;
 
     const updateData: Record<string, any> = {
       verificationStatus: status,
@@ -242,6 +263,9 @@ export async function PATCH(request: NextRequest) {
     };
 
     updateData.couponCode = couponCode;
+    if (isExpert !== undefined) {
+      updateData.isExpert = isExpert;
+    }
 
     const [updatedMentor] = await db
       .update(mentors)
@@ -249,21 +273,23 @@ export async function PATCH(request: NextRequest) {
       .where(eq(mentors.id, mentorId))
       .returning({ id: mentors.id, userId: mentors.userId, fullName: mentors.fullName, email: mentors.email });
 
-    if (!updatedMentor) {
-      return NextResponse.json({ success: false, error: 'Mentor not found' }, { status: 404 });
-    }
-
     await logAdminAction({
       adminId,
       action: 'MENTOR_VERIFICATION_STATUS_CHANGED',
       targetId: updatedMentor.userId,
       targetType: 'mentor',
-      details: { newStatus: status, notes, couponIssued: couponCode ?? undefined },
+      details: {
+        previousStatus: existingMentor.verificationStatus,
+        newStatus: status,
+        notes: noteToStore,
+        couponIssued: couponCode ?? undefined,
+        isExpertUpdated: isExpert !== undefined ? isExpert : undefined,
+      },
     });
 
     const { userId, fullName, email } = updatedMentor;
 
-    if (status === 'VERIFIED') {
+    if (isStatusChanged && status === 'VERIFIED') {
       await sendMentorApplicationApprovedEmail(email!, fullName!, couponCode ?? undefined);
       await sendNotification(
         userId,
@@ -272,7 +298,7 @@ export async function PATCH(request: NextRequest) {
         'Congratulations! Your mentor application has been approved.',
         '/dashboard'
       );
-    } else if (status === 'REJECTED') {
+    } else if (isStatusChanged && status === 'REJECTED') {
       await sendMentorApplicationRejectedEmail(email!, fullName!, noteToStore || 'No reason provided.');
       await sendNotification(
         userId,
@@ -281,7 +307,7 @@ export async function PATCH(request: NextRequest) {
         `Your mentor application has been rejected. Reason: ${notes || 'No reason provided.'}`,
         '/become-expert'
       );
-    } else if (status === 'REVERIFICATION') {
+    } else if (isStatusChanged && status === 'REVERIFICATION') {
       await sendMentorApplicationReverificationRequestEmail(email!, fullName!, noteToStore || 'No reason provided.');
       await sendNotification(
         userId,
