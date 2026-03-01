@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { getPlanFeatures, getUserSubscription } from "@/lib/subscriptions/enforcement";
+import {
+  getPlanFeatures,
+  getUserSubscription,
+  type SubscriptionContext,
+  type SubscriptionPlanFeature,
+} from "@/lib/subscriptions/enforcement";
+import { getUsageRowsForSubscription } from "@/lib/db/queries/subscriptions";
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,8 +29,10 @@ export async function GET(request: NextRequest) {
     }
 
     let subscription = null;
-    let planFeatures = [];
-    const subscriptionContext = audience ? { audience, actorRole: audience } : undefined;
+    let planFeatures: SubscriptionPlanFeature[] = [];
+    const subscriptionContext: SubscriptionContext | undefined = audience
+      ? { audience, actorRole: audience }
+      : undefined;
 
     try {
       subscription = await getUserSubscription(userId, subscriptionContext);
@@ -44,29 +51,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: [] });
     }
 
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("subscription_usage_tracking")
-      .select(
-        `
-        usage_count,
-        usage_minutes,
-        usage_amount,
-        usage_json,
-        period_start,
-        period_end,
-        limit_reached,
-        subscription_features(feature_key, name, value_type, unit, is_metered)
-      `
-      )
-      .eq("subscription_id", subscription.subscription_id);
+    const data = await getUsageRowsForSubscription(subscription.subscription_id);
+    type UsageRow = Awaited<ReturnType<typeof getUsageRowsForSubscription>>[number];
 
-    if (error) {
-      throw error;
-    }
-
-    const usageByFeatureKey = new Map(
-      (data || []).map((item) => [
+    const usageByFeatureKey = new Map<string, UsageRow>(
+      (data || []).map((item: UsageRow) => [
         item.subscription_features?.feature_key,
         item,
       ])
@@ -74,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     const normalized = planFeatures
       .filter((feature) => feature.is_metered)
-      .map((feature) => {
+      .map((feature: SubscriptionPlanFeature) => {
         const usage = usageByFeatureKey.get(feature.feature_key);
         return {
           feature_key: feature.feature_key,

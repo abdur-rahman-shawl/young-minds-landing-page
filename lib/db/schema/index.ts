@@ -32,6 +32,7 @@ export * from './session-audit-log';
 export * from './reschedule-requests';
 export * from './admin-session-audit-trail';
 export * from './admin-session-notes';
+export * from './subscriptions';
 
 // Temporary empty export to prevent TypeScript errors
 export { };

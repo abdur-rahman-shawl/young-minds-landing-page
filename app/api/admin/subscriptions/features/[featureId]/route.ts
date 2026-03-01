@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/api/guards";
+import { featureKeyExists, updateFeature } from "@/lib/db/queries/subscriptions";
 
 const updateFeatureSchema = z.object({
   name: z.string().min(1).optional(),
@@ -27,18 +27,14 @@ export async function PATCH(
     const body = await request.json();
     const updates = updateFeatureSchema.parse(body);
 
-    const supabase = await createClient();
-
-    const { data, error } = await supabase
-      .from("subscription_features")
-      .update(updates)
-      .eq("id", featureId)
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
+    if (updates.feature_key && await featureKeyExists(updates.feature_key, featureId)) {
+      return NextResponse.json(
+        { success: false, message: `Feature key '${updates.feature_key}' already exists` },
+        { status: 409 }
+      );
     }
+
+    const data = await updateFeature(featureId, updates);
 
     return NextResponse.json({ success: true, data });
   } catch (error) {

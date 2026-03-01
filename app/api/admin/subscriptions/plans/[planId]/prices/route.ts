@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/api/guards";
+import { createPlanPrice, listPlanPrices } from "@/lib/db/queries/subscriptions";
 
 const createPriceSchema = z.object({
   price_type: z.enum(["standard", "introductory"]),
@@ -25,17 +25,7 @@ export async function GET(
     }
 
     const { planId } = await params;
-    const supabase = await createClient();
-
-    const { data, error } = await supabase
-      .from("subscription_plan_prices")
-      .select("*")
-      .eq("plan_id", planId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      throw error;
-    }
+    const data = await listPlanPrices(planId);
 
     return NextResponse.json({ success: true, data: data || [] });
   } catch (error) {
@@ -61,27 +51,7 @@ export async function POST(
     const body = await request.json();
     const payload = createPriceSchema.parse(body);
 
-    const supabase = await createClient();
-
-    const { data, error } = await supabase
-      .from("subscription_plan_prices")
-      .insert({
-        plan_id: planId,
-        price_type: payload.price_type,
-        billing_interval: payload.billing_interval,
-        billing_interval_count: payload.billing_interval_count,
-        amount: payload.amount,
-        currency: payload.currency,
-        is_active: payload.is_active ?? true,
-        effective_from: payload.effective_from ?? null,
-        effective_to: payload.effective_to ?? null,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
+    const data = await createPlanPrice(planId, payload);
 
     return NextResponse.json({ success: true, data });
   } catch (error) {

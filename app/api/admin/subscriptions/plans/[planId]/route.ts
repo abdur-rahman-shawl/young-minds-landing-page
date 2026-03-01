@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/api/guards';
+import { deletePlan, updatePlan } from '@/lib/db/queries/subscriptions';
 
 const updatePlanSchema = z.object({
   name: z.string().min(1).optional(),
@@ -25,18 +25,7 @@ export async function PATCH(
     const body = await request.json();
     const updates = updatePlanSchema.parse(body);
 
-    const supabase = await createClient();
-
-    const { data, error } = await supabase
-      .from('subscription_plans')
-      .update(updates)
-      .eq('id', planId)
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
+    const data = await updatePlan(planId, updates);
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
@@ -65,16 +54,7 @@ export async function DELETE(
     }
 
     const { planId } = await params;
-    const supabase = await createClient();
-
-    const { error } = await supabase
-      .from('subscription_plans')
-      .delete()
-      .eq('id', planId);
-
-    if (error) {
-      throw error;
-    }
+    await deletePlan(planId);
 
     return NextResponse.json({ success: true });
   } catch (error) {
