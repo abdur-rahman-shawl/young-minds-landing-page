@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { requireMentor } from '@/lib/api/guards';
 import { getMentorForContent } from '@/lib/api/mentor-content';
 import { db } from '@/lib/db';
@@ -14,6 +14,24 @@ import {
   sectionContentItems,
   users,
 } from '@/lib/db/schema';
+
+type MentorCourseCommentRow = {
+  id: string;
+  feedbackType: 'course' | 'content-item';
+  courseId: string;
+  courseTitle: string | null;
+  contentItemId: string;
+  contentItemTitle: string | null;
+  rating: number;
+  title: string | null;
+  review: string | null;
+  helpfulVotes: number;
+  createdAt: Date;
+  instructorResponse: string | null;
+  instructorRespondedAt: Date | null;
+  reviewerName: string | null;
+  reviewerImage: string | null;
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,10 +58,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ hasAccess: false, comments: [] });
     }
 
-    const courseComments = await db
+    const courseCommentRows = await db
       .select({
         id: courseReviews.id,
-        feedbackType: sql<'course'>`'course'`,
         courseId: courseReviews.courseId,
         courseTitle: mentorContent.title,
         contentItemId: courseReviews.courseId,
@@ -66,10 +83,9 @@ export async function GET(request: NextRequest) {
       .where(and(eq(mentorContent.mentorId, mentor.id), eq(courseReviews.isPublished, true)))
       .orderBy(desc(courseReviews.createdAt));
 
-    const lessonComments = await db
+    const lessonCommentRows = await db
       .select({
         id: contentItemReviews.id,
-        feedbackType: sql<'content-item'>`'content-item'`,
         courseId: contentItemReviews.courseId,
         courseTitle: mentorContent.title,
         contentItemId: contentItemReviews.contentItemId,
@@ -92,6 +108,16 @@ export async function GET(request: NextRequest) {
       .innerJoin(users, eq(mentees.userId, users.id))
       .where(and(eq(mentorContent.mentorId, mentor.id), eq(contentItemReviews.isPublished, true)))
       .orderBy(desc(contentItemReviews.createdAt));
+
+    const courseComments: MentorCourseCommentRow[] = courseCommentRows.map((row) => ({
+      ...row,
+      feedbackType: 'course',
+    }));
+
+    const lessonComments: MentorCourseCommentRow[] = lessonCommentRows.map((row) => ({
+      ...row,
+      feedbackType: 'content-item',
+    }));
 
     const comments = [...courseComments, ...lessonComments].sort(
       (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
