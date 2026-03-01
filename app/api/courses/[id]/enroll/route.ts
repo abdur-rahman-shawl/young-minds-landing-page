@@ -136,10 +136,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       throw error;
     }
 
-    const accessLevelText = typeof coursesAccess.limit === 'string' ? coursesAccess.limit : null;
-    const shouldEnforceCourseLimit = accessLevelText
-      ? accessLevelText.toLowerCase() !== 'unlimited'
-      : true;
+    let shouldEnforceCourseLimit = false;
+    try {
+      const planFeatures = await getPlanFeatures(userId, {
+        audience: 'mentee',
+        actorRole: 'mentee',
+      });
+      shouldEnforceCourseLimit = planFeatures.some(
+        (feature) => feature.feature_key === FEATURE_KEYS.FREE_COURSES_LIMIT
+      );
+    } catch (error) {
+      console.error('Course limit feature lookup failed:', error);
+    }
 
     if (shouldEnforceCourseLimit) {
       try {
@@ -294,12 +302,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       })
       .where(eq(courses.id, courseId));
 
-    await consumeFeature({
-      action: 'courses.free_limit',
-      userId,
-      resourceType: 'course_enrollment',
-      resourceId: enrollmentId,
-    });
+    if (shouldEnforceCourseLimit) {
+      await consumeFeature({
+        action: 'courses.free_limit',
+        userId,
+        resourceType: 'course_enrollment',
+        resourceId: enrollmentId,
+      });
+    }
 
     // Return success response
     return NextResponse.json({

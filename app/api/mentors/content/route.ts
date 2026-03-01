@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { mentorContent } from '@/lib/db/schema';
 import { z } from 'zod';
-import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
+import { checkFeatureAccess } from '@/lib/subscriptions/enforcement';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 import { requireMentor } from '@/lib/api/guards';
 import { getMentorContentOwnershipCondition, getMentorForContent } from '@/lib/api/mentor-content';
 import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
@@ -94,22 +95,56 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
-    if (!isAdmin) {
-      try {
-        await enforceFeature({
-          action: 'mentor.content_post',
-          userId: guard.session.user.id,
-        });
-      } catch (error) {
-        if (isSubscriptionPolicyError(error)) {
-          return NextResponse.json(error.payload, { status: error.status });
-        }
-        throw error;
-      }
-    }
-
     const body = await request.json();
     const validatedData = createContentSchema.parse(body);
+
+    if (!isAdmin) {
+      if (validatedData.type === 'COURSE') {
+        const access = await checkFeatureAccess(
+          guard.session.user.id,
+          FEATURE_KEYS.COURSES_ACCESS,
+          { audience: 'mentor', actorRole: 'mentor' }
+        );
+
+        if (!access.has_access) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Courses are not included in your plan',
+              details: access.reason,
+              feature: FEATURE_KEYS.COURSES_ACCESS,
+              limit: access.limit ?? null,
+              usage: access.usage,
+              remaining: access.remaining,
+              upgrade_required: true,
+            },
+            { status: 403 }
+          );
+        }
+      } else {
+        const access = await checkFeatureAccess(
+          guard.session.user.id,
+          'create_post_content',
+          { audience: 'mentor', actorRole: 'mentor' }
+        );
+
+        if (!access.has_access) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Content publishing is not included in your plan',
+              details: access.reason,
+              feature: 'create_post_content',
+              limit: access.limit ?? null,
+              usage: access.usage,
+              remaining: access.remaining,
+              upgrade_required: true,
+            },
+            { status: 403 }
+          );
+        }
+      }
+    }
 
     // Admins can only create courses through this flow.
     if (isAdmin && validatedData.type !== 'COURSE') {
