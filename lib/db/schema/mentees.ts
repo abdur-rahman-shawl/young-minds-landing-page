@@ -4,7 +4,7 @@ import { users } from './users';
 
 export const mentees = pgTable('mentees', {
   id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull().unique(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull().unique(),
   
   // Professional background
   currentRole: text('current_role'), // e.g., "Student", "Junior Developer"

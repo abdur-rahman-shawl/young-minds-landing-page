@@ -10,12 +10,13 @@
 - Local Postgres bootstrap is now standardized via `compose.yaml`.
 - Subscription schema is now checked into `lib/db/schema/subscriptions.ts`.
 - Subscription DDL is now checked into `lib/db/migrations/0044_create_subscription_tables.sql`.
+- Legacy schema changes that previously lived outside Drizzle migrations are now being moved into `lib/db/migrations/*` so the full database can be recreated from the repo.
 
 ## Local Postgres Workflow
 1. Start Postgres:
-   - `docker compose up -d postgres`
+   - `docker compose -f docker/docker-compose-pg-local.yaml up -d postgres`
 2. Point app/database tooling at local Postgres:
-   - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/young_minds`
+   - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sharing_minds`
 3. Apply schema:
    - `pnpm db:migrate`
 4. Seed data if needed:
@@ -40,6 +41,7 @@
 ### Phase 2: Schema Formalization
 - Keep subscription schema in source control via `lib/db/schema/subscriptions.ts`.
 - Keep subscription DDL in source control via `lib/db/migrations/0044_create_subscription_tables.sql`.
+- Keep all non-subscription schema changes in the same migration chain, including admin session tables and later session-table alterations.
 - Remove dependence on out-of-band Supabase-only schema setup.
 
 ### Phase 3: Shared Query Layer

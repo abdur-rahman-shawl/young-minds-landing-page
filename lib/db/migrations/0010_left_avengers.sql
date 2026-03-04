@@ -158,5 +158,4 @@ ALTER TABLE "learning_insights" ADD CONSTRAINT "learning_insights_mentee_id_ment
 ALTER TABLE "learning_session_details" ADD CONSTRAINT "learning_session_details_session_id_learning_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."learning_sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "learning_session_details" ADD CONSTRAINT "learning_session_details_content_item_id_section_content_items_id_fk" FOREIGN KEY ("content_item_id") REFERENCES "public"."section_content_items"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "learning_sessions" ADD CONSTRAINT "learning_sessions_mentee_id_mentees_id_fk" FOREIGN KEY ("mentee_id") REFERENCES "public"."mentees"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "weekly_learning_goals" ADD CONSTRAINT "weekly_learning_goals_mentee_id_mentees_id_fk" FOREIGN KEY ("mentee_id") REFERENCES "public"."mentees"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "course_wishlist" DROP COLUMN "id";
+ALTER TABLE "weekly_learning_goals" ADD CONSTRAINT "weekly_learning_goals_mentee_id_mentees_id_fk" FOREIGN KEY ("mentee_id") REFERENCES "public"."mentees"("id") ON DELETE cascade ON UPDATE no action;

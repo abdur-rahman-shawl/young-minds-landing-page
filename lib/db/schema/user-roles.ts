@@ -1,11 +1,11 @@
-import { pgTable, text, timestamp, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, primaryKey, uuid } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { users } from './users';
 import { roles } from './roles';
 
 export const userRoles = pgTable('user_roles', {
   userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  roleId: text('role_id').references(() => roles.id, { onDelete: 'cascade' }).notNull(),
+  roleId: uuid('role_id').references(() => roles.id, { onDelete: 'cascade' }).notNull(),
   
   // Timestamps
   assignedAt: timestamp('assigned_at').defaultNow().notNull(),

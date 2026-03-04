@@ -1,4 +1,4 @@
-ALTER TABLE "sessions" DROP CONSTRAINT "sessions_rescheduled_from_sessions_id_fk";
+ALTER TABLE "sessions" DROP CONSTRAINT IF EXISTS "sessions_rescheduled_from_sessions_id_fk";
 --> statement-breakpoint
 ALTER TABLE "sessions" ALTER COLUMN "mentor_id" SET DATA TYPE text;--> statement-breakpoint
 ALTER TABLE "sessions" ALTER COLUMN "mentee_id" SET DATA TYPE text;--> statement-breakpoint

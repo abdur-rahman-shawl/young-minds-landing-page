@@ -42,7 +42,7 @@ CREATE TABLE "courses" (
 --> statement-breakpoint
 CREATE TABLE "mentor_content" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"mentor_id" text NOT NULL,
+	"mentor_id" uuid NOT NULL,
 	"title" text NOT NULL,
 	"description" text,
 	"type" "content_type" NOT NULL,
