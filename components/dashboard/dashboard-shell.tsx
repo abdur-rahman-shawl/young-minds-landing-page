@@ -32,6 +32,7 @@ import { AdminSessions } from "@/components/admin/dashboard/admin-sessions"
 import { AdminPolicies } from "@/components/admin/dashboard/admin-policies"
 import { AdminSubscriptions } from "@/components/admin/dashboard/admin-subscriptions"
 import { MentorSubscription } from "@/components/mentor/dashboard/mentor-subscription"
+import { MentorReviewsSection } from "@/components/mentor/dashboard/mentor-reviews-section"
 import { MenteeSubscription } from "@/components/mentee/dashboard/mentee-subscription"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { useAuth } from "@/contexts/auth-context"
@@ -254,6 +255,9 @@ export function DashboardShell() {
               <MentorSubscription />
             </div>
           )
+          break
+        case "reviews":
+          content = <MentorReviewsSection />
           break
         case "profile":
           content = <MentorProfileEdit />
