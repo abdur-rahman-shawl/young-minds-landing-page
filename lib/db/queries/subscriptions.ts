@@ -48,6 +48,16 @@ function normalizeJson<T>(value: unknown, fallback: T): T {
   return fallback;
 }
 
+function toIsoString(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+  }
+  return null;
+}
+
 function firstOf<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] || null : value;
@@ -150,8 +160,8 @@ export async function getActiveSubscriptionsByUserId(userId: string): Promise<Ac
 
   return rows.map((row: typeof rows[number]) => ({
     ...row,
-    current_period_start: row.current_period_start?.toISOString() ?? null,
-    current_period_end: row.current_period_end?.toISOString() ?? null,
+    current_period_start: toIsoString(row.current_period_start),
+    current_period_end: toIsoString(row.current_period_end),
   }));
 }
 
@@ -233,8 +243,8 @@ export async function getCurrentUsageForFeature(
     usage_minutes: row.usage_minutes ?? 0,
     usage_amount: toNumber(row.usage_amount),
     usage_json: normalizeJson<Record<string, any>>(row.usage_json, {}),
-    period_start: row.period_start.toISOString(),
-    period_end: row.period_end.toISOString(),
+    period_start: toIsoString(row.period_start) ?? '',
+    period_end: toIsoString(row.period_end) ?? '',
     limit_reached: row.limit_reached ?? false,
   };
 }
@@ -264,8 +274,8 @@ export async function getUsageRowsForSubscription(subscriptionId: string) {
     usage_minutes: row.usage_minutes ?? 0,
     usage_amount: toNumber(row.usage_amount),
     usage_json: normalizeJson<Record<string, any>>(row.usage_json, {}),
-    period_start: row.period_start.toISOString(),
-    period_end: row.period_end.toISOString(),
+    period_start: toIsoString(row.period_start) ?? '',
+    period_end: toIsoString(row.period_end) ?? '',
     limit_reached: row.limit_reached ?? false,
     subscription_features: {
       feature_key: row.feature_key,
@@ -326,7 +336,7 @@ export async function listFeatures() {
   return rows.map((row: typeof rows[number]) => ({
     ...row,
     category_name: row.category_name || null,
-    created_at: row.created_at.toISOString(),
+    created_at: toIsoString(row.created_at) ?? '',
   }));
 }
 
@@ -481,7 +491,7 @@ export async function listPlansWithCounts() {
   return rows.map((row: typeof rows[number]) => ({
     ...row,
     metadata: normalizeJson<Record<string, any>>(row.metadata, {}),
-    created_at: row.created_at.toISOString(),
+    created_at: toIsoString(row.created_at) ?? '',
   }));
 }
 
@@ -742,9 +752,9 @@ export async function listPlanPrices(planId: string) {
   return rows.map((row: typeof rows[number]) => ({
     ...row,
     amount: toNumber(row.amount),
-    effective_from: row.effective_from?.toISOString() ?? null,
-    effective_to: row.effective_to?.toISOString() ?? null,
-    created_at: row.created_at.toISOString(),
+    effective_from: toIsoString(row.effective_from),
+    effective_to: toIsoString(row.effective_to),
+    created_at: toIsoString(row.created_at) ?? '',
   }));
 }
 
@@ -978,9 +988,9 @@ export async function listPublicPlans(audience?: SubscriptionAudience, includeFa
     rows.push({
       ...price,
       amount: toNumber(price.amount),
-      effective_from: price.effective_from ? new Date(price.effective_from).toISOString() : null,
-      effective_to: price.effective_to ? new Date(price.effective_to).toISOString() : null,
-      created_at: new Date(price.created_at).toISOString(),
+      effective_from: toIsoString(price.effective_from),
+      effective_to: toIsoString(price.effective_to),
+      created_at: toIsoString(price.created_at) ?? '',
     });
     pricesByPlan.set(price.plan_id, rows);
   }
@@ -988,7 +998,7 @@ export async function listPublicPlans(audience?: SubscriptionAudience, includeFa
   return plans.map((plan: typeof plans[number]) => ({
     ...plan,
     metadata: normalizeJson<Record<string, any>>(plan.metadata, {}),
-    created_at: plan.created_at.toISOString(),
+    created_at: toIsoString(plan.created_at) ?? '',
     subscription_plan_features: featuresByPlan.get(plan.id) || [],
     subscription_plan_prices: pricesByPlan.get(plan.id) || [],
   }));

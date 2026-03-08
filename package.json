@@ -15,7 +15,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:drop": "drizzle-kit drop",
-    "db:seed": "tsx lib/db/seed.ts"
+    "db:seed": "tsx lib/db/seed.ts",
+    "db:import:dump": "bash scripts/import-public-dump.sh docker/backup.sql sharing_minds_dump"
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.6",
