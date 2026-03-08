@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/api/guards';
+import { getSubscriptionStats } from '@/lib/db/queries/subscriptions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,37 +9,15 @@ export async function GET(request: NextRequest) {
       return guard.error;
     }
 
-    const supabase = await createClient();
-
-    // Get total plans
-    const { count: totalPlans } = await supabase
-      .from('subscription_plans')
-      .select('*', { count: 'exact', head: true });
-
-    // Get active plans
-    const { count: activePlans } = await supabase
-      .from('subscription_plans')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active');
-
-    // Get total features
-    const { count: totalFeatures } = await supabase
-      .from('subscription_features')
-      .select('*', { count: 'exact', head: true });
-
-    // Get active subscriptions
-    const { count: activeSubscriptions } = await supabase
-      .from('subscriptions')
-      .select('*', { count: 'exact', head: true })
-      .in('status', ['trialing', 'active']);
+    const data = await getSubscriptionStats();
 
     return NextResponse.json({
       success: true,
       data: {
-        totalPlans: totalPlans || 0,
-        activePlans: activePlans || 0,
-        totalFeatures: totalFeatures || 0,
-        activeSubscriptions: activeSubscriptions || 0,
+        totalPlans: data.total_plans || 0,
+        activePlans: data.active_plans || 0,
+        totalFeatures: data.total_features || 0,
+        activeSubscriptions: data.active_subscriptions || 0,
       },
     });
   } catch (error) {

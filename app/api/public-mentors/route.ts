@@ -4,8 +4,9 @@ import { db } from '@/lib/db'
 import { mentors, users } from '@/lib/db/schema'
 import { and, eq, ilike, or, desc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
 import { enforceFeature, consumeFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime'
+import type { SubscriptionPolicyAction } from '@/lib/subscriptions/policies'
+import { listActiveSubscriptionUserIds } from '@/lib/db/queries/subscriptions'
 
 // Force Node runtime (DB drivers), and avoid any ISR caching
 export const runtime = 'nodejs'
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
         return { action: primaryAction, access: primary }
       }
 
-    const tryFeatureAccess = async (userId: string, action: string) => {
+    const tryFeatureAccess = async (userId: string, action: SubscriptionPolicyAction) => {
       const result = await enforceFeature({ action, userId }).catch((error) => {
         if (isSubscriptionPolicyError(error)) return null
         throw error
@@ -152,32 +153,21 @@ export async function GET(req: NextRequest) {
       .limit(pageSize)
       .offset(offset)
 
+    type MentorRow = typeof rows[number]
     let filteredRows = rows
 
     if (requiresAiEligibilityFilters) {
       if (filteredRows.length > 0) {
-        const supabase = await createClient()
-        const mentorUserIds = filteredRows.map((row) => row.userId)
-
-        const { data: subscriptions, error: subscriptionsError } = await supabase
-          .from('subscriptions')
-          .select('user_id')
-          .in('user_id', mentorUserIds)
-          .in('status', ['trialing', 'active'])
-
-        if (subscriptionsError) {
-          console.error('Failed to load mentor subscriptions:', subscriptionsError)
-        } else {
-          const eligibleMentorIds = new Set(subscriptions?.map((item) => item.user_id))
-          filteredRows = filteredRows.filter((row) => eligibleMentorIds.has(row.userId))
-        }
+        const mentorUserIds = filteredRows.map((row: MentorRow) => row.userId)
+        const eligibleMentorIds = await listActiveSubscriptionUserIds(mentorUserIds)
+        filteredRows = filteredRows.filter((row: MentorRow) => eligibleMentorIds.has(row.userId))
       }
     }
 
     if (aiSearch && requesterId) {
       if (filteredRows.length > 0) {
         const eligibilityChecks = await Promise.all(
-          filteredRows.map(async (row) => {
+          filteredRows.map(async (row: MentorRow) => {
             try {
               const [freeAccess, paidAccess, visibilityAccess] = await Promise.all([
                 enforceFeature({ action: 'mentor.free_session_availability', userId: row.userId }).catch(
@@ -210,12 +200,17 @@ export async function GET(req: NextRequest) {
           })
         )
 
-        filteredRows = eligibilityChecks.filter((item) => item.eligible).map((item) => item.row)
+        filteredRows = eligibilityChecks
+          .filter((item: { eligible: boolean }) => item.eligible)
+          .map((item: { row: MentorRow }) => item.row)
 
-        const visibilityKeyByUser = new Map(
+        const visibilityKeyByUser = new Map<string, SubscriptionPolicyAction>(
           eligibilityChecks
-            .filter((item) => item.eligible)
-            .map((item) => [item.row.userId, item.visibilityAction || 'mentor.ai.visibility'])
+            .filter((item: { eligible: boolean }) => item.eligible)
+            .map((item: { row: MentorRow; visibilityAction: SubscriptionPolicyAction | null }) => [
+              item.row.userId,
+              item.visibilityAction || 'mentor.ai.visibility',
+            ])
         )
 
         const requesterAccess = await resolveFeatureAccess(

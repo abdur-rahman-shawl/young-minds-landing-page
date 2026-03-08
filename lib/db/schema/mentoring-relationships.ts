@@ -4,8 +4,8 @@ import { users } from './users';
 
 export const mentoringRelationships = pgTable('mentoring_relationships', {
   id: uuid('id').defaultRandom().primaryKey(),
-  mentorId: uuid('mentor_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  menteeId: uuid('mentee_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  mentorId: text('mentor_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  menteeId: text('mentee_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   
   // Relationship status
   status: text('status').notNull().default('pending'), // 'pending', 'active', 'paused', 'completed', 'cancelled'

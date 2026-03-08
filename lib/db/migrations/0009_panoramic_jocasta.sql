@@ -77,7 +77,7 @@ CREATE TABLE "course_enrollments" (
 	"payment_intent_id" text,
 	"enrollment_notes" text,
 	"is_gift" boolean DEFAULT false,
-	"gift_from_user_id" uuid,
+	"gift_from_user_id" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -119,7 +119,6 @@ CREATE TABLE "course_reviews" (
 );
 --> statement-breakpoint
 CREATE TABLE "course_wishlist" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"course_id" uuid NOT NULL,
 	"mentee_id" uuid NOT NULL,
 	"added_at" timestamp DEFAULT now() NOT NULL,

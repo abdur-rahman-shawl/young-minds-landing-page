@@ -23,6 +23,7 @@ function initializeDatabase() {
 
   try {
     require('dotenv').config({ path: '.env.local' });
+    require('dotenv').config({ path: '.env' });
   } catch (error) {
     // Environment variables should be available in production anyway
   }

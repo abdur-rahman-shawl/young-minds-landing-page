@@ -197,6 +197,27 @@
       "when": 1769411019698,
       "tag": "0028_cloudy_garia",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1772625600000,
+      "tag": "0044_create_subscription_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1772625660000,
+      "tag": "0045_add_admin_session_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1772625720000,
+      "tag": "0046_add_cancelled_mentor_ids",
+      "breakpoints": true
     }
   ]
 }

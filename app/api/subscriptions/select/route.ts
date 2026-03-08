@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
 import { getUserWithRoles } from "@/lib/db/user-helpers";
+import {
+  cancelActiveSubscriptionsForUser,
+  createSubscription,
+  getPlanBasic,
+  getPlanPrice,
+} from "@/lib/db/queries/subscriptions";
 
 const selectPlanSchema = z.object({
   planId: z.string().uuid(),
@@ -47,19 +52,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { planId, priceId, status } = selectPlanSchema.parse(body);
 
-    const supabase = await createClient();
-
-    const { data: plan, error: planError } = await supabase
-      .from("subscription_plans")
-      .select("id, audience")
-      .eq("id", planId)
-      .single();
-
-    if (planError || !plan) {
+    const plan = await getPlanBasic(planId);
+    if (!plan) {
       return NextResponse.json({ success: false, message: "Plan not found" }, { status: 404 });
     }
 
-    const roleNames = new Set(userWithRoles.roles.map((role) => role.name));
+    const roleNames = new Set(userWithRoles.roles.map((role: { name: string }) => role.name));
     const isAdmin = roleNames.has("admin");
     if (!isAdmin) {
       const allowedAudiences = new Set<string>();
@@ -78,13 +76,8 @@ export async function POST(request: NextRequest) {
     let selectedPriceId = priceId ?? null;
 
     if (priceId) {
-      const { data: price, error: priceError } = await supabase
-        .from("subscription_plan_prices")
-        .select("id, plan_id, billing_interval, billing_interval_count")
-        .eq("id", priceId)
-        .single();
-
-      if (priceError || !price || price.plan_id !== planId) {
+      const price = await getPlanPrice(priceId);
+      if (!price || price.plan_id !== planId) {
         return NextResponse.json({ success: false, message: "Invalid price" }, { status: 400 });
       }
 
@@ -95,29 +88,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await supabase
-      .from("subscriptions")
-      .update({ status: "canceled" })
-      .eq("user_id", userId)
-      .in("status", ["trialing", "active"]);
+    await cancelActiveSubscriptionsForUser(userId);
 
     const now = new Date();
-    const { data: subscription, error: insertError } = await supabase
-      .from("subscriptions")
-      .insert({
-        user_id: userId,
-        plan_id: planId,
-        price_id: selectedPriceId,
-        status: status || "active",
-        current_period_start: now.toISOString(),
-        current_period_end: periodEnd.toISOString(),
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      throw insertError;
-    }
+    const subscription = await createSubscription({
+      user_id: userId,
+      plan_id: planId,
+      price_id: selectedPriceId,
+      status: status || "active",
+      current_period_start: now.toISOString(),
+      current_period_end: periodEnd.toISOString(),
+    });
 
     return NextResponse.json({ success: true, data: subscription });
   } catch (error) {

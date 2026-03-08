@@ -1,5 +1,5 @@
 CREATE TABLE "users" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"email" text NOT NULL,
 	"email_verified" boolean DEFAULT false,
 	"name" text,
@@ -29,16 +29,16 @@ CREATE TABLE "roles" (
 );
 --> statement-breakpoint
 CREATE TABLE "user_roles" (
-	"user_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
 	"role_id" uuid NOT NULL,
 	"assigned_at" timestamp DEFAULT now() NOT NULL,
-	"assigned_by" uuid,
+	"assigned_by" text,
 	CONSTRAINT "user_roles_user_id_role_id_pk" PRIMARY KEY("user_id","role_id")
 );
 --> statement-breakpoint
 CREATE TABLE "mentors" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
 	"title" text,
 	"company" text,
 	"industry" text,
@@ -62,7 +62,7 @@ CREATE TABLE "mentors" (
 --> statement-breakpoint
 CREATE TABLE "mentees" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
 	"current_role" text,
 	"current_company" text,
 	"education" text,
@@ -79,8 +79,8 @@ CREATE TABLE "mentees" (
 --> statement-breakpoint
 CREATE TABLE "sessions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"mentor_id" uuid NOT NULL,
-	"mentee_id" uuid NOT NULL,
+	"mentor_id" text NOT NULL,
+	"mentee_id" text NOT NULL,
 	"title" text NOT NULL,
 	"description" text,
 	"status" text DEFAULT 'scheduled' NOT NULL,
@@ -103,8 +103,8 @@ CREATE TABLE "sessions" (
 --> statement-breakpoint
 CREATE TABLE "messages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"sender_id" uuid NOT NULL,
-	"receiver_id" uuid NOT NULL,
+	"sender_id" text NOT NULL,
+	"receiver_id" text NOT NULL,
 	"session_id" uuid,
 	"content" text NOT NULL,
 	"message_type" text DEFAULT 'text',
@@ -121,8 +121,8 @@ CREATE TABLE "messages" (
 --> statement-breakpoint
 CREATE TABLE "mentoring_relationships" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"mentor_id" uuid NOT NULL,
-	"mentee_id" uuid NOT NULL,
+	"mentor_id" text NOT NULL,
+	"mentee_id" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"goals" text,
 	"duration" text,

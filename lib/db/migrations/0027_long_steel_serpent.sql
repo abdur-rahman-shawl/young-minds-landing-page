@@ -12,7 +12,7 @@ CREATE TABLE "ai_chatbot_message_insights" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-DROP TABLE "ai_chatbot_question_logs" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "ai_chatbot_question_logs" CASCADE;--> statement-breakpoint
 ALTER TABLE "mentors" ADD COLUMN "payment_status" text DEFAULT 'PENDING' NOT NULL;--> statement-breakpoint
 ALTER TABLE "mentors" ADD COLUMN "coupon_code" text;--> statement-breakpoint
 ALTER TABLE "mentors" ADD COLUMN "is_coupon_code_enabled" boolean DEFAULT false NOT NULL;--> statement-breakpoint

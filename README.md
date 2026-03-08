@@ -28,3 +28,18 @@ Continue building your app on:
 2. Deploy your chats from the v0 interface
 3. Changes are automatically pushed to this repository
 4. Vercel deploys the latest version from this repository
+
+## Local Postgres
+
+The app now supports running the database layer against plain PostgreSQL through `DATABASE_URL`.
+
+1. Start Postgres:
+   - `docker compose up -d postgres`
+2. Configure environment:
+   - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/young_minds`
+3. Apply migrations:
+   - `npm run db:migrate`
+4. Seed data if needed:
+   - `npm run db:seed`
+
+Subscription schema and migration notes are documented in `supabase_to_pg_migration.md`.

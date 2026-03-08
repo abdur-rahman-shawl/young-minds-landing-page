@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { inArray } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/api/guards';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { users } from '@/lib/db/schema';
+import { getAnalyticsData, type SubscriptionAudience } from '@/lib/db/queries/subscriptions';
 
-type AudienceFilter = 'all' | 'mentor' | 'mentee';
+type AudienceFilter = 'all' | SubscriptionAudience;
 
 interface AnalyticsOverview {
   totalEvents: number;
@@ -59,72 +62,10 @@ interface AnalyticsResponse {
   topConsumers: TopConsumerItem[];
 }
 
-type Relation<T> = T | T[] | null;
-
-interface UsageEventRow {
-  subscription_id: string;
-  user_id: string;
-  count_delta: number | null;
-  minutes_delta: number | null;
-  limit_exceeded: boolean;
-  created_at: string;
-}
-
-interface UsageOverTimeEventRow {
-  user_id: string;
-  created_at: string;
-}
-
-interface UsageTrackingFeatureRelation {
-  feature_key: string;
-  name: string;
-  unit: string | null;
-  value_type: string;
-}
-
-interface UsageTrackingSubscriptionRelation {
-  user_id: string;
-  plan_id: string;
-}
-
-interface UsageTrackingRow {
-  subscription_id: string;
-  feature_id: string;
-  usage_count: number;
-  usage_minutes: number;
-  usage_amount: number | string | null;
-  limit_reached: boolean;
-  limit_reached_at: string | null;
-  subscription_features: Relation<UsageTrackingFeatureRelation>;
-  subscriptions: Relation<UsageTrackingSubscriptionRelation>;
-}
-
-interface PlanFeatureLimitRow {
-  plan_id: string;
-  feature_id: string;
-  is_included: boolean;
-  limit_count: number | null;
-  limit_minutes: number | null;
-  limit_amount: number | string | null;
-}
-
-interface PlanDistributionSubscriptionRow {
-  subscription_plans: Relation<{
-    plan_key: string;
-    name: string;
-    audience: 'mentor' | 'mentee';
-  }>;
-}
-
 interface UserProfileRow {
   id: string;
   name: string | null;
   email: string | null;
-}
-
-function firstRelation<T>(value: Relation<T>): T | null {
-  if (!value) return null;
-  return Array.isArray(value) ? value[0] || null : value;
 }
 
 function toNumber(value: unknown): number {
@@ -168,6 +109,23 @@ function parseAudience(value: string | null): AudienceFilter | null {
   return null;
 }
 
+function getDateKey(value: string): string {
+  return value.slice(0, 10);
+}
+
+function getDateRangeKeys(start: Date, end: Date): string[] {
+  const keys: string[] = [];
+  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+  const endUtcDate = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
+
+  while (cursor.getTime() <= endUtcDate.getTime()) {
+    keys.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return keys;
+}
+
 function getUsageMetricValue(
   valueType: string,
   usageCount: number,
@@ -184,43 +142,16 @@ function getUsageMetricValue(
 
 function getLimitValue(
   valueType: string,
-  planFeature: PlanFeatureLimitRow | null
+  planLimit: { limit_count: number | null; limit_minutes: number | null; limit_amount: number | string | null } | null
 ): number | null {
-  if (!planFeature) return null;
-
-  if (valueType === 'minutes') {
-    return planFeature.limit_minutes ?? null;
-  }
+  if (!planLimit) return null;
+  if (valueType === 'minutes') return planLimit.limit_minutes ?? null;
   if (valueType === 'amount') {
-    const amount = toNumber(planFeature.limit_amount);
+    const amount = toNumber(planLimit.limit_amount);
     return amount > 0 ? amount : null;
   }
-  if (valueType === 'count') {
-    return planFeature.limit_count ?? null;
-  }
-
-  return (
-    planFeature.limit_count ??
-    planFeature.limit_minutes ??
-    (planFeature.limit_amount !== null ? toNumber(planFeature.limit_amount) : null)
-  );
-}
-
-function getDateKey(value: string): string {
-  return value.slice(0, 10);
-}
-
-function getDateRangeKeys(start: Date, end: Date): string[] {
-  const keys: string[] = [];
-  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
-  const endUtcDate = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
-
-  while (cursor.getTime() <= endUtcDate.getTime()) {
-    keys.push(cursor.toISOString().slice(0, 10));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-
-  return keys;
+  if (valueType === 'count') return planLimit.limit_count ?? null;
+  return planLimit.limit_count ?? planLimit.limit_minutes ?? toNumber(planLimit.limit_amount);
 }
 
 function emptyAnalyticsPayload(): AnalyticsResponse {
@@ -246,9 +177,7 @@ export async function GET(request: NextRequest) {
       return guard.error;
     }
 
-    const supabase = await createClient();
     const { searchParams } = new URL(request.url);
-
     const today = new Date();
     const defaultEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 23, 59, 59, 999));
     const defaultStart = new Date(defaultEnd);
@@ -283,225 +212,84 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const startIso = startDate.toISOString();
-    const endIso = endDate.toISOString();
-
-    let audienceSubscriptionIds: string[] | null = null;
-    if (audience !== 'all') {
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select('id, subscription_plans!inner(audience)')
-        .eq('subscription_plans.audience', audience);
-
-      if (error) {
-        throw error;
-      }
-
-      audienceSubscriptionIds = Array.from(
-        new Set((data || []).map((row) => row.id).filter((id): id is string => Boolean(id)))
-      );
-
-      if (audienceSubscriptionIds.length === 0) {
-        return NextResponse.json({ success: true, data: emptyAnalyticsPayload() });
-      }
+    const result = await getAnalyticsData(startDate.toISOString(), endDate.toISOString(), audience);
+    if (!result.events.length && !result.usageByFeatureRows.length && !result.planDistribution.length) {
+      return NextResponse.json({ success: true, data: emptyAnalyticsPayload() });
     }
-
-    let q1EventsQuery = supabase
-      .from('subscription_usage_events')
-      .select('subscription_id, user_id, count_delta, minutes_delta, limit_exceeded, created_at')
-      .gte('created_at', startIso)
-      .lte('created_at', endIso);
-
-    let q2FeaturesAtLimitQuery = supabase
-      .from('subscription_usage_tracking')
-      .select('id', { count: 'exact', head: true })
-      .eq('limit_reached', true)
-      .lte('period_start', endIso)
-      .gte('period_end', startIso);
-
-    let q3UsageByFeatureQuery = supabase
-      .from('subscription_usage_tracking')
-      .select(`
-        subscription_id,
-        feature_id,
-        usage_count,
-        usage_minutes,
-        usage_amount,
-        subscription_features(feature_key, name, unit, value_type),
-        subscriptions(user_id, plan_id)
-      `)
-      .lte('period_start', endIso)
-      .gte('period_end', startIso);
-
-    const q3PlanLimitsQuery = supabase
-      .from('subscription_plan_features')
-      .select('plan_id, feature_id, is_included, limit_count, limit_minutes, limit_amount')
-      .eq('is_included', true);
-
-    let q4UsageOverTimeQuery = supabase
-      .from('subscription_usage_events')
-      .select('subscription_id, user_id, created_at')
-      .gte('created_at', startIso)
-      .lte('created_at', endIso);
-
-    let q5PlanDistributionQuery = supabase
-      .from('subscriptions')
-      .select('subscription_plans!inner(plan_key, name, audience)')
-      .in('status', ['active', 'trialing']);
-
-    let q6LimitBreachesQuery = supabase
-      .from('subscription_usage_tracking')
-      .select(`
-        subscription_id,
-        feature_id,
-        usage_count,
-        usage_minutes,
-        usage_amount,
-        limit_reached,
-        limit_reached_at,
-        subscriptions(user_id, plan_id),
-        subscription_features(feature_key, name, unit, value_type)
-      `)
-      .eq('limit_reached', true)
-      .lte('period_start', endIso)
-      .gte('period_end', startIso)
-      .order('limit_reached_at', { ascending: false });
-
-    if (audienceSubscriptionIds) {
-      q1EventsQuery = q1EventsQuery.in('subscription_id', audienceSubscriptionIds);
-      q2FeaturesAtLimitQuery = q2FeaturesAtLimitQuery.in('subscription_id', audienceSubscriptionIds);
-      q3UsageByFeatureQuery = q3UsageByFeatureQuery.in('subscription_id', audienceSubscriptionIds);
-      q4UsageOverTimeQuery = q4UsageOverTimeQuery.in('subscription_id', audienceSubscriptionIds);
-      q6LimitBreachesQuery = q6LimitBreachesQuery.in('subscription_id', audienceSubscriptionIds);
-      q5PlanDistributionQuery = q5PlanDistributionQuery.eq('subscription_plans.audience', audience);
-    }
-
-    const [
-      q1EventsResult,
-      q2FeaturesAtLimitResult,
-      q3UsageByFeatureResult,
-      q3PlanLimitsResult,
-      q4UsageOverTimeResult,
-      q5PlanDistributionResult,
-      q6LimitBreachesResult,
-    ] = await Promise.all([
-      q1EventsQuery,
-      q2FeaturesAtLimitQuery,
-      q3UsageByFeatureQuery,
-      q3PlanLimitsQuery,
-      q4UsageOverTimeQuery,
-      q5PlanDistributionQuery,
-      q6LimitBreachesQuery,
-    ]);
-
-    if (q1EventsResult.error) throw q1EventsResult.error;
-    if (q2FeaturesAtLimitResult.error) throw q2FeaturesAtLimitResult.error;
-    if (q3UsageByFeatureResult.error) throw q3UsageByFeatureResult.error;
-    if (q3PlanLimitsResult.error) throw q3PlanLimitsResult.error;
-    if (q4UsageOverTimeResult.error) throw q4UsageOverTimeResult.error;
-    if (q5PlanDistributionResult.error) throw q5PlanDistributionResult.error;
-    if (q6LimitBreachesResult.error) throw q6LimitBreachesResult.error;
-
-    const q1Events = (q1EventsResult.data || []) as UsageEventRow[];
-    const q4UsageEvents = (q4UsageOverTimeResult.data || []) as UsageOverTimeEventRow[];
-    const q3UsageRows = (q3UsageByFeatureResult.data || []) as UsageTrackingRow[];
-    const q3PlanLimitRows = (q3PlanLimitsResult.data || []) as PlanFeatureLimitRow[];
-    const q5Subscriptions = (q5PlanDistributionResult.data || []) as PlanDistributionSubscriptionRow[];
-    const q6BreachRows = (q6LimitBreachesResult.data || []) as UsageTrackingRow[];
 
     const overview: AnalyticsOverview = {
-      totalEvents: q1Events.length,
-      uniqueActiveUsers: new Set(q1Events.map((event) => event.user_id).filter(Boolean)).size,
-      featuresAtLimit: q2FeaturesAtLimitResult.count || 0,
-      limitBreachCount: q1Events.filter((event) => Boolean(event.limit_exceeded)).length,
+      totalEvents: result.events.length,
+      uniqueActiveUsers: new Set(result.events.map((event: any) => event.user_id).filter(Boolean)).size,
+      featuresAtLimit: result.featuresAtLimitCount,
+      limitBreachCount: result.events.filter((event: any) => Boolean(event.limit_exceeded)).length,
     };
 
-    const planFeatureLimitMap = new Map<string, PlanFeatureLimitRow>();
-    for (const row of q3PlanLimitRows) {
+    const planFeatureLimitMap = new Map<string, { limit_count: number | null; limit_minutes: number | null; limit_amount: number | string | null }>();
+    for (const row of result.planLimits) {
       planFeatureLimitMap.set(`${row.plan_id}:${row.feature_id}`, row);
     }
 
-    const usageByFeatureAccumulator = new Map<
-      string,
-      {
-        featureKey: string;
-        featureName: string;
-        unit: string | null;
-        totalUsage: number;
-        totalLimit: number;
-        limitSamples: number;
-      }
-    >();
+    const usageByFeatureAccumulator = new Map<string, {
+      featureKey: string;
+      featureName: string;
+      unit: string | null;
+      totalUsage: number;
+      totalLimit: number;
+      limitSamples: number;
+    }>();
 
-    for (const row of q3UsageRows) {
-      const feature = firstRelation(row.subscription_features);
-      const subscription = firstRelation(row.subscriptions);
-      if (!feature || !subscription) continue;
-
+    for (const row of result.usageByFeatureRows) {
       const usageValue = getUsageMetricValue(
-        feature.value_type,
+        row.value_type,
         row.usage_count,
         row.usage_minutes,
         row.usage_amount
       );
 
-      const mapKey = feature.feature_key;
-      const existing = usageByFeatureAccumulator.get(mapKey) || {
-        featureKey: feature.feature_key,
-        featureName: feature.name,
-        unit: feature.unit,
+      const current = usageByFeatureAccumulator.get(row.feature_key) || {
+        featureKey: row.feature_key,
+        featureName: row.name,
+        unit: row.unit,
         totalUsage: 0,
         totalLimit: 0,
         limitSamples: 0,
       };
 
-      existing.totalUsage += usageValue;
+      current.totalUsage += usageValue;
 
-      const planLimit = planFeatureLimitMap.get(`${subscription.plan_id}:${row.feature_id}`) || null;
-      const limitValue = getLimitValue(feature.value_type, planLimit);
+      const limitValue = getLimitValue(
+        row.value_type,
+        planFeatureLimitMap.get(`${row.plan_id}:${row.feature_id}`) || null
+      );
       if (limitValue !== null) {
-        existing.totalLimit += limitValue;
-        existing.limitSamples += 1;
+        current.totalLimit += limitValue;
+        current.limitSamples += 1;
       }
 
-      usageByFeatureAccumulator.set(mapKey, existing);
+      usageByFeatureAccumulator.set(row.feature_key, current);
     }
 
     const usageByFeature: UsageByFeatureItem[] = Array.from(usageByFeatureAccumulator.values())
-      .map((item) => ({
+      .map((item: { featureKey: string; featureName: string; unit: string | null; totalUsage: number; totalLimit: number; limitSamples: number }) => ({
         featureKey: item.featureKey,
         featureName: item.featureName,
         unit: item.unit,
         totalUsage: Number(item.totalUsage.toFixed(2)),
-        averageLimit:
-          item.limitSamples > 0 ? Number((item.totalLimit / item.limitSamples).toFixed(2)) : 0,
+        averageLimit: item.limitSamples > 0 ? Number((item.totalLimit / item.limitSamples).toFixed(2)) : 0,
       }))
       .sort((a, b) => b.totalUsage - a.totalUsage);
 
-    const usageOverTimeMap = new Map<
-      string,
-      {
-        eventCount: number;
-        userIds: Set<string>;
-      }
-    >();
-
+    const usageOverTimeMap = new Map<string, { eventCount: number; userIds: Set<string> }>();
     for (const dateKey of getDateRangeKeys(startDate, endDate)) {
       usageOverTimeMap.set(dateKey, { eventCount: 0, userIds: new Set<string>() });
     }
-
-    for (const event of q4UsageEvents) {
-      const dateKey = getDateKey(event.created_at);
-      if (!usageOverTimeMap.has(dateKey)) {
-        usageOverTimeMap.set(dateKey, { eventCount: 0, userIds: new Set<string>() });
-      }
-      const current = usageOverTimeMap.get(dateKey)!;
+    for (const event of result.events) {
+      const dateKey = getDateKey(new Date(event.created_at).toISOString());
+      const current = usageOverTimeMap.get(dateKey) || { eventCount: 0, userIds: new Set<string>() };
       current.eventCount += 1;
-      if (event.user_id) {
-        current.userIds.add(event.user_id);
-      }
+      if (event.user_id) current.userIds.add(event.user_id);
+      usageOverTimeMap.set(dateKey, current);
     }
-
     const usageOverTime: UsageOverTimeItem[] = Array.from(usageOverTimeMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, value]) => ({
@@ -510,47 +298,26 @@ export async function GET(request: NextRequest) {
         uniqueUsers: value.userIds.size,
       }));
 
-    const planDistributionMap = new Map<string, PlanDistributionItem>();
-    for (const row of q5Subscriptions) {
-      const plan = firstRelation(row.subscription_plans);
-      if (!plan) continue;
-      const key = plan.plan_key;
-      const existing = planDistributionMap.get(key) || {
-        planName: plan.name,
-        planKey: plan.plan_key,
-        audience: plan.audience,
-        activeCount: 0,
-      };
-      existing.activeCount += 1;
-      planDistributionMap.set(key, existing);
-    }
+    const planDistribution: PlanDistributionItem[] = result.planDistribution.map((row: any) => ({
+      planName: row.name,
+      planKey: row.plan_key,
+      audience: row.audience,
+      activeCount: row.active_count,
+    }));
 
-    const planDistribution: PlanDistributionItem[] = Array.from(planDistributionMap.values()).sort(
-      (a, b) => b.activeCount - a.activeCount
-    );
-
-    const topConsumersMap = new Map<
-      string,
-      {
-        userId: string;
-        totalEvents: number;
-        totalCount: number;
-        totalMinutes: number;
-      }
-    >();
-
-    for (const event of q1Events) {
+    const topConsumersMap = new Map<string, { userId: string; totalEvents: number; totalCount: number; totalMinutes: number }>();
+    for (const event of result.events) {
       if (!event.user_id) continue;
-      const existing = topConsumersMap.get(event.user_id) || {
+      const current = topConsumersMap.get(event.user_id) || {
         userId: event.user_id,
         totalEvents: 0,
         totalCount: 0,
         totalMinutes: 0,
       };
-      existing.totalEvents += 1;
-      existing.totalCount += toNumber(event.count_delta);
-      existing.totalMinutes += toNumber(event.minutes_delta);
-      topConsumersMap.set(event.user_id, existing);
+      current.totalEvents += 1;
+      current.totalCount += toNumber(event.count_delta);
+      current.totalMinutes += toNumber(event.minutes_delta);
+      topConsumersMap.set(event.user_id, current);
     }
 
     const topConsumersRanked = Array.from(topConsumersMap.values())
@@ -561,60 +328,46 @@ export async function GET(request: NextRequest) {
       })
       .slice(0, 10);
 
-    const limitBreachDraftRows = q6BreachRows
-      .map((row) => {
-        const feature = firstRelation(row.subscription_features);
-        const subscription = firstRelation(row.subscriptions);
-        if (!feature || !subscription) return null;
-
-        const planLimit =
-          planFeatureLimitMap.get(`${subscription.plan_id}:${row.feature_id}`) || null;
-        const usageValue = getUsageMetricValue(
-          feature.value_type,
-          row.usage_count,
-          row.usage_minutes,
-          row.usage_amount
+    const limitBreachDraftRows = result.limitBreaches
+      .map((row: any) => {
+        const limitValue = getLimitValue(
+          row.value_type,
+          planFeatureLimitMap.get(`${row.plan_id}:${row.feature_id}`) || null
         );
-        const limitValue = getLimitValue(feature.value_type, planLimit);
-
         return {
-          userId: subscription.user_id,
-          featureName: feature.name,
-          featureKey: feature.feature_key,
-          usageCount: Number(usageValue.toFixed(2)),
+          userId: row.user_id,
+          featureName: row.name,
+          featureKey: row.feature_key,
+          usageCount: Number(
+            getUsageMetricValue(row.value_type, row.usage_count, row.usage_minutes, row.usage_amount).toFixed(2)
+          ),
           limitCount: Number((limitValue ?? 0).toFixed(2)),
-          limitReachedAt: row.limit_reached_at,
+          limitReachedAt: row.limit_reached_at ? new Date(row.limit_reached_at).toISOString() : null,
         };
       })
-      .filter((row): row is NonNullable<typeof row> => Boolean(row))
       .slice(0, 20);
 
     const userIds = Array.from(
       new Set(
-        [...topConsumersRanked.map((item) => item.userId), ...limitBreachDraftRows.map((item) => item.userId)].filter(
-          (id): id is string => Boolean(id)
-        )
+        [
+          ...topConsumersRanked.map((item: { userId: string }) => item.userId),
+          ...limitBreachDraftRows.map((item: { userId: string }) => item.userId),
+        ]
+          .filter((id): id is string => Boolean(id))
       )
     );
 
     let usersById: Record<string, UserProfileRow> = {};
     if (userIds.length > 0) {
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('id, name, email')
-        .in('id', userIds);
+      const userRows = await db
+        .select({ id: users.id, name: users.name, email: users.email })
+        .from(users)
+        .where(inArray(users.id, userIds));
 
-      if (usersError) {
-        throw usersError;
-      }
-
-      usersById = (users || []).reduce(
-        (acc, user) => {
-          acc[user.id] = user;
-          return acc;
-        },
-        {} as Record<string, UserProfileRow>
-      );
+      usersById = userRows.reduce((acc: Record<string, UserProfileRow>, user: UserProfileRow) => {
+        acc[user.id] = user;
+        return acc;
+      }, {} as Record<string, UserProfileRow>);
     }
 
     const topConsumers: TopConsumerItem[] = topConsumersRanked.map((item) => {
@@ -628,7 +381,14 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const limitBreaches: LimitBreachItem[] = limitBreachDraftRows.map((item) => {
+    const limitBreaches: LimitBreachItem[] = limitBreachDraftRows.map((item: {
+      userId: string;
+      featureName: string;
+      featureKey: string;
+      usageCount: number;
+      limitCount: number;
+      limitReachedAt: string | null;
+    }) => {
       const user = usersById[item.userId];
       return {
         userName: user?.name || user?.email || item.userId,

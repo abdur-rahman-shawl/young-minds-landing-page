@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/api/guards";
+import { updatePlanPrice } from "@/lib/db/queries/subscriptions";
 
 const updatePriceSchema = z.object({
   price_type: z.enum(["standard", "introductory"]).optional(),
@@ -28,19 +28,7 @@ export async function PATCH(
     const body = await request.json();
     const updates = updatePriceSchema.parse(body);
 
-    const supabase = await createClient();
-
-    const { data, error } = await supabase
-      .from("subscription_plan_prices")
-      .update(updates)
-      .eq("id", priceId)
-      .eq("plan_id", planId)
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
+    const data = await updatePlanPrice(planId, priceId, updates);
 
     return NextResponse.json({ success: true, data });
   } catch (error) {

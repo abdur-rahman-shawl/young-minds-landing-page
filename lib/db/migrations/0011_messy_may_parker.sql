@@ -1,7 +1,7 @@
 CREATE TYPE "public"."notification_type" AS ENUM('BOOKING_REQUEST', 'BOOKING_CONFIRMED', 'BOOKING_CANCELLED', 'BOOKING_RESCHEDULED', 'SESSION_REMINDER', 'SESSION_COMPLETED', 'PAYMENT_RECEIVED', 'MESSAGE_RECEIVED', 'PROFILE_UPDATED', 'SYSTEM_ANNOUNCEMENT');--> statement-breakpoint
 CREATE TABLE "notifications" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
 	"type" "notification_type" NOT NULL,
 	"title" text NOT NULL,
 	"message" text NOT NULL,
