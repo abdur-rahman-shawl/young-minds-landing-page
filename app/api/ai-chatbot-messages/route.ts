@@ -4,6 +4,11 @@ import { db } from '@/lib/db';
 import { aiChatbotMessages } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { recordChatInsight } from '@/lib/chatbot/insights';
+import {
+  consumeFeature,
+  enforceFeature,
+  isSubscriptionPolicyError,
+} from '@/lib/subscriptions/policy-runtime';
 
 // GET: fetch all messages for a chat session
 export async function GET(request: NextRequest) {
@@ -41,10 +46,26 @@ export async function POST(request: NextRequest) {
     const realIp = request.headers.get('x-real-ip');
     const cfConnectingIp = request.headers.get('cf-connecting-ip');
     let ipAddress = cfConnectingIp || forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown';
-    
+
     // Normalize localhost addresses
     if (ipAddress === '::1' || ipAddress === '127.0.0.1') {
       ipAddress = 'localhost';
+    }
+
+    // Subscription Enforcement for Logged-in Users
+    if (userId && senderType === 'user') {
+      try {
+        await enforceFeature({
+          action: 'ai.chat.message',
+          userId,
+          failureMessage: 'Message limit reached',
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        throw error;
+      }
     }
 
     const [newMessage] = await db
@@ -67,6 +88,16 @@ export async function POST(request: NextRequest) {
         content: newMessage.content,
       }).catch((error) => {
         console.error('[chatbot-insights] recording failed', error);
+      });
+    }
+
+    // Track usage for logged-in users
+    if (userId && senderType === 'user') {
+      await consumeFeature({
+        action: 'ai.chat.message',
+        userId,
+        resourceType: 'chat_message',
+        resourceId: newMessage.id,
       });
     }
 

@@ -6,6 +6,8 @@ import { sessions, notifications, sessionPolicies, sessionAuditLog, mentors, use
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { CANCELLATION_REASONS, MENTOR_CANCELLATION_REASONS, DEFAULT_SESSION_POLICIES } from '@/lib/db/schema/session-policies';
+import { consumeFeature } from '@/lib/subscriptions/policy-runtime';
+import { resolveMenteeBookingAction } from '@/lib/subscriptions/policies';
 import { findAvailableReplacementMentor } from '@/lib/services/mentor-matching';
 import {
     sendMentorCancelledReassignedEmail,
@@ -538,6 +540,35 @@ export async function POST(
         const refundMessage = refundAmount > 0
             ? ` A refund of ${refundPercentage}% ($${refundAmount.toFixed(2)}) will be processed.`
             : '';
+
+        // Roll back subscription usage for mentee cancellations (when not from explore flow)
+        if (!isMentor && booking.bookingSource !== 'explore') {
+            try {
+                const sessionType =
+                    booking.sessionType === 'FREE' || booking.sessionType === 'COUNSELING'
+                        ? booking.sessionType
+                        : 'PAID';
+                const menteeSessionAction = resolveMenteeBookingAction(sessionType);
+
+                await consumeFeature({
+                    action: menteeSessionAction,
+                    userId: booking.menteeId,
+                    delta: { count: -1, minutes: -(booking.duration || 0) },
+                    resourceType: 'session',
+                    resourceId: booking.id,
+                });
+
+                await consumeFeature({
+                    action: 'booking.mentor.session',
+                    userId: booking.mentorId,
+                    delta: { count: -1, minutes: -(booking.duration || 0) },
+                    resourceType: 'session',
+                    resourceId: booking.id,
+                });
+            } catch (error) {
+                console.error('Usage rollback failed:', error);
+            }
+        }
 
         // Notify the other party
         if (isMentor) {

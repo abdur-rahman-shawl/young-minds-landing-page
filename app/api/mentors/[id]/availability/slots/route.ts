@@ -23,6 +23,7 @@ import {
   addHours
 } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { requireMentee } from '@/lib/api/guards';
 
 interface TimeBlock {
   startTime: string;
@@ -41,10 +42,15 @@ interface AvailableSlot {
 // GET /api/mentors/[id]/availability/slots - Get available booking slots
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   try {
+    const guard = await requireMentee(req, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     // Get query parameters
     const startDate = req.nextUrl.searchParams.get('startDate');
     const endDate = req.nextUrl.searchParams.get('endDate');

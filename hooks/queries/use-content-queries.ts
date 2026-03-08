@@ -21,6 +21,8 @@ export interface MentorContent {
 export interface Course {
   id: string;
   contentId: string;
+  ownerType?: 'MENTOR' | 'PLATFORM';
+  ownerId?: string | null;
   difficulty: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
   duration?: number;
   price?: string;
@@ -28,6 +30,8 @@ export interface Course {
   thumbnailUrl?: string;
   category?: string;
   tags?: string[];
+  platformTags?: string[];
+  platformName?: string | null;
   prerequisites?: string[];
   learningOutcomes?: string[];
   enrollmentCount: number;
@@ -192,13 +196,21 @@ export function useDeleteContent() {
 }
 
 // Create course
-export function useCreateCourse() {
+export function useSaveCourse() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ contentId, data }: { contentId: string; data: Partial<Course> }): Promise<Course> => {
+    mutationFn: async ({
+      contentId,
+      data,
+      hasExisting,
+    }: {
+      contentId: string;
+      data: Partial<Course>;
+      hasExisting: boolean;
+    }): Promise<Course> => {
       const response = await fetch(`/api/mentors/content/${contentId}/course`, {
-        method: 'POST',
+        method: hasExisting ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
@@ -220,9 +232,9 @@ export function useCreateCourse() {
       
       return response.json();
     },
-    onSuccess: (_, { contentId }) => {
+    onSuccess: (_, { contentId, hasExisting }) => {
       queryClient.invalidateQueries({ queryKey: ['mentor-content', contentId] });
-      toast.success('Course created successfully');
+      toast.success(hasExisting ? 'Course updated successfully' : 'Course created successfully');
     },
     onError: (error: Error) => {
       toast.error(error.message);

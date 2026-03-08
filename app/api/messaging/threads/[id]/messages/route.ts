@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { 
+import {
   messages,
   messageThreads,
   messagingPermissions,
   messageQuotas,
+  messageRequests,
   notifications,
   users
 } from '@/lib/db/schema';
 import { eq, and, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
+import {
+  consumeFeature,
+  enforceFeature,
+  isSubscriptionPolicyError,
+} from '@/lib/subscriptions/policy-runtime';
 
 const sendMessageSchema = z.object({
   content: z.string().min(1).max(5000),
@@ -53,7 +59,7 @@ async function checkAndUpdateMessageQuota(userId: string) {
         updatedAt: new Date()
       })
       .where(eq(messageQuotas.userId, userId));
-    
+
     quota.messagesSentToday = 0;
   }
 
@@ -91,11 +97,12 @@ export async function POST(
 
     const { id: threadId } = await params;
     const body = await request.json();
-    
+
     const validatedData = sendMessageSchema.parse(body);
     const { content, ...messageData } = validatedData;
 
-    await checkAndUpdateMessageQuota(userId);
+    // Removed legacy checkAndUpdateMessageQuota(userId) in favor of subscription system
+    // await checkAndUpdateMessageQuota(userId);
 
     const [thread] = await db
       .select()
@@ -118,8 +125,8 @@ export async function POST(
       );
     }
 
-    const receiverId = thread.participant1Id === userId 
-      ? thread.participant2Id 
+    const receiverId = thread.participant1Id === userId
+      ? thread.participant2Id
       : thread.participant1Id;
 
     const hasPermission = await db
@@ -143,6 +150,42 @@ export async function POST(
       );
     }
 
+    const permission = hasPermission[0];
+    const [permissionRequest] = await db
+      .select()
+      .from(messageRequests)
+      .where(eq(messageRequests.id, permission.grantedViaRequestId))
+      .limit(1);
+
+    if (!permissionRequest) {
+      return NextResponse.json(
+        { success: false, error: 'Unable to resolve messaging audience for this thread' },
+        { status: 500 }
+      );
+    }
+
+    const senderIsRequester = permissionRequest.requesterId === userId;
+    const directMessageAction =
+      permissionRequest.requestType === 'mentor_to_mentee'
+        ? senderIsRequester
+          ? 'messaging.direct_message.mentor'
+          : 'messaging.direct_message.mentee'
+        : senderIsRequester
+          ? 'messaging.direct_message.mentee'
+          : 'messaging.direct_message.mentor';
+
+    try {
+      await enforceFeature({
+        action: directMessageAction,
+        userId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
+    }
+
     const [newMessage] = await db
       .insert(messages)
       .values({
@@ -157,6 +200,14 @@ export async function POST(
         ...messageData
       })
       .returning();
+
+    // Track usage after successful send
+    await consumeFeature({
+      action: directMessageAction,
+      userId,
+      resourceType: 'message',
+      resourceId: newMessage.id,
+    });
 
     const unreadCountField = thread.participant1Id === receiverId
       ? 'participant1UnreadCount'
@@ -230,14 +281,14 @@ export async function POST(
     });
   } catch (error) {
     console.error('Error sending message:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { success: false, error: error.errors[0].message },
         { status: 400 }
       );
     }
-    
+
     if (error instanceof Error) {
       if (error.message.includes('limit exceeded')) {
         return NextResponse.json(
@@ -245,7 +296,7 @@ export async function POST(
           { status: 429 }
         );
       }
-      
+
       if (error.message === 'RateLimitError') {
         return NextResponse.json(
           { success: false, error: 'Too many messages. Please slow down.' },

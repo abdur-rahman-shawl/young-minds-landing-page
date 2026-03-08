@@ -8,10 +8,12 @@ import { HeroSection } from "@/components/landing/hero-section"
 import { StatsSection } from "@/components/landing/stats-section"
 import { MentorSection } from "@/components/landing/mentor-section"
 import { VideoCallSection } from "@/components/landing/video-call-section"
+import { ChatSection } from "@/components/landing/chat-section"
 import { TestimonialsSection } from "@/components/landing/testimonials-section"
 import { CollabExpertsSection } from "@/components/landing/collab-experts-section"
 import { CaseStudySection } from "@/components/landing/case-study-section"
 import { CTASection } from "@/components/landing/cta-section"
+import { ServicesGrid } from "@/components/landing/services-grid"
 import { FooterSection } from "@/components/landing/footer-section"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { useAuth } from "@/contexts/auth-context"
@@ -44,6 +46,8 @@ import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { Courses } from "@/components/shared/dashboard/courses"
 import { MyLearning } from "@/components/mentee/dashboard/my-learning"
 import { MentorAnalyticsSection } from "@/components/mentor/dashboard/mentor-analytics-section"
+import { MentorSubscription } from "@/components/mentor/dashboard/mentor-subscription"
+import { MenteeSubscription } from "@/components/mentee/dashboard/mentee-subscription"
 
 const AdminAnalytics = dynamic(() => import("@/app/admins/analytics/page"), {
   ssr: false,
@@ -73,6 +77,7 @@ function LandingContent() {
 export function PageContent() {
   const [activeSection, setActiveSection] = useState("dashboard")
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null)
+  const [mentorSource, setMentorSource] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const {
@@ -110,9 +115,11 @@ export function PageContent() {
 
   const handleMentorSelect = (mentorId: string) => {
     console.log("🚀 app/page.tsx handleMentorSelect called with:", mentorId)
+    setMentorSource(activeSection)
     setActiveSection("mentor-detail")
     setSelectedMentor(mentorId)
-    const newUrl = `/?section=mentor-detail&mentor=${mentorId}`
+    const fromParam = activeSection === "explore" ? "&from=explore" : ""
+    const newUrl = `/?section=mentor-detail&mentor=${mentorId}${fromParam}`
     console.log("🚀 app/page.tsx setting URL to:", newUrl)
     router.push(newUrl, { scroll: false })
   }
@@ -190,9 +197,11 @@ export function PageContent() {
           return (
             <MentorDetailView
               mentorId={selectedMentor}
+              bookingSource={mentorSource === "explore" ? "explore" : "default"}
               onBack={() => {
                 setActiveSection("explore")
                 setSelectedMentor(null)
+                setMentorSource(null)
                 router.push("/?section=explore", { scroll: false })
               }}
             />
@@ -201,6 +210,12 @@ export function PageContent() {
           return <MentorContent />
         case "analytics":
           return <MentorAnalyticsSection />
+        case "subscription":
+          return (
+            <div className="mx-auto w-full max-w-6xl">
+              <MentorSubscription />
+            </div>
+          )
         case "profile":
           return isMentor ? <MentorProfileEdit /> : <MenteeProfile />
         default:
@@ -238,15 +253,23 @@ export function PageContent() {
         return (
           <MentorDetailView
             mentorId={selectedMentor}
+            bookingSource={mentorSource === "explore" ? "explore" : "default"}
             onBack={() => {
               setActiveSection("explore")
               setSelectedMentor(null)
+              setMentorSource(null)
               router.push("/?section=explore", { scroll: false })
             }}
           />
         )
       case "profile":
         return <MenteeProfile />
+      case "subscription":
+        return (
+          <div className="mx-auto w-full max-w-6xl">
+            <MenteeSubscription />
+          </div>
+        )
       default:
         return (
           <Dashboard

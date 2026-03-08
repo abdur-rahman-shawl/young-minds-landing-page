@@ -28,6 +28,7 @@ import {
 } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { applyBlockedTimes } from '@/lib/utils/availability-validation';
+import { requireMentee } from '@/lib/api/guards';
 
 interface TimeBlock {
   startTime: string;
@@ -50,6 +51,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const guard = await requireMentee(req, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const { searchParams } = new URL(req.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');

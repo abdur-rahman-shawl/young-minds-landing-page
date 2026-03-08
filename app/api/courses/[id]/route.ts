@@ -13,6 +13,8 @@ import {
   mentees
 } from '@/lib/db/schema';
 import { eq, and, desc, count, avg, sql } from 'drizzle-orm';
+import { resolveStorageUrl } from '@/lib/storage';
+import { auth } from '@/lib/auth';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -33,6 +35,34 @@ function safeJsonParse<T>(jsonString: string | null | undefined, defaultValue: T
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    const session = await auth.api.getSession({ headers: request.headers });
+    const userId = session?.user?.id || null;
+    const isAuthenticated = Boolean(userId);
+    let isEnrolled = false;
+    let menteeId: string | null = null;
+
+    if (isAuthenticated) {
+      const menteeRecord = await db
+        .select({ menteeId: mentees.id })
+        .from(mentees)
+        .where(eq(mentees.userId, userId as string))
+        .limit(1);
+
+      menteeId = menteeRecord[0]?.menteeId ?? null;
+
+      if (menteeId) {
+        const enrollment = await db
+          .select({ id: courseEnrollments.id })
+          .from(courseEnrollments)
+          .where(and(
+            eq(courseEnrollments.courseId, id),
+            eq(courseEnrollments.menteeId, menteeId)
+          ))
+          .limit(1);
+
+        isEnrolled = enrollment.length > 0;
+      }
+    }
 
     // Get course details with mentor info
     const courseData = await db
@@ -48,6 +78,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         thumbnailUrl: courses.thumbnailUrl,
         category: courses.category,
         tags: courses.tags,
+        platformTags: courses.platformTags,
+        platformName: courses.platformName,
+        ownerType: courses.ownerType,
         prerequisites: courses.prerequisites,
         learningOutcomes: courses.learningOutcomes,
         enrollmentCount: courses.enrollmentCount,
@@ -58,6 +91,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         mentorId: mentors.id,
         mentorUserId: mentors.userId,
         mentorName: users.name,
+        mentorFullName: mentors.fullName,
         mentorImage: users.image,
         mentorTitle: mentors.title,
         mentorCompany: mentors.company,
@@ -69,8 +103,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       })
       .from(courses)
       .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-      .innerJoin(mentors, eq(mentorContent.mentorId, mentors.id))
-      .innerJoin(users, eq(mentors.userId, users.id))
+      .leftJoin(mentors, eq(mentorContent.mentorId, mentors.id))
+      .leftJoin(users, eq(mentors.userId, users.id))
       .where(eq(courses.id, id))
       .limit(1);
 
@@ -121,7 +155,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Structure the curriculum data
     const modulesMap = new Map();
     
-    curriculum.forEach((item) => {
+    for (const item of curriculum) {
       if (!modulesMap.has(item.moduleId)) {
         modulesMap.set(item.moduleId, {
           id: item.moduleId,
@@ -147,6 +181,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
 
       if (item.contentItemId && item.sectionId) {
+        if ((!isAuthenticated || !isEnrolled) && !item.isPreview) {
+          continue;
+        }
         const section = moduleData.sections.get(item.sectionId);
         section.contentItems.push({
           id: item.contentItemId,
@@ -156,11 +193,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           orderIndex: item.contentItemOrderIndex,
           duration: item.contentItemDuration,
           isPreview: item.isPreview,
-          fileUrl: item.fileUrl,
+          fileUrl: await resolveStorageUrl(item.fileUrl),
           content: item.content,
         });
       }
-    });
+    }
 
     // Convert maps to arrays and sort
     const structuredCurriculum = Array.from(modulesMap.values()).map(module => ({
@@ -244,6 +281,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       });
     });
 
+    const mentorName = course.ownerType === 'PLATFORM'
+      ? (course.platformName || 'Platform')
+      : (course.mentorFullName || course.mentorName);
+
     // Parse JSON fields and structure response
     const courseDetails = {
       id: course.id,
@@ -256,20 +297,23 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       thumbnailUrl: course.thumbnailUrl,
       category: course.category,
       tags: safeJsonParse(course.tags, []),
+      platformTags: safeJsonParse(course.platformTags, []),
+      platformName: course.platformName,
+      ownerType: course.ownerType,
       prerequisites: safeJsonParse(course.prerequisites, []),
       learningOutcomes: safeJsonParse(course.learningOutcomes, []),
       mentor: {
-        id: course.mentorId,
-        userId: course.mentorUserId,
-        name: course.mentorName,
-        image: course.mentorImage,
-        title: course.mentorTitle,
-        company: course.mentorCompany,
-        bio: course.mentorAbout,
-        expertise: safeJsonParse(course.mentorExpertise, []),
-        experience: course.mentorExperience,
-        linkedinUrl: course.mentorLinkedinUrl,
-        websiteUrl: course.mentorWebsiteUrl,
+        id: course.ownerType === 'PLATFORM' ? null : course.mentorId,
+        userId: course.ownerType === 'PLATFORM' ? null : course.mentorUserId,
+        name: mentorName,
+        image: course.ownerType === 'PLATFORM' ? null : course.mentorImage,
+        title: course.ownerType === 'PLATFORM' ? null : course.mentorTitle,
+        company: course.ownerType === 'PLATFORM' ? null : course.mentorCompany,
+        bio: course.ownerType === 'PLATFORM' ? null : course.mentorAbout,
+        expertise: course.ownerType === 'PLATFORM' ? [] : safeJsonParse(course.mentorExpertise, []),
+        experience: course.ownerType === 'PLATFORM' ? null : course.mentorExperience,
+        linkedinUrl: course.ownerType === 'PLATFORM' ? null : course.mentorLinkedinUrl,
+        websiteUrl: course.ownerType === 'PLATFORM' ? null : course.mentorWebsiteUrl,
       },
       curriculum: structuredCurriculum,
       statistics: {

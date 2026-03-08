@@ -21,7 +21,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { livekitRecordings, livekitRooms, sessions } from '@/lib/db/schema';
 import { getPlaybackUrl } from '@/lib/livekit/recording-manager';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
+import { eq } from 'drizzle-orm';
 
 export async function GET(
   request: NextRequest,
@@ -52,6 +56,43 @@ export async function GET(
     console.log(
       `🎥 Playback URL request: recording=${recordingId}, user=${userId}`
     );
+
+    const recording = await db.query.livekitRecordings.findFirst({
+      where: eq(livekitRecordings.id, recordingId),
+      with: {
+        room: {
+          with: {
+            session: true,
+          },
+        },
+      },
+    });
+
+    if (!recording?.room?.session) {
+      return NextResponse.json(
+        {
+          error: 'Not Found',
+          message: 'Recording not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    const sessionData = recording.room.session;
+    const recordingsAction =
+      userId === sessionData.mentorId ? 'recordings.access.mentor' : 'recordings.access.mentee';
+
+    try {
+      await enforceFeature({
+        action: recordingsAction,
+        userId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
+    }
 
     // ======================================================================
     // GENERATE PLAYBACK URL (includes authorization check)

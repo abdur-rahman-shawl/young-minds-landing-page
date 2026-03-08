@@ -151,6 +151,38 @@ export const courseReviews = pgTable('course_reviews', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// Content item reviews (per lesson/item)
+export const contentItemReviews = pgTable('content_item_reviews', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  courseId: uuid('course_id').references(() => courses.id, { onDelete: 'cascade' }).notNull(),
+  contentItemId: uuid('content_item_id').references(() => sectionContentItems.id, { onDelete: 'cascade' }).notNull(),
+  menteeId: uuid('mentee_id').references(() => mentees.id, { onDelete: 'cascade' }).notNull(),
+  enrollmentId: uuid('enrollment_id').references(() => courseEnrollments.id, { onDelete: 'cascade' }).notNull(),
+
+  rating: integer('rating').notNull(), // 1-5 stars
+  title: text('title'),
+  review: text('review'),
+
+  isVerifiedPurchase: boolean('is_verified_purchase').default(true).notNull(),
+  isPublished: boolean('is_published').default(true).notNull(),
+  helpfulVotes: integer('helpful_votes').default(0).notNull(),
+  reportCount: integer('report_count').default(0).notNull(),
+
+  instructorResponse: text('instructor_response'),
+  instructorRespondedAt: timestamp('instructor_responded_at'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const courseReviewHelpfulVotes = pgTable('course_review_helpful_votes', {
+  reviewId: uuid('review_id').references(() => courseReviews.id, { onDelete: 'cascade' }).notNull(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.reviewId, table.userId] }),
+}));
+
 // Course certificates
 export const courseCertificates = pgTable('course_certificates', {
   id: uuid('id').primaryKey().defaultRandom(),

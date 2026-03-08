@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import {
@@ -17,7 +16,16 @@ import { createBookingSchema, validateBookingTime, canUserAccessBooking } from '
 import { bookingRateLimit, RateLimitError } from '@/lib/rate-limit';
 import { getDay, isWithinInterval, addMinutes, setHours, setMinutes, setSeconds } from 'date-fns';
 import { LiveKitRoomManager } from '@/lib/livekit/room-manager';
+import { getPlanFeatures } from '@/lib/subscriptions/enforcement';
 import { sendBookingConfirmedEmail, sendNewBookingAlertEmail } from '@/lib/email';
+import {
+  consumeFeature,
+  enforceFeature,
+  isSubscriptionPolicyError,
+} from '@/lib/subscriptions/policy-runtime';
+import { ACTION_POLICIES, resolveMenteeBookingAction } from '@/lib/subscriptions/policies';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { requireMentee } from '@/lib/api/guards';
 
 // Remove duplicate schema definition since it's imported
 
@@ -27,16 +35,11 @@ export async function POST(req: NextRequest) {
     // Apply rate limiting
     bookingRateLimit.check(req);
 
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please log in' },
-        { status: 401 }
-      );
+    const guard = await requireMentee(req, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const session = guard.session;
 
     const body = await req.json();
     const validatedData = createBookingSchema.parse(body);
@@ -60,6 +63,97 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const menteeSessionAction = resolveMenteeBookingAction(validatedData.sessionType);
+    const menteeSessionFeatureKey = ACTION_POLICIES[menteeSessionAction].featureKey;
+
+    const bookingSource = (body?.bookingSource || 'default') as string;
+    const isAiBooking = bookingSource === 'ai';
+    let aiSpecialRate: number | null = null;
+    let mentorSessionFeatureAction: 'mentor.free_session_availability' | 'mentor.paid_session_availability' | null =
+      null;
+
+    if (isAiBooking) {
+      try {
+        await enforceFeature({
+          action: menteeSessionAction,
+          userId: session.user.id,
+          failureMessage: 'You have reached your session limit for this type',
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        console.error('Subscription check failed (mentee):', error);
+        return NextResponse.json(
+          { error: 'Unable to verify mentee subscription limits' },
+          { status: 500 }
+        );
+      }
+
+      const visibilityAccess = await enforceFeature({
+        action: 'mentor.ai.visibility',
+        userId: validatedData.mentorId,
+        failureMessage: 'Mentor AI visibility is not included in their plan',
+      }).catch((error) => {
+        if (isSubscriptionPolicyError(error)) {
+          return null;
+        }
+        throw error;
+      });
+
+      if (!visibilityAccess?.has_access) {
+        return NextResponse.json(
+          { error: 'Mentor is not visible to AI search' },
+          { status: 403 }
+        );
+      }
+
+      mentorSessionFeatureAction =
+        validatedData.sessionType === 'FREE'
+          ? 'mentor.free_session_availability'
+          : 'mentor.paid_session_availability';
+
+      const mentorSessionAccess = await enforceFeature({
+        action: mentorSessionFeatureAction,
+        userId: validatedData.mentorId,
+        failureMessage: 'Mentor has reached their session limit',
+      }).catch((error) => {
+        if (isSubscriptionPolicyError(error)) {
+          return null;
+        }
+        throw error;
+      });
+
+      if (!mentorSessionAccess?.has_access) {
+        return NextResponse.json(
+          { error: 'Mentor has no session availability' },
+          { status: 403 }
+        );
+      }
+
+      if (validatedData.sessionType === 'PAID') {
+        try {
+          const menteeFeatures = await getPlanFeatures(session.user.id, {
+            audience: 'mentee',
+            actorRole: 'mentee',
+          });
+          const paidVideoFeature = menteeFeatures.find(
+            feature => feature.feature_key === FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY
+          );
+          const paidVideoPlanRate = paidVideoFeature?.limit_amount ?? null;
+          if (
+            paidVideoPlanRate !== null &&
+            !Number.isNaN(paidVideoPlanRate) &&
+            paidVideoPlanRate > 0
+          ) {
+            aiSpecialRate = paidVideoPlanRate;
+          }
+        } catch (error) {
+          console.error('Failed to load plan features for AI rate:', error);
+        }
+      }
+    }
+
     // Verify mentor exists and is available
     const mentor = await db
       .select()
@@ -71,6 +165,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Mentor not found or not available' },
         { status: 404 }
+      );
+    }
+
+    if (isAiBooking && mentor[0].searchMode !== 'AI_SEARCH') {
+      return NextResponse.json(
+        { error: 'Mentor is not visible to AI search' },
+        { status: 403 }
       );
     }
 
@@ -224,6 +325,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Create the booking
+    const mentorBaseRate = mentor[0].hourlyRate ? Number(mentor[0].hourlyRate) : 0;
+    const sessionRate =
+      isAiBooking &&
+      validatedData.sessionType === 'PAID' &&
+      aiSpecialRate !== null
+        ? aiSpecialRate
+        : mentorBaseRate;
+
     const [newBooking] = await db
       .insert(sessions)
       .values({
@@ -231,15 +340,48 @@ export async function POST(req: NextRequest) {
         menteeId: session.user.id,
         title: validatedData.title,
         description: validatedData.description,
+        sessionType: validatedData.sessionType,
+        bookingSource,
         scheduledAt: new Date(validatedData.scheduledAt),
         duration: validatedData.duration,
         meetingType: validatedData.meetingType,
         location: validatedData.location,
         status: 'scheduled',
-        rate: mentor[0].hourlyRate,
+        rate: sessionRate,
         currency: mentor[0].currency || 'USD',
       })
       .returning();
+
+    if (isAiBooking && mentorSessionFeatureAction) {
+      try {
+        await consumeFeature({
+          action: menteeSessionAction,
+          userId: session.user.id,
+          delta: { count: 1, minutes: validatedData.duration },
+          resourceType: 'session',
+          resourceId: newBooking.id,
+        });
+
+        await consumeFeature({
+          action: mentorSessionFeatureAction,
+          userId: validatedData.mentorId,
+          delta: { count: 1, minutes: validatedData.duration },
+          resourceType: 'session',
+          resourceId: newBooking.id,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('No active mentor subscription')) {
+          console.warn('Usage tracking warning (mentor lacks subscription):', message);
+        } else {
+          console.error('Usage tracking failed:', error);
+          return NextResponse.json(
+            { error: 'Failed to track session usage' },
+            { status: 500 }
+          );
+        }
+      }
+    }
 
     // Create notification for mentor
     await db.insert(notifications).values({

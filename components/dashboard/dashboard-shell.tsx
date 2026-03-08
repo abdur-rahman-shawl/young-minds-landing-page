@@ -30,6 +30,10 @@ import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
 import { AdminSessions } from "@/components/admin/dashboard/admin-sessions"
 import { AdminPolicies } from "@/components/admin/dashboard/admin-policies"
+import { AdminSubscriptions } from "@/components/admin/dashboard/admin-subscriptions"
+import { MentorSubscription } from "@/components/mentor/dashboard/mentor-subscription"
+import { MentorReviewsSection } from "@/components/mentor/dashboard/mentor-reviews-section"
+import { MenteeSubscription } from "@/components/mentee/dashboard/mentee-subscription"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { useAuth } from "@/contexts/auth-context"
 import { AlertTriangle, Sparkles } from "lucide-react"
@@ -87,6 +91,7 @@ export function DashboardShell() {
 
   const [activeSection, setActiveSection] = useState("dashboard")
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null)
+  const [mentorSource, setMentorSource] = useState<string | null>(null)
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
@@ -115,9 +120,11 @@ export function DashboardShell() {
   }
 
   const handleMentorSelect = (mentorId: string) => {
+    setMentorSource(activeSection)
     setActiveSection("mentor-detail")
     setSelectedMentor(mentorId)
-    router.push(`/dashboard?section=mentor-detail&mentor=${mentorId}`, { scroll: false })
+    const fromParam = activeSection === "explore" ? "&from=explore" : ""
+    router.push(`/dashboard?section=mentor-detail&mentor=${mentorId}${fromParam}`, { scroll: false })
   }
 
   // --- Animation Configuration ---
@@ -152,6 +159,12 @@ export function DashboardShell() {
           break
         case "enquiries":
           content = <AdminEnquiries />
+          break
+        case "subscriptions":
+          content = <AdminSubscriptions />
+          break
+        case "content":
+          content = <MentorContent />
           break
         case "settings":
           content = <AdminPolicies />
@@ -220,9 +233,11 @@ export function DashboardShell() {
           content = (
             <MentorDetailView
               mentorId={selectedMentor}
+              bookingSource={mentorSource === "explore" ? "explore" : "default"}
               onBack={() => {
                 setActiveSection("explore")
                 setSelectedMentor(null)
+                setMentorSource(null)
                 router.push("/dashboard?section=explore", { scroll: false })
               }}
             />
@@ -233,6 +248,16 @@ export function DashboardShell() {
           break
         case "analytics":
           content = <MentorAnalyticsSection />
+          break
+        case "subscription":
+          content = (
+            <div className="mx-auto w-full max-w-6xl">
+              <MentorSubscription />
+            </div>
+          )
+          break
+        case "reviews":
+          content = <MentorReviewsSection />
           break
         case "profile":
           content = <MentorProfileEdit />
@@ -277,18 +302,27 @@ export function DashboardShell() {
           break
         case "mentor-detail":
           content = (
-            <MentorDetailView
-              mentorId={selectedMentor}
-              onBack={() => {
-                setActiveSection("explore")
-                setSelectedMentor(null)
-                router.push("/dashboard?section=explore", { scroll: false })
-              }}
-            />
-          )
+          <MentorDetailView
+            mentorId={selectedMentor}
+            bookingSource={mentorSource === "explore" ? "explore" : "default"}
+            onBack={() => {
+              setActiveSection("explore")
+              setSelectedMentor(null)
+              setMentorSource(null)
+              router.push("/dashboard?section=explore", { scroll: false })
+            }}
+          />
+        )
           break
         case "profile":
           content = <MenteeProfile />
+          break
+        case "subscription":
+          content = (
+            <div className="mx-auto w-full max-w-6xl">
+              <MenteeSubscription />
+            </div>
+          )
           break
         default:
           content = (

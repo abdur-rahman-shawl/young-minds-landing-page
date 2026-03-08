@@ -25,7 +25,8 @@ import {
   Star,
   User,
   BookOpen,
-  CalendarClock
+  CalendarClock,
+  CreditCard
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useMentorDashboardStats } from "@/hooks/use-mentor-dashboard"
@@ -67,6 +68,11 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
       title: "Messages",
       icon: MessageSquare,
       key: "messages"
+    },
+    {
+      title: "Subscription",
+      icon: CreditCard,
+      key: "subscription"
     },
     {
       title: "Earnings",

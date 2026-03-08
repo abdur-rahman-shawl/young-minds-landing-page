@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -35,6 +36,7 @@ import { useMentorDetail } from "@/hooks/use-mentor-detail"
 import { BookingModal } from "@/components/booking/booking-modal"
 import { MessageRequestModal } from "@/components/messaging/message-request-modal"
 import { useAuth } from "@/contexts/auth-context"
+import { FEATURE_KEYS } from "@/lib/subscriptions/feature-keys"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
@@ -42,17 +44,21 @@ import { cn } from "@/lib/utils"
 interface MentorDetailViewProps {
   mentorId: string | null
   onBack: () => void
+  bookingSource?: 'explore' | 'ai' | 'default'
 }
 
 type TabType = "overview" | "reviews" | "achievements" | "mentoring_style"
 
-export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
+export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }: MentorDetailViewProps) {
+  const searchParams = useSearchParams()
+  const urlSource = searchParams.get('from')
+  const resolvedSource = bookingSource === 'default' && urlSource === 'explore' ? 'explore' : bookingSource
   const { mentor, loading, error } = useMentorDetail(mentorId)
   const { session } = useAuth()
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>("overview")
-  const isMessageMentorEnabled = false;
+  const [isMessageMentorEnabled, setIsMessageMentorEnabled] = useState(false);
 
   const handleBookSession = () => {
     if (!session) {
@@ -61,6 +67,43 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
     }
     setIsBookingModalOpen(true)
   }
+
+  useEffect(() => {
+    if (!session?.user?.id) {
+      setIsMessageMentorEnabled(false)
+      return
+    }
+
+    const controller = new AbortController()
+    const checkEnablement = async () => {
+      try {
+        const searchParams = new URLSearchParams({
+          featureKey: FEATURE_KEYS.PRIORITY_MESSAGING,
+        })
+        const res = await fetch(`/api/subscriptions/features/check?${searchParams.toString()}`, {
+          credentials: "include",
+          signal: controller.signal,
+        })
+        if (!res.ok) {
+          setIsMessageMentorEnabled(false)
+          return
+        }
+        const data = await res.json()
+        setIsMessageMentorEnabled(Boolean(data?.success && data?.data?.hasAccess))
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          console.error("Failed to load messaging feature access", error)
+        }
+        setIsMessageMentorEnabled(false)
+      }
+    }
+
+    checkEnablement()
+
+    return () => {
+      controller.abort()
+    }
+  }, [session?.user?.id])
 
   const handleSendMessage = () => {
     if (!session) {
@@ -618,6 +661,8 @@ export function MentorDetailView({ mentorId, onBack }: MentorDetailViewProps) {
         <BookingModal
           isOpen={isBookingModalOpen}
           onClose={() => setIsBookingModalOpen(false)}
+          allowFreeBooking={resolvedSource !== 'explore'}
+          bookingSource={resolvedSource === 'explore' ? 'explore' : 'ai'}
           mentor={{
             id: mentor.id,
             userId: mentor.userId,

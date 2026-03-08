@@ -13,6 +13,7 @@ import {
   courseAnalytics
 } from '@/lib/db/schema';
 import { eq, and, sql, count } from 'drizzle-orm';
+import { resolveStorageUrl } from '@/lib/storage';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -231,6 +232,23 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       };
     }).sort((a, b) => a.orderIndex - b.orderIndex);
 
+    const hydratedModules = await Promise.all(
+      processedModules.map(async (module) => ({
+        ...module,
+        sections: await Promise.all(
+          module.sections.map(async (section) => ({
+            ...section,
+            contentItems: await Promise.all(
+              section.contentItems.map(async (item) => ({
+                ...item,
+                fileUrl: await resolveStorageUrl(item.fileUrl),
+              }))
+            ),
+          }))
+        ),
+      }))
+    );
+
     // Calculate overall course progress
     const overallProgress = totalContentItems > 0 
       ? Math.round((completedItems / totalContentItems) * 100)
@@ -290,7 +308,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           completedItems,
           totalDurationSeconds: totalDuration,
           completedDurationSeconds: completedDuration,
-          modules: processedModules,
+        modules: hydratedModules,
         },
         recentActivity,
         bookmarks,

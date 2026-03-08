@@ -22,6 +22,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { livekitRooms, livekitRecordings, sessions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 
 export async function GET(
   request: NextRequest,
@@ -73,6 +74,20 @@ export async function GET(
         },
         { status: 403 }
       );
+    }
+
+    try {
+      const recordingsAction =
+        userId === sessionData.mentorId ? 'recordings.access.mentor' : 'recordings.access.mentee';
+      await enforceFeature({
+        action: recordingsAction,
+        userId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
     }
 
     // ======================================================================

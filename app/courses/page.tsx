@@ -199,7 +199,7 @@ function CoursesContent() {
 
   const CourseCard = ({ course }: { course: Course }) => (
     <Card className="group hover:shadow-lg transition-shadow duration-300 cursor-pointer"
-          onClick={() => router.push(`/courses/${course.id}`)}>
+          onClick={() => router.push(`/dashboard?section=courses&courseId=${course.id}`)}>
       <div className="aspect-video relative overflow-hidden rounded-t-lg">
         {course.thumbnailUrl ? (
           <img 

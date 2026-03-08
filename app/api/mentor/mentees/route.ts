@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { getMentorMentees, getMentorStats } from '@/lib/db/queries/mentoring-relationships';
+import { requireMentor } from '@/lib/api/guards';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
 
     const { searchParams } = new URL(request.url);
@@ -22,7 +16,7 @@ export async function GET(request: NextRequest) {
 
     const statusFilter = status ? status.split(',') : undefined;
 
-    const mentees = await getMentorMentees(session.user.id, statusFilter);
+    const mentees = await getMentorMentees(guard.session.user.id, statusFilter);
 
     const response: any = {
       mentees,
@@ -30,7 +24,7 @@ export async function GET(request: NextRequest) {
     };
 
     if (includeStats) {
-      const stats = await getMentorStats(session.user.id);
+      const stats = await getMentorStats(guard.session.user.id);
       response.stats = stats;
     }
 

@@ -4,6 +4,7 @@ import { getUserWithRoles } from '@/lib/db/user-helpers';
 import { db } from '@/lib/db';
 import { mentors } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { resolveStorageUrl } from '@/lib/storage';
 
 export async function GET(request: NextRequest) {
   try {
@@ -68,12 +69,20 @@ export async function GET(request: NextRequest) {
           paymentStatus: mentors.paymentStatus,
           couponCode: mentors.couponCode,
           isCouponCodeEnabled: mentors.isCouponCodeEnabled,
+          searchMode: mentors.searchMode,
         })
         .from(mentors)
         .where(eq(mentors.userId, session.user.id))
         .limit(1);
 
-      mentorProfile = mentor || null;
+      mentorProfile = mentor
+        ? {
+            ...mentor,
+            profileImageUrl: await resolveStorageUrl(mentor.profileImageUrl),
+            bannerImageUrl: await resolveStorageUrl(mentor.bannerImageUrl),
+            resumeUrl: await resolveStorageUrl(mentor.resumeUrl),
+          }
+        : null;
     }
 
     // Return optimized response with all data in single request

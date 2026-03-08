@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { 
   mentorAvailabilitySchedules, 
@@ -12,6 +10,7 @@ import {
 import { eq, and, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { validateTimeBlock, validateWeeklySchedule } from '@/lib/utils/availability-validation';
+import { requireMentor } from '@/lib/api/guards';
 
 // Validation schemas
 const timeBlockSchema = z.object({
@@ -66,10 +65,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const guard = await requireMentor(req, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const { id } = await params;
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+
+    if (!isAdmin && id !== guard.session.user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
 
     // Verify the mentor exists
     const mentor = await db
@@ -164,10 +173,20 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const guard = await requireMentor(req, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const { id } = await params;
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+
+    if (!isAdmin && id !== guard.session.user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
 
     if (!session) {
       return NextResponse.json(
@@ -342,10 +361,20 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const guard = await requireMentor(req, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const { id } = await params;
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
+    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+
+    if (!isAdmin && id !== guard.session.user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
 
     if (!session) {
       return NextResponse.json(

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -49,12 +49,15 @@ interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   mentor: Mentor;
+  allowFreeBooking?: boolean;
+  bookingSource?: 'ai' | 'explore';
 }
 
 type BookingStep = 'time-selection' | 'details' | 'confirmation' | 'success';
 
 interface BookingData {
   scheduledAt: Date;
+  sessionType: 'FREE' | 'PAID' | 'COUNSELING';
   duration: number;
   meetingType: 'video' | 'audio' | 'chat';
   title: string;
@@ -62,13 +65,28 @@ interface BookingData {
   location?: string;
 }
 
-export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
+export function BookingModal({
+  isOpen,
+  onClose,
+  mentor,
+  allowFreeBooking = true,
+  bookingSource = allowFreeBooking ? 'ai' : 'explore',
+}: BookingModalProps) {
   const { session } = useAuth();
   const [currentStep, setCurrentStep] = useState<BookingStep>('time-selection');
   const [bookingData, setBookingData] = useState<Partial<BookingData>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingId, setBookingId] = useState<string>();
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [sessionAvailability, setSessionAvailability] = useState<{
+    freeAvailable: boolean;
+    paidAvailable: boolean;
+    freeRemaining?: number | null;
+    paidRemaining?: number | null;
+    mentorSessionsRemaining?: number | null;
+  } | null>(null);
+  const [aiSpecialRate, setAiSpecialRate] = useState<number | null>(null);
 
   // Steps definition for UI mapping
   const STEPS = [
@@ -86,6 +104,126 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
     }, 300);
     onClose();
   };
+
+  useEffect(() => {
+    if (!isOpen || !mentor?.userId) return;
+    if (!allowFreeBooking) {
+      setSessionAvailability({
+        freeAvailable: false,
+        paidAvailable: true,
+      });
+      return;
+    }
+
+    const loadAvailability = async () => {
+      try {
+        setAvailabilityLoading(true);
+        const res = await fetch(`/api/mentors/${mentor.userId}/booking-eligibility`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setSessionAvailability({
+            freeAvailable: Boolean(data.data?.free_available),
+            paidAvailable: Boolean(data.data?.paid_available),
+            freeRemaining: data.data?.free_remaining ?? null,
+            paidRemaining: data.data?.paid_remaining ?? null,
+            mentorSessionsRemaining: data.data?.mentor_sessions_remaining ?? null,
+          });
+        } else {
+          setSessionAvailability({
+            freeAvailable: true,
+            paidAvailable: true,
+            freeRemaining: null,
+            paidRemaining: null,
+            mentorSessionsRemaining: null,
+          });
+        }
+      } catch (error) {
+        setSessionAvailability({
+          freeAvailable: true,
+          paidAvailable: true,
+          freeRemaining: null,
+          paidRemaining: null,
+          mentorSessionsRemaining: null,
+        });
+      } finally {
+        setAvailabilityLoading(false);
+      }
+    };
+
+    loadAvailability();
+  }, [isOpen, mentor?.userId, allowFreeBooking]);
+
+  useEffect(() => {
+    if (!isOpen || bookingSource !== 'ai') {
+      setAiSpecialRate(null);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const loadAiRate = async () => {
+      try {
+        const res = await fetch('/api/subscriptions/me?audience=mentee', {
+          credentials: 'include',
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (!res.ok || !data?.success) {
+          setAiSpecialRate(null);
+          return;
+        }
+
+        const features = data.data?.features || [];
+        const paidVideoFeature = features.find(
+          (feature: { feature_key: string; limit_amount: number | string | null }) =>
+            feature.feature_key === 'paid_video_sessions_monthly'
+        );
+        const rawRate = paidVideoFeature?.limit_amount ?? null;
+        const parsedRate =
+          typeof rawRate === 'number'
+            ? rawRate
+            : rawRate !== null
+              ? Number(rawRate)
+              : null;
+        if (parsedRate !== null && Number.isFinite(parsedRate) && parsedRate > 0) {
+          setAiSpecialRate(parsedRate);
+        } else {
+          setAiSpecialRate(null);
+        }
+      } catch (error) {
+        if ((error as Error).name !== 'AbortError') {
+          console.error('Failed to load AI plan rate', error);
+        }
+        setAiSpecialRate(null);
+      }
+    };
+
+    loadAiRate();
+
+    return () => {
+      controller.abort();
+    };
+  }, [isOpen, bookingSource]);
+
+  const effectiveAvailability = sessionAvailability
+    ? {
+        freeAvailable: allowFreeBooking ? sessionAvailability.freeAvailable : false,
+        paidAvailable: sessionAvailability.paidAvailable,
+        freeRemaining: sessionAvailability.freeRemaining ?? null,
+        paidRemaining: sessionAvailability.paidRemaining ?? null,
+        mentorSessionsRemaining: sessionAvailability.mentorSessionsRemaining ?? null,
+      }
+    : allowFreeBooking
+      ? null
+      : {
+          freeAvailable: false,
+          paidAvailable: true,
+          freeRemaining: null,
+          paidRemaining: null,
+          mentorSessionsRemaining: null,
+        };
 
   const handleAttemptClose = () => {
     if (currentStep === 'time-selection' && !bookingData.scheduledAt) {
@@ -126,6 +264,8 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mentorId: mentor.userId,
+        bookingSource,
+          sessionType: bookingData.sessionType,
           title: bookingData.title,
           description: bookingData.description,
           scheduledAt: bookingData.scheduledAt?.toISOString(),
@@ -137,7 +277,18 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
 
       const data = await response.json();
 
-      if (!response.ok) throw new Error(data.error || 'Failed to book session');
+      if (!response.ok) {
+        const errorMessage = data?.error || 'Failed to book session';
+        const errorDetails = data?.details || data?.message;
+        if (data?.upgrade_required) {
+          toast.error(errorMessage, {
+            description: errorDetails || 'Upgrade your plan to continue.',
+          });
+          setIsSubmitting(false);
+          return;
+        }
+        throw new Error(errorMessage);
+      }
 
       setBookingId(data.booking.id);
       setCurrentStep('success');
@@ -170,6 +321,12 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
           className="max-w-5xl h-[90vh] md:h-[85vh] flex flex-col p-0 overflow-hidden border-0 shadow-large rounded-2xl [&>button]:hidden"
           onInteractOutside={(e) => e.preventDefault()}
         >
+          <DialogHeader className="sr-only">
+            <DialogTitle>Book a session</DialogTitle>
+            <DialogDescription>
+              Choose a time, session details, and confirm your booking.
+            </DialogDescription>
+          </DialogHeader>
           <div className="flex h-full">
 
             {/* LEFT SIDEBAR: Mentor Context */}
@@ -309,13 +466,23 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
                       transition={{ duration: 0.2 }}
                       className="h-full"
                     >
-                      <BookingForm
-                        scheduledAt={bookingData.scheduledAt}
-                        mentor={mentor}
-                        onSubmit={handleBookingDetails}
-                        onBack={handleBackStep}
-                        initialData={bookingData}
-                      />
+                  <BookingForm
+                    scheduledAt={bookingData.scheduledAt}
+                    mentor={mentor}
+                    availability={availabilityLoading ? undefined : effectiveAvailability || undefined}
+                    freeDisabledReason={
+                      allowFreeBooking
+                            ? undefined
+                            : 'Free sessions are only available via AI mentor matches.'
+                        }
+                        hideFreeOption={!allowFreeBooking}
+                    hideSessionTypeSelector={!allowFreeBooking}
+                    onSubmit={handleBookingDetails}
+                    onBack={handleBackStep}
+                    initialData={bookingData}
+                    bookingSource={bookingSource}
+                    aiSpecialRate={aiSpecialRate}
+                  />
                     </motion.div>
                   )}
 
@@ -328,13 +495,15 @@ export function BookingModal({ isOpen, onClose, mentor }: BookingModalProps) {
                       transition={{ duration: 0.2 }}
                       className="h-full overflow-y-auto p-8"
                     >
-                      <BookingConfirmation
-                        bookingData={bookingData as BookingData}
-                        mentor={mentor}
-                        onConfirm={handleConfirmBooking}
-                        onBack={handleBackStep}
-                        isSubmitting={isSubmitting}
-                      />
+                    <BookingConfirmation
+                      bookingData={bookingData as BookingData}
+                      mentor={mentor}
+                      onConfirm={handleConfirmBooking}
+                      onBack={handleBackStep}
+                      isSubmitting={isSubmitting}
+                      bookingSource={bookingSource}
+                      aiSpecialRate={aiSpecialRate}
+                    />
                     </motion.div>
                   )}
 

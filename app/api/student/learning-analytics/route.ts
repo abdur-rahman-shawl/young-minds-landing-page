@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { auth } from '@/lib/auth';
-import { 
+import {
   learnerProfiles,
   learningSessions,
   weeklyLearningGoals,
@@ -12,26 +11,33 @@ import {
   courseEnrollments
 } from '@/lib/db/schema';
 import { eq, and, desc, asc, gte, lte, sql, count, avg, sum } from 'drizzle-orm';
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
+import { requireMentee } from '@/lib/api/guards';
 
 // GET /api/student/learning-analytics - Get comprehensive learning analytics
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const timeRange = searchParams.get('timeRange') || '30'; // days
-    
-    // Get user from auth
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+    const guard = await requireMentee(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
 
-    const userId = session.user.id;
+    const { searchParams } = new URL(request.url);
+    const timeRange = searchParams.get('timeRange') || '30'; // days
+
+    const userId = guard.session.user.id;
+
+    try {
+      await enforceFeature({
+        action: 'analytics.mentee',
+        userId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
+    }
 
     // Get or create mentee and learner profile
     let userData = await db
@@ -60,7 +66,7 @@ export async function GET(request: NextRequest) {
           updatedAt: new Date(),
         })
         .returning({ id: mentees.id });
-      
+
       menteeId = newMentee[0].id;
     }
 
@@ -105,7 +111,7 @@ export async function GET(request: NextRequest) {
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay() + 1); // Monday
     startOfWeek.setHours(0, 0, 0, 0);
-    
+
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6); // Sunday
     endOfWeek.setHours(23, 59, 59, 999);
@@ -156,7 +162,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate real learning streak
     const streakData = await calculateLearningStreak(menteeId);
-    
+
     // Get this week's actual learning time
     const thisWeekSessions = await db
       .select({
@@ -184,11 +190,11 @@ export async function GET(request: NextRequest) {
           actualHours: weeklyActualHours.toFixed(2),
           progressPercentage: weeklyProgressPercentage.toFixed(2),
           daysActive: thisWeekSessions[0]?.activeDays || 0,
-          averageDailyMinutes: thisWeekSessions[0]?.activeDays 
+          averageDailyMinutes: thisWeekSessions[0]?.activeDays
             ? (weeklyActualMinutes / (thisWeekSessions[0].activeDays || 1)).toFixed(2)
             : '0.00',
-          goalStatus: weeklyProgressPercentage >= 100 ? 'ACHIEVED' : 
-                     weeklyProgressPercentage > 0 ? 'IN_PROGRESS' : 'NOT_STARTED',
+          goalStatus: weeklyProgressPercentage >= 100 ? 'ACHIEVED' :
+            weeklyProgressPercentage > 0 ? 'IN_PROGRESS' : 'NOT_STARTED',
           updatedAt: new Date(),
         })
         .where(eq(weeklyLearningGoals.id, currentWeekGoal[0].id));
@@ -221,13 +227,13 @@ export async function GET(request: NextRequest) {
       .groupBy(sql`EXTRACT(DOW FROM ${learningSessions.sessionDate})`);
 
     const velocity = velocityData[0];
-    
+
     // Determine most active day from separate query
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     let mostActiveDay = 'Monday'; // default
     if (dayOfWeekData.length > 0) {
       // Find the day with the most sessions
-      const maxDayData = dayOfWeekData.reduce((max, current) => 
+      const maxDayData = dayOfWeekData.reduce((max, current) =>
         (current.sessionCount > max.sessionCount) ? current : max
       );
       mostActiveDay = dayNames[maxDayData.dayOfWeek] || 'Monday';
@@ -286,7 +292,7 @@ export async function GET(request: NextRequest) {
         longestStreak: Math.max(streakData.longestStreak, learnerProfile.longestStreak),
         streakStartDate: streakData.streakStartDate,
         lastActiveDate: streakData.lastActiveDate,
-        
+
         // Weekly goal data
         weeklyGoal: {
           goalHours: weeklyGoalHours,
@@ -297,7 +303,7 @@ export async function GET(request: NextRequest) {
           status: currentWeekGoal[0]?.goalStatus || 'NOT_STARTED',
           daysActive: thisWeekSessions[0]?.activeDays || 0,
         },
-        
+
         // Learning velocity
         learningVelocity: {
           avgMinutesPerDay: Math.round(Number(velocity?.avgMinutesPerDay) || 0),
@@ -306,7 +312,7 @@ export async function GET(request: NextRequest) {
           mostActiveDay,
           consistencyScore: parseFloat(consistencyScore.toFixed(1)),
         },
-        
+
         // Achievements
         achievements: achievements.map(achievement => ({
           id: achievement.id,
@@ -321,10 +327,10 @@ export async function GET(request: NextRequest) {
           rarity: achievement.rarity,
           category: achievement.category,
         })),
-        
+
         // Smart recommendations
         recommendations,
-        
+
         // Active insights
         insights: insights.map(insight => ({
           id: insight.id,
@@ -336,7 +342,7 @@ export async function GET(request: NextRequest) {
           priority: insight.priority,
           category: insight.category,
         })),
-        
+
         // Profile settings
         settings: {
           weeklyGoalHours: parseFloat(learnerProfile.weeklyLearningGoalHours || '5.00'),
@@ -380,7 +386,7 @@ async function calculateLearningStreak(menteeId: string) {
   }
 
   // Group sessions by date and get unique active dates
-  const activeDates = [...new Set(sessions.map(s => s.sessionDate))].sort((a, b) => 
+  const activeDates = [...new Set(sessions.map(s => s.sessionDate))].sort((a, b) =>
     new Date(b).getTime() - new Date(a).getTime()
   );
 

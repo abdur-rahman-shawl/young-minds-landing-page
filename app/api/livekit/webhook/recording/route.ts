@@ -26,6 +26,11 @@ import { livekitRecordings, livekitEvents } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getStorageProvider } from '@/lib/livekit/storage/storage-factory';
 import fs from 'fs';
+import {
+  LivekitWebhookAuthError,
+  LivekitWebhookPayloadError,
+  verifyLivekitWebhook,
+} from '@/lib/livekit/webhook';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -58,7 +63,20 @@ export async function POST(request: NextRequest) {
     // ======================================================================
     // PARSE WEBHOOK PAYLOAD
     // ======================================================================
-    const body: EgressWebhook = await request.json();
+    let body: EgressWebhook;
+    try {
+      const rawBody = await verifyLivekitWebhook(request);
+      body = JSON.parse(rawBody);
+    } catch (error) {
+      console.error('❌ Webhook verification failed:', error);
+      if (error instanceof LivekitWebhookPayloadError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      if (error instanceof LivekitWebhookAuthError) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      return NextResponse.json({ error: 'Webhook verification failed' }, { status: 401 });
+    }
 
     console.log(`📋 Webhook event: ${body.event}`, {
       egressId: body.egress_info?.egress_id,

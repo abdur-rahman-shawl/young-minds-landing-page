@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireMentee } from '@/lib/api/guards';
 import { db } from '@/lib/db';
 import { mentors, users } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -15,15 +15,11 @@ import { eq, and } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: request.headers });
-    const userId = session?.user?.id;
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+    const guard = await requireMentee(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const userId = guard.session.user.id;
 
     // Mock data for now - in production would query actual saved_mentors table
     const mockSavedMentors = [
@@ -58,15 +54,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: request.headers });
-    const userId = session?.user?.id;
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+    const guard = await requireMentee(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const userId = guard.session.user.id;
 
     const body = await request.json();
     const { mentorId, action } = body;

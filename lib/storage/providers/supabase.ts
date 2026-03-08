@@ -89,10 +89,13 @@ export class SupabaseStorageProvider implements StorageProvider {
         throw new Error(`Upload failed: ${error.message}`);
       }
 
-      const publicUrl = this.getPublicUrl(path);
+      const isPublic = options?.public !== false;
+      const url = isPublic
+        ? this.getPublicUrl(path)
+        : await this.getSignedUrl(path);
 
       return {
-        url: publicUrl,
+        url,
         path: data.path,
         size: file.size,
         contentType: file.type,

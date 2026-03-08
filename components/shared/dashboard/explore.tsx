@@ -32,7 +32,7 @@ interface ExploreMentorsProps {
 }
 
 export function ExploreMentors({ onMentorSelect }: ExploreMentorsProps) {
-  const { mentors, loading, error } = useMentors()
+  const { mentors, loading, error } = useMentors({ expertOnly: true })
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedIndustry, setSelectedIndustry] = useState("all")
   const [sortBy, setSortBy] = useState("featured")

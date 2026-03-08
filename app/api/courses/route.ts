@@ -45,6 +45,9 @@ export async function GET(request: NextRequest) {
         thumbnailUrl: courses.thumbnailUrl,
         category: courses.category,
         tags: courses.tags,
+        platformTags: courses.platformTags,
+        platformName: courses.platformName,
+        ownerType: courses.ownerType,
         prerequisites: courses.prerequisites,
         learningOutcomes: courses.learningOutcomes,
         enrollmentCount: courses.enrollmentCount,
@@ -56,6 +59,7 @@ export async function GET(request: NextRequest) {
           id: mentors.id,
           userId: mentors.userId,
           name: users.name,
+          fullName: mentors.fullName,
           image: users.image,
           title: mentors.title,
           company: mentors.company,
@@ -66,8 +70,8 @@ export async function GET(request: NextRequest) {
       })
       .from(courses)
       .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-      .innerJoin(mentors, eq(mentorContent.mentorId, mentors.id))
-      .innerJoin(users, eq(mentors.userId, users.id))
+      .leftJoin(mentors, eq(mentorContent.mentorId, mentors.id))
+      .leftJoin(users, eq(mentors.userId, users.id))
       .leftJoin(courseReviews, and(
         eq(courseReviews.courseId, courses.id),
         eq(courseReviews.isPublished, true)
@@ -89,7 +93,8 @@ export async function GET(request: NextRequest) {
         or(
           like(mentorContent.title, `%${search}%`),
           like(mentorContent.description, `%${search}%`),
-          like(courses.tags, `%${search}%`)
+          like(courses.tags, `%${search}%`),
+          like(courses.platformTags, `%${search}%`)
         )
       );
     }
@@ -114,7 +119,10 @@ export async function GET(request: NextRequest) {
 
     // Mentor filter
     if (mentorId) {
-      conditions.push(eq(mentorContent.mentorId, mentorId));
+      conditions.push(and(
+        eq(courses.ownerType, 'MENTOR'),
+        eq(mentorContent.mentorId, mentorId)
+      ));
     }
 
     // Apply all conditions
@@ -142,7 +150,14 @@ export async function GET(request: NextRequest) {
     // Process the data to parse JSON fields
     const coursesData = rawCoursesData.map(course => ({
       ...course,
+      mentor: {
+        ...course.mentor,
+        name: course.ownerType === 'PLATFORM'
+          ? (course.platformName || 'Platform')
+          : (course.mentor.fullName || course.mentor.name),
+      },
       tags: course.tags ? JSON.parse(course.tags) : [],
+      platformTags: course.platformTags ? JSON.parse(course.platformTags) : [],
       prerequisites: course.prerequisites ? JSON.parse(course.prerequisites) : [],
       learningOutcomes: course.learningOutcomes ? JSON.parse(course.learningOutcomes) : [],
     }));

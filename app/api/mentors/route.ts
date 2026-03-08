@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { mentors, users } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { requireAdmin, requireMentee } from '@/lib/api/guards';
+import { resolveStorageUrl } from '@/lib/storage';
 
 export async function GET(request: NextRequest) {
   try {
+    const guard = await requireMentee(request, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+    const { searchParams } = new URL(request.url);
+    const expertOnly = (searchParams.get('expertOnly') ?? 'false') === 'true';
+    const whereClauses = [eq(mentors.verificationStatus, 'VERIFIED')];
+    if (expertOnly) {
+      whereClauses.push(eq(mentors.isExpert, true));
+    }
+
     // Fetch all verified and available mentors with their user info
     const mentosList = await db
       .select({
@@ -33,17 +46,26 @@ export async function GET(request: NextRequest) {
       })
       .from(mentors)
       .innerJoin(users, eq(mentors.userId, users.id))
-      .where(eq(mentors.verificationStatus, 'VERIFIED'))
+      .where(and(...whereClauses))
       .orderBy(mentors.createdAt);
 
     // Map the results to handle name and image fallback priority
-    const mappedMentors = mentosList.map((mentor: typeof mentosList[number]) => ({
-      ...mentor,
-      // Use mentor's fullName if available, otherwise fallback to user's name
-      name: mentor.fullName || mentor.userName,
-      // Use mentor's profileImageUrl if available, otherwise fallback to user's image
-      image: mentor.profileImageUrl || mentor.userImage
-    }));
+    const mappedMentors = await Promise.all(
+      mentosList.map(async (mentor) => {
+        const signedProfileImageUrl = await resolveStorageUrl(mentor.profileImageUrl);
+        const signedBannerImageUrl = await resolveStorageUrl(mentor.bannerImageUrl);
+
+        return {
+          ...mentor,
+          profileImageUrl: signedProfileImageUrl,
+          bannerImageUrl: signedBannerImageUrl,
+          // Use mentor's fullName if available, otherwise fallback to user's name
+          name: mentor.fullName || mentor.userName,
+          // Use mentor's profileImageUrl if available, otherwise fallback to user's image
+          image: signedProfileImageUrl || mentor.userImage,
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,
@@ -61,6 +83,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const guard = await requireAdmin(request);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const body = await request.json();
     const {
       userId,

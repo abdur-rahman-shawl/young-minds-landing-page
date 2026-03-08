@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { 
-  messageRequests, 
-  messagingPermissions, 
+import {
+  messageRequests,
+  messagingPermissions,
   messageQuotas,
   notifications,
   users,
@@ -12,6 +12,11 @@ import {
 } from '@/lib/db/schema';
 import { eq, and, or, desc, gte, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import {
+  consumeFeature,
+  enforceFeature,
+  isSubscriptionPolicyError,
+} from '@/lib/subscriptions/policy-runtime';
 
 const createRequestSchema = z.object({
   recipientId: z.string().min(1),
@@ -41,14 +46,14 @@ async function checkAndUpdateQuota(userId: string) {
   }
 
   const currentQuota = quota[0];
-  
+
   const shouldResetDaily = currentQuota.lastResetDaily < startOfDay;
   const shouldResetWeekly = currentQuota.lastResetWeekly < startOfWeek;
   const shouldResetMonthly = currentQuota.lastResetMonthly < startOfMonth;
 
   if (shouldResetDaily || shouldResetWeekly || shouldResetMonthly) {
     const updates: any = {};
-    
+
     if (shouldResetDaily) {
       updates.requestsSentToday = 0;
       updates.messagesSentToday = 0;
@@ -197,7 +202,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await checkAndUpdateQuota(userId);
+    const requestAction =
+      validatedData.requestType === 'mentor_to_mentee'
+        ? 'messaging.request.mentor'
+        : 'messaging.request.mentee';
+
+    try {
+      await enforceFeature({
+        action: requestAction,
+        userId,
+      });
+    } catch (error) {
+      if (isSubscriptionPolicyError(error)) {
+        return NextResponse.json(error.payload, { status: error.status });
+      }
+      throw error;
+    }
+
+    // Legacy quota system is superseded by subscription enforcement.
+    // await checkAndUpdateQuota(userId);
 
     if (await checkExistingRequest(userId, validatedData.recipientId)) {
       return NextResponse.json(
@@ -250,6 +273,13 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
+    await consumeFeature({
+      action: requestAction,
+      userId,
+      resourceType: 'message_request',
+      resourceId: newRequest.id,
+    });
+
     const recipient = await db
       .select()
       .from(users)
@@ -284,14 +314,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error creating message request:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { success: false, error: error.errors[0].message },
         { status: 400 }
       );
     }
-    
+
     if (error instanceof Error && error.message.includes('limit exceeded')) {
       return NextResponse.json(
         { success: false, error: error.message },

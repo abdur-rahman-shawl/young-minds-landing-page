@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { auth } from '@/lib/auth';
 import { 
   courseEnrollments, 
   courses, 
@@ -11,10 +10,16 @@ import {
   courseCertificates
 } from '@/lib/db/schema';
 import { eq, and, desc, count, sql } from 'drizzle-orm';
+import { requireMentee } from '@/lib/api/guards';
 
 // GET /api/student/courses - Get student's enrolled courses
 export async function GET(request: NextRequest) {
   try {
+    const guard = await requireMentee(request, true);
+    if ('error' in guard) {
+      return guard.error;
+    }
+
     const { searchParams } = new URL(request.url);
     
     // Query parameters
@@ -25,18 +30,7 @@ export async function GET(request: NextRequest) {
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
     // Get user from auth
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    const userId = session.user.id;
+    const userId = guard.session.user.id;
 
     // Get mentee info, create if doesn't exist
     let userData = await db

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { streamObject, type CoreMessage } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
+import { auth } from "@/lib/auth";
+import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 
 // Read from server env (NOT exposed to the browser)
 const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
@@ -41,6 +43,24 @@ You: "Perfect! Based on your goal, I'm finding a few mentors who would be a grea
 `.trim();
 
 export async function POST(req: NextRequest) {
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session || !session.user?.id) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  try {
+    await enforceFeature({
+      action: 'ai.chat.access',
+      userId: session.user.id,
+      failureMessage: 'AI Chat access is not included in your plan',
+    });
+  } catch (error) {
+    if (isSubscriptionPolicyError(error)) {
+      return new Response(error.payload.error, { status: error.status });
+    }
+    return new Response("Unable to verify AI chat access", { status: 500 });
+  }
+
   if (!GOOGLE_API_KEY) {
     return new Response("Server is missing GOOGLE_GENERATIVE_AI_API_KEY", { status: 500 });
   }
@@ -57,10 +77,9 @@ export async function POST(req: NextRequest) {
   ];
 
   const result = await streamObject({
-    model: google("gemini-2.5-flash", { apiKey: GOOGLE_API_KEY }),
+    model: google("gemini-2.5-flash"),
     messages: prior,
     temperature: 0.7,
-    maxTokens: 1024,
     schema: z.object({
       // The text content that the AI generates.
       text: z.string().describe('The response text to the user.'),

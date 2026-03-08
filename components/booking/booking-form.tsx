@@ -21,10 +21,23 @@ interface Mentor {
   currency?: string;
 }
 
+interface BookingAvailability {
+  freeAvailable: boolean;
+  paidAvailable: boolean;
+  freeRemaining?: number | null;
+  paidRemaining?: number | null;
+  mentorSessionsRemaining?: number | null;
+}
+
 interface BookingFormProps {
   scheduledAt: Date;
   mentor: Mentor;
+  availability?: BookingAvailability;
+  freeDisabledReason?: string;
+  hideFreeOption?: boolean;
+  hideSessionTypeSelector?: boolean;
   onSubmit: (data: {
+    sessionType: 'FREE' | 'PAID' | 'COUNSELING';
     duration: number;
     meetingType: 'video' | 'audio' | 'chat';
     title: string;
@@ -33,12 +46,15 @@ interface BookingFormProps {
   }) => void;
   onBack: () => void;
   initialData?: Partial<{
+    sessionType: 'FREE' | 'PAID' | 'COUNSELING';
     duration: number;
     meetingType: 'video' | 'audio' | 'chat';
     title: string;
     description?: string;
     location?: string;
   }>;
+  bookingSource?: 'ai' | 'explore' | 'default';
+  aiSpecialRate?: number | null;
 }
 
 const MEETING_TYPES = [
@@ -49,13 +65,39 @@ const MEETING_TYPES = [
 
 const DURATION_OPTIONS = [
   { value: 30, label: '30 min', price: 0.5 },
+  { value: 45, label: '45 min', price: 0.75 },
   { value: 60, label: '60 min', price: 1 },
   { value: 90, label: '90 min', price: 1.5 },
   { value: 120, label: '2 hours', price: 2 },
 ];
 
-export function BookingForm({ scheduledAt, mentor, onSubmit, onBack, initialData }: BookingFormProps) {
+export function BookingForm({
+  scheduledAt,
+  mentor,
+  availability,
+  freeDisabledReason,
+  hideFreeOption,
+  hideSessionTypeSelector,
+  onSubmit,
+  onBack,
+  initialData,
+  bookingSource = 'default',
+  aiSpecialRate = null,
+}: BookingFormProps) {
+  const shouldHideSessionTypeSelector = Boolean(hideSessionTypeSelector);
+  const freeAvailable = availability?.freeAvailable ?? true;
+  const paidAvailable = availability?.paidAvailable ?? true;
+  const hasAnyAvailability = freeAvailable || paidAvailable;
+  const showFreeOption = !hideFreeOption;
+  const freeRemaining = availability?.freeRemaining ?? null;
+  const paidRemaining = availability?.paidRemaining ?? null;
+  const mentorRemaining = availability?.mentorSessionsRemaining ?? null;
+
+  const initialSessionType = initialData?.sessionType
+    || (freeAvailable ? 'FREE' : paidAvailable ? 'PAID' : 'PAID');
+
   const [formData, setFormData] = useState({
+    sessionType: initialSessionType as 'FREE' | 'PAID' | 'COUNSELING',
     duration: initialData?.duration || 60,
     meetingType: initialData?.meetingType || 'video' as const,
     title: initialData?.title || '',
@@ -84,15 +126,36 @@ export function BookingForm({ scheduledAt, mentor, onSubmit, onBack, initialData
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
   };
 
-  const calculatePrice = () => {
-    const hourlyRate = mentor.hourlyRate || 0;
-    const hours = formData.duration / 60;
-    return hourlyRate * hours;
+  const handleSessionTypeChange = (value: 'FREE' | 'PAID' | 'COUNSELING') => {
+    if (value === 'FREE' && !freeAvailable) return;
+    if (value === 'PAID' && !paidAvailable) return;
+
+    setFormData(prev => {
+      if (value === 'FREE') {
+        return { ...prev, sessionType: value, duration: 30 };
+      }
+
+      const allowedPaidDurations = [30, 45];
+      const nextDuration = allowedPaidDurations.includes(prev.duration) ? prev.duration : 45;
+      return { ...prev, sessionType: value, duration: nextDuration };
+    });
   };
 
   const formatCurrency = (amount: number, currency: string = 'USD') => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
   };
+
+  const mentorHourlyRateValue = mentor.hourlyRate ? Number(mentor.hourlyRate) : 0;
+  const sessionHours = formData.duration / 60;
+  const basePrice = mentorHourlyRateValue * sessionHours;
+  const hasAiPlanPricing =
+    bookingSource === 'ai' &&
+    formData.sessionType === 'PAID' &&
+    typeof aiSpecialRate === 'number' &&
+    aiSpecialRate > 0;
+  const planTotal = hasAiPlanPricing ? aiSpecialRate * sessionHours : null;
+  const displayPrice = planTotal !== null ? planTotal : basePrice;
+  const savings = planTotal !== null ? Math.max(0, basePrice - planTotal) : 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -116,11 +179,84 @@ export function BookingForm({ scheduledAt, mentor, onSubmit, onBack, initialData
 
         <form id="booking-form" onSubmit={handleSubmit} className="space-y-8">
           
+          {/* Session Type Selector */}
+          {!shouldHideSessionTypeSelector && (
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">Session Type</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  {
+                    value: 'FREE',
+                    label: 'Free Intro Session',
+                    helper: freeAvailable
+                      ? 'One-time, 30 minutes max'
+                      : freeDisabledReason || 'Not available for this mentor',
+                    disabled: !freeAvailable,
+                  },
+                  {
+                    value: 'PAID',
+                    label: 'Paid Session',
+                    helper: paidAvailable ? 'Paid sessions up to 45 minutes' : 'Not available for this mentor',
+                    disabled: !paidAvailable,
+                  },
+                ].filter((option) => (option.value === 'FREE' ? showFreeOption : true)).map((option) => {
+                  const isSelected = formData.sessionType === option.value;
+                  return (
+                    <div
+                      key={option.value}
+                      onClick={() => handleSessionTypeChange(option.value as 'FREE' | 'PAID')}
+                      className={cn(
+                        "relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col gap-2 group",
+                        option.disabled
+                          ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/40"
+                          : "cursor-pointer hover:border-blue-300 dark:hover:border-blue-700",
+                        isSelected
+                          ? "border-blue-600 bg-blue-50/50 dark:bg-blue-900/20 dark:border-blue-500"
+                          : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
+                      )}
+                    >
+                      <p className={cn("font-semibold text-sm", isSelected ? "text-blue-900 dark:text-blue-100" : "text-slate-900 dark:text-slate-100")}>
+                        {option.label}
+                      </p>
+                      <p className="text-xs text-slate-500">{option.helper}</p>
+                      {option.value === 'FREE' && freeRemaining !== null && (
+                        <p className="text-[10px] text-slate-400">Remaining: {freeRemaining}</p>
+                      )}
+                      {option.value === 'PAID' && (
+                        <>
+                          {mentorRemaining !== null && (
+                            <p className="text-[10px] text-slate-400">
+                              Mentor sessions left: {mentorRemaining}
+                            </p>
+                          )}
+                          {paidRemaining !== null && (
+                            <p className="text-[10px] text-slate-400">
+                              Paid quotas left: {paidRemaining}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {!hasAnyAvailability && (
+                <p className="text-xs text-red-500">
+                  This mentor has no available free or paid sessions right now.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Duration Selector */}
           <div className="space-y-3">
             <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100">Session Duration</Label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {DURATION_OPTIONS.map((option) => {
+              {DURATION_OPTIONS.filter((option) => {
+                if (formData.sessionType === 'FREE') return option.value === 30;
+                if (formData.sessionType === 'PAID') return option.value <= 45;
+                return true;
+              }).map((option) => {
                 const isSelected = formData.duration === option.value;
                 return (
                   <div
@@ -218,11 +354,30 @@ export function BookingForm({ scheduledAt, mentor, onSubmit, onBack, initialData
             <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
                <div>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Estimated Total</p>
-                  <p className="text-xs text-slate-500">{formData.duration} mins @ {formatCurrency(mentor.hourlyRate, mentor.currency)}/hr</p>
+                  <p className="text-xs text-slate-500">
+                    {formData.duration} mins @ {formatCurrency(mentorHourlyRateValue, mentor.currency)}/hr
+                  </p>
                </div>
-               <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                  {formatCurrency(calculatePrice(), mentor.currency)}
-               </p>
+               <div className="flex flex-col items-end gap-1 text-right">
+                  {planTotal !== null && (
+                    <span className="text-xs text-slate-400 line-through">
+                      {formatCurrency(basePrice, mentor.currency)}
+                    </span>
+                  )}
+                  <span className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {formatCurrency(displayPrice, mentor.currency)}
+                  </span>
+                  {planTotal !== null && (
+                    <span className="text-xs text-blue-600 font-semibold uppercase tracking-wide">
+                      Your plan rate
+                    </span>
+                  )}
+                  {planTotal !== null && savings > 0 && (
+                    <span className="text-xs text-green-600 font-semibold">
+                      Save {formatCurrency(savings, mentor.currency)} with AI booking
+                    </span>
+                  )}
+               </div>
             </div>
           )}
 
@@ -245,6 +400,7 @@ export function BookingForm({ scheduledAt, mentor, onSubmit, onBack, initialData
           type="submit"
           form="booking-form"
           className="bg-blue-600 hover:bg-blue-700 text-white px-8 shadow-lg shadow-blue-500/20"
+          disabled={!hasAnyAvailability}
         >
           Continue
         </Button>

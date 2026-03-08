@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { mentorContent, courses, courseModules, courseSections, sectionContentItems, mentors } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+import { requireMentor } from '@/lib/api/guards';
+import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
 const updateContentItemSchema = z.object({
   title: z.string().min(1, 'Title is required').optional(),
@@ -25,14 +26,12 @@ export async function GET(
 ) {
   try {
     const { sectionId, itemId } = await params;
-    
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
 
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const session = guard.session;
 
     const mentor = await db.select()
       .from(mentors)
@@ -50,15 +49,15 @@ export async function GET(
       course: courses,
       content: mentorContent,
     })
-    .from(courseSections)
-    .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
-    .innerJoin(courses, eq(courseModules.courseId, courses.id))
-    .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-    .where(and(
-      eq(courseSections.id, sectionId),
-      eq(mentorContent.mentorId, mentor[0].id)
-    ))
-    .limit(1);
+      .from(courseSections)
+      .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
+      .innerJoin(courses, eq(courseModules.courseId, courses.id))
+      .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
+      .where(and(
+        eq(courseSections.id, sectionId),
+        eq(mentorContent.mentorId, mentor[0].id)
+      ))
+      .limit(1);
 
     if (!sectionWithCourse.length) {
       return NextResponse.json({ error: 'Section not found' }, { status: 404 });
@@ -77,7 +76,10 @@ export async function GET(
       return NextResponse.json({ error: 'Content item not found' }, { status: 404 });
     }
 
-    return NextResponse.json(contentItem[0]);
+    return NextResponse.json({
+      ...contentItem[0],
+      fileUrl: await resolveStorageUrl(contentItem[0].fileUrl),
+    });
   } catch (error) {
     console.error('Error fetching content item:', error);
     return NextResponse.json(
@@ -93,14 +95,12 @@ export async function PUT(
 ) {
   try {
     const { sectionId, itemId } = await params;
-    
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
 
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const session = guard.session;
 
     const mentor = await db.select()
       .from(mentors)
@@ -118,15 +118,15 @@ export async function PUT(
       course: courses,
       content: mentorContent,
     })
-    .from(courseSections)
-    .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
-    .innerJoin(courses, eq(courseModules.courseId, courses.id))
-    .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-    .where(and(
-      eq(courseSections.id, sectionId),
-      eq(mentorContent.mentorId, mentor[0].id)
-    ))
-    .limit(1);
+      .from(courseSections)
+      .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
+      .innerJoin(courses, eq(courseModules.courseId, courses.id))
+      .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
+      .where(and(
+        eq(courseSections.id, sectionId),
+        eq(mentorContent.mentorId, mentor[0].id)
+      ))
+      .limit(1);
 
     if (!sectionWithCourse.length) {
       return NextResponse.json({ error: 'Section not found' }, { status: 404 });
@@ -152,12 +152,16 @@ export async function PUT(
     const updatedItem = await db.update(sectionContentItems)
       .set({
         ...validatedData,
+        fileUrl: normalizeStorageValue(validatedData.fileUrl),
         updatedAt: new Date(),
       })
       .where(eq(sectionContentItems.id, itemId))
       .returning();
 
-    return NextResponse.json(updatedItem[0]);
+    return NextResponse.json({
+      ...updatedItem[0],
+      fileUrl: await resolveStorageUrl(updatedItem[0].fileUrl),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -180,14 +184,12 @@ export async function DELETE(
 ) {
   try {
     const { sectionId, itemId } = await params;
-    
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
 
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const guard = await requireMentor(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
+    const session = guard.session;
 
     const mentor = await db.select()
       .from(mentors)
@@ -205,15 +207,15 @@ export async function DELETE(
       course: courses,
       content: mentorContent,
     })
-    .from(courseSections)
-    .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
-    .innerJoin(courses, eq(courseModules.courseId, courses.id))
-    .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-    .where(and(
-      eq(courseSections.id, sectionId),
-      eq(mentorContent.mentorId, mentor[0].id)
-    ))
-    .limit(1);
+      .from(courseSections)
+      .innerJoin(courseModules, eq(courseSections.moduleId, courseModules.id))
+      .innerJoin(courses, eq(courseModules.courseId, courses.id))
+      .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
+      .where(and(
+        eq(courseSections.id, sectionId),
+        eq(mentorContent.mentorId, mentor[0].id)
+      ))
+      .limit(1);
 
     if (!sectionWithCourse.length) {
       return NextResponse.json({ error: 'Section not found' }, { status: 404 });

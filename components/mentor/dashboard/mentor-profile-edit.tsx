@@ -76,7 +76,8 @@ export function MentorProfileEdit() {
     resumeUrl: '',
     verificationStatus: 'IN_PROGRESS',
     verificationNotes: '',
-    isAvailable: true
+    isAvailable: true,
+    searchMode: 'AI_SEARCH' as 'AI_SEARCH' | 'EXCLUSIVE_SEARCH',
   })
 
   const [mentorMeta, setMentorMeta] = useState({
@@ -117,7 +118,8 @@ export function MentorProfileEdit() {
       resumeUrl: mentorProfile.resumeUrl || '',
       verificationStatus: mentorProfile.verificationStatus || 'IN_PROGRESS',
       verificationNotes: mentorProfile.verificationNotes || '',
-      isAvailable: mentorProfile.isAvailable !== false
+      isAvailable: mentorProfile.isAvailable !== false,
+      searchMode: mentorProfile.searchMode || 'AI_SEARCH',
     })
 
     setMentorMeta({
@@ -811,6 +813,46 @@ export function MentorProfileEdit() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="includeInAiSearch" className="text-sm font-medium">
+                      Include me in AI Search
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Turn this on to appear in AI recommendations.
+                    </p>
+                  </div>
+                  <Switch
+                    id="includeInAiSearch"
+                    checked={mentorData.searchMode === 'AI_SEARCH'}
+                    onCheckedChange={(checked) => {
+                      if (!isEditing) {
+                        setIsEditing(true)
+                      }
+                      setMentorData((prev) => ({
+                        ...prev,
+                        searchMode: checked ? 'AI_SEARCH' : 'EXCLUSIVE_SEARCH',
+                      }))
+                    }}
+                  />
+                </div>
+
+                <Alert className="border-blue-100 bg-blue-50/60 dark:border-blue-900/60 dark:bg-blue-950/20">
+                  <ShieldQuestion className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <AlertTitle className="text-blue-900 dark:text-blue-200">
+                    {mentorData.searchMode === 'AI_SEARCH' ? 'AI Search enabled' : 'Exclusive Search enabled'}
+                  </AlertTitle>
+                  <AlertDescription className="text-blue-800/90 dark:text-blue-300/90">
+                    {mentorData.searchMode === 'AI_SEARCH'
+                      ? 'You may be discovered via AI recommendations. AI bookings use platform plan pricing configured by admin.'
+                      : 'You will not appear in AI search. Your sessions use your listed mentor fee.'}
+                  </AlertDescription>
+                </Alert>
               </div>
             </CardContent>
           </Card>
