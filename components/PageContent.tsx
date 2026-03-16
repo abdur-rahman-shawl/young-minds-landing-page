@@ -42,6 +42,7 @@ import { AdminMentors } from "@/components/admin/dashboard/admin-mentors"
 import { AdminMentees } from "@/components/admin/dashboard/admin-mentees"
 import { AdminOverview } from "@/components/admin/dashboard/admin-overview"
 import { AdminSubscriptions } from "@/components/admin/dashboard/admin-subscriptions"
+import { AdminContent } from "@/components/admin/dashboard/admin-content"
 import { AuthLoadingSkeleton } from "@/components/common/skeletons"
 import { Courses } from "@/components/shared/dashboard/courses"
 import { MyLearning } from "@/components/mentee/dashboard/my-learning"
@@ -133,6 +134,8 @@ export function PageContent() {
           return <AdminMentees />
         case "subscriptions":
           return <AdminSubscriptions />
+        case "content":
+          return <AdminContent />
         case "analytics":
           return <AdminAnalytics />
         default:

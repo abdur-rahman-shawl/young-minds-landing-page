@@ -8,12 +8,14 @@ import { requireMentor } from '@/lib/api/guards';
 import { getMentorContentOwnershipCondition, getMentorForContent } from '@/lib/api/mentor-content';
 import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
+// Feature flag: set to true to require an active subscription for content creation
+const ENFORCE_CONTENT_SUBSCRIPTION = false;
 // Validation schemas
 const createContentSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
   type: z.enum(['COURSE', 'FILE', 'URL']),
-  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
+  status: z.enum(['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED']).default('DRAFT'),
 
   // For FILE type
   fileUrl: z.string().optional(),
@@ -22,7 +24,7 @@ const createContentSchema = z.object({
   mimeType: z.string().optional(),
 
   // For URL type
-  url: z.string().url().optional(),
+  url: z.string().optional(),
   urlTitle: z.string().optional(),
   urlDescription: z.string().optional(),
 });
@@ -98,7 +100,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createContentSchema.parse(body);
 
-    if (!isAdmin) {
+    if (ENFORCE_CONTENT_SUBSCRIPTION && !isAdmin) {
       if (validatedData.type === 'COURSE') {
         const access = await checkFeatureAccess(
           guard.session.user.id,

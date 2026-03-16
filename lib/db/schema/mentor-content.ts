@@ -1,6 +1,7 @@
-import { pgTable, text, timestamp, boolean, integer, decimal, pgEnum, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, decimal, pgEnum, uuid, unique } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { mentors } from './mentors';
+import { users } from './users';
 
 // Content type enum
 export const contentTypeEnum = pgEnum('content_type', [
@@ -34,8 +35,27 @@ export const courseOwnerTypeEnum = pgEnum('course_owner_type', [
 // Content status enum
 export const contentStatusEnum = pgEnum('content_status', [
   'DRAFT',
-  'PUBLISHED',
-  'ARCHIVED'
+  'PENDING_REVIEW',
+  'APPROVED',
+  'REJECTED',
+  'ARCHIVED',
+  'FLAGGED'
+]);
+
+// Content review action enum
+export const contentReviewActionEnum = pgEnum('content_review_action', [
+  'SUBMITTED',
+  'APPROVED',
+  'REJECTED',
+  'RESUBMITTED',
+  'ARCHIVED',
+  'RESTORED',
+  'FLAGGED',
+  'UNFLAGGED',
+  'FORCE_APPROVED',
+  'FORCE_ARCHIVED',
+  'APPROVAL_REVOKED',
+  'FORCE_DELETED'
 ]);
 
 // Main content table
@@ -60,6 +80,21 @@ export const mentorContent = pgTable('mentor_content', {
   urlTitle: text('url_title'),
   urlDescription: text('url_description'),
   
+  // Review workflow
+  submittedForReviewAt: timestamp('submitted_for_review_at'),
+  reviewedAt: timestamp('reviewed_at'),
+  reviewedBy: text('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewNote: text('review_note'),
+  
+  // Flagging workflow
+  flagReason: text('flag_reason'),
+  flaggedAt: timestamp('flagged_at'),
+  flaggedBy: text('flagged_by').references(() => users.id, { onDelete: 'set null' }),
+
+  // Archive/restore support
+  statusBeforeArchive: text('status_before_archive'),
+  requireReviewAfterRestore: boolean('require_review_after_restore').default(false),
+
   // Timestamps
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -147,6 +182,30 @@ export const sectionContentItems = pgTable('section_content_items', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// Content review audit table — immutable log of every review action
+export const contentReviewAudit = pgTable('content_review_audit', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  contentId: uuid('content_id').references(() => mentorContent.id, { onDelete: 'cascade' }).notNull(),
+  mentorId: uuid('mentor_id').references(() => mentors.id, { onDelete: 'cascade' }).notNull(),
+  action: contentReviewActionEnum('action').notNull(),
+  previousStatus: text('previous_status'),
+  newStatus: text('new_status').notNull(),
+  reviewedBy: text('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Mentor profile content selection — which approved content to show on public profile
+export const mentorProfileContent = pgTable('mentor_profile_content', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  mentorId: uuid('mentor_id').references(() => mentors.id, { onDelete: 'cascade' }).notNull(),
+  contentId: uuid('content_id').references(() => mentorContent.id, { onDelete: 'cascade' }).notNull(),
+  displayOrder: integer('display_order').notNull().default(0),
+  addedAt: timestamp('added_at').defaultNow().notNull(),
+}, (table) => ({
+  uniqueMentorContent: unique().on(table.mentorId, table.contentId),
+}));
+
 // Relations
 export const mentorContentRelations = relations(mentorContent, ({ one, many }) => ({
   mentor: one(mentors, {
@@ -157,6 +216,12 @@ export const mentorContentRelations = relations(mentorContent, ({ one, many }) =
     fields: [mentorContent.id],
     references: [courses.contentId],
   }),
+  reviewer: one(users, {
+    fields: [mentorContent.reviewedBy],
+    references: [users.id],
+  }),
+  reviewAudits: many(contentReviewAudit),
+  profileSelections: many(mentorProfileContent),
 }));
 
 export const coursesRelations = relations(courses, ({ one, many }) => ({
@@ -190,6 +255,32 @@ export const sectionContentItemsRelations = relations(sectionContentItems, ({ on
   }),
 }));
 
+export const contentReviewAuditRelations = relations(contentReviewAudit, ({ one }) => ({
+  content: one(mentorContent, {
+    fields: [contentReviewAudit.contentId],
+    references: [mentorContent.id],
+  }),
+  mentor: one(mentors, {
+    fields: [contentReviewAudit.mentorId],
+    references: [mentors.id],
+  }),
+  reviewer: one(users, {
+    fields: [contentReviewAudit.reviewedBy],
+    references: [users.id],
+  }),
+}));
+
+export const mentorProfileContentRelations = relations(mentorProfileContent, ({ one }) => ({
+  mentor: one(mentors, {
+    fields: [mentorProfileContent.mentorId],
+    references: [mentors.id],
+  }),
+  content: one(mentorContent, {
+    fields: [mentorProfileContent.contentId],
+    references: [mentorContent.id],
+  }),
+}));
+
 // Type exports
 export type MentorContent = typeof mentorContent.$inferSelect;
 export type NewMentorContent = typeof mentorContent.$inferInsert;
@@ -201,9 +292,14 @@ export type CourseSection = typeof courseSections.$inferSelect;
 export type NewCourseSection = typeof courseSections.$inferInsert;
 export type SectionContentItem = typeof sectionContentItems.$inferSelect;
 export type NewSectionContentItem = typeof sectionContentItems.$inferInsert;
+export type ContentReviewAudit = typeof contentReviewAudit.$inferSelect;
+export type NewContentReviewAudit = typeof contentReviewAudit.$inferInsert;
+export type MentorProfileContent = typeof mentorProfileContent.$inferSelect;
+export type NewMentorProfileContent = typeof mentorProfileContent.$inferInsert;
 
 export type ContentType = typeof contentTypeEnum.enumValues[number];
 export type ContentItemType = typeof contentItemTypeEnum.enumValues[number];
 export type CourseDifficulty = typeof courseDifficultyEnum.enumValues[number];
 export type CourseOwnerType = typeof courseOwnerTypeEnum.enumValues[number];
 export type ContentStatus = typeof contentStatusEnum.enumValues[number];
+export type ContentReviewAction = typeof contentReviewActionEnum.enumValues[number];

@@ -23,7 +23,7 @@ const baseContentSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100, 'Title must be less than 100 characters'),
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
   type: z.enum(['COURSE', 'FILE', 'URL']),
-  status: z.enum(['DRAFT', 'PUBLISHED']).default('DRAFT'),
+  status: z.enum(['DRAFT', 'APPROVED']).default('DRAFT'),
 });
 
 const fileContentSchema = baseContentSchema.extend({
@@ -103,6 +103,8 @@ export function CreateContentDialog({ open = false, onOpenChange, onSuccess }: C
   const form = useForm<FormData>({
     resolver: zodResolver(baseContentSchema),
     defaultValues: {
+      title: '',
+      description: '',
       type: 'COURSE',
       status: 'DRAFT',
       url: '',
@@ -274,9 +276,9 @@ export function CreateContentDialog({ open = false, onOpenChange, onSuccess }: C
         
         finalData = {
           ...finalData,
-          fileUrl: uploadResult.url,
-          fileName: uploadResult.name,
-          fileSize: uploadResult.size,
+          fileUrl: uploadResult.fileUrl,
+          fileName: uploadResult.fileName,
+          fileSize: uploadResult.fileSize,
           mimeType: uploadResult.mimeType,
         };
       }

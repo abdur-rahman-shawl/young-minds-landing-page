@@ -1,0 +1,258 @@
+# Content Review & Publication Workflow — Implementation Plan
+
+## Goal
+
+Implement a complete content lifecycle: **DRAFT → PENDING_REVIEW → APPROVED/REJECTED → Displayed on Mentor Profile**. This adds admin content moderation, an audit trail, and mentor-controlled profile content selection.
+
+---
+
+## Status Flow
+
+```mermaid
+stateDiagram-v2
+    [*] --> DRAFT : Mentor creates content
+    DRAFT --> PENDING_REVIEW : Mentor submits for review
+    PENDING_REVIEW --> APPROVED : Admin approves
+    PENDING_REVIEW --> REJECTED : Admin rejects (with reason)
+    REJECTED --> DRAFT : Mentor revises & re-edits
+    APPROVED --> DRAFT : Mentor unpublishes
+    DRAFT --> ARCHIVED : Mentor archives
+    APPROVED --> ARCHIVED : Mentor archives
+    ARCHIVED --> APPROVED : Mentor restores (was approved, flag=false)
+    ARCHIVED --> DRAFT : Mentor restores (was not approved, or flag=true)
+```
+
+Only **APPROVED** content is eligible for display on the mentor's public profile.
+
+---
+
+## Proposed Changes
+
+### 1. Database Schema
+
+#### [MODIFY] [mentor-content.ts](file:///c:/Users/Admin/young-minds-landing-page/lib/db/schema/mentor-content.ts)
+
+**1a. Expand `content_status` enum** — add 3 new values:
+
+```diff
+ export const contentStatusEnum = pgEnum('content_status', [
+   'DRAFT',
++  'PENDING_REVIEW',
++  'APPROVED',
++  'REJECTED',
+-  'PUBLISHED',
+   'ARCHIVED'
+ ]);
+```
+
+> [!IMPORTANT]
+> **Migration**: All existing `PUBLISHED` rows will be migrated to `APPROVED` via `UPDATE mentor_content SET status = 'APPROVED' WHERE status = 'PUBLISHED'`. Then the `PUBLISHED` value will be removed from the enum. This is a one-way migration.
+
+**1b. Add review fields to `mentor_content` table**:
+
+```typescript
+// New columns on mentor_content
+submittedForReviewAt: timestamp('submitted_for_review_at'),  // when mentor clicked "Submit"
+reviewedAt: timestamp('reviewed_at'),                         // when admin approved/rejected
+reviewedBy: uuid('reviewed_by').references(() => user.id),    // admin user ID
+reviewNote: text('review_note'),                              // admin's reason (especially for rejection)
+statusBeforeArchive: text('status_before_archive'),           // stores status before archiving (to support restore)
+requireReviewAfterRestore: boolean('require_review_after_restore').default(false),
+  // If false (default): restoring ARCHIVED content that was previously APPROVED
+  //   goes back to APPROVED without re-review.
+  // If true: restoring always goes to DRAFT, forcing re-submission.
+  // This is a system-level flag that can be changed later via admin settings.
+```
+
+**1c. New table: `content_review_audit`** — immutable audit log of every review action:
+
+```typescript
+export const contentReviewAudit = pgTable('content_review_audit', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  contentId: uuid('content_id').references(() => mentorContent.id, { onDelete: 'cascade' }).notNull(),
+  mentorId: uuid('mentor_id').references(() => mentors.id, { onDelete: 'cascade' }).notNull(),
+  action: text('action').notNull(),       // 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'RESUBMITTED'
+  previousStatus: text('previous_status'),
+  newStatus: text('new_status').notNull(),
+  reviewedBy: uuid('reviewed_by'),        // null for mentor-initiated actions (submit)
+  note: text('note'),                     // admin comment / rejection reason
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+```
+
+**1d. New table: `mentor_profile_content`** — which approved content a mentor has chosen to show on their profile:
+
+```typescript
+export const mentorProfileContent = pgTable('mentor_profile_content', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  mentorId: uuid('mentor_id').references(() => mentors.id, { onDelete: 'cascade' }).notNull(),
+  contentId: uuid('content_id').references(() => mentorContent.id, { onDelete: 'cascade' }).notNull(),
+  displayOrder: integer('display_order').notNull().default(0),
+  addedAt: timestamp('added_at').defaultNow().notNull(),
+}, (table) => ({
+  uniqueMentorContent: unique().on(table.mentorId, table.contentId), // prevent duplicates
+}));
+```
+
+---
+
+### 2. API Routes
+
+#### [NEW] `app/api/mentors/content/[id]/submit-review/route.ts`
+
+**POST** — Mentor submits content for admin review.
+
+- Auth: `requireMentor()`
+- Validates: content exists, belongs to mentor, status is `DRAFT` or `REJECTED`
+- Updates: `status → PENDING_REVIEW`, `submittedForReviewAt → now()`
+- Creates audit log: `action = 'SUBMITTED'`
+- Returns: updated content
+
+---
+
+#### [NEW] `app/api/admin/content/route.ts`
+
+**GET** — Admin fetches all content with filtering.
+
+- Auth: [ensureAdmin()](file:///c:/Users/Admin/young-minds-landing-page/app/api/admin/mentors/%5BmentorId%5D/audit/route.ts#9-32)
+- Query params: `?status=PENDING_REVIEW&mentorId=xxx&type=COURSE&page=1&limit=20`
+- Returns: paginated list with mentor name, content title, type, status, submittedAt
+- Joins `mentor_content` with `mentors` and `user` tables for display names/emails
+
+---
+
+#### [NEW] `app/api/admin/content/[id]/route.ts`
+
+**GET** — Admin fetches single content detail (same deep fetch as mentor route, but no ownership check).
+
+---
+
+#### [NEW] `app/api/admin/content/[id]/review/route.ts`
+
+**POST** — Admin approves or rejects content.
+
+- Auth: [ensureAdmin()](file:///c:/Users/Admin/young-minds-landing-page/app/api/admin/mentors/%5BmentorId%5D/audit/route.ts#9-32)
+- Body: `{ action: 'APPROVE' | 'REJECT', note?: string }`
+- Validates: content exists, status is `PENDING_REVIEW`
+- If APPROVE: `status → APPROVED`, `reviewedAt → now()`, `reviewedBy → adminUserId`
+- If REJECT: `status → REJECTED`, `reviewedAt → now()`, `reviewedBy → adminUserId`, `reviewNote → note` (required for rejection)
+- Creates audit log entry
+- Returns: updated content
+
+---
+
+#### [NEW] `app/api/mentors/profile-content/route.ts`
+
+**GET** — Returns the mentor's currently selected profile content (ordered).
+
+**PUT** — Updates the mentor's profile content selection.
+- Body: `{ contentIds: string[] }` — ordered array of content IDs
+- Validates: all IDs belong to the mentor AND have `APPROVED` status
+- Replaces existing `mentor_profile_content` rows (delete all + insert new)
+- Returns: updated selection
+
+---
+
+#### [NEW] `app/api/mentors/[mentorId]/public-content/route.ts`
+
+**GET** — Public endpoint (no auth required) for mentee-facing profile.
+- Returns: approved + profile-selected content for a given mentor, ordered by `displayOrder`
+- Only returns safe fields (title, description, type, category, tags, thumbnail — no internal IDs/URLs for unpublished items)
+
+---
+
+### 3. Mentor-Side Frontend
+
+#### [MODIFY] [content.tsx](file:///c:/Users/Admin/young-minds-landing-page/components/mentor/content/content.tsx)
+
+- Add new tab filters: `pending` (PENDING_REVIEW) and `rejected` (REJECTED) alongside existing ones
+- Add new status badges: amber = PENDING_REVIEW, green = APPROVED, red = REJECTED
+- Add "Submit for Review" button on DRAFT content cards (dropdown menu)
+- Add "Resubmit" button on REJECTED content cards
+- Show `reviewNote` (admin feedback) on REJECTED cards as an alert banner
+
+#### [NEW] `components/mentor/content/profile-content-selector.tsx`
+
+- Shows all APPROVED content as a selectable, reorderable list
+- Checkbox + drag-and-drop to choose what appears on public profile and in what order
+- "Save Selection" button → `PUT /api/mentors/profile-content`
+- Accessible from mentor sidebar or as a new tab in the content section
+
+---
+
+### 4. Admin-Side Frontend
+
+#### [NEW] `components/admin/dashboard/admin-content.tsx`
+
+- Tab-based view: **Pending Review** | **Approved** | **Rejected** | **All Content**
+- Each tab shows a table/card list with: mentor name/avatar, content title, type badge, status badge, submitted date, actions
+- **Pending Review tab**: "Approve" (green button) + "Reject" (red button, opens modal for reason)
+- **Approved tab**: Read-only view of approved content
+- **Rejected tab**: Shows rejection reason, "Re-review" option
+- Clicking any content row → expands inline or opens a detail panel showing the full content (for COURSE: shows module/section/item tree read-only)
+- Filters: by mentor, by content type, by date range
+
+#### [MODIFY] [admin-dashboard.tsx](file:///c:/Users/Admin/young-minds-landing-page/components/admin/dashboard/admin-dashboard.tsx)
+
+- Wire up the `"content"` case to render `<AdminContent />`
+
+---
+
+### 5. Mentee-Facing Profile
+
+#### [MODIFY] [mentor-profile.tsx](file:///c:/Users/Admin/young-minds-landing-page/components/mentor/dashboard/mentor-profile.tsx)
+
+- **Content section only** — do NOT touch existing hardcoded mock data sections
+- Add a new **"Content & Resources"** card section at the bottom of the profile
+- Fetches from `GET /api/mentors/[mentorId]/public-content`
+- Display content cards: courses with thumbnails, files with type icons, URLs with links
+- Shows empty state if mentor has no profile content selected
+
+---
+
+## Decisions Made
+
+- **Status**: Migrate `PUBLISHED` → `APPROVED`, drop `PUBLISHED` from enum
+- **Profile**: Only wire up content section; do NOT touch existing hardcoded mock data
+- **Archive/Restore**: `requireReviewAfterRestore` flag (default `false`). Restoring previously-approved content skips re-verification for now.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+No test runner configured. Verification via lint/build + manual flows:
+```bash
+pnpm lint    # Ensure no lint errors
+pnpm build   # Ensure production build succeeds
+```
+
+### Manual Verification
+
+**Flow 1 — Mentor submits content for review**:
+1. Create content → verify it starts as `DRAFT`
+2. Click "Submit for Review" → verify status = `PENDING_REVIEW`, amber badge shown
+3. Verify `content_review_audit` has a `SUBMITTED` entry
+
+**Flow 2 — Admin reviews content**:
+1. Admin dashboard → Content → Pending Review tab
+2. "Approve" → verify status = `APPROVED`
+3. Submit another, "Reject" with reason → verify status = `REJECTED`, reason stored
+
+**Flow 3 — Mentor sees rejection & resubmits**:
+1. Rejected card shows admin's note as alert banner
+2. Edit content, click "Resubmit" → status returns to `PENDING_REVIEW`
+
+**Flow 4 — Profile content selection**:
+1. Mentor has 2+ approved items → profile content selector
+2. Select 2, reorder, save → `PUT /api/mentors/profile-content`
+3. Open public profile → verify selected items appear in order
+
+**Flow 5 — Archive & restore**:
+1. Archive an APPROVED content → verify `statusBeforeArchive = 'APPROVED'`
+2. Restore → verify it returns to `APPROVED` (since `requireReviewAfterRestore = false`)
+3. Archive a DRAFT content, restore → verify it returns to `DRAFT`
+
+**Flow 6 — Audit trail**:
+1. Check `content_review_audit` in Drizzle Studio (`pnpm db:studio`)
+2. Verify entries: SUBMITTED, APPROVED, REJECTED, RESUBMITTED, ARCHIVED, RESTORED

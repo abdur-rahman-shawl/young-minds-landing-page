@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Star, MapPin, Clock, Award, TrendingUp, Zap, Calendar, MessageCircle, Video, Heart, Share } from "lucide-react"
+import { MentorProfileContent } from "./mentor-profile-content"
 
 interface MentorProfileProps {
   mentorId: number
@@ -412,6 +413,9 @@ export function MentorProfile({ mentorId, onBack }: MentorProfileProps) {
           ))}
         </div>
       </Card>
+
+      {/* Content & Resources — dynamic section from DB */}
+      <MentorProfileContent mentorId={String(mentorId)} />
     </div>
   )
 } 

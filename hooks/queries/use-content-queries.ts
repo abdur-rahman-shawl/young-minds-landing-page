@@ -6,7 +6,7 @@ export interface MentorContent {
   title: string;
   description?: string;
   type: 'COURSE' | 'FILE' | 'URL';
-  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED';
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
@@ -14,9 +14,16 @@ export interface MentorContent {
   url?: string;
   urlTitle?: string;
   urlDescription?: string;
+  submittedForReviewAt?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewNote?: string;
+  statusBeforeArchive?: string;
+  requireReviewAfterRestore?: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
 
 export interface Course {
   id: string;
@@ -261,6 +268,78 @@ export function useUploadFile() {
       }
       
       return response.json();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+// Submit content for review
+export function useSubmitForReview() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (contentId: string): Promise<MentorContent> => {
+      const response = await fetch(`/api/mentors/content/${contentId}/submit-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to submit for review');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mentor-content'] });
+      toast.success('Content submitted for review');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+// Archive or restore content
+export function useArchiveContent() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, action, statusBeforeArchive }: { 
+      id: string; 
+      action: 'archive' | 'restore'; 
+      statusBeforeArchive?: string;
+    }): Promise<MentorContent> => {
+      const data: any = {};
+
+      if (action === 'archive') {
+        data.status = 'ARCHIVED';
+        data.statusBeforeArchive = statusBeforeArchive || 'DRAFT';
+      } else {
+        // Restore: if was APPROVED before archive and requireReviewAfterRestore is false, go back to APPROVED
+        data.status = statusBeforeArchive === 'APPROVED' ? 'APPROVED' : 'DRAFT';
+        data.statusBeforeArchive = null;
+      }
+
+      const response = await fetch(`/api/mentors/content/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || `Failed to ${action} content`);
+      }
+      
+      return response.json();
+    },
+    onSuccess: (_, { action }) => {
+      queryClient.invalidateQueries({ queryKey: ['mentor-content'] });
+      toast.success(action === 'archive' ? 'Content archived' : 'Content restored');
     },
     onError: (error: Error) => {
       toast.error(error.message);

@@ -10,7 +10,7 @@ import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 const updateContentSchema = z.object({
   title: z.string().min(1, 'Title is required').optional(),
   description: z.string().optional(),
-  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+  status: z.enum(['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED']).optional(),
 
   // For FILE type
   fileUrl: z.string().optional(),

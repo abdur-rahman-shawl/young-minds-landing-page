@@ -31,6 +31,7 @@ import { AdminEnquiries } from "@/components/admin/dashboard/admin-enquiries"
 import { AdminSessions } from "@/components/admin/dashboard/admin-sessions"
 import { AdminPolicies } from "@/components/admin/dashboard/admin-policies"
 import { AdminSubscriptions } from "@/components/admin/dashboard/admin-subscriptions"
+import { AdminContent } from "@/components/admin/dashboard/admin-content"
 import { MentorSubscription } from "@/components/mentor/dashboard/mentor-subscription"
 import { MentorReviewsSection } from "@/components/mentor/dashboard/mentor-reviews-section"
 import { MenteeSubscription } from "@/components/mentee/dashboard/mentee-subscription"
@@ -164,7 +165,7 @@ export function DashboardShell() {
           content = <AdminSubscriptions />
           break
         case "content":
-          content = <MentorContent />
+          content = <AdminContent />
           break
         case "settings":
           content = <AdminPolicies />
