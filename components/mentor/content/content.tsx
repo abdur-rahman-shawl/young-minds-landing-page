@@ -213,7 +213,7 @@ export const MentorContent = memo(() => {
   
   const handleDelete = useCallback(async (id: string) => {
     try {
-      if (confirm('Are you sure you want to delete this content? This cannot be undone.')) {
+      if (confirm('Delete this content? It will be retained for 30 days before permanent purge.')) {
         deleteContentMutation.mutate(id);
       }
     } catch (error) {

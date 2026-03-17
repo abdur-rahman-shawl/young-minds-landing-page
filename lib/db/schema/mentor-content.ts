@@ -95,6 +95,12 @@ export const mentorContent = pgTable('mentor_content', {
   statusBeforeArchive: text('status_before_archive'),
   requireReviewAfterRestore: boolean('require_review_after_restore').default(false),
 
+  // Soft delete retention
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: text('deleted_by').references(() => users.id, { onDelete: 'set null' }),
+  deleteReason: text('delete_reason'),
+  purgeAfterAt: timestamp('purge_after_at'),
+
   // Timestamps
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -218,6 +224,10 @@ export const mentorContentRelations = relations(mentorContent, ({ one, many }) =
   }),
   reviewer: one(users, {
     fields: [mentorContent.reviewedBy],
+    references: [users.id],
+  }),
+  deleter: one(users, {
+    fields: [mentorContent.deletedBy],
     references: [users.id],
   }),
   reviewAudits: many(contentReviewAudit),

@@ -267,7 +267,7 @@ function ContentRow({
                         className="text-red-600 focus:text-red-700 focus:bg-red-50"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Permanently Delete
+                        Delete (30-day Retention)
                       </DropdownMenuItem>
                     </>
                   )}
@@ -378,18 +378,10 @@ export function AdminContent() {
 
   const handleAction = useCallback((id: string, action: AdminAction) => {
     // Actions requiring a reason
-    if (['REJECT', 'FLAG', 'REVOKE_APPROVAL'].includes(action)) {
+    if (['REJECT', 'FLAG', 'REVOKE_APPROVAL', 'FORCE_DELETE'].includes(action)) {
       setCurrentAction({ id, action });
       setActionNote('');
       setActionDialogOpen(true);
-      return;
-    }
-
-    // Actions requiring confirmation
-    if (action === 'FORCE_DELETE') {
-      if (confirm('Are you sure you want to PERMANENTLY delete this content? This cannot be undone.')) {
-        reviewMutation.mutate({ id, action });
-      }
       return;
     }
 
@@ -509,6 +501,7 @@ export function AdminContent() {
       case 'REJECT': return 'Reject Content';
       case 'FLAG': return 'Flag Content for Violation';
       case 'REVOKE_APPROVAL': return 'Revoke Approval';
+      case 'FORCE_DELETE': return 'Delete Content (Soft Delete)';
       default: return 'Provide Reason';
     }
   };
@@ -518,6 +511,7 @@ export function AdminContent() {
       case 'REJECT': return 'Please provide a reason for rejection. This will be shown to the mentor so they can revise and resubmit.';
       case 'FLAG': return 'Explain why this content violates platform policies. It will be hidden from the public immediately.';
       case 'REVOKE_APPROVAL': return 'Why is this previously approved content having its approval revoked?';
+      case 'FORCE_DELETE': return 'Provide a reason. This action soft-deletes content and schedules permanent purge after 30 days.';
       default: return '';
     }
   };
@@ -642,7 +636,7 @@ export function AdminContent() {
                       <CheckCircle2 className="h-8 w-8" />
                     </div>
                     <h3 className="text-xl font-semibold mb-2">Inbox Zero!</h3>
-                    <p className="text-muted-foreground max-w-sm">There is no content waiting for review. You're all caught up here.</p>
+                    <p className="text-muted-foreground max-w-sm">There is no content waiting for review. You are all caught up here.</p>
                   </>
                 ) : activeTab === 'FLAGGED' ? (
                   <>
@@ -738,7 +732,14 @@ export function AdminContent() {
               Cancel
             </Button>
             <Button 
-              variant={currentAction?.action === 'FLAG' || currentAction?.action === 'REJECT' || currentAction?.action === 'REVOKE_APPROVAL' ? 'destructive' : 'default'} 
+              variant={
+                currentAction?.action === 'FLAG' ||
+                currentAction?.action === 'REJECT' ||
+                currentAction?.action === 'REVOKE_APPROVAL' ||
+                currentAction?.action === 'FORCE_DELETE'
+                  ? 'destructive'
+                  : 'default'
+              } 
               onClick={handleActionConfirm}
               disabled={!actionNote.trim() || reviewMutation.isPending}
             >

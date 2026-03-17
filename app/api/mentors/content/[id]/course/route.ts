@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
 import { getMentorContentOwnershipCondition, getMentorForContent } from '@/lib/api/mentor-content';
+import { deleteStorageValues, normalizeStorageValue } from '@/lib/storage';
 
 const createCourseSchema = z.object({
   difficulty: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
@@ -41,8 +42,11 @@ export async function POST(
     if ('error' in guard) {
       return guard.error;
     }
-    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    const isAdmin = guard.user.roles.some((role: any) => role.name === 'admin');
     const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
     const mentor = await getMentorForContent(session.user.id);
     if (!isAdmin && !mentor) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
@@ -90,7 +94,7 @@ export async function POST(
         duration: validatedData.duration,
         price: validatedData.price,
         currency: validatedData.currency,
-        thumbnailUrl: validatedData.thumbnailUrl,
+        thumbnailUrl: normalizeStorageValue(validatedData.thumbnailUrl),
         category: validatedData.category,
         tags: JSON.stringify(validatedData.tags || []),
         platformTags: isAdmin ? JSON.stringify(validatedData.platformTags || []) : null,
@@ -130,8 +134,11 @@ export async function PUT(
     if ('error' in guard) {
       return guard.error;
     }
-    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    const isAdmin = guard.user.roles.some((role: any) => role.name === 'admin');
     const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
     const mentor = await getMentorForContent(session.user.id);
     if (!isAdmin && !mentor) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
@@ -159,7 +166,7 @@ export async function PUT(
     const validatedData = updateCourseSchema.parse(body);
 
     const existingCourse = await db
-      .select({ ownerType: courses.ownerType })
+      .select({ ownerType: courses.ownerType, thumbnailUrl: courses.thumbnailUrl })
       .from(courses)
       .where(eq(courses.contentId, id))
       .limit(1);
@@ -178,7 +185,9 @@ export async function PUT(
     if (validatedData.duration !== undefined) updateData.duration = validatedData.duration;
     if (validatedData.price !== undefined) updateData.price = validatedData.price;
     if (validatedData.currency !== undefined) updateData.currency = validatedData.currency;
-    if (validatedData.thumbnailUrl !== undefined) updateData.thumbnailUrl = validatedData.thumbnailUrl;
+    if (validatedData.thumbnailUrl !== undefined) {
+      updateData.thumbnailUrl = normalizeStorageValue(validatedData.thumbnailUrl);
+    }
     if (validatedData.category !== undefined) updateData.category = validatedData.category;
 
     // Convert arrays to JSON strings if provided
@@ -207,6 +216,12 @@ export async function PUT(
 
     if (!updatedCourse.length) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
+
+    const previousThumbnail = normalizeStorageValue(existingCourse[0].thumbnailUrl);
+    const nextThumbnail = normalizeStorageValue(updatedCourse[0].thumbnailUrl);
+    if (previousThumbnail && previousThumbnail !== nextThumbnail) {
+      await deleteStorageValues([previousThumbnail]);
     }
 
     return NextResponse.json(updatedCourse[0]);

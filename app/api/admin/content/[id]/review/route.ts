@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { mentorContent, mentors, contentReviewAudit } from '@/lib/db/schema';
+import { mentorContent, contentReviewAudit } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
@@ -44,6 +44,20 @@ const reviewSchema = z.object({
   note: z.string().optional(),
 });
 
+type ReviewAction = z.infer<typeof reviewSchema>['action'];
+
+const actionToAuditAction: Record<ReviewAction, typeof contentReviewAudit.$inferInsert['action']> = {
+  APPROVE: 'APPROVED',
+  REJECT: 'REJECTED',
+  FLAG: 'FLAGGED',
+  UNFLAG: 'UNFLAGGED',
+  FORCE_APPROVE: 'FORCE_APPROVED',
+  FORCE_ARCHIVE: 'FORCE_ARCHIVED',
+  REVOKE_APPROVAL: 'APPROVAL_REVOKED',
+  FORCE_DELETE: 'FORCE_DELETED',
+};
+const PURGE_RETENTION_DAYS = 30;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -71,6 +85,14 @@ export async function POST(
     const body = await request.json();
     const validatedData = reviewSchema.parse(body);
     const { action, note } = validatedData;
+    const currentStatus = currentContent.status || 'DRAFT';
+
+    if (currentContent.deletedAt && action !== 'FORCE_DELETE') {
+      return NextResponse.json(
+        { success: false, error: 'Content is deleted and pending purge' },
+        { status: 400 }
+      );
+    }
 
     // State validation
     const allowedSourceStates: Record<string, string[]> = {
@@ -78,45 +100,54 @@ export async function POST(
       'REJECT': ['PENDING_REVIEW'],
       'FLAG': ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED'],
       'UNFLAG': ['FLAGGED'],
-      'FORCE_APPROVE': ['DRAFT', 'REJECTED', 'FLAGGED'],
+      'FORCE_APPROVE': ['DRAFT', 'REJECTED', 'FLAGGED', 'ARCHIVED'],
       'FORCE_ARCHIVE': ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'FLAGGED'],
       'REVOKE_APPROVAL': ['APPROVED'],
       'FORCE_DELETE': ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED', 'FLAGGED'],
     };
 
-    if (!allowedSourceStates[action].includes(currentContent.status!)) {
+    if (!allowedSourceStates[action].includes(currentStatus)) {
       return NextResponse.json(
-        { success: false, error: `Action '${action}' not allowed from status '${currentContent.status}'` },
+        { success: false, error: `Action '${action}' not allowed from status '${currentStatus}'` },
         { status: 400 }
       );
     }
 
     // Note requirement validation
-    if (['REJECT', 'FLAG', 'REVOKE_APPROVAL'].includes(action) && (!note || note.trim().length === 0)) {
+    if (['REJECT', 'FLAG', 'REVOKE_APPROVAL', 'FORCE_DELETE'].includes(action) && (!note || note.trim().length === 0)) {
       return NextResponse.json(
         { success: false, error: `A reason is required when performing action '${action}'` },
         { status: 400 }
       );
     }
 
-    // Special case: FORCE_DELETE (row deletion)
-    if (action === 'FORCE_DELETE') {
-      await db.delete(mentorContent).where(eq(mentorContent.id, id));
-      return NextResponse.json({ success: true, data: { deleted: true } });
-    }
-
     const now = new Date();
+    const purgeAfter = new Date(now.getTime() + PURGE_RETENTION_DAYS * 24 * 60 * 60 * 1000);
     const updates: Partial<typeof mentorContent.$inferInsert> = { updatedAt: now };
-    let newStatus = currentContent.status;
+    let newStatus = currentStatus;
 
     // Determine state changes based on action
     switch (action) {
       case 'APPROVE':
+        newStatus = 'APPROVED';
+        updates.reviewedAt = now;
+        updates.reviewedBy = adminUserId;
+        updates.reviewNote = null; // Clear any previous rejection note
+        break;
+        
       case 'FORCE_APPROVE':
         newStatus = 'APPROVED';
         updates.reviewedAt = now;
         updates.reviewedBy = adminUserId;
-        if (action === 'APPROVE') updates.reviewNote = null;
+        updates.reviewNote = null;
+        
+        // If we are force approving from a flagged state, we need to clear flag data
+        if (currentStatus === 'FLAGGED') {
+          updates.flagReason = null;
+          updates.flaggedAt = null;
+          updates.flaggedBy = null;
+          updates.statusBeforeArchive = null;
+        }
         break;
       
       case 'REJECT':
@@ -129,15 +160,16 @@ export async function POST(
 
       case 'FLAG':
         newStatus = 'FLAGGED';
-        updates.statusBeforeArchive = currentContent.status; // store previous status here as well
+        updates.statusBeforeArchive = currentStatus; // Store previous status so we can restore it on unflag
         updates.flagReason = note;
         updates.flaggedAt = now;
         updates.flaggedBy = adminUserId;
         break;
 
       case 'UNFLAG':
+        // Restore to previous status, or default to DRAFT if none recorded
         newStatus = currentContent.statusBeforeArchive || 'DRAFT';
-        updates.statusBeforeArchive = null;
+        updates.statusBeforeArchive = null; // Clear the memory
         updates.flagReason = null;
         updates.flaggedAt = null;
         updates.flaggedBy = null;
@@ -145,27 +177,62 @@ export async function POST(
 
       case 'FORCE_ARCHIVE':
         newStatus = 'ARCHIVED';
-        updates.statusBeforeArchive = currentContent.status;
+        updates.statusBeforeArchive = currentStatus;
+        
+        // If we are force archiving flagged content, clear the flag explicitly
+        if (currentStatus === 'FLAGGED') {
+          updates.flagReason = null;
+          updates.flaggedAt = null;
+          updates.flaggedBy = null;
+        }
+        break;
+
+      case 'FORCE_DELETE':
+        // Phase 2: soft-delete with retention metadata for delayed purge.
+        newStatus = 'ARCHIVED';
+        updates.statusBeforeArchive = currentStatus === 'ARCHIVED'
+          ? (currentContent.statusBeforeArchive || 'DRAFT')
+          : currentStatus;
+        updates.requireReviewAfterRestore = true;
+        updates.deletedAt = now;
+        updates.deletedBy = adminUserId;
+        updates.deleteReason = note || null;
+        updates.purgeAfterAt = purgeAfter;
+        updates.reviewedAt = now;
+        updates.reviewedBy = adminUserId;
+        if (currentStatus === 'FLAGGED') {
+          updates.flagReason = null;
+          updates.flaggedAt = null;
+          updates.flaggedBy = null;
+        }
         break;
     }
 
     updates.status = newStatus as any;
 
-    // Update content status
-    const [updated] = await db.update(mentorContent)
-      .set(updates)
-      .where(eq(mentorContent.id, id))
-      .returning();
+    const [updated] = await db.transaction(async (tx: any) => {
+      const rows = await tx.update(mentorContent)
+        .set(updates)
+        .where(eq(mentorContent.id, id))
+        .returning();
 
-    // Create audit log entry
-    await db.insert(contentReviewAudit).values({
-      contentId: id,
-      mentorId: currentContent.mentorId!,
-      action: action as any,
-      previousStatus: currentContent.status,
-      newStatus,
-      reviewedBy: adminUserId,
-      note: note || null,
+      if (!rows.length) {
+        return rows;
+      }
+
+      if (currentContent.mentorId) {
+        await tx.insert(contentReviewAudit).values({
+          contentId: id,
+          mentorId: currentContent.mentorId,
+          action: actionToAuditAction[action],
+          previousStatus: currentStatus,
+          newStatus,
+          reviewedBy: adminUserId,
+          note: note || null,
+        });
+      }
+
+      return rows;
     });
 
     return NextResponse.json({

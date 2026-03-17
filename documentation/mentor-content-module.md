@@ -1,6 +1,8 @@
 # Mentor Content Module — Complete Low-Level Documentation
 
 > **Scope**: Every file, function, API route, database table, component, hook, and utility that powers the **My Content** section of the mentor dashboard. Written for developers who will maintain, extend, or debug this module.
+>
+> **Last Updated**: 2026-03-17 (Phase 2 implemented: retention-aware soft delete + purge + storage cleanup hooks)
 
 ---
 
@@ -111,12 +113,12 @@ erDiagram
 
 ### 2.3 Table: `mentor_content`
 
-The root table for all content types. Type-specific columns are nullable. **Review workflow columns** were added to support the content approval lifecycle.
+The root table for all content types. Type-specific columns are nullable. `mentor_id` is nullable to support platform-owned content (`owner_type = PLATFORM`) created by admins.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | `id` | uuid PK | No | `defaultRandom()` |
-| `mentor_id` | uuid FK → `mentors.id` | No | `onDelete: 'cascade'` |
+| `mentor_id` | uuid FK -> `mentors.id` | Yes | Mentor owner for mentor-created content (`onDelete: 'cascade'`) |
 | `title` | text | No | |
 | `description` | text | Yes | |
 | `type` | `content_type` enum | No | `COURSE` / `FILE` / `URL` |
@@ -128,18 +130,21 @@ The root table for all content types. Type-specific columns are nullable. **Revi
 | `url` | text | Yes | URL type: the external link |
 | `url_title` | text | Yes | URL type: display title |
 | `url_description` | text | Yes | URL type: display description |
-| `submitted_for_review_at` | timestamp | Yes | **NEW** — When content was last submitted for review |
-| `reviewed_at` | timestamp | Yes | **NEW** — When admin last reviewed |
-| `reviewed_by` | text FK → `users.id` | Yes | **NEW** — Admin user who reviewed. `onDelete: 'set null'` |
-| `review_note` | text | Yes | **NEW** — Admin feedback (especially for rejections) |
-| `flag_reason` | text | Yes | **NEW** — Reason content was flagged for a policy violation |
-| `flagged_at` | timestamp | Yes | **NEW** — When the content was flagged |
-| `flagged_by` | text FK → `users.id` | Yes | **NEW** — Admin who flagged the content |
-| `status_before_archive` | text | Yes | **NEW** — Stores previous status before archiving or flagging (for restore/unflag logic) |
-| `require_review_after_restore` | boolean | No | **NEW** — Default `false`. Flag: if `true`, restored content goes back to DRAFT |
+| `submitted_for_review_at` | timestamp | Yes | **NEW** - When content was last submitted for review |
+| `reviewed_at` | timestamp | Yes | **NEW** - When admin last reviewed |
+| `reviewed_by` | text FK -> `users.id` | Yes | **NEW** - Admin user who reviewed (`onDelete: 'set null'`) |
+| `review_note` | text | Yes | **NEW** - Admin feedback (especially for rejections) |
+| `flag_reason` | text | Yes | **NEW** - Reason content was flagged for a policy violation |
+| `flagged_at` | timestamp | Yes | **NEW** - When content was flagged |
+| `flagged_by` | text FK -> `users.id` | Yes | **NEW** - Admin who flagged the content |
+| `status_before_archive` | text | Yes | **NEW** - Stores previous status before archiving or flagging |
+| `require_review_after_restore` | boolean | No | **NEW** - Default `false` |
+| `deleted_at` | timestamp | Yes | **NEW (Phase 2)** - Soft delete marker timestamp |
+| `deleted_by` | text FK -> `users.id` | Yes | **NEW (Phase 2)** - User/admin who deleted (`onDelete: 'set null'`) |
+| `delete_reason` | text | Yes | **NEW (Phase 2)** - Human-readable reason for delete |
+| `purge_after_at` | timestamp | Yes | **NEW (Phase 2)** - Eligible timestamp for hard purge |
 | `created_at` | timestamp | No | `defaultNow()` |
 | `updated_at` | timestamp | No | `defaultNow()` |
-
 ### 2.4 Table: `courses`
 
 One-to-one extension for COURSE-type content. Created separately after the `mentor_content` row.
@@ -243,16 +248,26 @@ Junction table mapping which approved content a mentor has selected for their pu
 
 **Constraints**: `UNIQUE(mentor_id, content_id)`. **Index**: `mentor_id`.
 
-### 2.10 Cascade Delete Chain
+### 2.10 Delete and Retention Behavior
 
-Deleting a `mentor_content` row triggers:
-```
-mentor_content → courses → course_modules → course_sections → section_content_items
-mentor_content → content_review_audit
-mentor_content → mentor_profile_content
-```
-All via `onDelete: 'cascade'` on each FK.
+Runtime delete behavior is now two-stage:
+1. API delete paths (`DELETE /api/mentors/content/[id]`, admin `FORCE_DELETE`) perform **soft delete** by setting:
+   - `status = 'ARCHIVED'`
+   - `deleted_at`, `deleted_by`, `delete_reason`
+   - `purge_after_at = now + 30 days`
+   - `require_review_after_restore = true`
+2. Hard delete happens later via purge script (`npm run content:purge-deleted`) once `purge_after_at <= now`.
 
+When hard delete runs, FK cascades remove the full tree:
+```
+mentor_content -> courses -> course_modules -> course_sections -> section_content_items
+mentor_content -> content_review_audit
+mentor_content -> mentor_profile_content
+```
+
+Indexes added in migration `0044_add_mentor_content_soft_delete_retention.sql`:
+- `mentor_content_deleted_at_idx`
+- `mentor_content_purge_after_at_idx`
 ---
 
 ## 3. API Routes — Full Reference
@@ -278,8 +293,8 @@ const session = guard.session;
 ```
 
 Pattern B routes for sections and content items also use:
-- `getMentorForContent(session.user.id)` — looks up mentor by user ID
-- `getMentorContentOwnershipCondition(mentorId, isAdmin)` — returns a Drizzle SQL condition that either matches `mentorContent.mentorId` or bypasses for admin
+- `getMentorForContent(session.user.id)` - looks up mentor by user ID
+- `getMentorContentOwnershipCondition(mentorId, isAdmin)` - returns a scoped Drizzle SQL condition for mentor-owned and/or platform-owned content depending on caller context
 
 ### 3.2 Ownership Verification Chains
 
@@ -297,15 +312,22 @@ Each route verifies the requesting user owns the target resource. The chain vari
 
 ### 3.3 `GET /api/mentors/content`
 
-**Returns**: All content for authenticated mentor, ordered by `createdAt` DESC.
+**Auth**: `requireMentor(request, true)` (mentor + admin allowed).
 
-**Response**: `MentorContent[]`
+**Behavior**:
+- Mentors get their own non-deleted content only (`deletedAt IS NULL` filter applied).
+- Admin users in this route get ownership scope from `getMentorContentOwnershipCondition` (platform-owned content and, if admin also has mentor profile, their mentor-owned content).
+- Returns workflow and retention fields (`submittedForReviewAt`, `reviewedAt`, `reviewNote`, `statusBeforeArchive`, `requireReviewAfterRestore`, `deletedAt`, `deleteReason`, `purgeAfterAt`).
+- `fileUrl` is hydrated via `resolveStorageUrl`.
+- Ordered by `createdAt` (ascending in current implementation).
+
+**Response**: `MentorContent[]`.
 
 ---
 
 ### 3.4 `POST /api/mentors/content`
 
-**Creates** a new content item.
+Creates a new root content item.
 
 **Validation** (`createContentSchema`):
 ```typescript
@@ -313,72 +335,93 @@ Each route verifies the requesting user owns the target resource. The chain vari
   title: string (min 1),
   description?: string,
   type: 'COURSE' | 'FILE' | 'URL',
-  status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' (default 'DRAFT'),
   // FILE type
   fileUrl?: string, fileName?: string, fileSize?: number, mimeType?: string,
   // URL type
-  url?: string (must be valid URL), urlTitle?: string, urlDescription?: string,
+  url?: string, urlTitle?: string, urlDescription?: string,
 }
 ```
 
 **Extra validation** (post-Zod):
-- `FILE` type without `fileUrl` → **400**
-- `URL` type without `url` → **400**
+- `FILE` type without `fileUrl` -> **400**
+- `URL` type without `url` -> **400**
+- Admin caller can create only `COURSE` via this route.
 
-**Response** (201): Created `MentorContent` row.
+**Write rules**:
+- Server always persists `status = 'DRAFT'` (client cannot set workflow state at creation).
+- `fileUrl` is normalized before save.
+- Mentor-created content sets `mentorId`; admin-created platform content sets `mentorId = null`.
+
+**Response** (201): Created `mentor_content` row (with hydrated `fileUrl`).
 
 ---
 
 ### 3.5 `GET /api/mentors/content/[id]`
 
-**For FILE/URL types**: Returns the `MentorContent` row.
+Auth and ownership are validated with `requireMentor + getMentorContentOwnershipCondition`.
 
-**For COURSE type**: Does a deep fetch — nested `Promise.all` loads:
-```
-courses → courseModules (ordered by orderIndex) → courseSections (ordered) → sectionContentItems (ordered)
-```
-
-Returns:
-```json
-{
-  ...mentorContent,
-  "course": {
-    ...courses,
-    "modules": [{
-      ...courseModule,
-      "sections": [{
-        ...courseSection,
-        "contentItems": [{ ...sectionContentItem }]
-      }]
-    }]
-  }
-}
-```
+Behavior:
+- Mentors cannot read soft-deleted content (`deletedAt` returns 404 behavior).
+- For FILE/URL: returns root content row with hydrated `fileUrl`.
+- For COURSE: returns full tree:
+  - `courses`
+  - `courseModules` ordered by `orderIndex`
+  - `courseSections` ordered by `orderIndex`
+  - `sectionContentItems` ordered by `orderIndex` (each `fileUrl` hydrated)
 
 ---
 
 ### 3.6 `PUT /api/mentors/content/[id]`
 
-**Updates metadata** of a content item. Does NOT change the `type`.
+Updates root content metadata and supports controlled archive/restore transitions.
 
-**Validation** (`updateContentSchema`) — all fields optional:
+**Validation** (`updateContentSchema`) - all fields optional:
 ```typescript
 {
   title?: string (min 1),
   description?: string,
-  status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED',
+  status?: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED',
   fileUrl?: string, fileName?: string, fileSize?: number, mimeType?: string,
   url?: string (regex: /^https?:\/\/.+/ or empty), urlTitle?: string, urlDescription?: string,
 }
 ```
 
-Sets `updatedAt = new Date()` on update.
+Transition and mutability guards:
+- Admin cannot change status here (must use `/api/admin/content/[id]/review`).
+- Mentors can edit content fields only when current status is `DRAFT` or `REJECTED`.
+- Field edits and status changes must be separate actions.
+- Allowed mentor status transitions in this route:
+  - `<non-ARCHIVED and not PENDING_REVIEW>` -> `ARCHIVED`
+  - `ARCHIVED` + requested (`DRAFT` or `APPROVED`) -> restore target computed by policy:
+    - if `statusBeforeArchive === 'APPROVED'` and `requireReviewAfterRestore === false` => `APPROVED`
+    - otherwise => `DRAFT`
+
+Soft-delete metadata behavior:
+- Restore clears `deletedAt`, `deletedBy`, `deleteReason`, `purgeAfterAt`.
+
+Audit and storage behavior:
+- Archive/restore update + audit insert are wrapped in one DB transaction.
+- `ARCHIVED` / `RESTORED` audit rows are inserted when transition occurs.
+- If root `fileUrl` is replaced, old storage object is deleted via `deleteStorageValues`.
 
 ---
 
 ### 3.7 `DELETE /api/mentors/content/[id]`
 
-Deletes content row. Cascade deletes course data automatically via FK constraints.
+Performs **soft delete with retention** (no immediate hard delete).
+
+Writes:
+- `status = 'ARCHIVED'`
+- `statusBeforeArchive` preserved
+- `requireReviewAfterRestore = true`
+- `deletedAt = now`
+- `deletedBy = session.user.id`
+- `deleteReason = 'Deleted by mentor'` (or admin variant if called by admin)
+- `purgeAfterAt = now + 30 days`
+
+Also inserts `ARCHIVED` audit action in the same DB transaction.
+
+Response includes retention message and `purgeAfterAt`.
 
 ---
 
@@ -391,7 +434,7 @@ Creates the `courses` row for a COURSE-type content. **Rejects** if course alrea
 {
   difficulty: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED', // required
   duration?: number (min 1),
-  price?: string (transformed: empty → undefined),
+  price?: string (transformed: empty -> undefined),
   currency?: string (default 'USD'),
   thumbnailUrl?: string,
   category: string (min 1), // required
@@ -404,7 +447,15 @@ Creates the `courses` row for a COURSE-type content. **Rejects** if course alrea
 }
 ```
 
-**Write logic**: `JSON.stringify()` is applied to `tags`, `prerequisites`, `learningOutcomes` before insertion.
+**Write logic**:
+- `thumbnailUrl` is normalized before save.
+- `JSON.stringify()` is applied to `tags`, `prerequisites`, `learningOutcomes`, and `platformTags`.
+- Admin-created course metadata is persisted as platform-owned:
+  - `ownerType = 'PLATFORM'`
+  - `ownerId = null`
+- Mentor-created course metadata is persisted as mentor-owned:
+  - `ownerType = 'MENTOR'`
+  - `ownerId = mentor.id`
 
 ---
 
@@ -412,10 +463,15 @@ Creates the `courses` row for a COURSE-type content. **Rejects** if course alrea
 
 Same schema as POST but all fields optional (`createCourseSchema.partial()`).
 
-**Update logic**: Only DB-relevant fields are spread. Array fields are `JSON.stringify()`-d if provided. Fields like `seoTitle`, `maxStudents`, etc. are silently ignored.
+**Update logic**:
+- Only DB-relevant fields are persisted.
+- Array fields are `JSON.stringify()`-d if provided.
+- `thumbnailUrl` is normalized before persistence.
+- Platform fields (`platformName`, `platformTags`) are only writable by admin for platform-owned courses.
+- Fields like `seoTitle`, `maxStudents`, etc. remain accepted but ignored.
+- If thumbnail is replaced, previous storage object is deleted.
 
 ---
-
 ### 3.10 `GET /api/mentors/content/[id]/course/modules`
 
 Returns modules ordered by `orderIndex`.
@@ -540,8 +596,9 @@ Also accepts by file extension: `mp4`, `webm`, `mov`, `avi`, `pdf`, `doc`, `docx
 **Logic**:
 1. Verify content ownership (`mentorContent.mentorId = mentor.id`)
 2. Check current status is `DRAFT` or `REJECTED` (otherwise 400)
-3. Update `mentor_content`: `status = 'PENDING_REVIEW'`, `submittedForReviewAt = now()`, clear `reviewNote`
-4. Insert audit log (`content_review_audit`) with action `SUBMITTED` or `RESUBMITTED`
+3. In one DB transaction:
+   - Update `mentor_content`: `status = 'PENDING_REVIEW'`, `submittedForReviewAt = now()`, clear `reviewNote`
+   - Insert audit log (`content_review_audit`) with action `SUBMITTED` or `RESUBMITTED`
 
 **Response** (200): Updated content row.
 
@@ -595,12 +652,12 @@ Each item includes `content` fields + `mentorName`, `mentorEmail`, `mentorImage`
 |---|---|---|---|
 | `APPROVE` | `PENDING_REVIEW` | `APPROVED` | No |
 | `REJECT` | `PENDING_REVIEW` | `REJECTED` | Yes |
-| `FLAG` | All except `FLAGGED` | `FLAGGED` | Yes |
+| `FLAG` | `DRAFT`, `PENDING_REVIEW`, `APPROVED`, `REJECTED`, `ARCHIVED` | `FLAGGED` | Yes |
 | `UNFLAG` | `FLAGGED` | `statusBeforeArchive` / `DRAFT` | No |
-| `FORCE_APPROVE` | `DRAFT`, `REJECTED`, `FLAGGED` | `APPROVED` | No |
-| `FORCE_ARCHIVE` | All except `ARCHIVED` | `ARCHIVED` | No |
+| `FORCE_APPROVE` | `DRAFT`, `REJECTED`, `FLAGGED`, `ARCHIVED` | `APPROVED` | No |
+| `FORCE_ARCHIVE` | `DRAFT`, `PENDING_REVIEW`, `APPROVED`, `REJECTED`, `FLAGGED` | `ARCHIVED` | No |
 | `REVOKE_APPROVAL` | `APPROVED` | `REJECTED` | Yes |
-| `FORCE_DELETE` | All | row deleted | No |
+| `FORCE_DELETE` | `DRAFT`, `PENDING_REVIEW`, `APPROVED`, `REJECTED`, `ARCHIVED`, `FLAGGED` | `ARCHIVED` + soft-delete metadata | Yes |
 
 **Validation** (`reviewSchema`):
 ```typescript
@@ -612,13 +669,17 @@ Each item includes `content` fields + `mentorName`, `mentorEmail`, `mentorImage`
 
 **Logic**:
 1. Verifies the requested action is allowed from the content's current state.
-2. If `note` is required by the action (e.g. `REJECT`, `FLAG`, `REVOKE_APPROVAL`), verifies it exists.
-3. If `FORCE_DELETE`, deletes row via DB directly and returns success.
-4. For other actions, updates `mentor_content`: `status`, `statusBeforeArchive` (for flagged/archived states), `reviewedAt`, `reviewedBy`, `reviewNote`, `flagReason`, `flaggedAt`, `flaggedBy`.
-5. Inserts a row into `content_review_audit` with the applied `action`.
-4. Insert audit log with action `APPROVED` or `REJECTED`
+2. Blocks non-`FORCE_DELETE` actions if content is already deleted (`deletedAt` set).
+3. Requires reason for `REJECT`, `FLAG`, `REVOKE_APPROVAL`, and `FORCE_DELETE`.
+4. Maps request action to canonical audit enum (`APPROVE -> APPROVED`, etc.).
+5. Applies state update and audit insert in one transaction.
+6. `FORCE_DELETE` now performs retention-aware soft delete:
+   - `status = 'ARCHIVED'`
+   - `deletedAt`, `deletedBy`, `deleteReason`, `purgeAfterAt = now + 30 days`
+   - `requireReviewAfterRestore = true`
+   - clears flag metadata if current state is `FLAGGED`
 
-**Response** (200): Updated content row.
+**Response** (200): `{ success: true, data: updatedContent }`.
 
 ---
 
@@ -1058,7 +1119,7 @@ Alias for `safeJsonParse(expertise, [])` — used in mentor profile contexts.
 
 Returns either `{ session, user }` (success) or `{ error: NextResponse }` (failure).
 
-When `allowAdmin = true`: checks if user has the `admin` role. Admin users can bypass mentor ownership checks.
+When `allowAdmin = true`: checks if user has the `admin` role. Ownership scope is still applied by route-level ownership helper logic.
 
 ### 7.2 `getMentorForContent(userId)`
 
@@ -1071,9 +1132,10 @@ Looks up the `mentors` table by `userId`, returns the mentor row or `null`.
 **File**: `lib/api/mentor-content.ts`
 
 Returns a Drizzle SQL condition:
-- If `isAdmin` → no ownership restriction (allows access to all content)
-- If mentor → `eq(mentorContent.mentorId, mentorId)`
-- If neither → returns `null` (caller should return 404)
+- If `isAdmin` and `mentorId` exists -> `(mentorContent.mentorId = mentorId) OR (mentorContent.mentorId IS NULL)`
+- If `isAdmin` and `mentorId` missing -> `mentorContent.mentorId IS NULL`
+- If mentor -> `eq(mentorContent.mentorId, mentorId)`
+- If neither -> returns `null` (caller should return 404)
 
 Used by section and content-item routes where a 3-4 table join verifies ownership.
 
@@ -1083,39 +1145,68 @@ Used by section and content-item routes where a 3-4 table join verifies ownershi
 
 ### 8.1 `storage.upload(file, path, options)`
 
-**File**: `lib/storage.ts`
+**File**: `lib/storage/index.ts`
 
-Wraps Supabase Storage client. Options:
+Wraps provider client (Supabase/S3). Options:
 - `maxSize`: Maximum bytes
-- `allowedTypes`: MIME type list
-- `public`: Whether the file should be publicly accessible
-- `contentType`: Override MIME type (used in fallback)
+- `allowedTypes`: MIME type or extension allowlist
+- `public`: Whether object is publicly accessible
+- `contentType`: Override MIME type (fallback path)
 
 Returns `{ url: string, path: string }`.
 
-### 8.2 `resolveStorageUrl(fileUrl)`
+### 8.2 `extractStoragePath(value)`
 
-Converts a stored storage path back to a fully-qualified public URL. Used in GET responses for content items.
+Converts a URL/path input into a storage-relative object path.
 
 ### 8.3 `normalizeStorageValue(fileUrl)`
 
-Normalizes a full URL back to a storage-relative path for saving. Used in PUT handlers.
+Converts URL/path into canonical storage-relative value for DB persistence.
 
-### 8.4 Upload Flow
+### 8.4 `resolveStorageUrl(fileUrl)`
+
+Converts stored path into signed/public URL for API responses.
+
+### 8.5 Storage deletion helpers
+
+`deleteStorageValue(value)` and `deleteStorageValues(values[])`:
+- Extract and deduplicate storage paths.
+- Perform best-effort deletes.
+- Log per-file failures without failing the full request path.
+
+Used in:
+- Root content file replacement (`PUT /api/mentors/content/[id]`)
+- Course thumbnail replacement (`PUT /api/mentors/content/[id]/course`)
+- Section content-item replacement/delete
+- Module delete and section delete nested file cleanup
+- Delayed purge script (`scripts/purge-deleted-mentor-content.ts`)
+
+### 8.6 Upload Flow
 
 ```
 Browser File Object
-  ↓ POST /api/upload (multipart/form-data)
-  ↓ Validate: size ≤ 100MB, MIME ∈ allowed list
-  ↓ Generate: mentors/content/{type}/{userId}-{timestamp}-{cleanName}
-  ↓ storage.upload(file, path, { public: true })
-  ↓   → Supabase Storage bucket
-  ↓ Return: { fileUrl (public URL), fileName, fileSize, mimeType }
-  ↓ Caller saves fileUrl to mentor_content or section_content_items
+  -> POST /api/upload (multipart/form-data)
+  -> Validate: size <= 100MB, MIME/extension allowed
+  -> Generate: mentors/content/{type}/{userId}-{timestamp}-{cleanName}
+  -> storage.upload(file, path, { public: false })
+  -> Return: { fileUrl, fileName, fileSize, mimeType, storagePath }
+  -> Caller saves fileUrl to mentor_content or section_content_items
 ```
 
----
+### 8.7 Delayed Purge Worker (Phase 2)
 
+Script: `scripts/purge-deleted-mentor-content.ts`
+
+Trigger:
+- `npm run content:purge-deleted`
+
+Behavior:
+1. Selects rows where `deletedAt IS NOT NULL` and `purgeAfterAt <= now`.
+2. Gathers root/content-tree storage objects (`mentor_content.file_url`, `courses.thumbnail_url`, `section_content_items.file_url`).
+3. Deletes storage objects.
+4. Hard-deletes `mentor_content` row (DB cascades remove related data).
+
+---
 ## 9. Error Handling
 
 ### 9.1 `MentorContentErrorBoundary`
@@ -1294,7 +1385,7 @@ Selected items get a blue highlight border; unselected items are gray.
 ```
 Step 1: Create Content
   MentorContent → CreateContentDialog (step 1: type=COURSE, title)
-  → POST /api/mentors/content { title, type: 'COURSE', status: 'DRAFT' }
+  → POST /api/mentors/content { title, type: 'COURSE' }  // server sets status=DRAFT
   → ["mentor-content"] invalidated → grid re-renders
 
 Step 2: Setup Course
@@ -1363,22 +1454,28 @@ stateDiagram-v2
     DRAFT --> ARCHIVED: Mentor archives
     APPROVED --> ARCHIVED: Mentor archives
     REJECTED --> ARCHIVED: Mentor archives
+    FLAGGED --> ARCHIVED: Admin force archive/delete
+    PENDING_REVIEW --> ARCHIVED: Admin force archive/delete
     ARCHIVED --> DRAFT: Restored (was DRAFT/REJECTED)
     ARCHIVED --> APPROVED: Restored (was APPROVED, requireReviewAfterRestore=false)
+    ARCHIVED --> ARCHIVED: Delete/Force Delete marks deletedAt + purgeAfterAt
 ```
 
 ### 12.2 Archive & Restore Logic
 
 When archiving:
-- `status` → `ARCHIVED`
-- `statusBeforeArchive` → previous status (e.g., `APPROVED`, `DRAFT`)
+- `status` -> `ARCHIVED`
+- `statusBeforeArchive` -> previous status (e.g., `APPROVED`, `DRAFT`)
 
 When restoring:
-- If `statusBeforeArchive = 'APPROVED'` AND `requireReviewAfterRestore = false` → restore to `APPROVED`
-- Otherwise → restore to `DRAFT`
-- `statusBeforeArchive` → cleared (`null`)
+- If `statusBeforeArchive = 'APPROVED'` AND `requireReviewAfterRestore = false` -> restore to `APPROVED`
+- Otherwise -> restore to `DRAFT`
+- `statusBeforeArchive` -> cleared (`null`)
 
-The `requireReviewAfterRestore` flag defaults to `false` — currently all previously-approved content restores directly to `APPROVED`. This flag exists for future policy changes.
+Delete behavior updates:
+- Mentor delete and admin force-delete both set `requireReviewAfterRestore = true`.
+- Restored content from deleted state therefore returns to `DRAFT`.
+- Restore also clears `deletedAt`, `deletedBy`, `deleteReason`, `purgeAfterAt`.
 
 ### 12.3 Audit Trail
 
@@ -1391,6 +1488,12 @@ Every review lifecycle action is logged to `content_review_audit`:
 | Admin rejects | `REJECTED` | Admin |
 | Mentor archives | `ARCHIVED` | Mentor |
 | Mentor restores | `RESTORED` | Mentor |
+| Admin flags/unflags | `FLAGGED` / `UNFLAGGED` | Admin |
+| Admin force actions | `FORCE_APPROVED` / `FORCE_ARCHIVED` / `FORCE_DELETED` / `APPROVAL_REVOKED` | Admin |
+
+Implementation notes:
+- Submit-review and admin-review routes wrap status + audit writes in DB transactions.
+- Archive/restore in mentor content update route also writes audit rows transactionally.
 
 ### 12.4 Profile Content Selection
 
@@ -1478,8 +1581,26 @@ Only the top-level operations (list, create, update, delete content; create/save
 
 ### 13.7 Storage URL Resolution
 
-Newer routes (sections GET, content-item GET/PUT) resolve storage URLs via `resolveStorageUrl()` before returning to the client. Older routes (content GET) return raw URLs. The content-item PUT normalizes incoming URLs via `normalizeStorageValue()` before saving.
+Storage URL handling is now split into three concerns:
+- Input normalization before DB writes (`normalizeStorageValue`)
+- Output hydration for API responses (`resolveStorageUrl`)
+- Lifecycle cleanup (`deleteStorageValues`) on file replacement/delete/purge paths
+
+Root content GET/list and nested content-item GET paths now return hydrated URLs.
 
 ### 13.8 Admin-Only Course Fields
 
 `CreateCourseDialog` conditionally renders **Platform Name** and **Platform Tags** fields only when `useAuth().isAdmin` returns true. These fields are for platform-official courses (e.g., "SharingMinds" branded courses).
+
+### 13.9 Delete Lifecycle Note (Phase 2)
+
+Root content delete is no longer immediate physical delete:
+- User-facing delete actions mark content as deleted with 30-day retention.
+- Purge script performs eventual physical deletion + storage cleanup.
+- Mentor list endpoint excludes soft-deleted rows; admin review flow blocks most actions on already deleted rows.
+
+
+
+
+
+

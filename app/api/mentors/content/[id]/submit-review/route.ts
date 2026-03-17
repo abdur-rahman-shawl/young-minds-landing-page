@@ -53,26 +53,28 @@ export async function POST(
       );
     }
 
-    // Update content status to PENDING_REVIEW
-    const [updated] = await db.update(mentorContent)
-      .set({
-        status: 'PENDING_REVIEW',
-        submittedForReviewAt: new Date(),
-        reviewNote: null, // Clear any previous rejection note
-        updatedAt: new Date(),
-      })
-      .where(eq(mentorContent.id, id))
-      .returning();
+    const [updated] = await db.transaction(async (tx) => {
+      const rows = await tx.update(mentorContent)
+        .set({
+          status: 'PENDING_REVIEW',
+          submittedForReviewAt: new Date(),
+          reviewNote: null, // Clear any previous rejection note
+          updatedAt: new Date(),
+        })
+        .where(eq(mentorContent.id, id))
+        .returning();
 
-    // Create audit log entry
-    await db.insert(contentReviewAudit).values({
-      contentId: id,
-      mentorId: mentor[0].id,
-      action: currentStatus === 'REJECTED' ? 'RESUBMITTED' : 'SUBMITTED',
-      previousStatus: currentStatus,
-      newStatus: 'PENDING_REVIEW',
-      reviewedBy: null, // Mentor-initiated action
-      note: null,
+      await tx.insert(contentReviewAudit).values({
+        contentId: id,
+        mentorId: mentor[0].id,
+        action: currentStatus === 'REJECTED' ? 'RESUBMITTED' : 'SUBMITTED',
+        previousStatus: currentStatus,
+        newStatus: 'PENDING_REVIEW',
+        reviewedBy: null, // Mentor-initiated action
+        note: null,
+      });
+
+      return rows;
     });
 
     return NextResponse.json(updated);

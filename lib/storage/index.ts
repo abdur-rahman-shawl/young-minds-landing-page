@@ -55,6 +55,34 @@ export const extractStoragePath = (value: string): string | null => {
   }
 };
 
+export const deleteStorageValue = async (value: string | null | undefined): Promise<void> => {
+  if (!value) return;
+  const path = extractStoragePath(value);
+  if (!path) return;
+  await storage.delete(path);
+};
+
+export const deleteStorageValues = async (
+  values: Array<string | null | undefined>
+): Promise<void> => {
+  const uniquePaths = new Set<string>();
+  for (const value of values) {
+    if (!value) continue;
+    const path = extractStoragePath(value);
+    if (path) uniquePaths.add(path);
+  }
+
+  await Promise.all(
+    Array.from(uniquePaths).map(async (path) => {
+      try {
+        await storage.delete(path);
+      } catch (error) {
+        console.error('Failed to delete storage object:', path, error);
+      }
+    })
+  );
+};
+
 export const normalizeStorageValue = (value: string | null | undefined): string | null => {
   if (!value) return null;
   return extractStoragePath(value) ?? value;

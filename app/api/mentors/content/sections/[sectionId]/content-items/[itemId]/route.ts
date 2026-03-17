@@ -4,7 +4,7 @@ import { mentorContent, courses, courseModules, courseSections, sectionContentIt
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
-import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
+import { deleteStorageValues, normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
 const updateContentItemSchema = z.object({
   title: z.string().min(1, 'Title is required').optional(),
@@ -32,6 +32,9 @@ export async function GET(
       return guard.error;
     }
     const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
 
     const mentor = await db.select()
       .from(mentors)
@@ -101,6 +104,9 @@ export async function PUT(
       return guard.error;
     }
     const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
 
     const mentor = await db.select()
       .from(mentors)
@@ -147,6 +153,8 @@ export async function PUT(
 
     const body = await request.json();
     const validatedData = updateContentItemSchema.parse(body);
+    const previousFileUrl = normalizeStorageValue(existingItem[0].fileUrl);
+    const nextFileUrl = normalizeStorageValue(validatedData.fileUrl);
 
     // Update content item
     const updatedItem = await db.update(sectionContentItems)
@@ -157,6 +165,14 @@ export async function PUT(
       })
       .where(eq(sectionContentItems.id, itemId))
       .returning();
+
+    if (
+      validatedData.fileUrl !== undefined &&
+      previousFileUrl &&
+      previousFileUrl !== nextFileUrl
+    ) {
+      await deleteStorageValues([previousFileUrl]);
+    }
 
     return NextResponse.json({
       ...updatedItem[0],
@@ -190,6 +206,9 @@ export async function DELETE(
       return guard.error;
     }
     const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
 
     const mentor = await db.select()
       .from(mentors)
@@ -234,9 +253,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Content item not found' }, { status: 404 });
     }
 
+    const fileUrlToDelete = normalizeStorageValue(existingItem[0].fileUrl);
+
     // Delete content item
     await db.delete(sectionContentItems)
       .where(eq(sectionContentItems.id, itemId));
+
+    if (fileUrlToDelete) {
+      await deleteStorageValues([fileUrlToDelete]);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

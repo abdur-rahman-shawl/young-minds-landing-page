@@ -10,6 +10,7 @@
     "subscription:policy-guard": "bash scripts/check-subscription-policy-usage.sh",
     "subscription:policy-required-guard": "bash scripts/check-policy-required-routes.sh",
     "storage:migrate-urls": "tsx scripts/migrate-storage-urls.ts",
+    "content:purge-deleted": "tsx scripts/purge-deleted-mentor-content.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

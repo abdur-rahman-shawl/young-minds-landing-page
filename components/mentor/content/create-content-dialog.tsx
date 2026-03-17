@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -23,7 +22,7 @@ const baseContentSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100, 'Title must be less than 100 characters'),
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
   type: z.enum(['COURSE', 'FILE', 'URL']),
-  status: z.enum(['DRAFT', 'APPROVED']).default('DRAFT'),
+  status: z.literal('DRAFT').default('DRAFT'),
 });
 
 const fileContentSchema = baseContentSchema.extend({
@@ -627,37 +626,10 @@ export function CreateContentDialog({ open = false, onOpenChange, onSuccess }: C
               </CardContent>
             </Card>
             
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Publishing Status</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="DRAFT">
-                        <div>
-                          <div className="font-medium">Save as Draft</div>
-                          <div className="text-xs text-gray-500">Not visible to mentees</div>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="PUBLISHED">
-                        <div>
-                          <div className="font-medium">Publish Now</div>
-                          <div className="text-xs text-gray-500">Immediately available to mentees</div>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+              Content is created as <span className="font-medium text-foreground">Draft</span>.  
+              Submit it for admin review from the content actions menu when ready.
+            </div>
             
             {uploadProgress > 0 && uploadProgress < 100 && (
               <div className="space-y-2">

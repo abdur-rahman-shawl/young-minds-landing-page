@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { mentorContent, courses, courseModules, courseSections, sectionContentItems } from '@/lib/db/schema';
+import { mentorContent, courses, courseModules, courseSections, sectionContentItems, contentReviewAudit } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
 import { getMentorContentOwnershipCondition, getMentorForContent } from '@/lib/api/mentor-content';
-import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
+import { deleteStorageValues, normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
 const updateContentSchema = z.object({
   title: z.string().min(1, 'Title is required').optional(),
@@ -26,6 +26,9 @@ const updateContentSchema = z.object({
   urlDescription: z.string().optional(),
 });
 
+const mentorEditableStatuses = new Set(['DRAFT', 'REJECTED']);
+const PURGE_RETENTION_DAYS = 30;
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -35,11 +38,15 @@ export async function GET(
     if ('error' in guard) {
       return guard.error;
     }
-    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
+    const isAdmin = guard.user.roles.some((role: any) => role.name === 'admin');
 
     const { id } = await params;
 
-    const mentor = await getMentorForContent(guard.session.user.id);
+    const mentor = await getMentorForContent(session.user.id);
     if (!isAdmin && !mentor) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
@@ -59,6 +66,9 @@ export async function GET(
     if (!content.length) {
       return NextResponse.json({ error: 'Content not found' }, { status: 404 });
     }
+    if (!isAdmin && content[0].deletedAt) {
+      return NextResponse.json({ error: 'Content not found' }, { status: 404 });
+    }
 
     // If it's a course, get course details with modules and sections
     if (content[0].type === 'COURSE') {
@@ -74,21 +84,21 @@ export async function GET(
           .orderBy(courseModules.orderIndex);
 
         const modulesWithSections = await Promise.all(
-          modules.map(async (module) => {
+          modules.map(async (module: any) => {
             const sections = await db.select()
               .from(courseSections)
               .where(eq(courseSections.moduleId, module.id))
               .orderBy(courseSections.orderIndex);
 
             const sectionsWithContent = await Promise.all(
-              sections.map(async (section) => {
+              sections.map(async (section: any) => {
                 const contentItems = await db.select()
                   .from(sectionContentItems)
                   .where(eq(sectionContentItems.sectionId, section.id))
                   .orderBy(sectionContentItems.orderIndex);
 
                 const hydratedItems = await Promise.all(
-                  contentItems.map(async (item) => ({
+                  contentItems.map(async (item: any) => ({
                     ...item,
                     fileUrl: await resolveStorageUrl(item.fileUrl),
                   }))
@@ -141,11 +151,15 @@ export async function PUT(
     if ('error' in guard) {
       return guard.error;
     }
-    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
+    const isAdmin = guard.user.roles.some((role: any) => role.name === 'admin');
 
     const { id } = await params;
 
-    const mentor = await getMentorForContent(guard.session.user.id);
+    const mentor = await getMentorForContent(session.user.id);
     if (!isAdmin && !mentor) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
@@ -155,24 +169,156 @@ export async function PUT(
     }
 
     const body = await request.json();
-    console.log('Update content request body:', body);
     const validatedData = updateContentSchema.parse(body);
-    console.log('Validated content data:', validatedData);
+    const { status: requestedStatus, ...mutableFields } = validatedData;
+    const mutableKeys = Object.keys(mutableFields);
+    const hasFieldUpdates = mutableKeys.length > 0;
 
-    const updatedContent = await db.update(mentorContent)
-      .set({
-        ...validatedData,
-        fileUrl: normalizeStorageValue(validatedData.fileUrl),
-        updatedAt: new Date(),
-      })
+    const existingContent = await db.select()
+      .from(mentorContent)
       .where(and(
         eq(mentorContent.id, id),
         ownershipCondition
       ))
-      .returning();
+      .limit(1);
+
+    if (!existingContent.length) {
+      return NextResponse.json({ error: 'Content not found' }, { status: 404 });
+    }
+
+    const currentContent = existingContent[0];
+    if (!isAdmin && currentContent.deletedAt) {
+      return NextResponse.json(
+        { error: 'Deleted content cannot be modified' },
+        { status: 400 }
+      );
+    }
+
+    const updatePayload: Partial<typeof mentorContent.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+
+    for (const key of mutableKeys) {
+      const value = mutableFields[key as keyof typeof mutableFields];
+      if (key === 'fileUrl') {
+        updatePayload.fileUrl = normalizeStorageValue(value as string | undefined);
+      } else {
+        (updatePayload as any)[key] = value;
+      }
+    }
+
+    let reviewAction: 'ARCHIVED' | 'RESTORED' | null = null;
+    let nextStatus = currentContent.status;
+
+    if (isAdmin && requestedStatus !== undefined) {
+      return NextResponse.json(
+        { error: 'Use admin review API for status transitions' },
+        { status: 400 }
+      );
+    }
+
+    if (!isAdmin && hasFieldUpdates && !mentorEditableStatuses.has(currentContent.status)) {
+      return NextResponse.json(
+        { error: `Content in status '${currentContent.status}' is not editable` },
+        { status: 400 }
+      );
+    }
+
+    if (requestedStatus !== undefined) {
+      if (hasFieldUpdates && !isAdmin) {
+        return NextResponse.json(
+          { error: 'Update content fields and status in separate actions' },
+          { status: 400 }
+        );
+      }
+
+      if (isAdmin) {
+        return NextResponse.json(
+          { error: 'Use admin review API for status transitions' },
+          { status: 400 }
+        );
+      }
+
+      if (requestedStatus === 'ARCHIVED') {
+        if (currentContent.status === 'ARCHIVED') {
+          return NextResponse.json({ error: 'Content is already archived' }, { status: 400 });
+        }
+
+        if (currentContent.status === 'PENDING_REVIEW') {
+          return NextResponse.json(
+            { error: 'Content under review cannot be archived' },
+            { status: 400 }
+          );
+        }
+
+        updatePayload.status = 'ARCHIVED';
+        updatePayload.statusBeforeArchive = currentContent.status;
+        nextStatus = 'ARCHIVED';
+        reviewAction = 'ARCHIVED';
+      } else if (currentContent.status === 'ARCHIVED' && (requestedStatus === 'DRAFT' || requestedStatus === 'APPROVED')) {
+        const restoreStatus =
+          currentContent.statusBeforeArchive === 'APPROVED' && !currentContent.requireReviewAfterRestore
+            ? 'APPROVED'
+            : 'DRAFT';
+
+        updatePayload.status = restoreStatus as any;
+        updatePayload.statusBeforeArchive = null;
+        updatePayload.deletedAt = null;
+        updatePayload.deletedBy = null;
+        updatePayload.deleteReason = null;
+        updatePayload.purgeAfterAt = null;
+        nextStatus = restoreStatus;
+        reviewAction = 'RESTORED';
+      } else {
+        return NextResponse.json(
+          { error: `Direct transition to '${requestedStatus}' is not allowed` },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (!hasFieldUpdates && requestedStatus === undefined) {
+      return NextResponse.json({ error: 'No updates provided' }, { status: 400 });
+    }
+
+    const shouldCleanupRootFile =
+      updatePayload.fileUrl !== undefined &&
+      normalizeStorageValue(currentContent.fileUrl) !== normalizeStorageValue(updatePayload.fileUrl);
+
+    const updatedContent = await db.transaction(async (tx: any) => {
+      const rows = await tx.update(mentorContent)
+        .set(updatePayload)
+        .where(and(
+          eq(mentorContent.id, id),
+          ownershipCondition
+        ))
+        .returning();
+
+      if (!rows.length) {
+        return rows;
+      }
+
+      if (reviewAction && currentContent.mentorId) {
+        await tx.insert(contentReviewAudit).values({
+          contentId: id,
+          mentorId: currentContent.mentorId,
+          action: reviewAction,
+          previousStatus: currentContent.status,
+          newStatus: nextStatus,
+          reviewedBy: null,
+          note: null,
+        });
+      }
+
+      return rows;
+    });
 
     if (!updatedContent.length) {
       return NextResponse.json({ error: 'Content not found' }, { status: 404 });
+    }
+
+    if (shouldCleanupRootFile) {
+      await deleteStorageValues([currentContent.fileUrl]);
     }
 
     return NextResponse.json({
@@ -204,11 +350,15 @@ export async function DELETE(
     if ('error' in guard) {
       return guard.error;
     }
-    const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
+    const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
+    const isAdmin = guard.user.roles.some((role: any) => role.name === 'admin');
 
     const { id } = await params;
 
-    const mentor = await getMentorForContent(guard.session.user.id);
+    const mentor = await getMentorForContent(session.user.id);
     if (!isAdmin && !mentor) {
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
@@ -217,18 +367,61 @@ export async function DELETE(
       return NextResponse.json({ error: 'Mentor not found' }, { status: 404 });
     }
 
-    const deletedContent = await db.delete(mentorContent)
+    const existingContent = await db.select()
+      .from(mentorContent)
       .where(and(
         eq(mentorContent.id, id),
         ownershipCondition
       ))
-      .returning();
+      .limit(1);
 
-    if (!deletedContent.length) {
+    if (!existingContent.length) {
       return NextResponse.json({ error: 'Content not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ message: 'Content deleted successfully' });
+    const content = existingContent[0];
+    if (content.deletedAt) {
+      return NextResponse.json({ message: 'Content is already deleted' });
+    }
+
+    const now = new Date();
+    const purgeAfter = new Date(now.getTime() + PURGE_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+    await db.transaction(async (tx: any) => {
+      await tx.update(mentorContent)
+        .set({
+          status: 'ARCHIVED',
+          statusBeforeArchive: content.status === 'ARCHIVED'
+            ? (content.statusBeforeArchive || 'DRAFT')
+            : content.status,
+          requireReviewAfterRestore: true,
+          deletedAt: now,
+          deletedBy: session.user.id,
+          deleteReason: isAdmin ? 'Deleted by admin' : 'Deleted by mentor',
+          purgeAfterAt: purgeAfter,
+          updatedAt: now,
+        })
+        .where(eq(mentorContent.id, id));
+
+      if (content.mentorId) {
+        await tx.insert(contentReviewAudit).values({
+          contentId: id,
+          mentorId: content.mentorId,
+          action: 'ARCHIVED',
+          previousStatus: content.status,
+          newStatus: 'ARCHIVED',
+          reviewedBy: null,
+          note: isAdmin
+            ? 'Soft deleted by admin via delete endpoint'
+            : 'Soft deleted by mentor via delete endpoint',
+        });
+      }
+    });
+
+    return NextResponse.json({
+      message: 'Content deleted successfully. It is retained for 30 days before permanent purge.',
+      purgeAfterAt: purgeAfter.toISOString(),
+    });
   } catch (error) {
     console.error('Error deleting content:', error);
     return NextResponse.json(

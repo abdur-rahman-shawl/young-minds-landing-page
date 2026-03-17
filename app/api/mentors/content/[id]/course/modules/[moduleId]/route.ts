@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { mentorContent, courses, courseModules, mentors } from '@/lib/db/schema';
+import { mentorContent, courses, courseModules, courseSections, sectionContentItems, mentors } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
+import { deleteStorageValues, normalizeStorageValue } from '@/lib/storage';
 
 const updateModuleSchema = z.object({
   title: z.string().min(1, 'Title is required').optional(),
@@ -25,6 +26,9 @@ export async function GET(
       return guard.error;
     }
     const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
 
     const mentor = await db.select()
       .from(mentors)
@@ -94,6 +98,9 @@ export async function PUT(
       return guard.error;
     }
     const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
 
     const mentor = await db.select()
       .from(mentors)
@@ -196,6 +203,9 @@ export async function DELETE(
       return guard.error;
     }
     const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
 
     const mentor = await db.select()
       .from(mentors)
@@ -243,9 +253,18 @@ export async function DELETE(
       return NextResponse.json({ error: 'Module not found' }, { status: 404 });
     }
 
+    const nestedItems = await db.select({
+      fileUrl: sectionContentItems.fileUrl,
+    })
+      .from(sectionContentItems)
+      .innerJoin(courseSections, eq(sectionContentItems.sectionId, courseSections.id))
+      .where(eq(courseSections.moduleId, moduleId));
+
     // Delete module (will cascade delete sections and content items)
     await db.delete(courseModules)
       .where(eq(courseModules.id, moduleId));
+
+    await deleteStorageValues(nestedItems.map((item: any) => normalizeStorageValue(item.fileUrl)));
 
     return NextResponse.json({ success: true });
   } catch (error) {

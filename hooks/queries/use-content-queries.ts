@@ -6,7 +6,7 @@ export interface MentorContent {
   title: string;
   description?: string;
   type: 'COURSE' | 'FILE' | 'URL';
-  status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED';
+  status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'ARCHIVED' | 'FLAGGED';
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
@@ -194,7 +194,7 @@ export function useDeleteContent() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mentor-content'] });
-      toast.success('Content deleted successfully');
+      toast.success('Content deleted. It will be retained for 30 days.');
     },
     onError: (error: Error) => {
       toast.error(error.message);

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { mentorContent, courses, courseModules, courseSections, mentors } from '@/lib/db/schema';
+import { mentorContent, courses, courseModules, courseSections, sectionContentItems, mentors } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
+import { deleteStorageValues, normalizeStorageValue } from '@/lib/storage';
 
 const updateSectionSchema = z.object({
   title: z.string().min(1, 'Title is required').optional(),
@@ -23,6 +24,9 @@ export async function GET(
       return guard.error;
     }
     const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
 
     const mentor = await db.select()
       .from(mentors)
@@ -87,6 +91,9 @@ export async function PUT(
       return guard.error;
     }
     const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
 
     const mentor = await db.select()
       .from(mentors)
@@ -170,6 +177,9 @@ export async function DELETE(
       return guard.error;
     }
     const session = guard.session;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 401 });
+    }
 
     const mentor = await db.select()
       .from(mentors)
@@ -212,9 +222,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Section not found' }, { status: 404 });
     }
 
+    const sectionItems = await db.select({
+      fileUrl: sectionContentItems.fileUrl,
+    })
+      .from(sectionContentItems)
+      .where(eq(sectionContentItems.sectionId, sectionId));
+
     // Delete section (will cascade delete content items)
     await db.delete(courseSections)
       .where(eq(courseSections.id, sectionId));
+
+    await deleteStorageValues(sectionItems.map((item: any) => normalizeStorageValue(item.fileUrl)));
 
     return NextResponse.json({ success: true });
   } catch (error) {
