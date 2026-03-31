@@ -25,7 +25,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useThreadQuery } from '@/hooks/queries/use-messaging-queries';
+import {
+  useDeleteMessageMutation,
+  useEditMessageMutation,
+  useThreadQuery,
+  useToggleReactionMutation,
+} from '@/hooks/queries/use-messaging-queries';
 import { MessageReactions } from './message-reactions';
 import { ReactionPicker } from './reaction-picker';
 import { MessageEditForm } from './message-edit-form';
@@ -93,22 +98,12 @@ function MessageWithReactions({
     : null;
 
   const handleEdit = async (newContent: string) => {
-    try {
-      await onEdit(msg.message.id, newContent);
-      setIsEditing(false);
-      toast.success('Message edited');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to edit message');
-    }
+    await onEdit(msg.message.id, newContent);
+    setIsEditing(false);
   };
 
   const handleDelete = async () => {
-    try {
-      await onDelete(msg.message.id);
-      toast.success('Message deleted');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to delete message');
-    }
+    await onDelete(msg.message.id);
   };
 
   return (
@@ -288,7 +283,10 @@ export function MessageThread({
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
-  const { data: threadData, isLoading, refetch } = useThreadQuery(threadId, userId);
+  const { data: threadData, isLoading } = useThreadQuery(threadId, userId);
+  const editMessageMutation = useEditMessageMutation();
+  const deleteMessageMutation = useDeleteMessageMutation();
+  const toggleReactionMutation = useToggleReactionMutation();
 
   const thread = threadData?.thread;
   const messages = threadData?.messages || [];
@@ -296,43 +294,31 @@ export function MessageThread({
 
   // Handler for toggling reactions - calls API directly
   const handleToggleReaction = async (messageId: string, emoji: string) => {
-    try {
-      await fetch(`/api/messaging/messages/${messageId}/reactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emoji }),
-      });
-      // Refetch thread data to get updated reactions
-      refetch();
-    } catch (error) {
-      toast.error('Failed to update reaction');
-    }
+    await toggleReactionMutation.mutateAsync({
+      threadId,
+      userId,
+      messageId,
+      emoji,
+    });
   };
 
   // Handler for editing messages
   const editMessage = async (messageId: string, content: string) => {
-    const response = await fetch(`/api/messaging/messages/${messageId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+    await editMessageMutation.mutateAsync({
+      threadId,
+      userId,
+      messageId,
+      content,
     });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to edit message');
-    }
-    refetch();
   };
 
   // Handler for deleting messages
   const deleteMessage = async (messageId: string) => {
-    const response = await fetch(`/api/messaging/messages/${messageId}`, {
-      method: 'DELETE',
+    await deleteMessageMutation.mutateAsync({
+      threadId,
+      userId,
+      messageId,
     });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to delete message');
-    }
-    refetch();
   };
 
   useEffect(() => {

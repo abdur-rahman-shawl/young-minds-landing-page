@@ -84,5 +84,7 @@ Unit coverage for the policy layer and messaging URL helpers lives in:
 Run with:
 
 ```bash
-node --test tests/lib/messaging/policy.test.ts
+npm test -- tests/lib/messaging/policy.test.ts
 ```
+
+Additional DOM-oriented component tests can opt into `jsdom` with the standard `@vitest-environment jsdom` file directive when you start adding UI coverage.

@@ -1,76 +1,73 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
-
-import { resolveMessagingPolicy } from '../../../lib/messaging/policy.ts';
+import { describe, expect, it } from 'vitest';
+import { resolveMessagingPolicy } from '@/lib/messaging/policy';
 import {
   buildMessagingRequestsUrl,
   buildMessagingThreadUrl,
-} from '../../../lib/messaging/urls.ts';
+} from '@/lib/messaging/urls';
 
-test('request-scoped mentee to mentor messages map to mentee direct messaging for requester', () => {
-  const result = resolveMessagingPolicy({
-    kind: 'request',
-    requestType: 'mentee_to_mentor',
-    requesterId: 'mentee-1',
-    senderId: 'mentee-1',
+describe('resolveMessagingPolicy', () => {
+  it('maps request-scoped mentee to mentor messages to mentee direct messaging for the requester', () => {
+    const result = resolveMessagingPolicy({
+      kind: 'request',
+      requestType: 'mentee_to_mentor',
+      requesterId: 'mentee-1',
+      senderId: 'mentee-1',
+    });
+
+    expect(result).toEqual({
+      enforcement: 'subscription',
+      action: 'messaging.direct_message.mentee',
+    });
   });
 
-  assert.deepEqual(result, {
-    enforcement: 'subscription',
-    action: 'messaging.direct_message.mentee',
-  });
-});
+  it('maps mentor to mentee replies to mentee direct messaging for the recipient', () => {
+    const result = resolveMessagingPolicy({
+      kind: 'request',
+      requestType: 'mentor_to_mentee',
+      requesterId: 'mentor-1',
+      senderId: 'mentee-1',
+    });
 
-test('request-scoped mentor to mentee replies map to mentee direct messaging for recipient', () => {
-  const result = resolveMessagingPolicy({
-    kind: 'request',
-    requestType: 'mentor_to_mentee',
-    requesterId: 'mentor-1',
-    senderId: 'mentee-1',
-  });
-
-  assert.deepEqual(result, {
-    enforcement: 'subscription',
-    action: 'messaging.direct_message.mentee',
-  });
-});
-
-test('admin direct conversations bypass subscription enforcement', () => {
-  const result = resolveMessagingPolicy({
-    kind: 'direct',
-    senderRoles: ['admin'],
-    receiverRoles: ['mentee'],
+    expect(result).toEqual({
+      enforcement: 'subscription',
+      action: 'messaging.direct_message.mentee',
+    });
   });
 
-  assert.deepEqual(result, {
-    enforcement: 'none',
-    reason: 'admin_direct',
-  });
-});
+  it('bypasses subscription enforcement for admin direct conversations', () => {
+    const result = resolveMessagingPolicy({
+      kind: 'direct',
+      senderRoles: ['admin'],
+      receiverRoles: ['mentee'],
+    });
 
-test('non-admin direct conversations fail loudly', () => {
-  assert.throws(
-    () =>
+    expect(result).toEqual({
+      enforcement: 'none',
+      reason: 'admin_direct',
+    });
+  });
+
+  it('fails loudly for unsupported non-admin direct conversations', () => {
+    expect(() =>
       resolveMessagingPolicy({
         kind: 'direct',
         senderRoles: ['mentor'],
         receiverRoles: ['mentee'],
-      }),
-    /Direct messaging is only supported/
-  );
+      })
+    ).toThrow(/Direct messaging is only supported/);
+  });
 });
 
-test('messaging urls target the dashboard messages section', () => {
-  assert.equal(
-    buildMessagingThreadUrl('thread-123'),
-    '/dashboard?section=messages&thread=thread-123'
-  );
-  assert.equal(
-    buildMessagingThreadUrl('thread with space'),
-    '/dashboard?section=messages&thread=thread%20with%20space'
-  );
-  assert.equal(
-    buildMessagingRequestsUrl(),
-    '/dashboard?section=messages&tab=requests'
-  );
+describe('messaging urls', () => {
+  it('targets the dashboard messages section', () => {
+    expect(buildMessagingThreadUrl('thread-123')).toBe(
+      '/dashboard?section=messages&thread=thread-123'
+    );
+    expect(buildMessagingThreadUrl('thread with space')).toBe(
+      '/dashboard?section=messages&thread=thread%20with%20space'
+    );
+    expect(buildMessagingRequestsUrl()).toBe(
+      '/dashboard?section=messages&tab=requests'
+    );
+  });
 });
