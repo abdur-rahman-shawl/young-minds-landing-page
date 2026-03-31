@@ -28,27 +28,28 @@ It does not introduce a separate chat system.
 - Admin mentor directory and mentor detail dialog: `components/admin/dashboard/admin-mentors.tsx`
 - Shared compose dialog: `components/admin/dashboard/admin-direct-message-dialog.tsx`
 - Admin inbox tab: `components/admin/sidebars/admin-sidebar.tsx`
-- Admin dashboard section routing: `components/dashboard/dashboard-shell.tsx`
+- Admin dashboard section routing: `components/dashboard/dashboard-experience.tsx`
 
 ## Backend Flow
 
-Admin thread creation is handled by:
+Admin thread creation is handled by the shared messaging domain:
 
-- `app/api/admin/messaging/threads/route.ts`
+- `lib/messaging/server/service.ts`
+- `lib/trpc/routers/messaging.ts`
 
-On first send, the route:
+On first send, the service flow:
 
 1. Requires an authenticated admin session.
 2. Validates the recipient exists and has either the `mentor` or `mentee` role.
 3. Creates or re-activates bidirectional `messaging_permissions`.
 4. Creates or reuses a `message_thread`.
-5. Inserts the first `messages` record immediately.
-6. Reopens archived/deleted visibility on the thread.
-7. Creates a notification for the recipient with a deep link into the inbox.
+5. Reopens archived/deleted visibility before re-entry.
+6. Inserts the first `messages` record immediately.
+7. Creates the recipient notification through the shared send-message flow with a deep link into the inbox.
 
 ## Policy Model
 
-Normal mentor/mentee messaging remains request-backed and subscription-enforced.
+Normal mentor/mentee messaging remains request-backed and subscription-enforced through the shared messaging service.
 
 Direct admin conversations are the only valid non-request-backed messaging path. That policy lives in:
 
@@ -59,6 +60,7 @@ Rules:
 - Request-backed conversations use the existing subscription messaging actions.
 - Direct conversations without `grantedViaRequestId` are only allowed when one participant has the `admin` role.
 - Any other direct conversation fails loudly.
+- The admin compose dialog now uses the tRPC `messaging.startAdminConversation` mutation instead of a separate REST creator route.
 
 ## Deep Links
 

@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { buildMessagingThreadUrl } from '@/lib/messaging/urls';
+import { useTRPCClient } from '@/lib/trpc/react';
 
 interface AdminDirectMessageDialogProps {
   open: boolean;
@@ -34,6 +35,7 @@ export function AdminDirectMessageDialog({
   recipientRoleLabel,
 }: AdminDirectMessageDialogProps) {
   const router = useRouter();
+  const trpcClient = useTRPCClient();
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -56,25 +58,12 @@ export function AdminDirectMessageDialog({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/admin/messaging/threads', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          recipientId,
-          content: trimmedContent,
-        }),
+      const result = await trpcClient.messaging.startAdminConversation.mutate({
+        recipientId,
+        content: trimmedContent,
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.error || 'Failed to send message');
-      }
-
-      const threadId = result?.data?.threadId;
+      const threadId = result?.threadId;
       if (!threadId) {
         throw new Error('Message was sent but no conversation was returned');
       }

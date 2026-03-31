@@ -19,9 +19,7 @@ import {
   Users,
   Calendar,
   MessageSquare,
-  DollarSign,
   BarChart3,
-  Settings,
   Star,
   User,
   BookOpen,
@@ -32,16 +30,26 @@ import { useAuth } from "@/contexts/auth-context"
 import { useMentorDashboardStats } from "@/hooks/use-mentor-dashboard"
 import { useMessaging } from "@/hooks/use-messaging-v2"
 import { Badge } from "@/components/ui/badge"
+import { getNavigationSections, type DashboardNavigationScope } from "@/lib/dashboard/sections"
 
 interface MentorSidebarProps {
   activeSection: string
   onSectionChange: (section: string) => void
+  navigationScope?: DashboardNavigationScope
 }
 
-export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarProps) {
+export function MentorSidebar({
+  activeSection,
+  onSectionChange,
+  navigationScope = "dashboard",
+}: MentorSidebarProps) {
   const { session, primaryRole, mentorProfile, isLoading } = useAuth()
   const { stats, isLoading: statsLoading } = useMentorDashboardStats()
   const { totalUnreadCount } = useMessaging(session?.user?.id)
+
+  const allowedKeys = new Set(
+    getNavigationSections("mentor", navigationScope).map((section) => section.key)
+  )
 
   const mentorMenuItems = [
     {
@@ -75,11 +83,6 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
       key: "subscription"
     },
     {
-      title: "Earnings",
-      icon: DollarSign,
-      key: "earnings"
-    },
-    {
       title: "Reviews",
       icon: Star,
       key: "reviews"
@@ -98,13 +101,8 @@ export function MentorSidebar({ activeSection, onSectionChange }: MentorSidebarP
       title: "Profile",
       icon: User,
       key: "profile"
-    },
-    {
-      title: "Settings",
-      icon: Settings,
-      key: "settings"
     }
-  ]
+  ].filter((item) => allowedKeys.has(item.key))
 
   const mentorName = mentorProfile?.fullName || session?.user?.name || 'Mentor'
   const mentorInitials = mentorName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()

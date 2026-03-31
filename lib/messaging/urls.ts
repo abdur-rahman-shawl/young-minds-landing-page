@@ -1,7 +1,9 @@
+import { buildDashboardSectionUrl } from '@/lib/dashboard/sections';
+
 export function buildMessagingThreadUrl(threadId: string) {
-  return `/dashboard?section=messages&thread=${encodeURIComponent(threadId)}`;
+  return buildDashboardSectionUrl('/dashboard', 'messages', { thread: threadId });
 }
 
 export function buildMessagingRequestsUrl() {
-  return '/dashboard?section=messages&tab=requests';
+  return buildDashboardSectionUrl('/dashboard', 'messages', { tab: 'requests' });
 }

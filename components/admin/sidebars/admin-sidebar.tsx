@@ -12,14 +12,24 @@ import {
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/auth-context";
 import { LayoutDashboard, Users, GraduationCap, Settings, BarChart3, Inbox, CreditCard, CalendarClock, BookOpen, MessageSquare } from "lucide-react";
+import { getNavigationSections, type DashboardNavigationScope } from "@/lib/dashboard/sections";
 
 interface AdminSidebarProps {
   active: string;
   onChange: (key: string) => void;
+  navigationScope?: DashboardNavigationScope;
 }
 
-export function AdminSidebar({ active, onChange }: AdminSidebarProps) {
+export function AdminSidebar({
+  active,
+  onChange,
+  navigationScope = "dashboard",
+}: AdminSidebarProps) {
   const { session, primaryRole, isLoading } = useAuth();
+
+  const allowedKeys = new Set(
+    getNavigationSections("admin", navigationScope).map((section) => section.key)
+  );
 
   const items = [
     { key: "dashboard", title: "Overview", icon: LayoutDashboard },
@@ -32,7 +42,7 @@ export function AdminSidebar({ active, onChange }: AdminSidebarProps) {
     { key: "analytics", title: "Analytics", icon: BarChart3 },
     { key: "enquiries", title: "Enquiries", icon: Inbox },
     { key: "settings", title: "Settings", icon: Settings },
-  ];
+  ].filter((item) => allowedKeys.has(item.key));
 
   return (
     <Sidebar className="bg-white dark:bg-gray-900 border-r border-gray-200/50 dark:border-gray-800/50 backdrop-blur-sm mt-16">

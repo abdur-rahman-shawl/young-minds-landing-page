@@ -6,7 +6,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   ArrowLeft,
@@ -35,6 +34,7 @@ import { MessageReactions } from './message-reactions';
 import { ReactionPicker } from './reaction-picker';
 import { MessageEditForm } from './message-edit-form';
 import { MessageActionsMenu } from './message-actions-menu';
+import { MessageThreadLayout } from './message-thread-layout';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -403,23 +403,24 @@ export function MessageThread({
 
   if (isLoading) {
     return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="shrink-0 border-b border-border bg-card/80 p-4 backdrop-blur-sm">
-          <Skeleton className="h-12 w-full" />
-        </div>
-        <div className="flex-1 min-h-0 space-y-4 overflow-hidden p-4">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-16 w-3/4" />
-          ))}
-        </div>
-      </div>
+      <MessageThreadLayout
+        header={<Skeleton className="h-12 w-full" />}
+        headerClassName="border-border bg-card/80 backdrop-blur-sm"
+        body={
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-16 w-3/4" />
+            ))}
+          </div>
+        }
+        bodyClassName="overflow-hidden"
+      />
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      {/* Header */}
-      <div className="shrink-0 border-b p-4">
+    <MessageThreadLayout
+      header={
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {showBackButton && (
@@ -482,13 +483,8 @@ export function MessageThread({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
-
-      {/* Messages */}
-      <ScrollArea
-        className="min-h-0 flex-1 bg-gradient-to-b from-muted/20 to-transparent p-4"
-        ref={scrollAreaRef}
-      >
+      }
+      body={
         <div className="space-y-4">
           {messages.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -529,84 +525,84 @@ export function MessageThread({
             })
           )}
         </div>
-      </ScrollArea>
-
-      {/* Message Input */}
-      <div className="shrink-0 border-t border-border bg-card/80 backdrop-blur-sm">
-        {/* Reply Bar */}
-        {replyingTo && (
-          <div className="px-4 pt-3 pb-2 bg-accent/50 border-b border-border rounded-t-xl">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-muted-foreground mb-1">
-                  Replying to {replyingTo.sender?.name || 'Unknown'}
-                </p>
-                <p className="text-sm text-muted-foreground truncate">
-                  {replyingTo.message.content}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => setReplyingTo(null)}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+      }
+      composer={
+        <>
+          {replyingTo && (
+            <div className="px-4 pt-3 pb-2 bg-accent/50 border-b border-border rounded-t-xl">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">
+                    Replying to {replyingTo.sender?.name || 'Unknown'}
+                  </p>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {replyingTo.message.content}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setReplyingTo(null)}
                 >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </Button>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSendMessage();
-          }}
-          className="flex gap-3 p-4"
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="hidden md:flex"
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendMessage();
+            }}
+            className="flex gap-3 p-4"
           >
-            <Paperclip className="h-5 w-5" />
-          </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="hidden md:flex"
+            >
+              <Paperclip className="h-5 w-5" />
+            </Button>
 
-          <Input
-            placeholder="Type a message..."
-            value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
-            disabled={isSending}
-            className="flex-1 rounded-xl border-border bg-background shadow-subtle focus-visible:ring-primary/30"
-          />
+            <Input
+              placeholder="Type a message..."
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              disabled={isSending}
+              className="flex-1 rounded-xl border-border bg-background shadow-subtle focus-visible:ring-primary/30"
+            />
 
-          <Button
-            type="submit"
-            disabled={!messageInput.trim() || isSending}
-            className="rounded-xl shadow-sm h-11 w-11 p-0"
-          >
-            {isSending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-          </Button>
-        </form>
-      </div>
-    </div>
+            <Button
+              type="submit"
+              disabled={!messageInput.trim() || isSending}
+              className="rounded-xl shadow-sm h-11 w-11 p-0"
+            >
+              {isSending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
+            </Button>
+          </form>
+        </>
+      }
+      scrollAreaRef={scrollAreaRef}
+    />
   );
 }

@@ -52,8 +52,7 @@ Do NOT re‑implement these unless fixing a bug:
   - Uses policy runtime for mentee/mentor checks and metering.
 - `app/api/sessions/route.ts`
   - Uses policy runtime for booking branch and metering.
-- `app/api/messaging/threads/[id]/messages/route.ts`
-- `app/api/messaging/requests/route.ts`
+- `lib/messaging/server/service.ts` (`sendMessage`, `sendRequest`)
 - `app/api/chat/route.ts`
 - `app/api/ai-chatbot-messages/route.ts`
 - `app/api/courses/[id]/enroll/route.ts`
