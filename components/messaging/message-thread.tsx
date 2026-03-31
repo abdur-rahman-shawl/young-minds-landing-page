@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -430,7 +431,7 @@ export function MessageThread({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="min-w-0 overflow-hidden flex h-full flex-col">
       {/* Header */}
       <div className="border-b p-4">
         <div className="flex items-center justify-between">
@@ -453,7 +454,19 @@ export function MessageThread({
             </Avatar>
 
             <div className="min-w-0">
-              <h3 className="font-semibold text-foreground truncate">{otherUser?.name || 'Unknown User'}</h3>
+              <div className="flex min-w-0 items-center gap-2">
+                <h3 className="truncate font-semibold text-foreground">
+                  {otherUser?.name || 'Unknown User'}
+                </h3>
+                {otherUser?.isAdmin && (
+                  <Badge
+                    variant="secondary"
+                    className="h-5 shrink-0 px-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                  >
+                    Admin
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground truncate">
                 {otherUser?.email}
               </p>

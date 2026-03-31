@@ -12,6 +12,7 @@ import {
 } from '@/lib/db/schema';
 import { eq, and, or, desc, gte, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { buildMessagingRequestsUrl } from '@/lib/messaging/urls';
 import {
   consumeFeature,
   enforceFeature,
@@ -302,7 +303,7 @@ export async function POST(request: NextRequest) {
           message: `${requester[0].name || 'Someone'} wants to send you a message`,
           relatedId: newRequest.id,
           relatedType: 'message_request',
-          actionUrl: '/dashboard/messages/requests',
+          actionUrl: buildMessagingRequestsUrl(),
           actionText: 'View Request'
         });
     }

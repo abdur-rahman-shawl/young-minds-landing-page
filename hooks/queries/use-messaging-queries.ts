@@ -19,6 +19,7 @@ interface Thread {
     name: string;
     email: string;
     image?: string;
+    isAdmin?: boolean;
   } | null;
   unreadCount: number;
   isArchived: boolean;
@@ -73,7 +74,13 @@ interface MessageRequest {
 interface ThreadData {
   thread: any;
   messages: Message[];
-  otherUser: any;
+  otherUser: {
+    id: string;
+    name: string;
+    email: string;
+    image?: string;
+    isAdmin?: boolean;
+  } | null;
   totalMessages: number;
   hasMore: boolean;
 }

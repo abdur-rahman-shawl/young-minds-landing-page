@@ -6,7 +6,9 @@ import {
   messagingPermissions,
   messages,
   users,
-  messageReactions
+  messageReactions,
+  userRoles,
+  roles,
 } from '@/lib/db/schema';
 import { eq, and, or, desc, inArray } from 'drizzle-orm';
 import { z } from 'zod';
@@ -110,6 +112,18 @@ export async function GET(
       })
       .from(users)
       .where(eq(users.id, otherUserId))
+      .limit(1);
+
+    const [otherUserAdminRole] = await db
+      .select({ userId: userRoles.userId })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(
+        and(
+          eq(userRoles.userId, otherUserId),
+          eq(roles.name, 'admin')
+        )
+      )
       .limit(1);
 
     // Fetch all reactions for messages in this thread in a single query (N+1 fix)
@@ -218,7 +232,12 @@ export async function GET(
       data: {
         thread,
         messages: messagesWithReactions.reverse(),
-        otherUser: otherUser[0],
+        otherUser: otherUser[0]
+          ? {
+              ...otherUser[0],
+              isAdmin: Boolean(otherUserAdminRole),
+            }
+          : null,
         totalMessages: thread.totalMessages,
         hasMore: offset + limit < thread.totalMessages
       }

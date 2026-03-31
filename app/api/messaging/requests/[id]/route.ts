@@ -11,6 +11,7 @@ import {
 } from '@/lib/db/schema';
 import { eq, and, or } from 'drizzle-orm';
 import { z } from 'zod';
+import { buildMessagingThreadUrl } from '@/lib/messaging/urls';
 
 const responseSchema = z.object({
   action: z.enum(['accept', 'reject', 'cancel']),
@@ -284,7 +285,7 @@ export async function PATCH(
             message: `${recipient[0]?.name || 'User'} accepted your message request`,
             relatedId: thread.id,
             relatedType: 'thread',
-            actionUrl: `/dashboard/messages/${thread.id}`,
+            actionUrl: buildMessagingThreadUrl(thread.id),
             actionText: 'Open Conversation'
           });
       }

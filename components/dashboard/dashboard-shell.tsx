@@ -152,6 +152,9 @@ export function DashboardShell() {
         case "mentees":
           content = <AdminMentees />
           break
+        case "messages":
+          content = <Messages />
+          break
         case "sessions":
           content = <AdminSessions />
           break

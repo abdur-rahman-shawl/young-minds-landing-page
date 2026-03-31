@@ -4,9 +4,11 @@ import { db } from '@/lib/db';
 import { 
   messageThreads,
   messagingPermissions,
-  users
+  users,
+  userRoles,
+  roles
 } from '@/lib/db/schema';
-import { eq, and, or, desc, sql } from 'drizzle-orm';
+import { eq, and, or, desc, sql, inArray } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   try {
@@ -117,9 +119,39 @@ export async function GET(request: NextRequest) {
       allowedUserIds.includes(thread.otherUser?.id || '')
     );
 
+    const otherUserIds = threadsWithPermissions
+      .map((thread) => thread.otherUser?.id)
+      .filter((id): id is string => Boolean(id));
+
+    const adminUserIds =
+      otherUserIds.length > 0
+        ? await db
+            .select({ userId: userRoles.userId })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(
+              and(
+                inArray(userRoles.userId, otherUserIds),
+                eq(roles.name, 'admin')
+              )
+            )
+        : [];
+
+    const adminUserIdSet = new Set(adminUserIds.map((row) => row.userId));
+
+    const threadsWithRoleMetadata = threadsWithPermissions.map((thread) => ({
+      ...thread,
+      otherUser: thread.otherUser
+        ? {
+            ...thread.otherUser,
+            isAdmin: adminUserIdSet.has(thread.otherUser.id),
+          }
+        : null,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: threadsWithPermissions
+      data: threadsWithRoleMetadata
     });
   } catch (error) {
     console.error('Error fetching message threads:', error);

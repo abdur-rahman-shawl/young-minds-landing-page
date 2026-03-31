@@ -13,6 +13,9 @@ import {
 import { eq, and, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
+import { getUserWithRoles } from '@/lib/db/user-helpers';
+import { resolveMessagingPolicy } from '@/lib/messaging/policy';
+import { buildMessagingThreadUrl } from '@/lib/messaging/urls';
 import {
   consumeFeature,
   enforceFeature,
@@ -151,39 +154,76 @@ export async function POST(
     }
 
     const permission = hasPermission[0];
-    const [permissionRequest] = await db
-      .select()
-      .from(messageRequests)
-      .where(eq(messageRequests.id, permission.grantedViaRequestId))
-      .limit(1);
+    let directMessageAction:
+      | 'messaging.direct_message.mentor'
+      | 'messaging.direct_message.mentee'
+      | null = null;
 
-    if (!permissionRequest) {
-      return NextResponse.json(
-        { success: false, error: 'Unable to resolve messaging audience for this thread' },
-        { status: 500 }
-      );
-    }
+    if (permission.grantedViaRequestId) {
+      const [permissionRequest] = await db
+        .select()
+        .from(messageRequests)
+        .where(eq(messageRequests.id, permission.grantedViaRequestId))
+        .limit(1);
 
-    const senderIsRequester = permissionRequest.requesterId === userId;
-    const directMessageAction =
-      permissionRequest.requestType === 'mentor_to_mentee'
-        ? senderIsRequester
-          ? 'messaging.direct_message.mentor'
-          : 'messaging.direct_message.mentee'
-        : senderIsRequester
-          ? 'messaging.direct_message.mentee'
-          : 'messaging.direct_message.mentor';
-
-    try {
-      await enforceFeature({
-        action: directMessageAction,
-        userId,
-      });
-    } catch (error) {
-      if (isSubscriptionPolicyError(error)) {
-        return NextResponse.json(error.payload, { status: error.status });
+      if (!permissionRequest) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Unable to resolve messaging audience for this thread',
+          },
+          { status: 500 }
+        );
       }
-      throw error;
+
+      const policy = resolveMessagingPolicy({
+        kind: 'request',
+        requestType: permissionRequest.requestType,
+        requesterId: permissionRequest.requesterId,
+        senderId: userId,
+      });
+
+      if (policy.enforcement !== 'subscription') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Unexpected direct-messaging policy for request-backed thread',
+          },
+          { status: 500 }
+        );
+      }
+
+      directMessageAction = policy.action;
+
+      try {
+        await enforceFeature({
+          action: directMessageAction,
+          userId,
+        });
+      } catch (error) {
+        if (isSubscriptionPolicyError(error)) {
+          return NextResponse.json(error.payload, { status: error.status });
+        }
+        throw error;
+      }
+    } else {
+      const [sender, receiver] = await Promise.all([
+        getUserWithRoles(userId),
+        getUserWithRoles(receiverId),
+      ]);
+
+      if (!sender || !receiver) {
+        return NextResponse.json(
+          { success: false, error: 'Unable to resolve conversation participants' },
+          { status: 404 }
+        );
+      }
+
+      resolveMessagingPolicy({
+        kind: 'direct',
+        senderRoles: sender.roles.map((role) => role.name),
+        receiverRoles: receiver.roles.map((role) => role.name),
+      });
     }
 
     const [newMessage] = await db
@@ -201,26 +241,45 @@ export async function POST(
       })
       .returning();
 
-    // Track usage after successful send
-    await consumeFeature({
-      action: directMessageAction,
-      userId,
-      resourceType: 'message',
-      resourceId: newMessage.id,
-    });
+    if (directMessageAction) {
+      await consumeFeature({
+        action: directMessageAction,
+        userId,
+        resourceType: 'message',
+        resourceId: newMessage.id,
+      });
+    }
 
     const unreadCountField = thread.participant1Id === receiverId
       ? 'participant1UnreadCount'
       : 'participant2UnreadCount';
+    const receiverArchivedField = thread.participant1Id === receiverId
+      ? 'participant1Archived'
+      : 'participant2Archived';
+    const receiverArchivedAtField = thread.participant1Id === receiverId
+      ? 'participant1ArchivedAt'
+      : 'participant2ArchivedAt';
+    const receiverDeletedField = thread.participant1Id === receiverId
+      ? 'participant1Deleted'
+      : 'participant2Deleted';
+    const receiverDeletedAtField = thread.participant1Id === receiverId
+      ? 'participant1DeletedAt'
+      : 'participant2DeletedAt';
+    const nextUnreadCount = ((thread[unreadCountField] as number | null) ?? 0) + 1;
 
     await db
       .update(messageThreads)
       .set({
+        status: 'active',
         lastMessageId: newMessage.id,
         lastMessageAt: newMessage.createdAt,
         lastMessagePreview: content.substring(0, 100),
-        [unreadCountField]: thread[unreadCountField] + 1,
-        totalMessages: thread.totalMessages + 1,
+        [unreadCountField]: nextUnreadCount,
+        [receiverArchivedField]: false,
+        [receiverArchivedAtField]: null,
+        [receiverDeletedField]: false,
+        [receiverDeletedAtField]: null,
+        totalMessages: (thread.totalMessages ?? 0) + 1,
         updatedAt: new Date()
       })
       .where(eq(messageThreads.id, threadId));
@@ -228,7 +287,7 @@ export async function POST(
     await db
       .update(messagingPermissions)
       .set({
-        messagesExchanged: hasPermission[0].messagesExchanged + 1,
+        messagesExchanged: (hasPermission[0].messagesExchanged ?? 0) + 1,
         lastMessageAt: new Date(),
         updatedAt: new Date()
       })
@@ -259,7 +318,7 @@ export async function POST(
           message: `${sender?.name || 'Someone'} sent you a message`,
           relatedId: threadId,
           relatedType: 'thread',
-          actionUrl: `/dashboard/messages/${threadId}`,
+          actionUrl: buildMessagingThreadUrl(threadId),
           actionText: 'View Message'
         });
     }
