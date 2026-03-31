@@ -25,7 +25,7 @@ import RecordingPlayer from './RecordingPlayer';
 // ============================================================================
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 // ============================================================================
@@ -33,6 +33,8 @@ interface Props {
 // ============================================================================
 
 export default async function RecordingPlaybackPage({ params }: Props) {
+  const { id } = await params;
+
   // ==========================================================================
   // AUTHENTICATION
   // ==========================================================================
@@ -42,7 +44,7 @@ export default async function RecordingPlaybackPage({ params }: Props) {
 
   if (!session?.user) {
     // Redirect to sign in with callback to return to this recording
-    redirect(`/auth/signin?callbackUrl=/recordings/${params.id}`);
+    redirect(`/auth/signin?callbackUrl=/recordings/${id}`);
   }
 
   const userId = session.user.id;
@@ -51,7 +53,7 @@ export default async function RecordingPlaybackPage({ params }: Props) {
   // GET RECORDING WITH SESSION DATA
   // ==========================================================================
   const recording = await db.query.livekitRecordings.findFirst({
-    where: eq(livekitRecordings.id, params.id),
+    where: eq(livekitRecordings.id, id),
     with: {
       room: {
         with: {
@@ -184,7 +186,7 @@ export default async function RecordingPlaybackPage({ params }: Props) {
   return (
     <div className="min-h-screen bg-gray-900">
       <RecordingPlayer
-        recordingId={params.id}
+        recordingId={id}
         sessionTitle={sessionData.title}
         durationSeconds={recording.durationSeconds || 0}
         fileSizeBytes={recording.fileSizeBytes || 0}

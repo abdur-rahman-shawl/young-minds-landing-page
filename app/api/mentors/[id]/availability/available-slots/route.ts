@@ -48,9 +48,11 @@ interface AvailableSlot {
 // Returns available time slots for a mentor within a date range
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const guard = await requireMentee(req, true);
     if ('error' in guard) {
       return guard.error;
@@ -83,7 +85,7 @@ export async function GET(
     const mentor = await db
       .select()
       .from(mentors)
-      .where(eq(mentors.userId, params.id))
+      .where(eq(mentors.userId, id))
       .limit(1);
 
     if (!mentor.length) {

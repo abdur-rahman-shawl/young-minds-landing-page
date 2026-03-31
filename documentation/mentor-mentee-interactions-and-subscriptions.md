@@ -55,7 +55,7 @@ The database is PostgreSQL, managed via Drizzle ORM (`lib/db/schema`).
 
 ## 4. API Architecture
 API routes are structured in `app/api/` and secured with `better-auth`.
-Authentication check is centralized in `middleware.ts` but specific role checks often reside in API handlers.
+Authentication check is centralized in `proxy.ts` but specific role checks often reside in API handlers.
 
 *   **/api/auth/**: Authentication endpoints.
 *   **/api/admin/**: Admin actions (Mentor verification, user management).

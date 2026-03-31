@@ -115,7 +115,7 @@ export const adminAuditTrail = pgTable('admin_audit_trail', {
 
 ### 3.1 Middleware Protection
 
-**File:** `middleware.ts`
+**File:** `proxy.ts`
 
 ```typescript
 // Admin-only routes
@@ -958,7 +958,7 @@ young-minds-landing-page/
 │   └── queries/
 │       └── use-session-query.ts            # React Query session hook
 │
-├── middleware.ts                           # Route protection middleware
+├── proxy.ts                                # Route protection proxy
 │
 └── scripts/
     └── make-user-admin.ts                  # Script to assign admin role

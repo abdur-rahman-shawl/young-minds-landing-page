@@ -14,10 +14,10 @@ const EDIT_TIME_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const messageId = params.id;
+    const { id: messageId } = await params;
     const session = await auth.api.getSession({ headers: request.headers });
     const userId = session?.user?.id;
 
@@ -166,10 +166,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const messageId = params.id;
+    const { id: messageId } = await params;
     const session = await auth.api.getSession({ headers: request.headers });
     const userId = session?.user?.id;
 

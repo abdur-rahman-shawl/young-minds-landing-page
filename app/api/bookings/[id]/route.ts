@@ -25,9 +25,11 @@ const updateBookingSchema = z.object({
 // GET /api/bookings/[id] - Get specific booking
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const session = await auth.api.getSession({
       headers: await headers()
     });
@@ -44,7 +46,7 @@ export async function GET(
       .from(sessions)
       .where(
         and(
-          eq(sessions.id, params.id),
+          eq(sessions.id, id),
           or(
             eq(sessions.mentorId, session.user.id),
             eq(sessions.menteeId, session.user.id)
@@ -77,9 +79,11 @@ export async function GET(
 // PUT /api/bookings/[id] - Update booking
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const session = await auth.api.getSession({
       headers: await headers()
     });
@@ -100,7 +104,7 @@ export async function PUT(
       .from(sessions)
       .where(
         and(
-          eq(sessions.id, params.id),
+          eq(sessions.id, id),
           or(
             eq(sessions.mentorId, session.user.id),
             eq(sessions.menteeId, session.user.id)
@@ -128,7 +132,7 @@ export async function PUT(
         scheduledAt: validatedData.scheduledAt ? new Date(validatedData.scheduledAt) : undefined,
         updatedAt: new Date(),
       })
-      .where(eq(sessions.id, params.id))
+      .where(eq(sessions.id, id))
       .returning();
 
     // Create notifications for status changes
@@ -212,9 +216,11 @@ export async function PUT(
 // DELETE /api/bookings/[id] - Cancel/Delete booking
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const session = await auth.api.getSession({
       headers: await headers()
     });
@@ -232,7 +238,7 @@ export async function DELETE(
       .from(sessions)
       .where(
         and(
-          eq(sessions.id, params.id),
+          eq(sessions.id, id),
           or(
             eq(sessions.mentorId, session.user.id),
             eq(sessions.menteeId, session.user.id)
@@ -258,7 +264,7 @@ export async function DELETE(
         status: 'cancelled',
         updatedAt: new Date(),
       })
-      .where(eq(sessions.id, params.id))
+      .where(eq(sessions.id, id))
       .returning();
 
     // Notify the other party

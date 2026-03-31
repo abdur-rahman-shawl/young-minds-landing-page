@@ -26,16 +26,18 @@ const exceptionSchema = z.object({
 // GET /api/mentors/[id]/availability/exceptions - Get mentor's availability exceptions
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const guard = await requireMentor(req, true);
     if ('error' in guard) {
       return guard.error;
     }
 
     const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
-    if (!isAdmin && params.id !== guard.session.user.id) {
+    if (!isAdmin && id !== guard.session.user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -47,7 +49,7 @@ export async function GET(
     const mentor = await db
       .select()
       .from(mentors)
-      .where(eq(mentors.userId, params.id))
+      .where(eq(mentors.userId, id))
       .limit(1);
 
     if (!mentor.length) {
@@ -107,16 +109,18 @@ export async function GET(
 // POST /api/mentors/[id]/availability/exceptions - Create availability exception
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const guard = await requireMentor(req, true);
     if ('error' in guard) {
       return guard.error;
     }
 
     const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
-    if (!isAdmin && params.id !== guard.session.user.id) {
+    if (!isAdmin && id !== guard.session.user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -124,7 +128,7 @@ export async function POST(
     const mentor = await db
       .select()
       .from(mentors)
-      .where(eq(mentors.userId, params.id))
+      .where(eq(mentors.userId, id))
       .limit(1);
 
     if (!mentor.length) {
@@ -135,7 +139,7 @@ export async function POST(
     }
 
     // Only the mentor themselves can add exceptions
-    if (mentor[0].userId !== session.user.id) {
+    if (mentor[0].userId !== guard.session.user.id) {
       return NextResponse.json(
         { error: 'Forbidden - You can only manage your own availability' },
         { status: 403 }
@@ -229,16 +233,18 @@ export async function POST(
 // DELETE /api/mentors/[id]/availability/exceptions - Delete multiple exceptions
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const guard = await requireMentor(req, true);
     if ('error' in guard) {
       return guard.error;
     }
 
     const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
-    if (!isAdmin && params.id !== guard.session.user.id) {
+    if (!isAdmin && id !== guard.session.user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -246,7 +252,7 @@ export async function DELETE(
     const mentor = await db
       .select()
       .from(mentors)
-      .where(eq(mentors.userId, params.id))
+      .where(eq(mentors.userId, id))
       .limit(1);
 
     if (!mentor.length) {
@@ -256,7 +262,7 @@ export async function DELETE(
       );
     }
 
-    if (mentor[0].userId !== session.user.id) {
+    if (mentor[0].userId !== guard.session.user.id) {
       return NextResponse.json(
         { error: 'Forbidden - You can only manage your own availability' },
         { status: 403 }

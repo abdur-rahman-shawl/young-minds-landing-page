@@ -86,10 +86,10 @@ async function checkUserPermission(messageId: string, userId: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const messageId = params.id;
+    const { id: messageId } = await params;
     const session = await auth.api.getSession({ headers: request.headers });
     const userId = session?.user?.id;
 
@@ -149,13 +149,13 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Apply rate limiting
     reactionRateLimit.check(request);
 
-    const messageId = params.id;
+    const { id: messageId } = await params;
     const session = await auth.api.getSession({ headers: request.headers });
     const userId = session?.user?.id;
 
@@ -266,10 +266,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const messageId = params.id;
+    const { id: messageId } = await params;
     const session = await auth.api.getSession({ headers: request.headers });
     const userId = session?.user?.id;
     const { searchParams } = new URL(request.url);

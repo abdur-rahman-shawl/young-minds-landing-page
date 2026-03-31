@@ -15,9 +15,11 @@ const updateNotificationSchema = z.object({
 // PUT /api/notifications/[id] - Update notification (mark as read/archived)
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const session = await auth.api.getSession({
       headers: await headers()
     });
@@ -38,7 +40,7 @@ export async function PUT(
       .from(notifications)
       .where(
         and(
-          eq(notifications.id, params.id),
+          eq(notifications.id, id),
           eq(notifications.userId, session.user.id)
         )
       )
@@ -73,7 +75,7 @@ export async function PUT(
     const [updatedNotification] = await db
       .update(notifications)
       .set(updateData)
-      .where(eq(notifications.id, params.id))
+      .where(eq(notifications.id, id))
       .returning();
 
     return NextResponse.json({
@@ -102,9 +104,11 @@ export async function PUT(
 // DELETE /api/notifications/[id] - Delete notification
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const session = await auth.api.getSession({
       headers: await headers()
     });
@@ -122,7 +126,7 @@ export async function DELETE(
       .from(notifications)
       .where(
         and(
-          eq(notifications.id, params.id),
+          eq(notifications.id, id),
           eq(notifications.userId, session.user.id)
         )
       )
@@ -138,7 +142,7 @@ export async function DELETE(
     // Delete the notification
     await db
       .delete(notifications)
-      .where(eq(notifications.id, params.id));
+      .where(eq(notifications.id, id));
 
     return NextResponse.json({
       success: true,

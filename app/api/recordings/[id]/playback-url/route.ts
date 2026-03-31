@@ -29,9 +29,13 @@ import { eq } from 'drizzle-orm';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  let recordingId: string | undefined;
+
   try {
+    ({ id: recordingId } = await params);
+
     // ======================================================================
     // AUTHENTICATION
     // ======================================================================
@@ -51,8 +55,6 @@ export async function GET(
     }
 
     const userId = session.user.id;
-    const recordingId = params.id;
-
     console.log(
       `🎥 Playback URL request: recording=${recordingId}, user=${userId}`
     );
@@ -119,7 +121,7 @@ export async function GET(
     );
   } catch (error) {
     console.error('❌ Playback URL generation error:', {
-      recordingId: params.id,
+      recordingId,
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
     });

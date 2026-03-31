@@ -9,9 +9,11 @@ import { requireMentor } from '@/lib/api/guards';
 // POST /api/bookings/[id]/no-show - Mark a booking as no-show
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const guard = await requireMentor(req, true);
     if ('error' in guard) {
       return guard.error;
@@ -22,7 +24,7 @@ export async function POST(
     const existingBooking = await db
       .select()
       .from(sessions)
-      .where(eq(sessions.id, params.id))
+      .where(eq(sessions.id, id))
       .limit(1);
 
     if (!existingBooking.length) {
@@ -82,7 +84,7 @@ export async function POST(
         noShowMarkedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(sessions.id, params.id))
+      .where(eq(sessions.id, id))
       .returning();
 
     // Get mentee details for notification

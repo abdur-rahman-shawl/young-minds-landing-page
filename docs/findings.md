@@ -23,7 +23,7 @@
 - Root runtime shell:
   - `app/layout.tsx` wraps the app in error boundary, query provider, theme provider, auth provider, and toaster.
   - `contexts/auth-context.tsx` is the main client auth state source and depends on `app/api/auth/session-with-roles/route.ts`.
-  - `middleware.ts` is intentionally lightweight. It only checks for auth cookies and defers role enforcement to handlers and components.
+  - `proxy.ts` is intentionally lightweight. It only checks for auth cookies and defers role enforcement to handlers and components.
 - Shell duplication:
   - `/` renders `app/page.tsx` -> `components/PageContent.tsx`
   - `/dashboard` renders `app/dashboard/page.tsx` -> `components/dashboard/dashboard-shell.tsx`
