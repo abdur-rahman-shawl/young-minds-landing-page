@@ -94,7 +94,7 @@ export function ThreadList({ threads, loading, onThreadSelect, userId }: ThreadL
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="p-4 pb-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
@@ -107,7 +107,7 @@ export function ThreadList({ threads, loading, onThreadSelect, userId }: ThreadL
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-2 p-4 pt-0">
           {filteredThreads.map((thread) => (
             <Card

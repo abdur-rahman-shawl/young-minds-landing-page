@@ -141,6 +141,8 @@ export function DashboardShell() {
     duration: 0.3,
   }
 
+  const isMessagesSection = activeSection === "messages"
+
   const renderDashboardContent = () => {
     let content
 
@@ -153,7 +155,11 @@ export function DashboardShell() {
           content = <AdminMentees />
           break
         case "messages":
-          content = <Messages />
+          content = (
+            <div className="flex h-full min-h-0 flex-1 overflow-hidden">
+              <Messages />
+            </div>
+          )
           break
         case "sessions":
           content = <AdminSessions />
@@ -224,7 +230,11 @@ export function DashboardShell() {
           content = <MyLearning />
           break
         case "messages":
-          content = <Messages />
+          content = (
+            <div className="flex h-full min-h-0 flex-1 overflow-hidden">
+              <Messages />
+            </div>
+          )
           break
         case "sessions":
           content = (
@@ -295,7 +305,11 @@ export function DashboardShell() {
           content = <MyLearning />
           break
         case "messages":
-          content = <Messages />
+          content = (
+            <div className="flex h-full min-h-0 flex-1 overflow-hidden">
+              <Messages />
+            </div>
+          )
           break
         case "sessions":
           content = (
@@ -346,7 +360,10 @@ export function DashboardShell() {
         exit="out"
         variants={pageVariants}
         transition={pageTransition}
-        className="flex h-full flex-1 flex-col"
+        className={cn(
+          "flex h-full flex-1 flex-col",
+          isMessagesSection && "min-h-0 overflow-hidden"
+        )}
       >
         {content}
       </motion.div>
@@ -355,7 +372,12 @@ export function DashboardShell() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-slate-50/50 dark:bg-[#0B0D13]">
+      <div
+        className={cn(
+          "flex w-full bg-slate-50/50 dark:bg-[#0B0D13]",
+          isMessagesSection ? "h-svh overflow-hidden" : "min-h-screen"
+        )}
+      >
         {isAdmin ? (
           <AdminSidebar active={activeSection} onChange={handleSectionChange} />
         ) : isMentor ? (
@@ -364,10 +386,20 @@ export function DashboardShell() {
           <UserSidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
         )}
 
-        <SidebarInset className="relative flex flex-1 flex-col overflow-hidden">
+        <SidebarInset
+          className={cn(
+            "relative flex flex-1 flex-col overflow-hidden",
+            isMessagesSection && "h-svh"
+          )}
+        >
           <Header showSidebarTrigger onSearchClick={() => handleSectionChange("explore")} />
 
-          <main className="flex flex-1 flex-col px-4 pb-6 pt-20 md:px-6 md:pt-24 lg:px-8">
+          <main
+            className={cn(
+              "flex min-h-0 flex-1 flex-col px-4 pb-6 pt-20 md:px-6 md:pt-24 lg:px-8",
+              isMessagesSection && "overflow-hidden"
+            )}
+          >
             <AnimatePresence mode="wait">
               {isMentorWithIncompleteProfile && (
                 <motion.div

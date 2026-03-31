@@ -71,7 +71,7 @@ export function MessagingHub({ userId }: MessagingHubProps) {
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as 'threads' | 'requests')}
-        className="flex-1 flex flex-col"
+        className="flex min-h-0 flex-1 flex-col"
       >
         <div className="px-4 py-2 bg-muted/30 border-b">
           <TabsList className="w-full">
@@ -96,7 +96,7 @@ export function MessagingHub({ userId }: MessagingHubProps) {
           </TabsList>
         </div>
 
-        <TabsContent value="threads" className="flex-1 mt-0">
+        <TabsContent value="threads" className="mt-0 flex-1 min-h-0 overflow-hidden">
           <ThreadList
             threads={threads}
             loading={threadsLoading}
@@ -105,7 +105,7 @@ export function MessagingHub({ userId }: MessagingHubProps) {
           />
         </TabsContent>
 
-        <TabsContent value="requests" className="flex-1 mt-0 p-4 overflow-auto">
+        <TabsContent value="requests" className="mt-0 flex-1 min-h-0 overflow-auto p-4">
           <MessageRequestsList userId={userId} />
         </TabsContent>
       </Tabs>
@@ -115,7 +115,7 @@ export function MessagingHub({ userId }: MessagingHubProps) {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
       {/* Mobile Layout */}
-      <div className="md:hidden h-full flex flex-col">
+      <div className="flex h-full min-h-0 flex-col md:hidden">
         {selectedThreadId ? (
           <MessageThread
             threadId={selectedThreadId}
@@ -139,7 +139,7 @@ export function MessagingHub({ userId }: MessagingHubProps) {
             <Tabs
               value={activeTab}
               onValueChange={(value) => setActiveTab(value as 'threads' | 'requests')}
-              className="flex-1 flex flex-col"
+              className="flex min-h-0 flex-1 flex-col"
             >
               <div className="px-4 mt-4">
                 <TabsList className="w-full grid grid-cols-2">
@@ -164,7 +164,7 @@ export function MessagingHub({ userId }: MessagingHubProps) {
                 </TabsList>
               </div>
 
-              <TabsContent value="threads" className="flex-1 mt-0">
+              <TabsContent value="threads" className="mt-0 flex-1 min-h-0 overflow-hidden">
                 <ThreadList
                   threads={threads}
                   loading={threadsLoading}
@@ -173,7 +173,7 @@ export function MessagingHub({ userId }: MessagingHubProps) {
                 />
               </TabsContent>
 
-              <TabsContent value="requests" className="flex-1 mt-0 p-4 pt-4 overflow-auto">
+              <TabsContent value="requests" className="mt-0 flex-1 min-h-0 overflow-auto p-4 pt-4">
                 <MessageRequestsList userId={userId} />
               </TabsContent>
             </Tabs>
@@ -182,7 +182,7 @@ export function MessagingHub({ userId }: MessagingHubProps) {
       </div>
 
       {/* Desktop Layout */}
-      <div className="hidden h-full min-h-0 md:block">
+      <div className="hidden h-full min-h-0 md:flex md:flex-col">
         {selectedThreadId ? (
           <div className="mx-auto grid h-full min-h-0 w-full max-w-7xl grid-cols-[minmax(320px,380px)_minmax(0,1fr)] overflow-hidden rounded-2xl border bg-background shadow-sm">
             <div className="min-w-0 overflow-hidden border-r">

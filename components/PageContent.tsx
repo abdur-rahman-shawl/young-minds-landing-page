@@ -49,6 +49,7 @@ import { MyLearning } from "@/components/mentee/dashboard/my-learning"
 import { MentorAnalyticsSection } from "@/components/mentor/dashboard/mentor-analytics-section"
 import { MentorSubscription } from "@/components/mentor/dashboard/mentor-subscription"
 import { MenteeSubscription } from "@/components/mentee/dashboard/mentee-subscription"
+import { cn } from "@/lib/utils"
 
 const AdminAnalytics = dynamic(() => import("@/app/admins/analytics/page"), {
   ssr: false,
@@ -79,6 +80,7 @@ export function PageContent() {
   const [activeSection, setActiveSection] = useState("dashboard")
   const [selectedMentor, setSelectedMentor] = useState<string | null>(null)
   const [mentorSource, setMentorSource] = useState<string | null>(null)
+  const isMessagesSection = activeSection === "messages"
   const router = useRouter()
   const searchParams = useSearchParams()
   const {
@@ -189,7 +191,11 @@ export function PageContent() {
         case "my-courses":
           return <MyLearning />
         case "messages":
-          return <Messages />
+          return (
+            <div className="flex h-full min-h-0 flex-1 overflow-hidden">
+              <Messages />
+            </div>
+          )
         case "sessions":
           return (
             <div className="h-full flex flex-col flex-1">
@@ -245,7 +251,11 @@ export function PageContent() {
       case "my-courses":
         return <MyLearning />
       case "messages":
-        return <Messages />
+        return (
+          <div className="flex h-full min-h-0 flex-1 overflow-hidden">
+            <Messages />
+          </div>
+        )
       case "sessions":
         return (
           <div className="h-full flex flex-col flex-1">
@@ -307,7 +317,12 @@ export function PageContent() {
   if (isAuthenticated) {
     return (
       <SidebarProvider>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex w-full">
+        <div
+          className={cn(
+            "flex w-full bg-gray-50 dark:bg-gray-900",
+            isMessagesSection ? "h-svh overflow-hidden" : "min-h-screen"
+          )}
+        >
           {isAdmin ? (
             <AdminSidebar active={activeSection} onChange={handleSectionChange} />
           ) : isMentor ? (
@@ -322,9 +337,19 @@ export function PageContent() {
             />
           )}
 
-          <SidebarInset className="flex-1">
+          <SidebarInset
+            className={cn(
+              "flex min-h-0 flex-1 flex-col",
+              isMessagesSection && "h-svh overflow-hidden"
+            )}
+          >
             <Header onSearchClick={() => handleSectionChange("explore")} />
-            <main className="flex-1 pt-24 px-4 pb-4 flex flex-col">
+            <main
+              className={cn(
+                "flex min-h-0 flex-1 flex-col px-4 pb-4 pt-24",
+                isMessagesSection && "overflow-hidden"
+              )}
+            >
               {isMentorWithIncompleteProfile && (
                 <Alert className="mb-6 border-amber-200 bg-amber-50">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />

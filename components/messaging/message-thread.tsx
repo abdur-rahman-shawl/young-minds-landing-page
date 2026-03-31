@@ -403,11 +403,11 @@ export function MessageThread({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between p-4 border-b border-border bg-card/80 backdrop-blur-sm">
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="shrink-0 border-b border-border bg-card/80 p-4 backdrop-blur-sm">
           <Skeleton className="h-12 w-full" />
         </div>
-        <div className="flex-1 p-4 space-y-4">
+        <div className="flex-1 min-h-0 space-y-4 overflow-hidden p-4">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-16 w-3/4" />
           ))}
@@ -417,9 +417,9 @@ export function MessageThread({
   }
 
   return (
-    <div className="min-w-0 overflow-hidden flex h-full flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b p-4">
+      <div className="shrink-0 border-b p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {showBackButton && (
@@ -485,7 +485,10 @@ export function MessageThread({
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4 bg-gradient-to-b from-muted/20 to-transparent" ref={scrollAreaRef}>
+      <ScrollArea
+        className="min-h-0 flex-1 bg-gradient-to-b from-muted/20 to-transparent p-4"
+        ref={scrollAreaRef}
+      >
         <div className="space-y-4">
           {messages.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -529,7 +532,7 @@ export function MessageThread({
       </ScrollArea>
 
       {/* Message Input */}
-      <div className="border-t border-border bg-card/80 backdrop-blur-sm">
+      <div className="shrink-0 border-t border-border bg-card/80 backdrop-blur-sm">
         {/* Reply Bar */}
         {replyingTo && (
           <div className="px-4 pt-3 pb-2 bg-accent/50 border-b border-border rounded-t-xl">
