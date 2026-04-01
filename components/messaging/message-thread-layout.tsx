@@ -13,6 +13,7 @@ interface MessageThreadLayoutProps {
   bodyClassName?: string;
   composerClassName?: string;
   scrollAreaRef?: Ref<HTMLDivElement>;
+  scrollViewportRef?: Ref<HTMLDivElement>;
 }
 
 export function MessageThreadLayout({
@@ -23,6 +24,7 @@ export function MessageThreadLayout({
   bodyClassName,
   composerClassName,
   scrollAreaRef,
+  scrollViewportRef,
 }: MessageThreadLayoutProps) {
   return (
     <div
@@ -38,6 +40,7 @@ export function MessageThreadLayout({
 
       <ScrollArea
         ref={scrollAreaRef}
+        viewportRef={scrollViewportRef}
         data-testid='message-thread-scroll-area'
         className={cn(
           'min-h-0 flex-1 bg-gradient-to-b from-muted/20 to-transparent p-4',

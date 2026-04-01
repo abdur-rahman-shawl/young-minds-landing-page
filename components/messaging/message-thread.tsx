@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,7 @@ import {
 import {
   useDeleteMessageMutation,
   useEditMessageMutation,
-  useThreadQuery,
+  useInfiniteThreadQuery,
   useToggleReactionMutation,
 } from '@/hooks/queries/use-messaging-queries';
 import { MessageReactions } from './message-reactions';
@@ -35,6 +35,11 @@ import { ReactionPicker } from './reaction-picker';
 import { MessageEditForm } from './message-edit-form';
 import { MessageActionsMenu } from './message-actions-menu';
 import { MessageThreadLayout } from './message-thread-layout';
+import {
+  flattenThreadHistoryPages,
+  getPrependedThreadScrollTop,
+  isThreadViewportNearBottom,
+} from '@/lib/messaging/thread-history';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -281,16 +286,32 @@ export function MessageThread({
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
-  const { data: threadData, isLoading } = useThreadQuery(threadId, userId);
+  const pendingHistoryAnchorRef = useRef<{
+    scrollTop: number;
+    scrollHeight: number;
+  } | null>(null);
+  const didInitializeScrollRef = useRef(false);
+  const previousThreadIdRef = useRef<string | null>(null);
+  const previousFirstMessageIdRef = useRef<string | null>(null);
+  const previousLastMessageIdRef = useRef<string | null>(null);
+  const shouldForceScrollToBottomRef = useRef(false);
+  const wasNearBottomRef = useRef(true);
+  const {
+    data: threadPagesData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteThreadQuery(threadId, userId);
   const editMessageMutation = useEditMessageMutation();
   const deleteMessageMutation = useDeleteMessageMutation();
   const toggleReactionMutation = useToggleReactionMutation();
 
-  const thread = threadData?.thread;
-  const messages = threadData?.messages || [];
-  const otherUser = threadData?.otherUser;
+  const threadPages = threadPagesData?.pages ?? [];
+  const messages = flattenThreadHistoryPages(threadPages);
+  const otherUser = threadPages[0]?.otherUser;
 
   // Handler for toggling reactions - calls API directly
   const handleToggleReaction = async (messageId: string, emoji: string) => {
@@ -322,11 +343,107 @@ export function MessageThread({
   };
 
   useEffect(() => {
-    // Scroll to bottom when messages change
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    if (previousThreadIdRef.current === threadId) {
+      return;
     }
-  }, [messages]);
+
+    previousThreadIdRef.current = threadId;
+    pendingHistoryAnchorRef.current = null;
+    didInitializeScrollRef.current = false;
+    previousFirstMessageIdRef.current = null;
+    previousLastMessageIdRef.current = null;
+    shouldForceScrollToBottomRef.current = false;
+    wasNearBottomRef.current = true;
+  }, [threadId]);
+
+  useEffect(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const updateViewportState = () => {
+      wasNearBottomRef.current = isThreadViewportNearBottom({
+        scrollTop: viewport.scrollTop,
+        clientHeight: viewport.clientHeight,
+        scrollHeight: viewport.scrollHeight,
+      });
+    };
+
+    const maybeLoadOlderMessages = () => {
+      if (
+        pendingHistoryAnchorRef.current ||
+        viewport.scrollTop > 80 ||
+        !hasNextPage ||
+        isFetchingNextPage
+      ) {
+        return;
+      }
+
+      pendingHistoryAnchorRef.current = {
+        scrollTop: viewport.scrollTop,
+        scrollHeight: viewport.scrollHeight,
+      };
+
+      void fetchNextPage();
+    };
+
+    const handleScroll = () => {
+      updateViewportState();
+      maybeLoadOlderMessages();
+    };
+
+    updateViewportState();
+    maybeLoadOlderMessages();
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll);
+    };
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, messages.length, threadId]);
+
+  useLayoutEffect(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const firstMessageId = messages[0]?.message.id ?? null;
+    const latestMessageId = messages[messages.length - 1]?.message.id ?? null;
+
+    if (pendingHistoryAnchorRef.current) {
+      if (firstMessageId && firstMessageId !== previousFirstMessageIdRef.current) {
+        const { scrollTop, scrollHeight } = pendingHistoryAnchorRef.current;
+        viewport.scrollTop = getPrependedThreadScrollTop(
+          scrollTop,
+          scrollHeight,
+          viewport.scrollHeight
+        );
+        pendingHistoryAnchorRef.current = null;
+      } else if (!isFetchingNextPage) {
+        pendingHistoryAnchorRef.current = null;
+      }
+    } else if (!didInitializeScrollRef.current && messages.length > 0) {
+      viewport.scrollTop = viewport.scrollHeight;
+      didInitializeScrollRef.current = true;
+    } else if (
+      latestMessageId &&
+      latestMessageId !== previousLastMessageIdRef.current &&
+      (shouldForceScrollToBottomRef.current || wasNearBottomRef.current)
+    ) {
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+
+    previousFirstMessageIdRef.current = firstMessageId;
+    previousLastMessageIdRef.current = latestMessageId;
+    shouldForceScrollToBottomRef.current = false;
+    wasNearBottomRef.current = isThreadViewportNearBottom({
+      scrollTop: viewport.scrollTop,
+      clientHeight: viewport.clientHeight,
+      scrollHeight: viewport.scrollHeight,
+    });
+  }, [isFetchingNextPage, messages, threadId]);
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || isSending) return;
@@ -337,6 +454,7 @@ export function MessageThread({
     setMessageInput('');
     setReplyingTo(null);
     setIsSending(true);
+    shouldForceScrollToBottomRef.current = true;
 
     try {
       await onSendMessage(threadId, message, replyToId);
@@ -344,6 +462,7 @@ export function MessageThread({
       toast.error(error instanceof Error ? error.message : 'Failed to send message');
       setMessageInput(message); // Restore message on error
       if (replyToId) setReplyingTo(replyingTo); // Restore reply state
+      shouldForceScrollToBottomRef.current = false;
     } finally {
       setIsSending(false);
     }
@@ -485,45 +604,56 @@ export function MessageThread({
         </div>
       }
       body={
-        <div className="space-y-4">
-          {messages.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No messages yet. Start the conversation!</p>
+        <div className="relative min-h-full">
+          {isFetchingNextPage && messages.length > 0 ? (
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center">
+              <div className="inline-flex items-center gap-2 rounded-full border bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading older messages
+              </div>
             </div>
-          ) : (
-            messages.map((msg, index) => {
-              const showDateSeparator = index === 0 ||
-                new Date(messages[index - 1].message.createdAt).toDateString() !==
-                new Date(msg.message.createdAt).toDateString();
+          ) : null}
 
-              const isOwnMessage = msg.message.senderId === userId;
+          <div className="space-y-4">
+            {messages.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No messages yet. Start the conversation!</p>
+              </div>
+            ) : (
+              messages.map((msg, index) => {
+                const showDateSeparator = index === 0 ||
+                  new Date(messages[index - 1].message.createdAt).toDateString() !==
+                  new Date(msg.message.createdAt).toDateString();
 
-              return (
-                <div
-                  key={msg.message.id}
-                  ref={(el) => {
-                    if (el) messageRefs.current[msg.message.id] = el;
-                  }}
-                  className="transition-colors duration-300"
-                >
-                  <MessageWithReactions
-                    msg={msg}
-                    isOwnMessage={isOwnMessage}
-                    userId={userId}
-                    showDateSeparator={showDateSeparator}
-                    renderDateSeparator={renderDateSeparator}
-                    formatMessageDate={formatMessageDate}
-                    onReply={handleReply}
-                    onEdit={editMessage}
-                    onDelete={deleteMessage}
-                    messages={messages}
-                    scrollToMessage={scrollToMessage}
-                    onToggleReaction={handleToggleReaction}
-                  />
-                </div>
-              );
-            })
-          )}
+                const isOwnMessage = msg.message.senderId === userId;
+
+                return (
+                  <div
+                    key={msg.message.id}
+                    ref={(el) => {
+                      if (el) messageRefs.current[msg.message.id] = el;
+                    }}
+                    className="transition-colors duration-300"
+                  >
+                    <MessageWithReactions
+                      msg={msg}
+                      isOwnMessage={isOwnMessage}
+                      userId={userId}
+                      showDateSeparator={showDateSeparator}
+                      renderDateSeparator={renderDateSeparator}
+                      formatMessageDate={formatMessageDate}
+                      onReply={handleReply}
+                      onEdit={editMessage}
+                      onDelete={deleteMessage}
+                      messages={messages}
+                      scrollToMessage={scrollToMessage}
+                      onToggleReaction={handleToggleReaction}
+                    />
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       }
       composer={
@@ -602,7 +732,7 @@ export function MessageThread({
           </form>
         </>
       }
-      scrollAreaRef={scrollAreaRef}
+      scrollViewportRef={scrollViewportRef}
     />
   );
 }

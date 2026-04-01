@@ -1,10 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useTRPCClient } from '@/lib/trpc/react';
 import type { RouterOutputs } from '@/lib/trpc/types';
+import { getNextThreadHistoryOffset } from '@/lib/messaging/thread-history';
 
 type Thread = RouterOutputs['messaging']['listThreads'][number];
 type ThreadData = RouterOutputs['messaging']['getThread'];
+type ThreadPage = RouterOutputs['messaging']['getThread'];
 type Message = ThreadData['messages'][number];
 type MessageRequest = RouterOutputs['messaging']['listRequests'][number];
 type ReactionGroup = RouterOutputs['messaging']['listMessageReactions'][number];
@@ -19,6 +26,11 @@ export const messagingKeys = {
     ['messaging', 'threads', userId, { includeArchived }] as const,
   threadPrefix: (threadId: string, userId: string) =>
     ['messaging', 'thread', threadId, userId] as const,
+  threadHistory: (
+    threadId: string,
+    userId: string,
+    limit = DEFAULT_THREAD_LIMIT
+  ) => ['messaging', 'thread', threadId, userId, { limit, infinite: true }] as const,
   thread: (
     threadId: string,
     userId: string,
@@ -71,6 +83,31 @@ export function useThreadQuery(
         limit,
         offset,
       }),
+    enabled: !!threadId && !!userId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchInterval: 10 * 1000,
+  });
+}
+
+export function useInfiniteThreadQuery(
+  threadId: string | null,
+  userId: string | undefined,
+  limit = DEFAULT_THREAD_LIMIT
+) {
+  const trpcClient = useTRPCClient();
+
+  return useInfiniteQuery({
+    queryKey: messagingKeys.threadHistory(threadId!, userId!, limit),
+    queryFn: ({ pageParam }) =>
+      trpcClient.messaging.getThread.query({
+        threadId: threadId!,
+        limit,
+        offset: pageParam as number,
+      }),
+    initialPageParam: DEFAULT_THREAD_OFFSET,
+    getNextPageParam: (lastPage: ThreadPage, allPages: ThreadPage[]) =>
+      lastPage.hasMore ? getNextThreadHistoryOffset(allPages) : undefined,
     enabled: !!threadId && !!userId,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -155,7 +192,7 @@ export function useSendMessageMutation() {
     onSuccess: async (_data, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: messagingKeys.thread(variables.threadId, variables.userId),
+          queryKey: messagingKeys.threadPrefix(variables.threadId, variables.userId),
         }),
         queryClient.invalidateQueries({
           queryKey: messagingKeys.threadsPrefix(variables.userId),
@@ -297,7 +334,7 @@ export function useMarkAsReadMutation() {
     onSuccess: async (_data, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: messagingKeys.thread(variables.threadId, variables.userId),
+          queryKey: messagingKeys.threadPrefix(variables.threadId, variables.userId),
         }),
         queryClient.invalidateQueries({
           queryKey: messagingKeys.threadsPrefix(variables.userId),
@@ -332,7 +369,7 @@ export function useEditMessageMutation() {
       }),
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({
-        queryKey: messagingKeys.thread(variables.threadId, variables.userId),
+        queryKey: messagingKeys.threadPrefix(variables.threadId, variables.userId),
       });
       toast.success('Message edited');
     },
@@ -361,7 +398,7 @@ export function useDeleteMessageMutation() {
       }),
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({
-        queryKey: messagingKeys.thread(variables.threadId, variables.userId),
+        queryKey: messagingKeys.threadPrefix(variables.threadId, variables.userId),
       });
       toast.success('Message deleted');
     },
@@ -401,7 +438,7 @@ export function useToggleReactionMutation() {
       if (variables.threadId) {
         invalidations.push(
           queryClient.invalidateQueries({
-            queryKey: messagingKeys.thread(variables.threadId, variables.userId),
+            queryKey: messagingKeys.threadPrefix(variables.threadId, variables.userId),
           })
         );
       }
@@ -421,14 +458,17 @@ export function usePrefetchThread() {
   const queryClient = useQueryClient();
 
   return (threadId: string, userId: string) => {
-    queryClient.prefetchQuery({
-      queryKey: messagingKeys.thread(threadId, userId),
-      queryFn: () =>
+    queryClient.prefetchInfiniteQuery({
+      queryKey: messagingKeys.threadHistory(threadId, userId),
+      queryFn: ({ pageParam }) =>
         trpcClient.messaging.getThread.query({
           threadId,
           limit: DEFAULT_THREAD_LIMIT,
-          offset: DEFAULT_THREAD_OFFSET,
+          offset: pageParam as number,
         }),
+      initialPageParam: DEFAULT_THREAD_OFFSET,
+      getNextPageParam: (lastPage: ThreadPage, allPages: ThreadPage[]) =>
+        lastPage.hasMore ? getNextThreadHistoryOffset(allPages) : undefined,
       staleTime: 2 * 60 * 1000,
     });
   };
@@ -440,4 +480,5 @@ export type {
   ReactionGroup,
   Thread,
   ThreadData,
+  ThreadPage,
 };

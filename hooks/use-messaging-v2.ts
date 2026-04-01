@@ -132,7 +132,7 @@ export function useMessaging(userId: string | undefined) {
 }
 
 /**
- * Hook for individual thread with messages
- * Uses React Query for caching and automatic updates
+ * Hook for individual thread history with paginated messages
+ * Uses React Query infinite queries for upward history loading
  */
-export { useThreadQuery as useThread } from './queries/use-messaging-queries';
+export { useInfiniteThreadQuery as useThread } from './queries/use-messaging-queries';
