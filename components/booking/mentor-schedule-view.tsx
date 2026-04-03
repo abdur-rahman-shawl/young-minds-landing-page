@@ -52,6 +52,11 @@ import { RescheduleResponseDialog } from './reschedule-response-dialog';
 import { CancelDialog } from './cancel-dialog';
 import { RescheduleDialog } from './reschedule-dialog';
 import { useRouter, useSearchParams } from 'next/navigation';
+import {
+    useBookingsQuery,
+    useWithdrawRescheduleRequestMutation,
+} from '@/hooks/queries/use-booking-queries';
+import { findSessionFromDashboardParams } from '@/lib/bookings/dashboard-session-intent';
 
 // Feature flags
 const ALLOW_WITHDRAW_RESCHEDULE = true;
@@ -136,8 +141,6 @@ export function MentorScheduleView() {
 
     const [currentWeek, setCurrentWeek] = useState(new Date());
     const [viewType, setViewType] = useState<ViewType>('week');
-    const [sessions, setSessions] = useState<Session[]>([]);
-    const [loading, setLoading] = useState(false);
     const [selectedSession, setSelectedSession] = useState<Session | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -149,47 +152,22 @@ export function MentorScheduleView() {
     const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
     const [withdrawLoading, setWithdrawLoading] = useState(false);
     const [lobbySessionId, setLobbySessionId] = useState<string | null>(null);
+    const bookingsQuery = useBookingsQuery(session?.user?.id, 'mentor');
+    const withdrawRescheduleRequestMutation = useWithdrawRescheduleRequestMutation();
+    const sessions = (bookingsQuery.data ?? []) as Session[];
+    const loading = bookingsQuery.isLoading;
 
     const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
     const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-    // Fetch sessions
-    const fetchSessions = async () => {
-        if (!session) return;
-        setLoading(true);
-        try {
-            const response = await fetch('/api/bookings?role=mentor');
-            const data = await response.json();
-            if (response.ok) {
-                setSessions(data.bookings || []);
-            } else {
-                toast.error('Failed to fetch sessions');
-            }
-        } catch (error) {
-            console.error('Failed to fetch sessions:', error);
-            toast.error('Failed to fetch sessions');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (session) fetchSessions();
-    }, [session]);
-
     // Handle URL params for auto-opening session
     useEffect(() => {
-        const sessionId = searchParams?.get('sessionId');
-        const action = searchParams?.get('action'); // e.g., 'reschedule-response'
+        const targetSession = findSessionFromDashboardParams(searchParams, sessions);
 
-        if (sessionId && sessions.length > 0) {
-            const targetSession = sessions.find(s => s.id === sessionId);
-            if (targetSession) {
-                setSelectedSession(targetSession);
-                setDialogOpen(true);
-                // Clear params to prevent re-opening on refresh? maybe not
-            }
+        if (targetSession) {
+            setSelectedSession(targetSession);
+            setDialogOpen(true);
         }
     }, [searchParams, sessions]);
 
@@ -225,13 +203,11 @@ export function MentorScheduleView() {
         if (!selectedSession) return;
         setWithdrawLoading(true);
         try {
-            const response = await fetch(`/api/bookings/${selectedSession.id}/reschedule/withdraw`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            await withdrawRescheduleRequestMutation.mutateAsync({
+                bookingId: selectedSession.id,
             });
-            if (!response.ok) throw new Error('Failed to withdraw');
             toast.success('Reschedule withdrawn');
-            fetchSessions();
+            void bookingsQuery.refetch();
             setDialogOpen(false);
         } catch (error) {
             toast.error('Failed to withdraw request');
@@ -551,7 +527,7 @@ export function MentorScheduleView() {
                         userRole="mentor"
                         mentorId={selectedSession.mentorId}
                         initialAction={respondAction}
-                        onSuccess={() => { setShowRespondDialog(false); setDialogOpen(false); fetchSessions(); }}
+                        onSuccess={() => { setShowRespondDialog(false); setDialogOpen(false); void bookingsQuery.refetch(); }}
                     />
                     <CancelDialog
                         open={showCancelDialog}
@@ -561,7 +537,7 @@ export function MentorScheduleView() {
                         userRole="mentor"
                         sessionRate={selectedSession.rate}
                         scheduledAt={new Date(selectedSession.scheduledAt)}
-                        onSuccess={() => { setShowCancelDialog(false); setDialogOpen(false); fetchSessions(); }}
+                        onSuccess={() => { setShowCancelDialog(false); setDialogOpen(false); void bookingsQuery.refetch(); }}
                     />
                     <RescheduleDialog
                         open={showRescheduleDialog}
@@ -572,7 +548,7 @@ export function MentorScheduleView() {
                         currentDate={new Date(selectedSession.scheduledAt)}
                         currentDuration={selectedSession.duration}
                         userRole="mentor"
-                        onSuccess={() => { setShowRescheduleDialog(false); setDialogOpen(false); fetchSessions(); }}
+                        onSuccess={() => { setShowRescheduleDialog(false); setDialogOpen(false); void bookingsQuery.refetch(); }}
                     />
                 </>
             )}

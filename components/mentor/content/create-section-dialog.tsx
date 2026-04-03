@@ -13,8 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useCreateSection } from '@/hooks/queries/use-content-queries';
 
 const createSectionSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100, 'Title must be less than 100 characters'),
@@ -124,35 +123,7 @@ const CONTENT_TYPE_ICONS = {
 export function CreateSectionDialog({ moduleId, open, onOpenChange }: CreateSectionDialogProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('template');
-  const queryClient = useQueryClient();
-  
-  const createSectionMutation = useMutation({
-    mutationFn: async (data: CreateSectionForm) => {
-      const response = await fetch(`/api/mentors/content/modules/${moduleId}/sections`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create section');
-      }
-      
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mentor-content'] });
-      toast.success('Section created successfully!');
-      onOpenChange(false);
-      form.reset();
-      setSelectedTemplate(null);
-      setActiveTab('template');
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
+  const createSectionMutation = useCreateSection();
   
   const form = useForm<CreateSectionForm>({
     resolver: zodResolver(createSectionSchema),
@@ -216,7 +187,20 @@ export function CreateSectionDialog({ moduleId, open, onOpenChange }: CreateSect
   };
   
   const onSubmit = (data: CreateSectionForm) => {
-    createSectionMutation.mutate(data);
+    createSectionMutation.mutate(
+      {
+        moduleId,
+        data,
+      },
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+          form.reset();
+          setSelectedTemplate(null);
+          setActiveTab('template');
+        },
+      }
+    );
   };
   
   const isLoading = createSectionMutation.isPending;

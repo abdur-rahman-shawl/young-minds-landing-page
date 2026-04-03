@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,9 +8,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar, Clock, User, Video, MessageSquare, Headphones, ChevronLeft, ChevronRight } from 'lucide-react';
 import { addDays, eachDayOfInterval, endOfWeek, format, isFuture, isSameDay, isToday, startOfWeek } from 'date-fns';
 import { useAuth } from '@/contexts/auth-context';
-import { toast } from 'sonner';
 import { SessionActions } from './session-actions';
 import { SessionLobbyModal } from './SessionLobbyModal';
+import { useBookingsQuery } from '@/hooks/queries/use-booking-queries';
 
 interface Session {
   id: string;
@@ -45,35 +45,15 @@ const STATUS_COLORS = {
 export function MenteeSessionsCalendar() {
   const { session } = useAuth();
   const [currentWeek, setCurrentWeek] = useState(new Date());
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [lobbySessionId, setLobbySessionId] = useState<string | null>(null);
+  const bookingsQuery = useBookingsQuery(session?.user?.id, 'mentee');
+  const sessions = (bookingsQuery.data ?? []) as Session[];
+  const loading = bookingsQuery.isLoading;
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
-
-  const fetchSessions = async () => {
-    if (!session) return;
-
-    setLoading(true);
-    try {
-      const response = await fetch('/api/bookings?role=mentee');
-      const data = await response.json();
-
-      if (response.ok) {
-        setSessions(data.bookings || []);
-      } else {
-        toast.error('Failed to fetch sessions');
-      }
-    } catch (error) {
-      console.error('Failed to fetch sessions:', error);
-      toast.error('Failed to fetch sessions');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getSessionsForDate = (date: Date) => {
     return sessions
@@ -93,10 +73,6 @@ export function MenteeSessionsCalendar() {
       currency,
     }).format(amount);
   };
-
-  useEffect(() => {
-    fetchSessions();
-  }, [session]);
 
   if (!session) return null;
 
@@ -226,7 +202,9 @@ export function MenteeSessionsCalendar() {
                                 }}
                                 userId={session.user.id}
                                 userRole="mentee"
-                                onUpdate={fetchSessions}
+                                onUpdate={() => {
+                                  void bookingsQuery.refetch();
+                                }}
                                 onJoin={(actionSession) => setLobbySessionId(actionSession.id)}
                               />
                             </div>

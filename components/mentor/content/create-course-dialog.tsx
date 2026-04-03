@@ -19,7 +19,6 @@ import { Separator } from "@/components/ui/separator";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { useSaveCourse, useUploadFile, Course } from '@/hooks/queries/use-content-queries';
 import { safeJsonParse } from '@/lib/utils/safe-json';
-import { toast } from 'sonner';
 import { useAuth } from '@/contexts/auth-context';
 
 const createCourseSchema = z.object({
@@ -242,7 +241,6 @@ export function CreateCourseDialog({ contentId, existingCourse, open, onOpenChan
         hasExisting: Boolean(existingCourse),
       });
       
-      toast.success(existingCourse ? 'Course updated successfully!' : 'Course created successfully!');
       onOpenChange(false);
     } catch (error) {
       console.error('Error saving course:', error);

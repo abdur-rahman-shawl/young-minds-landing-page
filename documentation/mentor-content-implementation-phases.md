@@ -1,5 +1,7 @@
 # Mentor Content Module - Implementation Phases
 
+> Update: the current runtime no longer uses the internal `/api/mentors/content/**`, `/api/mentors/profile-content`, or `/api/admin/content/**` handlers for app-internal calls. Those flows now run through `lib/content/server/service.ts` + `lib/trpc/routers/content.ts`. The historical phase notes below still describe the workflow changes that were first introduced in those handlers.
+
 ## Phase 1 (Completed on 2026-03-17)
 
 ### Goal

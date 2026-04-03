@@ -9,10 +9,14 @@ import { SessionRating } from "./SessionRating"
 import { CheckCircle } from "lucide-react"
 import { Button } from "../ui/button"
 import { logConsentEvents } from "@/lib/consent-client"
+import { useAuth } from "@/contexts/auth-context"
+import { toast } from "sonner"
+import { useUpdateBookingMutation } from "@/hooks/queries/use-booking-queries"
 
 interface Session {
   id: string
   title: string
+  mentorId?: string
   mentorName?: string
   mentorAvatar?: string
 }
@@ -29,6 +33,7 @@ export function SessionViewModal({ session, isOpen, onClose }: SessionViewModalP
   const [stage, setStage] = useState<Stage>('lobby')
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null)
   const [isCameraOn, setIsCameraOn] = useState(false)
+  const updateBookingMutation = useUpdateBookingMutation()
 
   const startCamera = async () => {
     try {
@@ -67,13 +72,10 @@ export function SessionViewModal({ session, isOpen, onClose }: SessionViewModalP
   const handleJoin = async () => {
     if (session) {
       try {
-        await fetch(`/api/bookings/${session.id}`,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'in_progress' }),
-          }
-        );
+        await updateBookingMutation.mutateAsync({
+          bookingId: session.id,
+          status: 'in_progress',
+        });
       } catch (error) {
         console.error("Failed to update session status to 'in_progress':", error);
       }
@@ -84,13 +86,10 @@ export function SessionViewModal({ session, isOpen, onClose }: SessionViewModalP
   const handleTimeUp = async () => {
     if (session) {
       try {
-        await fetch(`/api/bookings/${session.id}`,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'completed' }),
-          }
-        );
+        await updateBookingMutation.mutateAsync({
+          bookingId: session.id,
+          status: 'completed',
+        });
       } catch (error) {
         console.error("Failed to update session status to 'completed':", error);
       }

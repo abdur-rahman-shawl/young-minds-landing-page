@@ -13,6 +13,11 @@ describe('dashboard section registry', () => {
       key: 'messages',
       shellMode: 'workspace',
     });
+    expect(getDashboardSection('notifications')).toMatchObject({
+      key: 'notifications',
+      shellMode: 'page',
+      navigation: false,
+    });
     expect(getDashboardSection('sessions')).toMatchObject({
       key: 'sessions',
       shellMode: 'page',

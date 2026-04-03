@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { mentors, users } from '@/lib/db/schema';
+import { mentors, users, type NotificationType } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { sendMentorApplicationApprovedEmail, sendMentorApplicationRejectedEmail, sendMentorApplicationReverificationRequestEmail } from '@/lib/email';
 import { logAdminAction } from '@/lib/db/audit';
 import { resolveStorageUrl } from '@/lib/storage';
+import { createNotificationRecord } from '@/lib/notifications/server/service';
 
 const VERIFICATION_STATUSES = [
   'YET_TO_APPLY',
@@ -194,20 +195,17 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function sendNotification(userId: string, type: string, title: string, message: string, actionUrl?: string) {
+async function sendNotification(userId: string, type: NotificationType, title: string, message: string, actionUrl?: string) {
   console.log(`🚀 Sending notification to user ${userId}...`);
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
   try {
-    const response = await fetch(`${baseUrl}/api/notifications`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, type, title, message, actionUrl }),
+    await createNotificationRecord({
+      userId,
+      type,
+      title,
+      message,
+      actionUrl,
     });
-    if (response.ok) {
-      console.log(`✅ Notification sent successfully to user ${userId}`);
-    } else {
-      console.error(`❌ Failed to send notification to user ${userId}:`, await response.json());
-    }
+    console.log(`✅ Notification sent successfully to user ${userId}`);
   } catch (error) {
     console.error(`❌ Error sending notification to user ${userId}:`, error);
   }

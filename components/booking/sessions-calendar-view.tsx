@@ -61,9 +61,11 @@ import {
   subMonths,
   subWeeks
 } from 'date-fns';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { findSessionFromDashboardParams } from '@/lib/bookings/dashboard-session-intent';
 import { SessionLobbyModal } from './SessionLobbyModal';
 import { SessionActions } from './session-actions';
 import { RescheduleRequestBanner } from './reschedule-request-banner';
@@ -71,6 +73,10 @@ import { ReassignmentResponseBanner } from './reassignment-response-banner';
 import { NoMentorFoundBanner } from './no-mentor-found-banner';
 import { CancelDialog } from './cancel-dialog';
 import { RescheduleDialog } from './reschedule-dialog';
+import {
+  useBookingsQuery,
+  useWithdrawRescheduleRequestMutation,
+} from '@/hooks/queries/use-booking-queries';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -167,10 +173,9 @@ const getSessionColors = (sessionData: Session) => {
 
 export function SessionsCalendarView() {
   const { session } = useAuth();
+  const searchParams = useSearchParams();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewType, setViewType] = useState<ViewType>('month');
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [lobbySession, setLobbySession] = useState<Session | null>(null);
@@ -223,37 +228,26 @@ export function SessionsCalendarView() {
   }, [dateRange]);
 
   // Track if we're already fetching to prevent duplicates
-  const [isFetching, setIsFetching] = useState(false);
-
-  // Fetch sessions
-  const fetchSessions = async () => {
-    if (!session || isFetching) return;
-
-    setIsFetching(true);
-    setLoading(true);
-    try {
-      const response = await fetch('/api/bookings?role=mentee');
-      const data = await response.json();
-
-      if (response.ok) {
-        // Add mock mentor names for better display
-        const enrichedSessions = (data.bookings || []).map((booking: any) => ({
-          ...booking,
-          mentorName: booking.mentorName || 'Mentor',
-          mentorAvatar: booking.mentorAvatar || null,
-        }));
-        setSessions(enrichedSessions);
-      } else {
-        toast.error('Failed to fetch sessions');
-      }
-    } catch (error) {
-      console.error('Failed to fetch sessions:', error);
-      toast.error('Failed to fetch sessions');
-    } finally {
-      setLoading(false);
-      setIsFetching(false);
-    }
+  const bookingsQuery = useBookingsQuery(session?.user?.id, 'mentee');
+  const withdrawRescheduleRequestMutation = useWithdrawRescheduleRequestMutation();
+  const sessions = ((bookingsQuery.data ?? []) as Session[]).map((booking) => ({
+    ...booking,
+    mentorName: booking.mentorName || 'Mentor',
+    mentorAvatar: booking.mentorAvatar || null,
+  }));
+  const loading = bookingsQuery.isLoading;
+  const refetchSessions = () => {
+    void bookingsQuery.refetch();
   };
+
+  useEffect(() => {
+    const targetSession = findSessionFromDashboardParams(searchParams, sessions);
+
+    if (targetSession) {
+      setSelectedSession(targetSession);
+      setDialogOpen(true);
+    }
+  }, [searchParams, sessions]);
 
   // Get sessions for a specific date
   const getSessionsForDate = (date: Date) => {
@@ -335,21 +329,14 @@ export function SessionsCalendarView() {
 
     setWithdrawLoading(true);
     try {
-      const response = await fetch(`/api/bookings/${selectedSession.id}/reschedule/withdraw`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await withdrawRescheduleRequestMutation.mutateAsync({
+        bookingId: selectedSession.id,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to withdraw reschedule request');
-      }
 
       toast.success('Reschedule request withdrawn. Session remains at original time.');
       setShowWithdrawDialog(false);
       setDialogOpen(false);
-      fetchSessions();
+      refetchSessions();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to withdraw request');
     } finally {
@@ -379,7 +366,7 @@ export function SessionsCalendarView() {
 
   useEffect(() => {
     if (session) {
-      fetchSessions();
+      refetchSessions();
     }
   }, []);
 
@@ -661,7 +648,7 @@ export function SessionsCalendarView() {
                               }}
                               userId={userId}
                               userRole={session.mentorId === userId ? 'mentor' : 'mentee'}
-                              onUpdate={fetchSessions}
+                              onUpdate={refetchSessions}
                             />
                           </div>
                         </div>
@@ -769,7 +756,7 @@ export function SessionsCalendarView() {
                             }}
                             userId={userId}
                             userRole={session.mentorId === userId ? 'mentor' : 'mentee'}
-                            onUpdate={fetchSessions}
+                            onUpdate={refetchSessions}
                           />
                         </div>
                       </div>
@@ -1012,7 +999,7 @@ export function SessionsCalendarView() {
                         userRole={userRole}
                         requestId={selectedSession.pendingRescheduleRequestId}
                         onResponse={() => {
-                          fetchSessions();
+                          refetchSessions();
                           setDialogOpen(false);
                         }}
                       />
@@ -1029,7 +1016,7 @@ export function SessionsCalendarView() {
                     newMentorAvatar={selectedSession.mentorAvatar}
                     sessionRate={selectedSession.rate}
                     onSuccess={() => {
-                      fetchSessions();
+                      refetchSessions();
                       setDialogOpen(false);
                     }}
                   />
@@ -1042,7 +1029,7 @@ export function SessionsCalendarView() {
                     sessionTitle={selectedSession.title}
                     sessionRate={selectedSession.rate}
                     onSuccess={() => {
-                      fetchSessions();
+                      refetchSessions();
                       setDialogOpen(false);
                     }}
                   />
@@ -1194,7 +1181,7 @@ export function SessionsCalendarView() {
           onSuccess={() => {
             setShowCancelDialog(false);
             setDialogOpen(false);
-            fetchSessions();
+            refetchSessions();
             toast.success('Session cancelled successfully');
           }}
         />
@@ -1214,7 +1201,7 @@ export function SessionsCalendarView() {
           onSuccess={() => {
             setShowRescheduleDialog(false);
             setDialogOpen(false);
-            fetchSessions();
+            refetchSessions();
             toast.success('Reschedule request submitted');
           }}
         />

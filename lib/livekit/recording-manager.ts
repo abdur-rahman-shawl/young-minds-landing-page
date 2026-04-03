@@ -20,6 +20,7 @@
 import { db } from '@/lib/db';
 import { livekitRooms, livekitRecordings, livekitEvents, sessions } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { resolveRecordingPlaybackAccess } from '@/lib/recordings/authorization';
 import { getStorageProvider } from './storage/storage-factory';
 import { livekitConfig } from './config';
 import jwt from 'jsonwebtoken';
@@ -354,13 +355,11 @@ export async function getPlaybackUrl(recordingId: string, userId: string): Promi
     // AUTHORIZATION: Check if user is participant
     // ======================================================================
     const session = recording.room.session;
-
-    if (session.mentorId !== userId && session.menteeId !== userId) {
-      throw new Error(
-        `UNAUTHORIZED: User ${userId} is not authorized to view this recording. ` +
-        `Only session participants can access recordings.`
-      );
-    }
+    resolveRecordingPlaybackAccess({
+      userId,
+      mentorId: session.mentorId,
+      menteeId: session.menteeId,
+    });
 
     // ======================================================================
     // CHECK RECORDING STATUS

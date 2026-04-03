@@ -7,12 +7,16 @@ import {
 } from '@/lib/db/schema';
 import { eq, and, gt } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
+import {
+  closeSSEConnection,
+  createSSEConnectionState,
+  enqueueSSEPayload,
+} from '@/lib/messaging/sse-stream';
 
-const activeConnections = new Map<string, { 
-  controller: ReadableStreamDefaultController;
-  lastEventId: string;
-  userId: string;
-}>();
+const activeConnections = new Map<
+  string,
+  ReturnType<typeof createSSEConnectionState>
+>();
 
 function createSSEMessage(data: any, eventType: string = 'message', id?: string) {
   const lines = [
@@ -46,24 +50,62 @@ export async function GET(request: NextRequest) {
     : new Date().toISOString();
 
   const encoder = new TextEncoder();
+  let streamConnection: ReturnType<typeof createSSEConnectionState> | null = null;
   
   const stream = new ReadableStream({
     async start(controller) {
-      activeConnections.set(userId, {
+      const existingConnection = activeConnections.get(userId);
+      if (existingConnection) {
+        closeSSEConnection(existingConnection);
+        activeConnections.delete(userId);
+      }
+
+      const connection = createSSEConnectionState({
         controller,
         lastEventId,
-        userId
+        userId,
       });
+      streamConnection = connection;
+      activeConnections.set(userId, connection);
 
-      controller.enqueue(encoder.encode(createSSEMessage({ 
-        type: 'connected',
-        timestamp: new Date().toISOString() 
-      }, 'connection')));
+      let pingInterval: ReturnType<typeof setInterval> | null = null;
+      let updateInterval: ReturnType<typeof setInterval> | null = null;
+
+      const cleanupConnection = () => {
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          pingInterval = null;
+        }
+
+        if (updateInterval) {
+          clearInterval(updateInterval);
+          updateInterval = null;
+        }
+
+        const activeConnection = activeConnections.get(userId);
+        if (activeConnection === connection) {
+          activeConnections.delete(userId);
+        }
+
+        closeSSEConnection(connection);
+      };
+
+      enqueueSSEPayload({
+        connection,
+        encoder,
+        payload: createSSEMessage({
+          type: 'connected',
+          timestamp: new Date().toISOString()
+        }, 'connection'),
+        onClosed: cleanupConnection,
+      });
 
       const sendPendingUpdates = async () => {
         try {
-          const connection = activeConnections.get(userId);
-          if (!connection) return;
+          const activeConnection = activeConnections.get(userId);
+          if (activeConnection !== connection || connection.closed) {
+            return;
+          }
 
           const newMessages = await db
             .select()
@@ -85,14 +127,18 @@ export async function GET(request: NextRequest) {
             const eventId = message.createdAt
               ? message.createdAt.toISOString()
               : new Date().toISOString();
-            
-            controller.enqueue(
-              encoder.encode(
-                createSSEMessage(eventData, 'message', eventId)
-              )
-            );
-            
-            connection.lastEventId = eventId;
+
+            if (
+              !enqueueSSEPayload({
+                connection,
+                encoder,
+                payload: createSSEMessage(eventData, 'message', eventId),
+                eventId,
+                onClosed: cleanupConnection,
+              })
+            ) {
+              return;
+            }
           }
 
           // Note: Message reactions feature can be added here later if needed
@@ -118,13 +164,18 @@ export async function GET(request: NextRequest) {
             const eventId = request.createdAt
               ? request.createdAt.toISOString()
               : new Date().toISOString();
-            
-            controller.enqueue(
-              encoder.encode(
-                createSSEMessage(eventData, 'request', eventId)
-              )
-            );
-            connection.lastEventId = eventId;
+
+            if (
+              !enqueueSSEPayload({
+                connection,
+                encoder,
+                payload: createSSEMessage(eventData, 'request', eventId),
+                eventId,
+                onClosed: cleanupConnection,
+              })
+            ) {
+              return;
+            }
           }
 
           const newNotifications = await db
@@ -148,13 +199,18 @@ export async function GET(request: NextRequest) {
             const eventId = notification.createdAt
               ? notification.createdAt.toISOString()
               : new Date().toISOString();
-            
-            controller.enqueue(
-              encoder.encode(
-                createSSEMessage(eventData, 'notification', eventId)
-              )
-            );
-            connection.lastEventId = eventId;
+
+            if (
+              !enqueueSSEPayload({
+                connection,
+                encoder,
+                payload: createSSEMessage(eventData, 'notification', eventId),
+                eventId,
+                onClosed: cleanupConnection,
+              })
+            ) {
+              return;
+            }
           }
 
         } catch (error) {
@@ -164,41 +220,44 @@ export async function GET(request: NextRequest) {
 
       await sendPendingUpdates();
 
-      const pingInterval = setInterval(() => {
-        const connection = activeConnections.get(userId);
-        if (!connection) {
-          clearInterval(pingInterval);
+      pingInterval = setInterval(() => {
+        const activeConnection = activeConnections.get(userId);
+        if (activeConnection !== connection || connection.closed) {
+          cleanupConnection();
           return;
         }
-        
+
         try {
-          controller.enqueue(
-            encoder.encode(createSSEMessage({ 
+          enqueueSSEPayload({
+            connection,
+            encoder,
+            payload: createSSEMessage({
               type: 'ping',
-              timestamp: new Date().toISOString() 
-            }, 'ping'))
-          );
+              timestamp: new Date().toISOString()
+            }, 'ping'),
+            onClosed: cleanupConnection,
+          });
         } catch (error) {
           console.error('Error sending ping:', error);
-          clearInterval(pingInterval);
-          activeConnections.delete(userId);
+          cleanupConnection();
         }
       }, 30000);
 
-      const updateInterval = setInterval(async () => {
+      updateInterval = setInterval(async () => {
         await sendPendingUpdates();
       }, 5000);
 
-      request.signal.addEventListener('abort', () => {
-        clearInterval(pingInterval);
-        clearInterval(updateInterval);
-        activeConnections.delete(userId);
-        controller.close();
-      });
+      request.signal.addEventListener('abort', cleanupConnection, { once: true });
     },
 
     cancel() {
-      activeConnections.delete(userId);
+      if (streamConnection) {
+        const activeConnection = activeConnections.get(userId);
+        if (activeConnection === streamConnection) {
+          activeConnections.delete(userId);
+        }
+        closeSSEConnection(streamConnection);
+      }
     }
   });
 
@@ -215,19 +274,28 @@ export async function GET(request: NextRequest) {
 
 export function broadcastToUser(userId: string, data: any, eventType: string = 'message') {
   const connection = activeConnections.get(userId);
-  if (!connection) return;
+  if (!connection || connection.closed) return;
 
   try {
     const encoder = new TextEncoder();
     const eventId = new Date().toISOString();
-    
-    connection.controller.enqueue(
-      encoder.encode(
-        createSSEMessage(data, eventType, eventId)
-      )
-    );
-    
-    connection.lastEventId = eventId;
+
+    if (
+      !enqueueSSEPayload({
+        connection,
+        encoder,
+        payload: createSSEMessage(data, eventType, eventId),
+        eventId,
+        onClosed: () => {
+          const activeConnection = activeConnections.get(userId);
+          if (activeConnection === connection) {
+            activeConnections.delete(userId);
+          }
+        },
+      })
+    ) {
+      return;
+    }
   } catch (error) {
     console.error('Error broadcasting to user:', error);
     activeConnections.delete(userId);

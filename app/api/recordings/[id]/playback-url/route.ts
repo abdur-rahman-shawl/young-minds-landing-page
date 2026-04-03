@@ -19,10 +19,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { livekitRecordings, livekitRooms, sessions } from '@/lib/db/schema';
+import { livekitRecordings } from '@/lib/db/schema';
+import { resolveRecordingPlaybackAccess } from '@/lib/recordings/authorization';
 import { getPlaybackUrl } from '@/lib/livekit/recording-manager';
 import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 import { eq } from 'drizzle-orm';
@@ -40,7 +40,7 @@ export async function GET(
     // AUTHENTICATION
     // ======================================================================
     const session = await auth.api.getSession({
-      headers: await headers(),
+      headers: request.headers,
     });
 
     if (!session || !session.user) {
@@ -81,8 +81,11 @@ export async function GET(
     }
 
     const sessionData = recording.room.session;
-    const recordingsAction =
-      userId === sessionData.mentorId ? 'recordings.access.mentor' : 'recordings.access.mentee';
+    const recordingsAction = resolveRecordingPlaybackAccess({
+      userId,
+      mentorId: sessionData.mentorId,
+      menteeId: sessionData.menteeId,
+    });
 
     try {
       await enforceFeature({

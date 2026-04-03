@@ -27,7 +27,20 @@ export async function GET(
     // Get profile-selected content (only APPROVED) ordered by displayOrder
     const profileContent = await db
       .select({
-        content: mentorContent,
+        content: {
+          id: mentorContent.id,
+          title: mentorContent.title,
+          description: mentorContent.description,
+          type: mentorContent.type,
+          status: mentorContent.status,
+          fileUrl: mentorContent.fileUrl,
+          fileName: mentorContent.fileName,
+          fileSize: mentorContent.fileSize,
+          mimeType: mentorContent.mimeType,
+          url: mentorContent.url,
+          urlTitle: mentorContent.urlTitle,
+          urlDescription: mentorContent.urlDescription,
+        },
         displayOrder: mentorProfileContent.displayOrder,
       })
       .from(mentorProfileContent)

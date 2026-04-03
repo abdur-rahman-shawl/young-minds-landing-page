@@ -3,6 +3,8 @@
 > **Scope**: Every file, function, API route, database table, component, hook, and utility that powers the **My Content** section of the mentor dashboard. Written for developers who will maintain, extend, or debug this module.
 >
 > **Last Updated**: 2026-03-17 (Phase 2 implemented: retention-aware soft delete + purge + storage cleanup hooks)
+>
+> **Current Runtime Note**: App-internal content operations now run through `lib/content/server/service.ts` and `lib/trpc/routers/content.ts`. The route inventory below is historical context for how the module evolved; public content and uploads still use normal HTTP routes.
 
 ---
 

@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { sessions, mentors, users } from '@/lib/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
+import { requireUserWithRoles } from '@/lib/api/guards';
 import { getPlanFeatures } from '@/lib/subscriptions/enforcement';
 import {
   consumeFeature,
@@ -92,14 +93,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const currentUserId = await requireSessionUser(request);
-    if (!currentUserId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
     const body = await request.json();
     const {
       mentorId,
@@ -112,6 +105,20 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (action === 'book') {
+      const guard = await requireUserWithRoles(request);
+      if ('error' in guard) {
+        return guard.error;
+      }
+
+      const currentUserId = guard.session.user.id;
+      const isMentee = guard.user.roles.some((role) => role.name === 'mentee');
+      if (!isMentee) {
+        return NextResponse.json(
+          { success: false, error: 'Only mentees can book sessions' },
+          { status: 403 }
+        );
+      }
+
       if (!mentorId || !scheduledAt) {
         return NextResponse.json(
           { success: false, error: 'Mentor ID and scheduled time are required' },
@@ -259,6 +266,14 @@ export async function POST(request: NextRequest) {
         data: newSession,
         message: 'Session booked successfully'
       });
+    }
+
+    const currentUserId = await requireSessionUser(request);
+    if (!currentUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
     }
 
     if (action === 'cancel') {

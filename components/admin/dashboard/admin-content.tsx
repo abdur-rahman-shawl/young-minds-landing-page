@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,86 +30,12 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
-
-interface AdminContentItem {
-  content: {
-    id: string;
-    title: string;
-    description?: string;
-    type: 'COURSE' | 'FILE' | 'URL';
-    status: string;
-    statusBeforeArchive?: string | null;
-    submittedForReviewAt?: string;
-    reviewedAt?: string;
-    reviewNote?: string;
-    flagReason?: string;
-    flaggedAt?: string;
-    createdAt: string;
-    updatedAt: string;
-  };
-  mentorName: string;
-  mentorEmail: string;
-  mentorImage?: string;
-}
-
-interface AdminContentListResponse {
-  success: boolean;
-  data: AdminContentItem[];
-  pagination: {
-    page: number;
-    limit: number;
-    totalCount: number;
-    totalPages: number;
-  };
-}
-
-// Hooks
-function useAdminContentList(params: { status?: string; page?: number; search?: string; type?: string }) {
-  return useQuery<AdminContentListResponse>({
-    queryKey: ['admin-content', params],
-    queryFn: async () => {
-      const searchParams = new URLSearchParams();
-      if (params.status && params.status !== 'ALL') searchParams.set('status', params.status);
-      if (params.page) searchParams.set('page', String(params.page));
-      if (params.search) searchParams.set('search', params.search);
-      if (params.type && params.type !== 'ALL') searchParams.set('type', params.type);
-      searchParams.set('limit', '20');
-
-      const response = await fetch(`/api/admin/content?${searchParams.toString()}`);
-      if (!response.ok) throw new Error('Failed to fetch content');
-      return response.json();
-    },
-  });
-}
-
-type AdminAction = 'APPROVE' | 'REJECT' | 'FLAG' | 'UNFLAG' | 'FORCE_APPROVE' | 'FORCE_ARCHIVE' | 'REVOKE_APPROVAL' | 'FORCE_DELETE';
-
-function useAdminContentReview() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ id, action, note }: { id: string; action: AdminAction; note?: string }) => {
-      const response = await fetch(`/api/admin/content/${id}/review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, note }),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || `Failed to perform action`);
-      }
-      return response.json();
-    },
-    onSuccess: (_, { action }) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-content'] });
-      toast.success(`Action '${action}' completed successfully`);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
-}
+import {
+  useAdminContentListQuery,
+  useAdminContentReviewMutation,
+  type AdminContentAction as AdminAction,
+  type AdminContentItem,
+} from '@/hooks/queries/use-admin-content-queries';
 
 // Utility components
 const getContentIcon = (type: string) => {
@@ -368,13 +293,13 @@ export function AdminContent() {
   const [currentAction, setCurrentAction] = useState<{ id: string, action: AdminAction } | null>(null);
   const [actionNote, setActionNote] = useState('');
 
-  const { data, isLoading } = useAdminContentList({ 
+  const { data, isLoading } = useAdminContentListQuery({ 
     status: activeTab, 
     page, 
     search: searchQuery || undefined,
     type: typeFilter
   });
-  const reviewMutation = useAdminContentReview();
+  const reviewMutation = useAdminContentReviewMutation();
 
   const handleAction = useCallback((id: string, action: AdminAction) => {
     // Actions requiring a reason
@@ -386,26 +311,26 @@ export function AdminContent() {
     }
 
     if (action === 'APPROVE') {
-      reviewMutation.mutate({ id, action });
+      reviewMutation.mutate({ contentId: id, action });
       return;
     }
 
     if (action === 'FORCE_APPROVE') {
       if (confirm('Bypass review and force approve this content?')) {
-        reviewMutation.mutate({ id, action });
+        reviewMutation.mutate({ contentId: id, action });
       }
       return;
     }
 
     if (action === 'FORCE_ARCHIVE') {
       if (confirm('Force archive this content? It will be hidden from public view.')) {
-        reviewMutation.mutate({ id, action });
+        reviewMutation.mutate({ contentId: id, action });
       }
       return;
     }
 
     // Direct actions (UNFLAG)
-    reviewMutation.mutate({ id, action });
+    reviewMutation.mutate({ contentId: id, action });
   }, [reviewMutation]);
 
   const handleActionConfirm = useCallback(() => {
@@ -417,7 +342,11 @@ export function AdminContent() {
     }
     
     reviewMutation.mutate(
-      { id: currentAction.id, action: currentAction.action, note: actionNote },
+      {
+        contentId: currentAction.id,
+        action: currentAction.action,
+        note: actionNote,
+      },
       {
         onSuccess: () => {
           setActionDialogOpen(false);

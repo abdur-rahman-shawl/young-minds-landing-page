@@ -2,6 +2,7 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
 import superjson from 'superjson';
 import type { TRPCContext } from './context';
+import { getUserWithRoles } from '@/lib/db/user-helpers';
 
 const t = initTRPC.context<TRPCContext>().create({
   transformer: superjson,
@@ -31,6 +32,49 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
       ...ctx,
       userId: ctx.userId,
       session: ctx.session,
+    },
+  });
+});
+
+export const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  const currentUser = await getUserWithRoles(ctx.userId);
+  const isAdmin = currentUser?.roles.some((role) => role.name === 'admin');
+
+  if (!currentUser || !isAdmin) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Admin access required',
+    });
+  }
+
+  return next({
+    ctx: {
+      ...ctx,
+      currentUser,
+      isAdmin: true,
+    },
+  });
+});
+
+export const mentorProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  const currentUser = await getUserWithRoles(ctx.userId);
+  const roleNames = new Set(currentUser?.roles.map((role) => role.name) ?? []);
+  const isAdmin = roleNames.has('admin');
+  const isMentor = roleNames.has('mentor');
+
+  if (!currentUser || (!isMentor && !isAdmin)) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Mentor access required',
+    });
+  }
+
+  return next({
+    ctx: {
+      ...ctx,
+      currentUser,
+      isAdmin,
+      isMentor,
     },
   });
 });

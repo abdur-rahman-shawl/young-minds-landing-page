@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -40,6 +40,7 @@ import { FEATURE_KEYS } from "@/lib/subscriptions/feature-keys"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { useSubscriptionFeatureAccess } from "@/hooks/queries/use-subscription-queries"
 
 interface MentorDetailViewProps {
   mentorId: string | null
@@ -58,7 +59,11 @@ export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>("overview")
-  const [isMessageMentorEnabled, setIsMessageMentorEnabled] = useState(false);
+  const { hasAccess: isMessageMentorEnabled } = useSubscriptionFeatureAccess(
+    "mentee",
+    FEATURE_KEYS.PRIORITY_MESSAGING,
+    Boolean(session?.user?.id)
+  );
 
   const handleBookSession = () => {
     if (!session) {
@@ -67,43 +72,6 @@ export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }
     }
     setIsBookingModalOpen(true)
   }
-
-  useEffect(() => {
-    if (!session?.user?.id) {
-      setIsMessageMentorEnabled(false)
-      return
-    }
-
-    const controller = new AbortController()
-    const checkEnablement = async () => {
-      try {
-        const searchParams = new URLSearchParams({
-          featureKey: FEATURE_KEYS.PRIORITY_MESSAGING,
-        })
-        const res = await fetch(`/api/subscriptions/features/check?${searchParams.toString()}`, {
-          credentials: "include",
-          signal: controller.signal,
-        })
-        if (!res.ok) {
-          setIsMessageMentorEnabled(false)
-          return
-        }
-        const data = await res.json()
-        setIsMessageMentorEnabled(Boolean(data?.success && data?.data?.hasAccess))
-      } catch (error) {
-        if ((error as Error).name !== "AbortError") {
-          console.error("Failed to load messaging feature access", error)
-        }
-        setIsMessageMentorEnabled(false)
-      }
-    }
-
-    checkEnablement()
-
-    return () => {
-      controller.abort()
-    }
-  }, [session?.user?.id])
 
   const handleSendMessage = () => {
     if (!session) {

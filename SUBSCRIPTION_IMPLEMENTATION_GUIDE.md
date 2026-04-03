@@ -785,7 +785,7 @@ users (Drizzle)
    - Limit fields: `limit_minutes`, `limit_interval`
 
 4. **`text`** - Display text
-   - Example: `create_post_content` ("Unlimited" or "Limited")
+   - Example: `content_posting_access` ("Unlimited" or "Limited")
    - Limit fields: `limit_text`
 
 5. **`amount`** - Monetary/numeric

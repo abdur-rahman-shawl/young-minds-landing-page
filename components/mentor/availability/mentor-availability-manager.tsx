@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +32,8 @@ import { AvailabilityTemplates } from './availability-templates';
 import { useAuth } from '@/contexts/auth-context';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { readJsonResponse } from '@/lib/http/json-response';
+import { getMentorAvailabilityAccessState } from '@/lib/mentor/availability-access';
 
 interface TimeBlock {
   startTime: string;
@@ -59,8 +62,30 @@ interface AvailabilitySchedule {
   weeklyPatterns: WeeklyPattern[];
 }
 
+interface AvailabilityResponse {
+  success?: boolean;
+  error?: string;
+  schedule: {
+    timezone: string;
+    defaultSessionDuration: number;
+    bufferTimeBetweenSessions: number;
+    minAdvanceBookingHours: number;
+    maxAdvanceBookingDays: number;
+    defaultStartTime?: string;
+    defaultEndTime?: string;
+    isActive: boolean;
+    allowInstantBooking: boolean;
+    requireConfirmation: boolean;
+  } | null;
+  weeklyPatterns: Array<{
+    dayOfWeek: number;
+    isEnabled: boolean;
+    timeBlocks: TimeBlock[];
+  }>;
+}
+
 export function MentorAvailabilityManager() {
-  const { session } = useAuth();
+  const { session, mentorProfile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -81,15 +106,19 @@ export function MentorAvailabilityManager() {
   });
 
   const [originalSchedule, setOriginalSchedule] = useState<AvailabilitySchedule | null>(null);
+  const accessState = getMentorAvailabilityAccessState(mentorProfile);
 
   // Fetch current availability
   const fetchAvailability = useCallback(async () => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id || accessState !== 'ready') {
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     try {
       const response = await fetch(`/api/mentors/${session.user.id}/availability`);
-      const data = await response.json();
+      const data = await readJsonResponse<AvailabilityResponse>(response);
 
       if (response.ok && data.schedule) {
         const loadedSchedule: AvailabilitySchedule = {
@@ -115,14 +144,18 @@ export function MentorAvailabilityManager() {
       } else if (data.schedule === null) {
         // No schedule exists, initialize with defaults
         initializeDefaultSchedule();
+      } else if (!response.ok) {
+        throw new Error(data.error || 'Failed to load availability settings');
       }
     } catch (error) {
       console.error('Failed to fetch availability:', error);
-      toast.error('Failed to load availability settings');
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to load availability settings'
+      );
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.id]);
+  }, [accessState, session?.user?.id]);
 
   // Initialize default schedule
   const initializeDefaultSchedule = () => {
@@ -185,7 +218,7 @@ export function MentorAvailabilityManager() {
         body: JSON.stringify(schedule),
       });
 
-      const data = await response.json();
+      const data = await readJsonResponse<{ error?: string }>(response);
 
       if (response.ok) {
         toast.success('Availability saved successfully');
@@ -196,7 +229,7 @@ export function MentorAvailabilityManager() {
       }
     } catch (error) {
       console.error('Failed to save availability:', error);
-      toast.error('Failed to save availability');
+      toast.error(error instanceof Error ? error.message : 'Failed to save availability');
     } finally {
       setSaving(false);
     }
@@ -265,6 +298,60 @@ export function MentorAvailabilityManager() {
   useEffect(() => {
     fetchAvailability();
   }, [fetchAvailability]);
+
+  if (accessState === 'profile-required') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Availability Management</CardTitle>
+          <CardDescription>
+            Complete your mentor profile before you set up bookable time slots.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Mentor profile required</AlertTitle>
+            <AlertDescription>
+              Availability depends on your mentor profile record. Finish your setup first,
+              then come back here to manage your schedule.
+            </AlertDescription>
+          </Alert>
+          <div className="mt-4">
+            <Button asChild>
+              <Link href="/become-expert">Complete Mentor Profile</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (accessState === 'verification-required') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Availability Management</CardTitle>
+          <CardDescription>
+            Verified mentors can publish availability and accept new bookings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <Shield className="h-4 w-4" />
+            <AlertTitle>Verification required</AlertTitle>
+            <AlertDescription>
+              Your current mentor verification status is{' '}
+              <span className="font-medium">
+                {mentorProfile?.verificationStatus ?? 'unknown'}
+              </span>
+              . Availability becomes available once your mentor profile is verified.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (loading) {
     return (

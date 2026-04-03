@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AlertTriangle, Users, XCircle, Loader2, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useRejectReassignmentMutation } from "@/hooks/queries/use-booking-queries";
 
 interface NoMentorFoundBannerProps {
     sessionId: string;
@@ -38,6 +39,7 @@ export function NoMentorFoundBanner({
     const [isCancelling, setIsCancelling] = useState(false);
     const { toast } = useToast();
     const router = useRouter();
+    const rejectReassignmentMutation = useRejectReassignmentMutation();
 
     // Normalize sessionRate to number (may come as string from database)
     const rate = typeof sessionRate === 'string' ? parseFloat(sessionRate) : (sessionRate || 0);
@@ -45,17 +47,10 @@ export function NoMentorFoundBanner({
     const handleCancel = async () => {
         setIsCancelling(true);
         try {
-            const response = await fetch(`/api/bookings/${sessionId}/reject-reassignment`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ reason: "No suitable mentor available" }),
+            await rejectReassignmentMutation.mutateAsync({
+                bookingId: sessionId,
+                reason: "No suitable mentor available",
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || "Failed to cancel session");
-            }
 
             toast({
                 title: "✅ Session Cancelled",

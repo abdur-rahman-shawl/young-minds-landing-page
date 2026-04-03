@@ -12,6 +12,7 @@ export type DashboardSectionKey =
   | 'courses'
   | 'my-courses'
   | 'messages'
+  | 'notifications'
   | 'sessions'
   | 'subscription'
   | 'profile'
@@ -99,6 +100,14 @@ export const DASHBOARD_SECTIONS = [
     scopes: ['root', 'dashboard'],
     shellMode: 'workspace',
     navigation: true,
+  },
+  {
+    key: 'notifications',
+    title: 'Notifications',
+    audiences: ['admin', 'mentor', 'mentee'],
+    scopes: ['root', 'dashboard'],
+    shellMode: 'page',
+    navigation: false,
   },
   {
     key: 'sessions',

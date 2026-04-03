@@ -262,7 +262,8 @@ export function CreateContentDialog({ open = false, onOpenChange, onSuccess }: C
         validatedData = baseContentSchema.parse(formData);
       }
       
-      let finalData = { ...validatedData };
+      const { status: _status, ...basePayload } = validatedData;
+      let finalData = { ...basePayload };
       
       // Handle file upload for FILE type
       if (formData.type === 'FILE' && selectedFile) {
@@ -286,8 +287,6 @@ export function CreateContentDialog({ open = false, onOpenChange, onSuccess }: C
       setUploadProgress(90);
       await createContentMutation.mutateAsync(finalData);
       setUploadProgress(100);
-      
-      toast.success('Content created successfully!');
       handleClose();
     } catch (error) {
       console.error('Form submission error:', error);

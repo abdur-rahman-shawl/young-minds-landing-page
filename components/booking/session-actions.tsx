@@ -32,6 +32,7 @@ import { CancelDialog } from "./cancel-dialog";
 import { RescheduleDialog } from "./reschedule-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { isPast } from "date-fns";
+import { useMarkBookingNoShowMutation } from "@/hooks/queries/use-booking-queries";
 
 interface ActionSession {
   id: string;
@@ -70,6 +71,7 @@ export function SessionActions({
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [showNoShowDialog, setShowNoShowDialog] = useState(false);
   const { toast } = useToast();
+  const markBookingNoShowMutation = useMarkBookingNoShowMutation();
 
   const scheduledTime = new Date(session.scheduledAt);
   const now = new Date();
@@ -120,15 +122,9 @@ export function SessionActions({
 
   const handleMarkNoShow = async () => {
     try {
-      const response = await fetch(`/api/bookings/${session.id}/no-show`, {
-        method: "POST",
+      await markBookingNoShowMutation.mutateAsync({
+        bookingId: session.id,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to mark as no-show");
-      }
 
       toast({
         title: "Marked as No-Show",

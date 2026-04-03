@@ -38,6 +38,7 @@ import {
 import { format, addDays, isSameDay } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { readJsonResponse } from '@/lib/http/json-response';
 
 interface Exception {
   id: string;
@@ -51,6 +52,13 @@ interface Exception {
 
 interface AvailabilityExceptionsProps {
   mentorId?: string;
+}
+
+interface AvailabilityExceptionsResponse {
+  success?: boolean;
+  error?: string;
+  exceptions?: Exception[];
+  deletedCount?: number;
 }
 
 export function AvailabilityExceptions({ mentorId }: AvailabilityExceptionsProps) {
@@ -73,14 +81,16 @@ export function AvailabilityExceptions({ mentorId }: AvailabilityExceptionsProps
     setLoading(true);
     try {
       const response = await fetch(`/api/mentors/${mentorId}/availability/exceptions`);
-      const data = await response.json();
+      const data = await readJsonResponse<AvailabilityExceptionsResponse>(response);
 
       if (response.ok) {
         setExceptions(data.exceptions || []);
+      } else {
+        throw new Error(data.error || 'Failed to load exceptions');
       }
     } catch (error) {
       console.error('Failed to fetch exceptions:', error);
-      toast.error('Failed to load exceptions');
+      toast.error(error instanceof Error ? error.message : 'Failed to load exceptions');
     } finally {
       setLoading(false);
     }
@@ -109,11 +119,11 @@ export function AvailabilityExceptions({ mentorId }: AvailabilityExceptionsProps
             startTime: exceptionForm.startTime,
             endTime: exceptionForm.endTime,
             type: exceptionForm.type
-          }]
+        }]
         }),
       });
 
-      const data = await response.json();
+      const data = await readJsonResponse<AvailabilityExceptionsResponse>(response);
 
       if (response.ok) {
         toast.success('Exception added successfully');
@@ -132,7 +142,7 @@ export function AvailabilityExceptions({ mentorId }: AvailabilityExceptionsProps
       }
     } catch (error) {
       console.error('Failed to create exception:', error);
-      toast.error('Failed to create exception');
+      toast.error(error instanceof Error ? error.message : 'Failed to create exception');
     }
   };
 
@@ -151,7 +161,7 @@ export function AvailabilityExceptions({ mentorId }: AvailabilityExceptionsProps
         }),
       });
 
-      const data = await response.json();
+      const data = await readJsonResponse<AvailabilityExceptionsResponse>(response);
 
       if (response.ok) {
         toast.success('Exception removed');
@@ -161,7 +171,7 @@ export function AvailabilityExceptions({ mentorId }: AvailabilityExceptionsProps
       }
     } catch (error) {
       console.error('Failed to delete exception:', error);
-      toast.error('Failed to delete exception');
+      toast.error(error instanceof Error ? error.message : 'Failed to delete exception');
     }
   };
 

@@ -26,6 +26,7 @@ import { ExploreMentors } from '@/components/shared/dashboard/explore';
 import { SavedItems } from '@/components/mentee/dashboard/saved-items';
 import { Mentors } from '@/components/shared/dashboard/mentors';
 import { Messages } from '@/components/shared/dashboard/messages';
+import { NotificationsDashboard } from '@/components/shared/dashboard/notifications';
 import { Sessions } from '@/components/shared/dashboard/sessions';
 import { MentorDetailView } from '@/components/mentee/mentor-detail-view';
 import { MenteeProfile } from '@/components/mentee/dashboard/mentee-profile';
@@ -268,6 +269,8 @@ export function DashboardExperience({
               <Messages />
             </DashboardSectionFrame>
           );
+        case 'notifications':
+          return <NotificationsDashboard />;
         case 'sessions':
           return <AdminSessions />;
         case 'analytics':
@@ -329,6 +332,8 @@ export function DashboardExperience({
               <Messages />
             </DashboardSectionFrame>
           );
+        case 'notifications':
+          return <NotificationsDashboard />;
         case 'sessions':
           return (
             <div className='flex h-full flex-1 flex-col'>
@@ -386,6 +391,8 @@ export function DashboardExperience({
             <Messages />
           </DashboardSectionFrame>
         );
+      case 'notifications':
+        return <NotificationsDashboard />;
       case 'sessions':
         return (
           <div className='flex h-full flex-1 flex-col'>

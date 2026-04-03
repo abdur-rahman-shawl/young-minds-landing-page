@@ -8,6 +8,7 @@ import {
 import { eq, and, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireMentor } from '@/lib/api/guards';
+import { canManageMentorAvailability } from '@/lib/mentor/availability-access';
 
 // Validation schema for exceptions
 const exceptionSchema = z.object({
@@ -23,6 +24,9 @@ const exceptionSchema = z.object({
   })).optional(),
 });
 
+const MENTOR_PROFILE_REQUIRED_ERROR =
+  'Complete your mentor profile before managing availability.';
+
 // GET /api/mentors/[id]/availability/exceptions - Get mentor's availability exceptions
 export async function GET(
   req: NextRequest,
@@ -37,7 +41,11 @@ export async function GET(
     }
 
     const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
-    if (!isAdmin && id !== guard.session.user.id) {
+    if (!canManageMentorAvailability({
+      isAdmin,
+      actorUserId: guard.session.user.id,
+      targetMentorUserId: id,
+    })) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -54,8 +62,8 @@ export async function GET(
 
     if (!mentor.length) {
       return NextResponse.json(
-        { error: 'Mentor not found' },
-        { status: 404 }
+        { error: MENTOR_PROFILE_REQUIRED_ERROR },
+        { status: 409 }
       );
     }
 
@@ -75,22 +83,21 @@ export async function GET(
     }
 
     // Build the query for exceptions
-    let exceptionsQuery = db
-      .select()
-      .from(mentorAvailabilityExceptions)
-      .where(eq(mentorAvailabilityExceptions.scheduleId, schedule[0].id));
+    const exceptionFilters = [
+      eq(mentorAvailabilityExceptions.scheduleId, schedule[0].id),
+    ];
 
-    // Apply date range filter if provided
     if (startDate && endDate) {
-      exceptionsQuery = exceptionsQuery.where(
-        and(
-          gte(mentorAvailabilityExceptions.startDate, new Date(startDate)),
-          lte(mentorAvailabilityExceptions.endDate, new Date(endDate))
-        )
+      exceptionFilters.push(
+        gte(mentorAvailabilityExceptions.startDate, new Date(startDate)),
+        lte(mentorAvailabilityExceptions.endDate, new Date(endDate))
       );
     }
 
-    const exceptions = await exceptionsQuery;
+    const exceptions = await db
+      .select()
+      .from(mentorAvailabilityExceptions)
+      .where(and(...exceptionFilters));
 
     return NextResponse.json({
       success: true,
@@ -120,7 +127,11 @@ export async function POST(
     }
 
     const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
-    if (!isAdmin && id !== guard.session.user.id) {
+    if (!canManageMentorAvailability({
+      isAdmin,
+      actorUserId: guard.session.user.id,
+      targetMentorUserId: id,
+    })) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -133,13 +144,17 @@ export async function POST(
 
     if (!mentor.length) {
       return NextResponse.json(
-        { error: 'Mentor not found' },
-        { status: 404 }
+        { error: MENTOR_PROFILE_REQUIRED_ERROR },
+        { status: 409 }
       );
     }
 
     // Only the mentor themselves can add exceptions
-    if (mentor[0].userId !== guard.session.user.id) {
+    if (!canManageMentorAvailability({
+      isAdmin,
+      actorUserId: guard.session.user.id,
+      targetMentorUserId: mentor[0].userId,
+    })) {
       return NextResponse.json(
         { error: 'Forbidden - You can only manage your own availability' },
         { status: 403 }
@@ -244,7 +259,11 @@ export async function DELETE(
     }
 
     const isAdmin = guard.user.roles.some((role) => role.name === 'admin');
-    if (!isAdmin && id !== guard.session.user.id) {
+    if (!canManageMentorAvailability({
+      isAdmin,
+      actorUserId: guard.session.user.id,
+      targetMentorUserId: id,
+    })) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -257,12 +276,16 @@ export async function DELETE(
 
     if (!mentor.length) {
       return NextResponse.json(
-        { error: 'Mentor not found' },
-        { status: 404 }
+        { error: MENTOR_PROFILE_REQUIRED_ERROR },
+        { status: 409 }
       );
     }
 
-    if (mentor[0].userId !== guard.session.user.id) {
+    if (!canManageMentorAvailability({
+      isAdmin,
+      actorUserId: guard.session.user.id,
+      targetMentorUserId: mentor[0].userId,
+    })) {
       return NextResponse.json(
         { error: 'Forbidden - You can only manage your own availability' },
         { status: 403 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
     Dialog,
     DialogContent,
@@ -22,6 +22,10 @@ import {
 import { AlertTriangle, Loader2, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CANCELLATION_REASONS, MENTOR_CANCELLATION_REASONS } from "@/lib/db/schema/session-policies";
+import {
+    useCancelBookingMutation,
+    useSessionPoliciesQuery,
+} from "@/hooks/queries/use-booking-queries";
 
 interface CancelDialogProps {
     open: boolean;
@@ -54,9 +58,11 @@ export function CancelDialog({
     const [reasonCategory, setReasonCategory] = useState<string>("");
     const [reasonDetails, setReasonDetails] = useState("");
     const [isLoading, setIsLoading] = useState(false);
-    const [policyData, setPolicyData] = useState<PolicyData | null>(null);
-    const [loadingPolicies, setLoadingPolicies] = useState(false);
     const { toast } = useToast();
+    const policiesQuery = useSessionPoliciesQuery(open ? sessionId : undefined, open ? userRole : undefined);
+    const cancelBookingMutation = useCancelBookingMutation();
+    const policyData = (policiesQuery.data as PolicyData | undefined) ?? null;
+    const loadingPolicies = policiesQuery.isLoading;
 
     // Normalize sessionRate to number (may come as string from db)
     const rate = typeof sessionRate === 'string' ? parseFloat(sessionRate) : (sessionRate || 0);
@@ -96,29 +102,6 @@ export function CancelDialog({
 
     const refundPreview = calculateRefundPreview();
 
-    // Fetch policies when dialog opens
-    useEffect(() => {
-        const fetchPolicies = async () => {
-            if (!open) return;
-
-            setLoadingPolicies(true);
-            try {
-                const response = await fetch(`/api/session-policies?role=${userRole}`);
-                const data = await response.json();
-
-                if (response.ok) {
-                    setPolicyData(data);
-                }
-            } catch (error) {
-                console.error("Error fetching policies:", error);
-            } finally {
-                setLoadingPolicies(false);
-            }
-        };
-
-        fetchPolicies();
-    }, [open, userRole]);
-
     const handleCancel = async () => {
         if (!reasonCategory) {
             toast({
@@ -131,22 +114,11 @@ export function CancelDialog({
 
         setIsLoading(true);
         try {
-            const response = await fetch(`/api/bookings/${sessionId}/cancel`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    reasonCategory,
-                    reasonDetails: reasonDetails.trim() || undefined
-                }),
+            const data = await cancelBookingMutation.mutateAsync({
+                bookingId: sessionId,
+                reasonCategory,
+                reasonDetails: reasonDetails.trim() || undefined,
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || "Failed to cancel session");
-            }
 
             // Check if session was reassigned to a new mentor
             if (data.reassigned) {
@@ -195,7 +167,6 @@ export function CancelDialog({
         if (!open) {
             setReasonCategory("");
             setReasonDetails("");
-            setPolicyData(null);
         }
         onOpenChange(open);
     };
