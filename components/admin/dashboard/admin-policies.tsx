@@ -23,6 +23,13 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
+    type AdminPolicyRecord,
+    type GroupedAdminPolicies,
+    useAdminPoliciesQuery,
+    useAdminResetPoliciesMutation,
+    useAdminUpdatePoliciesMutation,
+} from "@/hooks/queries/use-admin-queries";
+import {
     Save,
     RotateCcw,
     Clock,
@@ -33,21 +40,6 @@ import {
     Loader2,
     Info,
 } from "lucide-react";
-
-interface Policy {
-    key: string;
-    value: string;
-    type: string;
-    description: string;
-    defaultValue: string;
-}
-
-interface GroupedPolicies {
-    menteeRules: Policy[];
-    mentorRules: Policy[];
-    refundRules: Policy[];
-    rescheduleSettings: Policy[];
-}
 
 // Human-readable labels for policy keys
 const POLICY_LABELS: Record<string, string> = {
@@ -82,45 +74,34 @@ const POLICY_UNITS: Record<string, string> = {
 
 export function AdminPolicies() {
     const { toast } = useToast();
+    const {
+        data,
+        isLoading,
+        error,
+        refetch,
+    } = useAdminPoliciesQuery();
+    const updatePoliciesMutation = useAdminUpdatePoliciesMutation();
+    const resetPoliciesMutation = useAdminResetPoliciesMutation();
 
     // State
-    const [policies, setPolicies] = useState<Policy[]>([]);
-    const [grouped, setGrouped] = useState<GroupedPolicies | null>(null);
+    const [policies, setPolicies] = useState<AdminPolicyRecord[]>([]);
+    const [grouped, setGrouped] = useState<GroupedAdminPolicies | null>(null);
     const [editedValues, setEditedValues] = useState<Record<string, string>>({});
-    const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
     const [showResetDialog, setShowResetDialog] = useState(false);
-    const [isResetting, setIsResetting] = useState(false);
-
-    // Fetch policies
-    const fetchPolicies = async () => {
-        setIsLoading(true);
-        try {
-            const response = await fetch("/api/admin/policies");
-            const data = await response.json();
-
-            if (data.success) {
-                setPolicies(data.data.policies);
-                setGrouped(data.data.grouped);
-                // Initialize edited values
-                const initial: Record<string, string> = {};
-                data.data.policies.forEach((p: Policy) => {
-                    initial[p.key] = p.value;
-                });
-                setEditedValues(initial);
-            } else {
-                toast({ title: "Error", description: data.error, variant: "destructive" });
-            }
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to fetch policies", variant: "destructive" });
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     useEffect(() => {
-        fetchPolicies();
-    }, []);
+        if (!data) {
+            return;
+        }
+
+        setPolicies(data.policies);
+        setGrouped(data.grouped);
+        const initial: Record<string, string> = {};
+        data.policies.forEach((policy) => {
+            initial[policy.key] = policy.value;
+        });
+        setEditedValues(initial);
+    }, [data]);
 
     // Check for changes
     const hasChanges = () => {
@@ -139,57 +120,31 @@ export function AdminPolicies() {
         const changes = getChangedPolicies();
         if (changes.length === 0) return;
 
-        setIsSaving(true);
         try {
-            const response = await fetch("/api/admin/policies", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ updates: changes }),
+            const result = await updatePoliciesMutation.mutateAsync({
+                updates: changes,
             });
-
-            const data = await response.json();
-
-            if (data.success) {
-                toast({ title: "Success", description: data.message });
-                fetchPolicies(); // Refresh
-            } else {
-                toast({ title: "Error", description: data.error, variant: "destructive" });
-            }
+            toast({ title: "Success", description: result.message });
+            await refetch();
         } catch (error) {
             toast({ title: "Error", description: "Failed to save changes", variant: "destructive" });
-        } finally {
-            setIsSaving(false);
         }
     };
 
     // Reset to defaults
     const handleReset = async () => {
-        setIsResetting(true);
         try {
-            const response = await fetch("/api/admin/policies", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "reset" }),
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                toast({ title: "Success", description: data.message });
-                setShowResetDialog(false);
-                fetchPolicies(); // Refresh
-            } else {
-                toast({ title: "Error", description: data.error, variant: "destructive" });
-            }
+            const result = await resetPoliciesMutation.mutateAsync();
+            toast({ title: "Success", description: result.message });
+            setShowResetDialog(false);
+            await refetch();
         } catch (error) {
             toast({ title: "Error", description: "Failed to reset policies", variant: "destructive" });
-        } finally {
-            setIsResetting(false);
         }
     };
 
     // Render policy input
-    const renderPolicyInput = (policy: Policy) => {
+    const renderPolicyInput = (policy: AdminPolicyRecord) => {
         const label = POLICY_LABELS[policy.key] || policy.key;
         const unit = POLICY_UNITS[policy.key];
         const isModified = editedValues[policy.key] !== policy.value;
@@ -246,6 +201,18 @@ export function AdminPolicies() {
         );
     }
 
+    if (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch policies";
+        return (
+            <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                <p className="text-sm text-destructive">{message}</p>
+                <Button variant="outline" onClick={() => void refetch()}>
+                    Retry
+                </Button>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -258,16 +225,16 @@ export function AdminPolicies() {
                     <Button
                         variant="outline"
                         onClick={() => setShowResetDialog(true)}
-                        disabled={isSaving}
+                        disabled={updatePoliciesMutation.isPending}
                     >
                         <RotateCcw className="w-4 h-4 mr-2" />
                         Reset Defaults
                     </Button>
                     <Button
                         onClick={handleSave}
-                        disabled={!hasChanges() || isSaving}
+                        disabled={!hasChanges() || updatePoliciesMutation.isPending}
                     >
-                        {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                        {updatePoliciesMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                         Save Changes
                     </Button>
                 </div>
@@ -353,8 +320,8 @@ export function AdminPolicies() {
                     </DialogHeader>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setShowResetDialog(false)}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleReset} disabled={isResetting}>
-                            {isResetting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                        <Button variant="destructive" onClick={handleReset} disabled={resetPoliciesMutation.isPending}>
+                            {resetPoliciesMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                             Reset All Policies
                         </Button>
                     </DialogFooter>

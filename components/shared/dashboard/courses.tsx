@@ -39,6 +39,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDebounce } from '@/hooks/use-performance';
 import { cn } from '@/lib/utils';
 import { CourseDetailView } from '@/components/shared/courses/course-detail';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { useAuth } from '@/contexts/auth-context';
+import { useSubscriptionFeatureAccess } from '@/hooks/queries/use-subscription-queries';
 
 // ... [Keep Interfaces Exactly the Same] ...
 interface Course {
@@ -80,6 +83,7 @@ export function Courses() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const courseId = searchParams.get('courseId');
+  const { session, isLoading: authLoading } = useAuth();
 
   // State
   const [courses, setCourses] = useState<Course[]>([]);
@@ -87,8 +91,15 @@ export function Courses() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
-  const [accessChecked, setAccessChecked] = useState(false);
-  const [hasCourseAccess, setHasCourseAccess] = useState(true);
+  const {
+    hasAccess: hasCourseAccess,
+    isLoading: accessCheckedLoading,
+  } = useSubscriptionFeatureAccess(
+    'mentee',
+    FEATURE_KEYS.COURSES_ACCESS,
+    !authLoading && Boolean(session?.user?.id)
+  );
+  const accessChecked = !authLoading && !accessCheckedLoading;
 
   // Query parameters
   const [searchQuery, setSearchQuery] = useState('');
@@ -159,37 +170,6 @@ export function Courses() {
       </div>
     );
   }
-
-  useEffect(() => {
-    const checkAccess = async () => {
-      try {
-        const response = await fetch('/api/subscriptions/me', { credentials: 'include' });
-        if (!response.ok) {
-          setHasCourseAccess(true);
-          return;
-        }
-
-        const data = await response.json();
-        const subscription = data?.data?.subscription;
-        const features = data?.data?.features || [];
-
-        if (subscription?.audience === 'mentee') {
-          const hasFeature = features.some((feature: { feature_key?: string }) =>
-            feature.feature_key === 'courses_access'
-          );
-          setHasCourseAccess(hasFeature);
-        } else {
-          setHasCourseAccess(true);
-        }
-      } catch (error) {
-        setHasCourseAccess(true);
-      } finally {
-        setAccessChecked(true);
-      }
-    };
-
-    checkAccess();
-  }, []);
 
   useEffect(() => {
     if (!accessChecked || !hasCourseAccess) return;

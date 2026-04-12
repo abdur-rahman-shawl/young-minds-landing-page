@@ -30,9 +30,12 @@ import { AvailabilitySettings } from './availability-settings';
 import { AvailabilityExceptions } from './availability-exceptions';
 import { AvailabilityTemplates } from './availability-templates';
 import { useAuth } from '@/contexts/auth-context';
+import {
+  useMentorAvailabilityQuery,
+  useUpsertMentorAvailabilityMutation,
+} from '@/hooks/queries/use-mentor-queries';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { readJsonResponse } from '@/lib/http/json-response';
 import { getMentorAvailabilityAccessState } from '@/lib/mentor/availability-access';
 
 interface TimeBlock {
@@ -86,7 +89,6 @@ interface AvailabilityResponse {
 
 export function MentorAvailabilityManager() {
   const { session, mentorProfile } = useAuth();
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('schedule');
@@ -107,58 +109,13 @@ export function MentorAvailabilityManager() {
 
   const [originalSchedule, setOriginalSchedule] = useState<AvailabilitySchedule | null>(null);
   const accessState = getMentorAvailabilityAccessState(mentorProfile);
-
-  // Fetch current availability
-  const fetchAvailability = useCallback(async () => {
-    if (!session?.user?.id || accessState !== 'ready') {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/mentors/${session.user.id}/availability`);
-      const data = await readJsonResponse<AvailabilityResponse>(response);
-
-      if (response.ok && data.schedule) {
-        const loadedSchedule: AvailabilitySchedule = {
-          timezone: data.schedule.timezone,
-          defaultSessionDuration: data.schedule.defaultSessionDuration,
-          bufferTimeBetweenSessions: data.schedule.bufferTimeBetweenSessions,
-          minAdvanceBookingHours: data.schedule.minAdvanceBookingHours,
-          maxAdvanceBookingDays: data.schedule.maxAdvanceBookingDays,
-          defaultStartTime: data.schedule.defaultStartTime,
-          defaultEndTime: data.schedule.defaultEndTime,
-          isActive: data.schedule.isActive,
-          allowInstantBooking: data.schedule.allowInstantBooking,
-          requireConfirmation: data.schedule.requireConfirmation,
-          weeklyPatterns: data.weeklyPatterns.map((pattern: any) => ({
-            dayOfWeek: pattern.dayOfWeek,
-            isEnabled: pattern.isEnabled,
-            timeBlocks: pattern.timeBlocks || []
-          }))
-        };
-
-        setSchedule(loadedSchedule);
-        setOriginalSchedule(loadedSchedule);
-      } else if (data.schedule === null) {
-        // No schedule exists, initialize with defaults
-        initializeDefaultSchedule();
-      } else if (!response.ok) {
-        throw new Error(data.error || 'Failed to load availability settings');
-      }
-    } catch (error) {
-      console.error('Failed to fetch availability:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to load availability settings'
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [accessState, session?.user?.id]);
+  const availabilityQuery = useMentorAvailabilityQuery(session?.user?.id, {
+    enabled: accessState === 'ready' && !!session?.user?.id,
+  });
+  const upsertAvailabilityMutation = useUpsertMentorAvailabilityMutation();
 
   // Initialize default schedule
-  const initializeDefaultSchedule = () => {
+  const initializeDefaultSchedule = useCallback(() => {
     const defaultPatterns: WeeklyPattern[] = [];
 
     // Monday to Friday, 9 AM to 5 PM with lunch break
@@ -201,7 +158,7 @@ export function MentorAvailabilityManager() {
       ...prev,
       weeklyPatterns: defaultPatterns
     }));
-  };
+  }, []);
 
   // Save availability
   const saveAvailability = async () => {
@@ -209,24 +166,25 @@ export function MentorAvailabilityManager() {
 
     setSaving(true);
     try {
-      const method = originalSchedule ? 'PUT' : 'POST';
-      const response = await fetch(`/api/mentors/${session.user.id}/availability`, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
+      await upsertAvailabilityMutation.mutateAsync({
+        mentorUserId: session.user.id,
+        schedule: {
+          timezone: schedule.timezone,
+          defaultSessionDuration: schedule.defaultSessionDuration,
+          bufferTimeBetweenSessions: schedule.bufferTimeBetweenSessions,
+          minAdvanceBookingHours: schedule.minAdvanceBookingHours,
+          maxAdvanceBookingDays: schedule.maxAdvanceBookingDays,
+          defaultStartTime: schedule.defaultStartTime,
+          defaultEndTime: schedule.defaultEndTime,
+          isActive: schedule.isActive,
+          allowInstantBooking: schedule.allowInstantBooking,
+          requireConfirmation: schedule.requireConfirmation,
+          weeklyPatterns: schedule.weeklyPatterns,
         },
-        body: JSON.stringify(schedule),
       });
-
-      const data = await readJsonResponse<{ error?: string }>(response);
-
-      if (response.ok) {
-        toast.success('Availability saved successfully');
-        setOriginalSchedule(schedule);
-        setHasChanges(false);
-      } else {
-        toast.error(data.error || 'Failed to save availability');
-      }
+      toast.success('Availability saved successfully');
+      setOriginalSchedule(schedule);
+      setHasChanges(false);
     } catch (error) {
       console.error('Failed to save availability:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to save availability');
@@ -296,8 +254,53 @@ export function MentorAvailabilityManager() {
   };
 
   useEffect(() => {
-    fetchAvailability();
-  }, [fetchAvailability]);
+    if (accessState !== 'ready') {
+      return;
+    }
+
+    const data = availabilityQuery.data as AvailabilityResponse | undefined;
+
+    if (data?.schedule) {
+      const loadedSchedule: AvailabilitySchedule = {
+        timezone: data.schedule.timezone,
+        defaultSessionDuration: data.schedule.defaultSessionDuration,
+        bufferTimeBetweenSessions: data.schedule.bufferTimeBetweenSessions,
+        minAdvanceBookingHours: data.schedule.minAdvanceBookingHours,
+        maxAdvanceBookingDays: data.schedule.maxAdvanceBookingDays,
+        defaultStartTime: data.schedule.defaultStartTime,
+        defaultEndTime: data.schedule.defaultEndTime,
+        isActive: data.schedule.isActive,
+        allowInstantBooking: data.schedule.allowInstantBooking,
+        requireConfirmation: data.schedule.requireConfirmation,
+        weeklyPatterns: data.weeklyPatterns.map((pattern: any) => ({
+          dayOfWeek: pattern.dayOfWeek,
+          isEnabled: pattern.isEnabled,
+          timeBlocks: pattern.timeBlocks || [],
+        })),
+      };
+
+      setSchedule(loadedSchedule);
+      setOriginalSchedule(loadedSchedule);
+      return;
+    }
+
+    if (data?.schedule === null) {
+      initializeDefaultSchedule();
+      setOriginalSchedule(null);
+    }
+  }, [accessState, availabilityQuery.data, initializeDefaultSchedule]);
+
+  useEffect(() => {
+    if (availabilityQuery.error) {
+      toast.error(
+        availabilityQuery.error instanceof Error
+          ? availabilityQuery.error.message
+          : 'Failed to load availability settings'
+      );
+    }
+  }, [availabilityQuery.error]);
+
+  const loading = accessState === 'ready' && availabilityQuery.isLoading;
 
   if (accessState === 'profile-required') {
     return (

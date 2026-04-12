@@ -19,6 +19,11 @@ import {
   withdrawRescheduleRequest,
 } from '@/lib/bookings/server/service';
 import {
+  getSessionView as getSessionViewFromRuntimeService,
+  listMenteePendingReviews as listMenteePendingReviewsFromRuntimeService,
+  listMentorPendingReviews as listMentorPendingReviewsFromRuntimeService,
+} from '@/lib/bookings/server/runtime-service';
+import {
   addAdminBookingNote as addAdminBookingNoteFromAdminService,
   adminCancelBooking as adminCancelBookingFromAdminService,
   adminClearNoShow as adminClearNoShowFromAdminService,
@@ -53,6 +58,7 @@ import {
   markBookingNoShowInputSchema,
   rejectReassignmentInputSchema,
   respondRescheduleInputSchema,
+  sessionViewInputSchema,
   selectAlternativeMentorInputSchema,
   updateBookingInputSchema,
   withdrawRescheduleRequestInputSchema,
@@ -133,6 +139,39 @@ export const bookingsRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch booking');
       }
     }),
+  sessionView: protectedProcedure
+    .input(sessionViewInputSchema)
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getSessionViewFromRuntimeService(
+          ctx.userId,
+          input.sessionId,
+          (ctx as any).currentUser
+        );
+      } catch (error) {
+        throwAsTRPCError(error, 'Failed to fetch session details');
+      }
+    }),
+  mentorPendingReviews: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      return await listMentorPendingReviewsFromRuntimeService(
+        ctx.userId,
+        (ctx as any).currentUser
+      );
+    } catch (error) {
+      throwAsTRPCError(error, 'Failed to fetch mentor review queue');
+    }
+  }),
+  menteePendingReviews: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      return await listMenteePendingReviewsFromRuntimeService(
+        ctx.userId,
+        (ctx as any).currentUser
+      );
+    } catch (error) {
+      throwAsTRPCError(error, 'Failed to fetch mentee review queue');
+    }
+  }),
   create: protectedProcedure
     .input(createBookingInputSchema)
     .mutation(async ({ ctx, input }) => {

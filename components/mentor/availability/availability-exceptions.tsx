@@ -38,7 +38,11 @@ import {
 import { format, addDays, isSameDay } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { readJsonResponse } from '@/lib/http/json-response';
+import {
+  useCreateMentorAvailabilityExceptionMutation,
+  useDeleteMentorAvailabilityExceptionsMutation,
+  useMentorAvailabilityExceptionsQuery,
+} from '@/hooks/queries/use-mentor-queries';
 
 interface Exception {
   id: string;
@@ -62,8 +66,6 @@ interface AvailabilityExceptionsResponse {
 }
 
 export function AvailabilityExceptions({ mentorId }: AvailabilityExceptionsProps) {
-  const [exceptions, setExceptions] = useState<Exception[]>([]);
-  const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [exceptionForm, setExceptionForm] = useState({
@@ -73,28 +75,14 @@ export function AvailabilityExceptions({ mentorId }: AvailabilityExceptionsProps
     startTime: '09:00',
     endTime: '17:00'
   });
-
-  // Fetch exceptions
-  const fetchExceptions = async () => {
-    if (!mentorId) return;
-
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/mentors/${mentorId}/availability/exceptions`);
-      const data = await readJsonResponse<AvailabilityExceptionsResponse>(response);
-
-      if (response.ok) {
-        setExceptions(data.exceptions || []);
-      } else {
-        throw new Error(data.error || 'Failed to load exceptions');
-      }
-    } catch (error) {
-      console.error('Failed to fetch exceptions:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to load exceptions');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    data,
+    isLoading: loading,
+    refetch,
+  } = useMentorAvailabilityExceptionsQuery(mentorId);
+  const createExceptionMutation = useCreateMentorAvailabilityExceptionMutation();
+  const deleteExceptionsMutation = useDeleteMentorAvailabilityExceptionsMutation();
+  const exceptions = (data?.exceptions ?? []) as Exception[];
 
   // Create exception
   const createException = async () => {
@@ -104,42 +92,34 @@ export function AvailabilityExceptions({ mentorId }: AvailabilityExceptionsProps
     const endDate = selectedDates[selectedDates.length - 1] || startDate;
 
     try {
-      const response = await fetch(`/api/mentors/${mentorId}/availability/exceptions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          type: exceptionForm.type,
-          reason: exceptionForm.reason,
-          isFullDay: exceptionForm.isFullDay,
-          timeBlocks: exceptionForm.isFullDay ? undefined : [{
-            startTime: exceptionForm.startTime,
-            endTime: exceptionForm.endTime,
-            type: exceptionForm.type
-        }]
-        }),
+      await createExceptionMutation.mutateAsync({
+        mentorUserId: mentorId,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        type: exceptionForm.type,
+        reason: exceptionForm.reason,
+        isFullDay: exceptionForm.isFullDay,
+        timeBlocks: exceptionForm.isFullDay
+          ? undefined
+          : [
+              {
+                startTime: exceptionForm.startTime,
+                endTime: exceptionForm.endTime,
+                type: exceptionForm.type,
+              },
+            ],
       });
-
-      const data = await readJsonResponse<AvailabilityExceptionsResponse>(response);
-
-      if (response.ok) {
-        toast.success('Exception added successfully');
-        fetchExceptions();
-        setDialogOpen(false);
-        setSelectedDates([]);
-        setExceptionForm({
-          type: 'BLOCKED',
-          reason: '',
-          isFullDay: true,
-          startTime: '09:00',
-          endTime: '17:00'
-        });
-      } else {
-        toast.error(data.error || 'Failed to create exception');
-      }
+      toast.success('Exception added successfully');
+      void refetch();
+      setDialogOpen(false);
+      setSelectedDates([]);
+      setExceptionForm({
+        type: 'BLOCKED',
+        reason: '',
+        isFullDay: true,
+        startTime: '09:00',
+        endTime: '17:00'
+      });
     } catch (error) {
       console.error('Failed to create exception:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to create exception');
@@ -151,24 +131,12 @@ export function AvailabilityExceptions({ mentorId }: AvailabilityExceptionsProps
     if (!mentorId) return;
 
     try {
-      const response = await fetch(`/api/mentors/${mentorId}/availability/exceptions`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          exceptionIds: [exceptionId]
-        }),
+      await deleteExceptionsMutation.mutateAsync({
+        mentorUserId: mentorId,
+        exceptionIds: [exceptionId],
       });
-
-      const data = await readJsonResponse<AvailabilityExceptionsResponse>(response);
-
-      if (response.ok) {
-        toast.success('Exception removed');
-        fetchExceptions();
-      } else {
-        toast.error(data.error || 'Failed to delete exception');
-      }
+      toast.success('Exception removed');
+      void refetch();
     } catch (error) {
       console.error('Failed to delete exception:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to delete exception');
@@ -203,10 +171,6 @@ export function AvailabilityExceptions({ mentorId }: AvailabilityExceptionsProps
     }));
     setDialogOpen(true);
   };
-
-  useEffect(() => {
-    fetchExceptions();
-  }, [mentorId]);
 
   const getExceptionColor = (type: Exception['type']) => {
     switch (type) {

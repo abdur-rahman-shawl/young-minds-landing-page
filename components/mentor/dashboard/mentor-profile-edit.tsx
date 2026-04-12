@@ -13,7 +13,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/contexts/auth-context"
-import { uploadProfilePicture, uploadBannerImage } from "@/lib/storage"
+import {
+  useUpdateMentorProfileMutation,
+  useUploadMentorProfileFormMutation,
+} from "@/hooks/queries/use-mentor-queries"
 import {
   Edit3,
   X,
@@ -40,6 +43,8 @@ import {
 
 export function MentorProfileEdit() {
   const { session, mentorProfile, refreshUserData } = useAuth()
+  const updateMentorProfileMutation = useUpdateMentorProfileMutation()
+  const uploadMentorProfileFormMutation = useUploadMentorProfileFormMutation()
   const [isEditing, setIsEditing] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isUploadingBanner, setIsUploadingBanner] = useState(false)
@@ -135,28 +140,17 @@ export function MentorProfileEdit() {
 
     try {
       setIsUploadingImage(true)
-      const uploadResult = await uploadProfilePicture(file, session.user.id)
+      const formData = new FormData()
+      formData.append('userId', session.user.id)
+      formData.append('profilePicture', file)
 
-      setMentorData(prev => ({
-        ...prev,
-        profileImageUrl: uploadResult.url
-      }))
+      const result = await uploadMentorProfileFormMutation.mutateAsync(formData)
 
-      const response = await fetch('/api/mentors/update-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: session.user.id,
-          profileImageUrl: uploadResult.url
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to save profile image')
+      if (result?.profileImageUrl) {
+        setMentorData(prev => ({
+          ...prev,
+          profileImageUrl: result.profileImageUrl,
+        }))
       }
 
       setImageRefresh(Date.now())
@@ -180,30 +174,17 @@ export function MentorProfileEdit() {
 
     try {
       setIsUploadingBanner(true)
-      const uploadResult = await uploadBannerImage(file, session.user.id)
+      const formData = new FormData()
+      formData.append('userId', session.user.id)
+      formData.append('bannerImage', file)
 
-      // Update local state
-      setMentorData(prev => ({
-        ...prev,
-        bannerImageUrl: uploadResult.url
-      }))
+      const result = await uploadMentorProfileFormMutation.mutateAsync(formData)
 
-      // Save to database
-      const response = await fetch('/api/mentors/update-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: session.user.id,
-          bannerImageUrl: uploadResult.url
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to save banner image')
+      if (result?.bannerImageUrl) {
+        setMentorData(prev => ({
+          ...prev,
+          bannerImageUrl: result.bannerImageUrl,
+        }))
       }
 
       // Force image refresh
@@ -249,21 +230,12 @@ export function MentorProfileEdit() {
       formData.append('userId', session.user.id);
       formData.append('resume', file);
 
-      const response = await fetch('/api/mentors/update-profile', {
-        method: 'POST',
-        body: formData,
-      })
+      const result = await uploadMentorProfileFormMutation.mutateAsync(formData)
 
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to save resume')
-      }
-
-      if (result.data?.resumeUrl) {
+      if (result?.resumeUrl) {
         setMentorData(prev => ({
           ...prev,
-          resumeUrl: result.data.resumeUrl
+          resumeUrl: result.resumeUrl
         }))
       }
 
@@ -286,38 +258,50 @@ export function MentorProfileEdit() {
       setIsUploadingImage(true) // Reuse loading state
       setError(null)
 
-      const response = await fetch('/api/mentors/update-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: session.user.id,
-          ...mentorData,
-          experience: parseInt(mentorData.experience) || 0,
-          hourlyRate: parseFloat(mentorData.hourlyRate) || 0,
-          maxMentees: parseInt(mentorData.maxMentees) || 10
-        }),
+      const result = await updateMentorProfileMutation.mutateAsync({
+        fullName: mentorData.fullName,
+        email: mentorData.email,
+        phone: mentorData.phone,
+        title: mentorData.title,
+        company: mentorData.company,
+        city: mentorData.city,
+        state: mentorData.state,
+        country: mentorData.country,
+        industry: mentorData.industry,
+        expertise: mentorData.expertise,
+        experience: mentorData.experience
+          ? Number.parseInt(mentorData.experience, 10)
+          : null,
+        about: mentorData.about,
+        linkedinUrl: mentorData.linkedinUrl,
+        githubUrl: mentorData.githubUrl,
+        websiteUrl: mentorData.websiteUrl,
+        hourlyRate: mentorData.hourlyRate,
+        currency: mentorData.currency,
+        availability: mentorData.availability,
+        headline: mentorData.headline,
+        maxMentees: mentorData.maxMentees
+          ? Number.parseInt(mentorData.maxMentees, 10)
+          : null,
+        profileImageUrl: mentorData.profileImageUrl,
+        bannerImageUrl: mentorData.bannerImageUrl,
+        resumeUrl: mentorData.resumeUrl,
+        isAvailable: mentorData.isAvailable,
+        searchMode: mentorData.searchMode,
       })
 
-      const result = await response.json()
+      setSuccess('Profile updated successfully!')
+      setIsEditing(false)
+      setTimeout(() => setSuccess(null), 3000)
 
-      if (result.success) {
-        setSuccess('Profile updated successfully!')
-        setIsEditing(false)
-        setTimeout(() => setSuccess(null), 3000)
-
-        if (result.data?.updatedAt) {
-          setMentorMeta(prev => ({
-            createdAt: result.data.createdAt || prev.createdAt,
-            updatedAt: result.data.updatedAt || prev.updatedAt,
-          }));
-        }
-
-        refreshUserData()
-      } else {
-        setError(result.error || 'Failed to update profile')
+      if (result?.updatedAt) {
+        setMentorMeta(prev => ({
+          createdAt: result.createdAt || prev.createdAt,
+          updatedAt: result.updatedAt || prev.updatedAt,
+        }));
       }
+
+      refreshUserData()
     } catch (err) {
       setError('Failed to save profile')
       console.error('Save error:', err)

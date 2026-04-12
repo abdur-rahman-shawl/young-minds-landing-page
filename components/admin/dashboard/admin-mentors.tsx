@@ -52,6 +52,13 @@ import Image from 'next/image';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { MentorAuditView } from './MentorAuditView';
+import {
+  type AdminMentorItem,
+  useAdminMentorAuditQuery,
+  useAdminMentorsQuery,
+  useAdminSendMentorCouponMutation,
+  useAdminUpdateMentorMutation,
+} from '@/hooks/queries/use-admin-queries';
 
 type VerificationStatus =
   | 'YET_TO_APPLY'
@@ -62,42 +69,7 @@ type VerificationStatus =
   | 'RESUBMITTED'
   | 'UPDATED_PROFILE';
 
-type Mentor = {
-  id: string;
-  userId: string;
-  name: string | null;
-  fullName: string | null;
-  email: string | null;
-  image?: string | null;
-  title: string | null;
-  company: string | null;
-  industry: string | null;
-  headline: string | null;
-  about: string | null;
-  experienceYears: number | null;
-  expertise: string[];
-  hourlyRate: string | null;
-  currency: string | null;
-  verificationStatus: VerificationStatus;
-  verificationNotes: string | null;
-  isAvailable: boolean | null;
-  resumeUrl: string | null;
-  linkedinUrl: string | null;
-  githubUrl: string | null;
-  websiteUrl: string | null;
-  profileImageUrl: string | null;
-  phone: string | null;
-  location: string;
-  city: string | null;
-  state: string | null;
-  country: string | null;
-  createdAt: string | null;
-  updatedAt: string | null;
-  couponCode?: string | null;
-  isCouponCodeEnabled?: boolean | null;
-  paymentStatus?: 'PENDING' | 'COMPLETED' | 'FAILED' | null;
-  isExpert?: boolean | null;
-};
+type Mentor = AdminMentorItem;
 
 type MentorAction = Extract<
   VerificationStatus,
@@ -105,7 +77,7 @@ type MentorAction = Extract<
 >;
 
 type NoteDialogState = {
-  mentor: Mentor;
+  mentorId: string;
   status: MentorAction;
   note: string;
   submitting: boolean;
@@ -178,19 +150,14 @@ const renderAvailabilityBadge = (availability: boolean | null) => {
 };
 
 export function AdminMentors() {
-  const [mentors, setMentors] = useState<Mentor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<{
     id: string;
     status: MentorAction;
   } | null>(null);
   const [noteDialog, setNoteDialog] = useState<NoteDialogState | null>(null);
-  const [selectedMentor, setSelectedMentor] = useState<Mentor | null>(null);
+  const [selectedMentorId, setSelectedMentorId] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('pending');
-  const [auditData, setAuditData] = useState<any | null>(null);
-  const [isAuditLoading, setIsAuditLoading] = useState(false);
   const [couponToggles, setCouponToggles] = useState<Record<string, boolean>>({});
   const [expertToggles, setExpertToggles] = useState<Record<string, boolean>>({});
   const [sendingCouponId, setSendingCouponId] = useState<string | null>(null);
@@ -200,55 +167,41 @@ export function AdminMentors() {
     paymentPending: false,
     couponEnabled: false,
   });
-
-  const fetchMentors = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/mentors', { credentials: 'include' });
-      const json = await res
-        .json()
-        .catch(() => ({ success: false, error: 'Unable to parse response' }));
-
-      if (!res.ok || !json?.success) {
-        const message = json?.error || 'Unable to load mentors';
-        if (res.status === 401 || res.status === 403) {
-          setError(message);
-          toast.error('Authentication required', { description: message });
-          return;
-        }
-        setError(message);
-        toast.error('Failed to fetch mentors', { description: message });
-        return;
-      }
-
-      const data: Mentor[] = json.data ?? [];
-      setMentors(data);
-      setCouponToggles(
-        data.reduce<Record<string, boolean>>((acc, mentor) => {
-          acc[mentor.id] = Boolean(mentor.isCouponCodeEnabled);
-          return acc;
-        }, {}),
-      );
-      setExpertToggles(
-        data.reduce<Record<string, boolean>>((acc, mentor) => {
-          acc[mentor.id] = Boolean(mentor.isExpert);
-          return acc;
-        }, {}),
-      );
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Something went wrong';
-      setError(message);
-      toast.error('Failed to fetch mentors', { description: message });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    data: mentors = [],
+    isLoading,
+    error,
+    refetch,
+  } = useAdminMentorsQuery();
+  const updateMentorMutation = useAdminUpdateMentorMutation();
+  const sendMentorCouponMutation = useAdminSendMentorCouponMutation();
 
   useEffect(() => {
-    fetchMentors();
-  }, []);
+    setCouponToggles(
+      mentors.reduce<Record<string, boolean>>((acc, mentor) => {
+        acc[mentor.id] = Boolean(mentor.isCouponCodeEnabled);
+        return acc;
+      }, {}),
+    );
+    setExpertToggles(
+      mentors.reduce<Record<string, boolean>>((acc, mentor) => {
+        acc[mentor.id] = Boolean(mentor.isExpert);
+        return acc;
+      }, {}),
+    );
+  }, [mentors]);
+
+  const selectedMentor = useMemo(
+    () => mentors.find((mentor) => mentor.id === selectedMentorId) ?? null,
+    [mentors, selectedMentorId],
+  );
+  const auditQuery = useAdminMentorAuditQuery(
+    selectedMentor?.verificationStatus === 'UPDATED_PROFILE'
+      ? selectedMentor.id
+      : null,
+  );
+  const auditData = auditQuery.data ?? null;
+  const isAuditLoading = auditQuery.isLoading;
 
   const pendingMentors = useMemo(
     () =>
@@ -300,26 +253,14 @@ export function AdminMentors() {
   ): Promise<boolean> => {
     setPendingAction({ id: mentorId, status });
     try {
-      const res = await fetch('/api/admin/mentors', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ mentorId, status, notes, enableCoupon: options?.enableCoupon ?? false }),
+      await updateMentorMutation.mutateAsync({
+        mentorId,
+        status,
+        notes: notes ?? undefined,
+        enableCoupon: options?.enableCoupon,
       });
-      const json = await res.json();
-
-      if (!res.ok || !json.success) {
-        const message = json?.error || 'Unable to update mentor status';
-        if (res.status === 401 || res.status === 403) {
-          toast.error('Authentication required', { description: message });
-          return false;
-        }
-        toast.error('Update failed', { description: message });
-        return false;
-      }
 
       toast.success(actionSuccessCopy[status]);
-      await fetchMentors();
       return true;
     } catch (err) {
       const message =
@@ -333,7 +274,7 @@ export function AdminMentors() {
 
   const openNoteDialog = (mentor: Mentor, status: MentorAction) => {
     setNoteDialog({
-      mentor,
+      mentorId: mentor.id,
       status,
       note: mentor.verificationNotes ?? '',
       submitting: false,
@@ -344,7 +285,7 @@ export function AdminMentors() {
     if (!noteDialog) return;
     setNoteDialog((prev) => (prev ? { ...prev, submitting: true } : prev));
     const success = await handleStatusChange(
-      noteDialog.mentor.id,
+      noteDialog.mentorId,
       noteDialog.status,
       noteDialog.note,
     );
@@ -355,34 +296,13 @@ export function AdminMentors() {
   };
 
   const handleRowClick = async (mentor: Mentor) => {
-    setSelectedMentor(mentor);
+    setSelectedMentorId(mentor.id);
     setShowDetails(true);
-    if (mentor.verificationStatus === 'UPDATED_PROFILE') {
-      setIsAuditLoading(true);
-      try {
-        const res = await fetch(`/api/admin/mentors/${mentor.id}/audit`);
-        const json = await res.json();
-        if (json.success) {
-          setAuditData(json.data);
-        } else {
-          toast.error('Failed to load audit data', { description: json.error });
-          setAuditData(null);
-        }
-      } catch (error) {
-        toast.error('Failed to load audit data');
-        setAuditData(null);
-      } finally {
-        setIsAuditLoading(false);
-      }
-    } else {
-      setAuditData(null);
-    }
   };
 
   const closeDetails = () => {
     setShowDetails(false);
-    setSelectedMentor(null);
-    setAuditData(null);
+    setSelectedMentorId(null);
   };
 
   const openMessageDialog = (mentor: Mentor) => {
@@ -427,29 +347,13 @@ export function AdminMentors() {
     setExpertToggles((prev) => ({ ...prev, [mentor.id]: checked }));
     setUpdatingExpertId(mentor.id);
     try {
-      const res = await fetch('/api/admin/mentors', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          mentorId: mentor.id,
-          status: mentor.verificationStatus,
-          isExpert: checked,
-        }),
+      await updateMentorMutation.mutateAsync({
+        mentorId: mentor.id,
+        status: mentor.verificationStatus,
+        isExpert: checked,
       });
-      const json = await res
-        .json()
-        .catch(() => ({ success: false, error: 'Unable to parse response' }));
-
-      if (!res.ok || !json?.success) {
-        const message = json?.error || 'Unable to update expert status';
-        setExpertToggles((prev) => ({ ...prev, [mentor.id]: previousValue }));
-        toast.error('Failed to update expert status', { description: message });
-        return;
-      }
 
       toast.success(checked ? 'Mentor marked as expert' : 'Mentor removed from expert list');
-      await fetchMentors();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Something went wrong';
@@ -467,28 +371,9 @@ export function AdminMentors() {
   const handleSendCouponCode = async (mentorId: string) => {
     setSendingCouponId(mentorId);
     try {
-      const res = await fetch('/api/admin/mentors/coupon', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ mentorId }),
-      });
-      const json = await res
-        .json()
-        .catch(() => ({ success: false, error: 'Unable to parse response' }));
-
-      if (!res.ok || !json?.success) {
-        const message = json?.error || 'Unable to send coupon code';
-        if (res.status === 401 || res.status === 403) {
-          toast.error('Authentication required', { description: message });
-          return;
-        }
-        toast.error('Failed to send coupon code', { description: message });
-        return;
-      }
+      await sendMentorCouponMutation.mutateAsync({ mentorId });
 
       toast.success('Coupon code sent successfully');
-      await fetchMentors();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Something went wrong';
@@ -884,7 +769,11 @@ export function AdminMentors() {
     );
   };
 
-  if (loading) {
+  const noteDialogMentor = noteDialog
+    ? mentors.find((mentor) => mentor.id === noteDialog.mentorId) ?? null
+    : null;
+
+  if (isLoading) {
     return (
       <div className='flex h-[70vh] flex-col items-center justify-center gap-3 text-muted-foreground'>
         <Loader2 className='h-6 w-6 animate-spin' />
@@ -894,12 +783,14 @@ export function AdminMentors() {
   }
 
   if (error) {
+    const message =
+      error instanceof Error ? error.message : 'Unable to load mentors';
     return (
       <div className='flex h-[70vh] flex-col items-center justify-center gap-3 text-center text-sm text-red-600'>
         <ShieldQuestion className='h-6 w-6' />
         <p>We ran into a problem loading mentors.</p>
-        <p className='text-xs text-muted-foreground'>{error}</p>
-        <Button size='sm' onClick={fetchMentors} className='mt-2'>
+        <p className='text-xs text-muted-foreground'>{message}</p>
+        <Button size='sm' onClick={() => void refetch()} className='mt-2'>
           Retry
         </Button>
       </div>
@@ -1026,8 +917,8 @@ export function AdminMentors() {
             <div className='space-y-3'>
               <div className='text-sm'>
                 <span className='font-medium'>
-                  {noteDialog.mentor.name ||
-                    noteDialog.mentor.fullName ||
+                  {noteDialogMentor?.name ||
+                    noteDialogMentor?.fullName ||
                     'Mentor'}
                 </span>
               </div>

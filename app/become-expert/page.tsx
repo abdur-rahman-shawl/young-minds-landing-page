@@ -20,6 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { countryPhoneCodes } from "@/lib/country-phone-codes"
 import { Combobox } from "@/components/ui/combobox"
+import { useMentorApplicationQuery, useSubmitMentorApplicationMutation } from "@/hooks/queries/use-mentor-queries"
 
 const INDUSTRY_OPTIONS = new Set(['ITSoftware','Marketing','Finance','Education','Healthcare','Entrepreneurship','Design','Sales','HR','Other']);
 
@@ -333,32 +334,28 @@ export default function BecomeExpertPage() {
   const { data: session, isPending } = useSession()
   const router = useRouter()
   const { signIn } = useAuth()
+  const submitMentorApplicationMutation = useSubmitMentorApplicationMutation()
+  const mentorApplicationQuery = useMentorApplicationQuery(Boolean(session?.user && showMentorForm))
 
   useEffect(() => {
     if (session?.user && !showMentorForm) {
       setShowMentorForm(true)
-
-      const fetchMentorApplication = async () => {
-        try {
-          const response = await fetch('/api/mentors/application');
-          const result = await response.json();
-          if (result.success) {
-            const { data } = result;
-            if (data.verificationStatus === 'REVERIFICATION') {
-              setIsReverificationFlow(true);
-              setPrefillMentorData(data);
-            } else {
-              setIsReverificationFlow(false);
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching mentor application:', error);
-        }
-      };
-
-      fetchMentorApplication();
     }
   }, [session, showMentorForm])
+
+  useEffect(() => {
+    if (!mentorApplicationQuery.data) {
+      return;
+    }
+
+    if (mentorApplicationQuery.data.verificationStatus === 'REVERIFICATION') {
+      setIsReverificationFlow(true);
+      setPrefillMentorData(mentorApplicationQuery.data);
+      return;
+    }
+
+    setIsReverificationFlow(false);
+  }, [mentorApplicationQuery.data]);
 
   useEffect(() => {
     if (!prefillMentorData || countries.length === 0) return;
@@ -504,23 +501,17 @@ export default function BecomeExpertPage() {
       }
 
 
-      const res = await fetch('/api/mentors/apply', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      })
-      const result = await res.json()
-      if (!result.success) {
-        alert('Failed to submit application: ' + result.error)
-        setIsLoading(false)
-        return
-      }
+      await submitMentorApplicationMutation.mutateAsync(formData)
       router.push('/auth/mentor-verification')
     } catch (error) {
       if (error instanceof z.ZodError) {
         setErrors(error)
       } else {
-        alert('Something went wrong while submitting your application.')
+        alert(
+          error instanceof Error
+            ? error.message
+            : 'Something went wrong while submitting your application.'
+        )
       }
     } finally {
       setIsLoading(false)

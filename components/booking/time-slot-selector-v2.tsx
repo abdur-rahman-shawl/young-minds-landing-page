@@ -23,6 +23,7 @@ import {
 } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useTRPCClient } from '@/lib/trpc/react';
 
 interface TimeSlotSelectorProps {
   mentorId: string;
@@ -40,6 +41,7 @@ interface MonthAvailability {
 }
 
 export function TimeSlotSelectorV2({ mentorId, onTimeSelected, initialSelectedTime }: TimeSlotSelectorProps) {
+  const trpcClient = useTRPCClient();
   const [currentMonth, setCurrentMonth] = useState(initialSelectedTime || new Date());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialSelectedTime);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<Date | undefined>(initialSelectedTime);
@@ -66,54 +68,52 @@ export function TimeSlotSelectorV2({ mentorId, onTimeSelected, initialSelectedTi
   const fetchMonthAvailability = useCallback(async (month: Date) => {
     setMonthLoading(true);
     try {
-      const params = new URLSearchParams({
+      const data = await trpcClient.mentor.availableSlots.query({
+        mentorUserId: mentorId,
         startDate: startOfMonth(month).toISOString(),
         endDate: endOfMonth(month).toISOString(),
         timezone: userTimezone,
       });
-      const response = await fetch(`/api/mentors/${mentorId}/availability/slots?${params}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        const availability: MonthAvailability = {};
-        (data.slots || []).forEach((slot: AvailableSlot) => {
-          const day = format(parseISO(slot.startTime), 'yyyy-MM-dd');
-          availability[day] = true;
-        });
-        setMonthAvailability(availability);
-        setMentorTimezone(data.mentorTimezone || 'UTC');
-      } else {
-        toast.error(data.message || 'Failed to load monthly availability');
-      }
+
+      const availability: MonthAvailability = {};
+      (data.slots || []).forEach((slot: AvailableSlot) => {
+        const day = format(parseISO(slot.startTime), 'yyyy-MM-dd');
+        availability[day] = true;
+      });
+      setMonthAvailability(availability);
+      setMentorTimezone(data.mentorTimezone || 'UTC');
     } catch (error) {
-      toast.error('An error occurred while fetching availability.');
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'An error occurred while fetching availability.'
+      );
     } finally {
       setMonthLoading(false);
     }
-  }, [mentorId, userTimezone]);
+  }, [mentorId, trpcClient, userTimezone]);
 
   const fetchDailySlots = useCallback(async (date: Date) => {
     setDailyLoading(true);
     setDailySlots([]);
     try {
-      const params = new URLSearchParams({
+      const data = await trpcClient.mentor.availableSlots.query({
+        mentorUserId: mentorId,
         startDate: date.toISOString(),
         endDate: endOfDay(date).toISOString(),
         timezone: userTimezone,
       });
-      const response = await fetch(`/api/mentors/${mentorId}/availability/slots?${params}`);
-      const data = await response.json();
-      if (response.ok) {
-        setDailySlots(data.slots || []);
-      } else {
-        toast.error(data.message || 'Failed to load time slots');
-      }
+      setDailySlots(data.slots || []);
     } catch (error) {
-      toast.error('An error occurred while fetching time slots.');
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'An error occurred while fetching time slots.'
+      );
     } finally {
       setDailyLoading(false);
     }
-  }, [mentorId, userTimezone]);
+  }, [mentorId, trpcClient, userTimezone]);
 
   useEffect(() => {
     fetchMonthAvailability(currentMonth);

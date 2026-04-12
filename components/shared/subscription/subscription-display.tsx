@@ -9,6 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "sonner";
+import {
+  useSelectSubscriptionPlanMutation,
+  useSubscriptionDetails,
+  useSubscriptionUsage,
+} from "@/hooks/queries/use-subscription-queries";
 
 interface SubscriptionFeature {
   feature_key: string;
@@ -110,62 +115,65 @@ function formatLimit(feature: SubscriptionFeature) {
 }
 
 export function SubscriptionDisplay() {
-  const { isMentor, isMentee } = useAuth();
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [features, setFeatures] = useState<SubscriptionFeature[]>([]);
-  const [usage, setUsage] = useState<UsageEntry[]>([]);
+  const { isMentor, isMentee, isLoading: authLoading } = useAuth();
+  const preferredAudience = isMentor ? "mentor" : isMentee ? "mentee" : null;
   const [plans, setPlans] = useState<PublicPlan[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [plansError, setPlansError] = useState<string | null>(null);
   const [selectingPlanId, setSelectingPlanId] = useState<string | null>(null);
+  const {
+    data: subscriptionData,
+    isLoading: subscriptionLoading,
+    error: subscriptionError,
+  } = useSubscriptionDetails(
+    preferredAudience ?? "mentee",
+    !authLoading && Boolean(preferredAudience)
+  );
+  const { data: usage = [] } = useSubscriptionUsage(
+    preferredAudience ?? "mentee",
+    !authLoading && Boolean(preferredAudience)
+  );
+  const selectPlanMutation = useSelectSubscriptionPlanMutation();
 
-  const loadSubscription = async () => {
-    try {
-      const preferredAudience = isMentor ? "mentor" : isMentee ? "mentee" : null;
-      const audienceQuery = preferredAudience ? `?audience=${preferredAudience}` : "";
-
-      const [subRes, usageRes] = await Promise.all([
-        fetch(`/api/subscriptions/me${audienceQuery}`, { credentials: "include" }),
-        fetch(`/api/subscriptions/me/usage${audienceQuery}`, { credentials: "include" }),
-      ]);
-
-      const subData = await subRes.json();
-      const usageData = await usageRes.json();
-
-      if (!subRes.ok || !subData.success) {
-        setError(subData.message || "Failed to load subscription details");
-        return;
-      }
-
-      const subscriptionInfo = subData.data.subscription;
-      setSubscription(subscriptionInfo);
-      setFeatures(subData.data.features || []);
-
-      if (usageRes.ok && usageData.success) {
-        setUsage(usageData.data || []);
-      }
-
-      const fallbackAudience = preferredAudience;
-      const audienceParam = subscriptionInfo?.audience || fallbackAudience;
-      const planUrl = audienceParam
-        ? `/api/subscriptions/plans/public?audience=${audienceParam}`
-        : "/api/subscriptions/plans/public";
-      const planRes = await fetch(planUrl, { credentials: "include" });
-      const planData = await planRes.json();
-      if (planRes.ok && planData.success) {
-        setPlans(planData.data || []);
-      }
-    } catch (err) {
-      console.error("Failed to load subscription details:", err);
-      setError("Failed to load subscription details");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const subscription = subscriptionData?.subscription ?? null;
+  const features = subscriptionData?.features ?? [];
 
   useEffect(() => {
-    loadSubscription();
-  }, []);
+    const loadPlans = async () => {
+      try {
+        setPlansLoading(true);
+        setPlansError(null);
+        const audienceParam = subscription?.audience || preferredAudience;
+        const planUrl = audienceParam
+          ? `/api/subscriptions/plans/public?audience=${audienceParam}`
+          : "/api/subscriptions/plans/public";
+        const planRes = await fetch(planUrl, { credentials: "include" });
+        const planData = await planRes.json();
+        if (planRes.ok && planData.success) {
+          setPlans(planData.data || []);
+          return;
+        }
+        setPlansError(planData.message || "Failed to load subscription details");
+      } catch (error) {
+        console.error("Failed to load subscription plans:", error);
+        setPlansError("Failed to load subscription details");
+      } finally {
+        setPlansLoading(false);
+      }
+    };
+
+    if (authLoading) {
+      return;
+    }
+
+    if (!preferredAudience && !subscription?.audience) {
+      setPlans([]);
+      setPlansLoading(false);
+      return;
+    }
+
+    void loadPlans();
+  }, [authLoading, preferredAudience, subscription?.audience]);
 
   const handleSelectPlan = async (plan: PublicPlan) => {
     if (selectingPlanId) return;
@@ -175,27 +183,13 @@ export function SubscriptionDisplay() {
 
     setSelectingPlanId(plan.id);
     try {
-      const res = await fetch("/api/subscriptions/select", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          planId: plan.id,
-          priceId: monthlyPrice?.id,
-        }),
+      await selectPlanMutation.mutateAsync({
+        planId: plan.id,
+        priceId: monthlyPrice?.id,
       });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        toast.error(data.message || "Failed to select plan");
-        return;
-      }
-
       toast.success("Plan selected");
-      await loadSubscription();
     } catch (error) {
-      console.error("Failed to select plan:", error);
-      toast.error("Failed to select plan");
+      // mutation hook surfaces the toast
     } finally {
       setSelectingPlanId(null);
     }
@@ -205,6 +199,11 @@ export function SubscriptionDisplay() {
     () => usage.filter((entry) => ["count", "minutes", "amount", "percent"].includes(entry.value_type)),
     [usage]
   );
+
+  const loading = authLoading || subscriptionLoading || plansLoading;
+  const error =
+    (subscriptionError instanceof Error ? subscriptionError.message : null) ||
+    plansError;
 
   if (loading) {
     return <div>Loading subscription details...</div>;

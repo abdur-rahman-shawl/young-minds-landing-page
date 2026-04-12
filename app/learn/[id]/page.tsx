@@ -37,6 +37,11 @@ import {
 } from 'lucide-react';
 import { VideoPlayer } from '@/components/ui/kibo-video-player';
 import { useAuth } from '@/contexts/auth-context';
+import {
+  useCourseProgressQuery,
+  useSubmitContentItemReviewMutation,
+  useUpdateCourseProgressMutation,
+} from '@/hooks/queries/use-learning-queries';
 import { toast } from 'sonner';
 
 interface LearningProgress {
@@ -126,10 +131,10 @@ export default function LearnCoursePage() {
   const params = useParams();
   const router = useRouter();
   const { session } = useAuth();
+  const courseId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
 
   const [courseData, setCourseData] = useState<LearningProgress | null>(null);
   const [currentItem, setCurrentItem] = useState<LearningContentItem | null>(null);
-  const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [studentNotes, setStudentNotes] = useState('');
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -143,54 +148,47 @@ export default function LearnCoursePage() {
   });
   const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
   const [reviewFormOpen, setReviewFormOpen] = useState(false);
+  const courseProgressQuery = useCourseProgressQuery(
+    { courseId },
+    Boolean(courseId && session)
+  );
+  const updateCourseProgressMutation = useUpdateCourseProgressMutation();
+  const submitContentItemReview = useSubmitContentItemReviewMutation();
+  const loading = courseProgressQuery.isLoading && !courseData;
 
-  // Fetch course progress
   useEffect(() => {
-    if (params.id && session) {
-      fetchCourseProgress();
-    }
-  }, [params.id, session]);
+    if (courseProgressQuery.data) {
+      setCourseData(courseProgressQuery.data);
+      if (currentItem?.id) {
+        const refreshedCurrentItem = findContentItemById(
+          courseProgressQuery.data,
+          currentItem.id
+        );
+        if (refreshedCurrentItem) {
+          setCurrentItem(refreshedCurrentItem);
+          setStudentNotes(refreshedCurrentItem.progress.studentNotes || '');
+          return;
+        }
+      }
 
-  // Set initial current item
-  useEffect(() => {
-    if (courseData && !currentItem) {
-      // Find the first incomplete item or the first item
-      const firstIncompleteItem = findFirstIncompleteItem();
+      const firstIncompleteItem = findFirstIncompleteItem(courseProgressQuery.data);
       if (firstIncompleteItem) {
         setCurrentItem(firstIncompleteItem);
         setStudentNotes(firstIncompleteItem.progress.studentNotes || '');
       }
     }
-  }, [courseData]);
+  }, [courseProgressQuery.data, currentItem?.id]);
 
-  const fetchCourseProgress = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/courses/${params.id}/progress`, {
-        headers: {
-          'x-user-id': session?.user?.id || '',
-        },
-      });
-      const data = await response.json();
-
-      if (data.success) {
-        setCourseData(data.data);
-      } else {
-        // Not enrolled, redirect to course page
-        router.push(`/dashboard?section=courses&courseId=${params.id}`);
-      }
-    } catch (error) {
-      console.error('Error fetching course progress:', error);
-      router.push(`/dashboard?section=courses&courseId=${params.id}`);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (courseProgressQuery.error && courseId) {
+      router.push(`/dashboard?section=courses&courseId=${courseId}`);
     }
-  };
+  }, [courseId, courseProgressQuery.error, router]);
 
-  const findFirstIncompleteItem = (): LearningContentItem | null => {
-    if (!courseData) return null;
-
-    for (const module of courseData.progress.modules) {
+  const findFirstIncompleteItem = (
+    data: LearningProgress
+  ): LearningContentItem | null => {
+    for (const module of data.progress.modules) {
       for (const section of module.sections) {
         for (const item of section.contentItems) {
           if (item.progress.status !== 'COMPLETED') {
@@ -201,7 +199,24 @@ export default function LearnCoursePage() {
     }
 
     // If all completed, return the first item
-    return courseData.progress.modules[0]?.sections[0]?.contentItems[0] || null;
+    return data.progress.modules[0]?.sections[0]?.contentItems[0] || null;
+  };
+
+  const findContentItemById = (
+    data: LearningProgress,
+    itemId: string
+  ): LearningContentItem | null => {
+    for (const module of data.progress.modules) {
+      for (const section of module.sections) {
+        for (const item of section.contentItems) {
+          if (item.id === itemId) {
+            return item;
+          }
+        }
+      }
+    }
+
+    return null;
   };
 
   const updateProgress = async (
@@ -217,25 +232,13 @@ export default function LearnCoursePage() {
   ) => {
     try {
       setUpdateLoading(true);
-      const response = await fetch(`/api/courses/${params.id}/progress`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': session?.user?.id || '',
-        },
-        body: JSON.stringify({
-          contentItemId,
-          ...updates,
-        }),
+      await updateCourseProgressMutation.mutateAsync({
+        courseId,
+        contentItemId,
+        ...updates,
       });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Refresh course data
-        await fetchCourseProgress();
-        return true;
-      }
+      await courseProgressQuery.refetch();
+      return true;
     } catch (error) {
       console.error('Error updating progress:', error);
     } finally {
@@ -335,7 +338,7 @@ export default function LearnCoursePage() {
     try {
       setReviewsLoading(true);
       const response = await fetch(
-        `/api/courses/${params.id}/content-items/${itemId}/reviews?limit=20&offset=0`
+        `/api/courses/${courseId}/content-items/${itemId}/reviews?limit=20&offset=0`
       );
       const data = await response.json();
       if (response.ok && data.success) {
@@ -366,29 +369,19 @@ export default function LearnCoursePage() {
 
     try {
       setReviewSubmitting(true);
-      const response = await fetch(
-        `/api/courses/${params.id}/content-items/${currentItem.id}/reviews`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            rating: reviewForm.rating,
-            title: reviewForm.title.trim() || undefined,
-            review: reviewForm.review.trim() || undefined,
-          }),
-        }
-      );
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to submit review');
-      }
+      await submitContentItemReview.mutateAsync({
+        courseId,
+        itemId: currentItem.id,
+        rating: reviewForm.rating,
+        title: reviewForm.title.trim() || undefined,
+        review: reviewForm.review.trim() || undefined,
+      });
 
       toast.success('Review submitted');
       setReviewForm({ rating: 0, title: '', review: '' });
       await fetchItemReviews(currentItem.id);
     } catch (error) {
       console.error('Failed to submit review:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to submit review');
     } finally {
       setReviewSubmitting(false);
     }
@@ -908,7 +901,7 @@ export default function LearnCoursePage() {
                         navigateToItem(next);
                       } else {
                         // Course completed
-                        router.push(`/dashboard?section=courses&courseId=${params.id}`);
+                        router.push(`/dashboard?section=courses&courseId=${courseId}`);
                       }
                     }}
                     disabled={!getNextItem() && courseData.enrollment.overallProgress !== 100}

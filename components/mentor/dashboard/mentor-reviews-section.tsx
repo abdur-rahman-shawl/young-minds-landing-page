@@ -1,20 +1,45 @@
 'use client';
 
 import { useState } from 'react';
-import useSWR from 'swr';
 import { format, formatDistanceToNow } from 'date-fns';
-import { AlertCircle, Calendar, CheckCircle2, ClipboardCheck, MessageSquareText, Star } from 'lucide-react';
+import {
+  AlertCircle,
+  Calendar,
+  CheckCircle2,
+  ClipboardCheck,
+  MessageSquareText,
+  Star,
+} from 'lucide-react';
+import { toast } from 'sonner';
+
 import { SessionRating } from '@/components/booking/SessionRating';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
-import { useMentorPendingReviews } from '@/hooks/use-mentor-dashboard';
 import { useAuth } from '@/contexts/auth-context';
-import { toast } from 'sonner';
+import { useMentorPendingReviews } from '@/hooks/use-mentor-dashboard';
+import {
+  useMentorCourseCommentsQuery,
+  useMentorReviewsQuery,
+  useReplyMentorCourseCommentMutation,
+} from '@/hooks/queries/use-mentor-queries';
 
 type PendingSession = {
   sessionId: string;
@@ -64,24 +89,6 @@ type CourseComment = {
   reviewerImage: string | null;
 };
 
-const fetcher = async (url: string) => {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error('Failed to fetch reviews');
-  }
-
-  return response.json() as Promise<{ reviews: SubmittedReview[] }>;
-};
-
-const courseCommentsFetcher = async (url: string) => {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error('Failed to fetch course comments');
-  }
-
-  return response.json() as Promise<{ hasAccess: boolean; hasComments?: boolean; comments: CourseComment[] }>;
-};
-
 function ReviewCardSkeleton() {
   return (
     <Card>
@@ -106,7 +113,9 @@ function PendingReviewList({
   sessionsToReview: PendingSession[];
   onReviewComplete: () => void;
 }) {
-  const [selectedSession, setSelectedSession] = useState<PendingSession | null>(null);
+  const [selectedSession, setSelectedSession] = useState<PendingSession | null>(
+    null
+  );
 
   return (
     <>
@@ -133,17 +142,24 @@ function PendingReviewList({
             >
               <div className="flex items-center gap-3">
                 <Avatar className="h-11 w-11 border">
-                  <AvatarImage src={session.mentee.avatar ?? undefined} alt={session.mentee.name} />
+                  <AvatarImage
+                    src={session.mentee.avatar ?? undefined}
+                    alt={session.mentee.name}
+                  />
                   <AvatarFallback>
                     {(session.mentee.name || 'Mentee').slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="space-y-1">
-                  <p className="font-medium text-foreground">{session.sessionTitle || 'Untitled session'}</p>
+                  <p className="font-medium text-foreground">
+                    {session.sessionTitle || 'Untitled session'}
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     {session.mentee.name} · Session ended{' '}
                     {session.sessionEndedAt
-                      ? formatDistanceToNow(new Date(session.sessionEndedAt), { addSuffix: true })
+                      ? formatDistanceToNow(new Date(session.sessionEndedAt), {
+                          addSuffix: true,
+                        })
                       : 'recently'}
                   </p>
                 </div>
@@ -156,11 +172,16 @@ function PendingReviewList({
         </CardContent>
       </Card>
 
-      <Dialog open={selectedSession !== null} onOpenChange={(open) => !open && setSelectedSession(null)}>
+      <Dialog
+        open={selectedSession !== null}
+        onOpenChange={(open) => !open && setSelectedSession(null)}
+      >
         <DialogContent className="max-h-[92vh] max-w-3xl overflow-hidden border-0 bg-transparent p-0 shadow-none">
           <DialogHeader className="sr-only">
             <DialogTitle>Session feedback</DialogTitle>
-            <DialogDescription>Submit mentor feedback for the selected mentee session.</DialogDescription>
+            <DialogDescription>
+              Submit mentor feedback for the selected mentee session.
+            </DialogDescription>
           </DialogHeader>
           {selectedSession ? (
             <div className="overflow-y-auto px-4 py-6 sm:px-6">
@@ -186,7 +207,9 @@ function PendingReviewList({
 }
 
 export function MentorReviewsSection() {
-  const [activeTab, setActiveTab] = useState<'submitted' | 'pending'>('submitted');
+  const [activeTab, setActiveTab] = useState<'submitted' | 'pending'>(
+    'submitted'
+  );
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [savingReplyId, setSavingReplyId] = useState<string | null>(null);
   const { session } = useAuth();
@@ -196,30 +219,36 @@ export function MentorReviewsSection() {
     error: pendingError,
     mutate: mutatePendingReviews,
   } = useMentorPendingReviews(session?.user);
-  const { data, error, isLoading, mutate } = useSWR('/api/mentor/reviews', fetcher, {
-    revalidateOnFocus: true,
-    revalidateOnReconnect: true,
-  });
+  const {
+    data: reviewsData,
+    error: reviewsError,
+    isLoading: reviewsLoading,
+    refetch: refetchReviews,
+  } = useMentorReviewsQuery(!!session?.user?.id);
   const {
     data: courseCommentsData,
     error: courseCommentsError,
     isLoading: courseCommentsLoading,
-    mutate: mutateCourseComments,
-  } = useSWR('/api/mentor/course-comments', courseCommentsFetcher, {
-    revalidateOnFocus: true,
-    revalidateOnReconnect: true,
-    shouldRetryOnError: false,
-  });
+    refetch: refetchCourseComments,
+  } = useMentorCourseCommentsQuery(!!session?.user?.id);
+  const replyToCourseCommentMutation = useReplyMentorCourseCommentMutation();
 
-  const submittedReviews = data?.reviews ?? [];
+  const submittedReviews = (reviewsData?.reviews ?? []) as SubmittedReview[];
   const hasCourseCommentsAccess = courseCommentsData?.hasAccess ?? false;
   const hasCourseComments = courseCommentsData?.hasComments ?? false;
-  const courseComments = courseCommentsData?.comments ?? [];
-  const shouldShowCourseCommentsSection = 
-    courseCommentsLoading || courseComments.length > 0 || (hasCourseCommentsAccess && hasCourseComments);
+  const courseComments = (courseCommentsData?.comments ?? []) as CourseComment[];
+  const shouldShowCourseCommentsSection =
+    courseCommentsLoading ||
+    courseComments.length > 0 ||
+    (hasCourseCommentsAccess && hasCourseComments);
 
   const handleReplySave = async (comment: CourseComment) => {
-    const response = (replyDrafts[comment.id] ?? comment.instructorResponse ?? '').trim();
+    const response = (
+      replyDrafts[comment.id] ??
+      comment.instructorResponse ??
+      ''
+    ).trim();
+
     if (!response) {
       toast.error('Reply cannot be empty.');
       return;
@@ -227,26 +256,18 @@ export function MentorReviewsSection() {
 
     setSavingReplyId(comment.id);
     try {
-      const res = await fetch(`/api/mentor/course-comments/${comment.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          feedbackType: comment.feedbackType,
-          response,
-        }),
+      await replyToCourseCommentMutation.mutateAsync({
+        commentId: comment.id,
+        feedbackType: comment.feedbackType,
+        response,
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to save reply');
-      }
-
       toast.success('Reply saved');
       setReplyDrafts((prev) => ({ ...prev, [comment.id]: response }));
-      mutateCourseComments();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save reply';
-      toast.error(message);
+      void refetchCourseComments();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to save reply'
+      );
     } finally {
       setSavingReplyId(null);
     }
@@ -299,22 +320,26 @@ export function MentorReviewsSection() {
             <Card className="border-destructive/30">
               <CardContent className="flex items-center gap-3 p-5 text-destructive">
                 <AlertCircle className="h-5 w-5" />
-                <p className="text-sm">Failed to load pending feedback items.</p>
+                <p className="text-sm">
+                  Failed to load pending feedback items.
+                </p>
               </CardContent>
             </Card>
           ) : sessionsToReview.length > 0 ? (
             <PendingReviewList
               sessionsToReview={sessionsToReview}
               onReviewComplete={() => {
-                mutatePendingReviews();
-                mutate();
+                void mutatePendingReviews();
+                void refetchReviews();
               }}
             />
           ) : (
             <Card className="border-emerald-200/70 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/10">
               <CardContent className="flex items-center gap-3 p-5">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                <p className="text-sm text-foreground">All completed sessions have mentor feedback recorded.</p>
+                <p className="text-sm text-foreground">
+                  All completed sessions have mentor feedback recorded.
+                </p>
               </CardContent>
             </Card>
           )
@@ -324,102 +349,107 @@ export function MentorReviewsSection() {
               <CardHeader>
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <CardTitle className="text-xl">Submitted Session Feedback</CardTitle>
+                    <CardTitle className="text-xl">
+                      Submitted Session Feedback
+                    </CardTitle>
                     <CardDescription>
                       Feedback and ratings you have already sent to mentees.
                     </CardDescription>
                   </div>
-                  <Button variant="outline" onClick={() => mutate()}>
+                  <Button variant="outline" onClick={() => void refetchReviews()}>
                     Refresh
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {isLoading ? (
+                {reviewsLoading ? (
                   <>
                     <ReviewCardSkeleton />
                     <ReviewCardSkeleton />
                   </>
-                ) : error ? (
-                  <div className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-destructive/20 bg-destructive/5 px-6 text-center">
-                    <AlertCircle className="mb-3 h-8 w-8 text-destructive" />
-                    <p className="font-medium">Could not load submitted reviews</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Try refreshing the page. If the issue persists, check the mentor reviews API response.
-                    </p>
+                ) : reviewsError ? (
+                  <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    Failed to load submitted reviews.
                   </div>
                 ) : submittedReviews.length === 0 ? (
-                  <div className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
-                    <MessageSquareText className="mb-3 h-8 w-8 text-muted-foreground" />
-                    <p className="font-medium">No feedback submitted yet</p>
-                    <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                      Once you complete session reviews for mentees, they will appear here with scores and written feedback.
+                  <div className="rounded-xl border border-dashed p-8 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No submitted reviews yet.
                     </p>
                   </div>
                 ) : (
                   submittedReviews.map((review) => (
-                    <Card key={review.id} className="border-border/70">
-                      <CardContent className="p-5">
+                    <Card
+                      key={review.id}
+                      className="overflow-hidden border border-border/80"
+                    >
+                      <CardContent className="space-y-5 p-5">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                           <div className="flex items-start gap-3">
-                            <Avatar className="h-12 w-12 border">
-                              <AvatarImage src={review.mentee.image ?? undefined} alt={review.mentee.name ?? 'Mentee'} />
+                            <Avatar className="h-11 w-11 border">
+                              <AvatarImage
+                                src={review.mentee.image ?? undefined}
+                                alt={review.mentee.name ?? 'Mentee'}
+                              />
                               <AvatarFallback>
-                                {(review.mentee.name || 'Mentee').slice(0, 2).toUpperCase()}
+                                {(review.mentee.name || 'Mentee')
+                                  .slice(0, 2)
+                                  .toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
-                            <div className="space-y-2">
-                              <div>
-                                <p className="font-semibold text-foreground">{review.mentee.name || 'Unknown mentee'}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {review.sessionTitle || 'Untitled session'}
-                                </p>
-                              </div>
-                              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1">
-                                  <Calendar className="h-3 w-3" />
-                                  Submitted {format(new Date(review.createdAt), 'MMM d, yyyy')}
+                            <div className="space-y-1">
+                              <h3 className="font-semibold text-foreground">
+                                {review.mentee.name || 'Unknown mentee'}
+                              </h3>
+                              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                                <span>
+                                  {review.sessionTitle || 'Session review'}
                                 </span>
                                 {review.sessionEndedAt ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1">
-                                    Session ended {format(new Date(review.sessionEndedAt), 'MMM d, yyyy')}
+                                  <span>
+                                    · {format(new Date(review.sessionEndedAt), 'PPP')}
                                   </span>
                                 ) : null}
+                                <span>
+                                  · Submitted{' '}
+                                  {formatDistanceToNow(new Date(review.createdAt), {
+                                    addSuffix: true,
+                                  })}
+                                </span>
                               </div>
                             </div>
                           </div>
-                          <Badge variant="secondary" className="w-fit gap-1 self-start px-3 py-1">
-                            <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
-                            {Number(review.finalScore).toFixed(1)}/5
-                          </Badge>
+                          <div className="flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700 dark:bg-amber-950/20 dark:text-amber-300">
+                            <Star className="h-4 w-4 fill-current" />
+                            {review.finalScore}
+                          </div>
                         </div>
 
-                        <div className="mt-4 rounded-xl bg-muted/40 p-4">
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Written feedback</p>
-                          <p className="mt-2 text-sm leading-6 text-foreground">
-                            {review.feedback || 'No written feedback was added for this review.'}
-                          </p>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {review.ratings.map((rating) => (
+                            <div
+                              key={`${review.id}-${rating.questionText}`}
+                              className="rounded-xl border bg-muted/30 p-3"
+                            >
+                              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                {rating.questionText}
+                              </p>
+                              <p className="mt-2 text-lg font-semibold text-foreground">
+                                {rating.rating}/5
+                              </p>
+                            </div>
+                          ))}
                         </div>
 
-                        {review.ratings.length > 0 ? (
-                          <div className="mt-4 grid gap-3 md:grid-cols-2">
-                            {review.ratings.map((rating, index) => (
-                              <div key={`${review.id}-${index}`} className="rounded-lg border bg-background p-3">
-                                <p className="text-sm text-foreground">{rating.questionText}</p>
-                                <div className="mt-2 flex items-center gap-1">
-                                  {[1, 2, 3, 4, 5].map((star) => (
-                                    <Star
-                                      key={star}
-                                      className={`h-4 w-4 ${
-                                        star <= rating.rating
-                                          ? 'fill-yellow-500 text-yellow-500'
-                                          : 'text-muted-foreground/30'
-                                      }`}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
+                        {review.feedback ? (
+                          <div className="rounded-xl bg-muted/30 p-4">
+                            <p className="mb-2 text-sm font-medium text-foreground">
+                              Written feedback
+                            </p>
+                            <p className="text-sm leading-6 text-muted-foreground">
+                              {review.feedback}
+                            </p>
                           </div>
                         ) : null}
                       </CardContent>
@@ -431,18 +461,19 @@ export function MentorReviewsSection() {
 
             {shouldShowCourseCommentsSection ? (
               <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-xl">Course Comments</CardTitle>
-                      <CardDescription>
-                        Comments left by mentees on your courses and lesson items. Reply from here.
-                      </CardDescription>
-                    </div>
-                    <Button variant="outline" onClick={() => mutateCourseComments()}>
-                      Refresh
-                    </Button>
+                <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-xl">
+                      <MessageSquareText className="h-5 w-5 text-primary" />
+                      Course Feedback
+                    </CardTitle>
+                    <CardDescription>
+                      Learner comments from courses and lesson content.
+                    </CardDescription>
                   </div>
+                  {courseComments.length > 0 ? (
+                    <Badge variant="secondary">{courseComments.length}</Badge>
+                  ) : null}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {courseCommentsLoading ? (
@@ -451,98 +482,153 @@ export function MentorReviewsSection() {
                       <ReviewCardSkeleton />
                     </>
                   ) : courseCommentsError ? (
-                    <div className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-destructive/20 bg-destructive/5 px-6 text-center">
-                      <AlertCircle className="mb-3 h-8 w-8 text-destructive" />
-                      <p className="font-medium">Could not load course comments</p>
+                    <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      Failed to load course comments.
+                    </div>
+                  ) : courseComments.length === 0 ? (
+                    <div className="rounded-xl border border-dashed p-8 text-center">
+                      <p className="text-sm text-muted-foreground">
+                        No course comments yet.
+                      </p>
                     </div>
                   ) : (
-                    courseComments.map((comment) => (
-                      <Card key={`${comment.feedbackType}-${comment.id}`} className="border-border/70">
-                        <CardContent className="space-y-4 p-5">
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="flex items-start gap-3">
-                              <Avatar className="h-12 w-12 border">
-                                <AvatarImage src={comment.reviewerImage ?? undefined} alt={comment.reviewerName ?? 'Reviewer'} />
-                                <AvatarFallback>
-                                  {(comment.reviewerName || 'U').slice(0, 2).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="space-y-2">
-                                <div>
-                                  <p className="font-semibold text-foreground">{comment.reviewerName || 'Anonymous'}</p>
-                                  <p className="text-sm text-muted-foreground">
-                                    {comment.courseTitle || 'Untitled course'}
-                                    {comment.feedbackType === 'content-item' && comment.contentItemTitle
-                                      ? ` · ${comment.contentItemTitle}`
-                                      : ''}
-                                  </p>
-                                </div>
-                                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1">
-                                    <Calendar className="h-3 w-3" />
-                                    {format(new Date(comment.createdAt), 'MMM d, yyyy')}
-                                  </span>
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1">
-                                    {comment.feedbackType === 'course' ? 'Course comment' : 'Lesson comment'}
-                                  </span>
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1">
-                                    Helpful {comment.helpfulVotes}
-                                  </span>
+                    courseComments.map((comment) => {
+                      const draftValue =
+                        replyDrafts[comment.id] ??
+                        comment.instructorResponse ??
+                        '';
+                      const isSaving =
+                        savingReplyId === comment.id ||
+                        replyToCourseCommentMutation.isPending;
+
+                      return (
+                        <Card
+                          key={comment.id}
+                          className="overflow-hidden border border-border/80"
+                        >
+                          <CardContent className="space-y-5 p-5">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-11 w-11 border">
+                                  <AvatarImage
+                                    src={comment.reviewerImage ?? undefined}
+                                    alt={comment.reviewerName ?? 'Reviewer'}
+                                  />
+                                  <AvatarFallback>
+                                    {(comment.reviewerName || 'Learner')
+                                      .slice(0, 2)
+                                      .toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="font-semibold text-foreground">
+                                      {comment.reviewerName || 'Learner'}
+                                    </h3>
+                                    <Badge
+                                      variant="outline"
+                                      className="capitalize"
+                                    >
+                                      {comment.feedbackType === 'course'
+                                        ? 'Course'
+                                        : 'Lesson'}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                                    <span>
+                                      {comment.courseTitle || 'Untitled course'}
+                                    </span>
+                                    {comment.feedbackType === 'content-item' ? (
+                                      <span>
+                                        ·{' '}
+                                        {comment.contentItemTitle ||
+                                          'Untitled lesson'}
+                                      </span>
+                                    ) : null}
+                                    <span>
+                                      ·{' '}
+                                      {formatDistanceToNow(
+                                        new Date(comment.createdAt),
+                                        {
+                                          addSuffix: true,
+                                        }
+                                      )}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                            <Badge variant="secondary" className="w-fit gap-1 self-start px-3 py-1">
-                              <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
-                              {comment.rating}/5
-                            </Badge>
-                          </div>
 
-                          <div className="rounded-xl bg-muted/40 p-4">
-                            {comment.title ? (
-                              <p className="text-sm font-semibold text-foreground">{comment.title}</p>
-                            ) : null}
-                            <p className="mt-1 text-sm leading-6 text-foreground">
-                              {comment.review || 'No comment text provided.'}
-                            </p>
-                          </div>
+                              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                                <div className="flex items-center gap-1">
+                                  <Star className="h-4 w-4 fill-current text-amber-500" />
+                                  <span className="font-medium text-foreground">
+                                    {comment.rating}/5
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="h-4 w-4" />
+                                  {format(new Date(comment.createdAt), 'PPP')}
+                                </div>
+                              </div>
 
-                          <div className="space-y-3 rounded-xl border p-4">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-medium text-foreground">Your reply</p>
-                              {comment.instructorRespondedAt ? (
-                                <span className="text-xs text-muted-foreground">
-                                  Updated {format(new Date(comment.instructorRespondedAt), 'MMM d, yyyy')}
-                                </span>
+                              {comment.title ? (
+                                <p className="text-base font-medium text-foreground">
+                                  {comment.title}
+                                </p>
+                              ) : null}
+
+                              {comment.review ? (
+                                <p className="text-sm leading-6 text-muted-foreground">
+                                  {comment.review}
+                                </p>
                               ) : null}
                             </div>
-                            <Textarea
-                              rows={3}
-                              value={replyDrafts[comment.id] ?? comment.instructorResponse ?? ''}
-                              placeholder="Write a reply to this mentee comment..."
-                              onChange={(event) =>
-                                setReplyDrafts((prev) => ({
-                                  ...prev,
-                                  [comment.id]: event.target.value,
-                                }))
-                              }
-                            />
-                            <div className="flex justify-end">
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`reply-${comment.id}`}>
+                                Your reply
+                              </Label>
+                              <Textarea
+                                id={`reply-${comment.id}`}
+                                value={draftValue}
+                                onChange={(event) =>
+                                  setReplyDrafts((prev) => ({
+                                    ...prev,
+                                    [comment.id]: event.target.value,
+                                  }))
+                                }
+                                rows={4}
+                                placeholder="Reply to the learner"
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="text-sm text-muted-foreground">
+                                {comment.instructorRespondedAt ? (
+                                  <>
+                                    Last updated{' '}
+                                    {formatDistanceToNow(
+                                      new Date(comment.instructorRespondedAt),
+                                      { addSuffix: true }
+                                    )}
+                                  </>
+                                ) : (
+                                  'No reply yet'
+                                )}
+                              </div>
                               <Button
                                 type="button"
-                                onClick={() => handleReplySave(comment)}
-                                disabled={savingReplyId === comment.id}
+                                onClick={() => void handleReplySave(comment)}
+                                disabled={isSaving}
                               >
-                                {savingReplyId === comment.id
-                                  ? 'Saving...'
-                                  : comment.instructorResponse
-                                    ? 'Update Reply'
-                                    : 'Post Reply'}
+                                {isSaving ? 'Saving...' : 'Save Reply'}
                               </Button>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
+                          </CardContent>
+                        </Card>
+                      );
+                    })
                   )}
                 </CardContent>
               </Card>

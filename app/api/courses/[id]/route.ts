@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { canViewCourseDetail } from '@/lib/courses/status';
 import { 
   courses, 
   mentorContent, 
@@ -116,6 +117,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const course = courseData[0];
+
+    const canAccessUnapprovedCourse = canViewCourseDetail({
+      status: course.status,
+      isEnrolled,
+      isOwner: Boolean(userId) && course.mentorUserId === userId,
+    });
+
+    if (!canAccessUnapprovedCourse) {
+      return NextResponse.json(
+        { success: false, error: 'Course not found' },
+        { status: 404 }
+      );
+    }
 
     // Get course curriculum (modules, sections, content items)
     const curriculum = await db

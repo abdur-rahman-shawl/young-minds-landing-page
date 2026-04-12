@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/layout/header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
@@ -22,6 +22,7 @@ import {
 import { ErrorBoundary, AuthErrorBoundary } from "@/components/common/error-boundary";
 import Link from "next/link"
 import { useMentorPendingReviews } from "@/hooks/use-mentor-dashboard";
+import { useMentorApplicationQuery } from '@/hooks/queries/use-mentor-queries';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { format, formatDistanceToNow } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -35,7 +36,8 @@ type VerificationStatus =
   | 'VERIFIED'
   | 'REJECTED'
   | 'REVERIFICATION'
-  | 'RESUBMITTED';
+  | 'RESUBMITTED'
+  | 'UPDATED_PROFILE';
 
 type MentorApplication = {
   id: string;
@@ -97,6 +99,7 @@ const statusAccent: Record<VerificationStatus, string> = {
   REJECTED: 'bg-red-100 text-red-600',
   REVERIFICATION: 'bg-purple-100 text-purple-600',
   RESUBMITTED: 'bg-sky-100 text-sky-600',
+  UPDATED_PROFILE: 'bg-indigo-100 text-indigo-600',
 };
 
 const statusBadgeCopy: Record<VerificationStatus, string> = {
@@ -106,6 +109,7 @@ const statusBadgeCopy: Record<VerificationStatus, string> = {
   REJECTED: 'Rejected',
   REVERIFICATION: 'Updates requested',
   RESUBMITTED: 'Resubmitted',
+  UPDATED_PROFILE: 'Profile updated',
 };
 
 function formatDate(value: string | null) {
@@ -324,6 +328,14 @@ function NonVerifiedMentorView({ mentor, status, userName }: NonVerifiedMentorVi
           title: 'Updates received',
           description: 'We received your updated mentor application. It is back in the review queue and we will be in touch soon.',
         };
+      case 'UPDATED_PROFILE':
+        return {
+          ...base,
+          icon: RotateCcw,
+          iconClass: 'text-indigo-600',
+          title: 'Profile update under review',
+          description: 'Your latest mentor profile changes were saved and sent for re-verification. We will notify you once review is complete.',
+        };
       case 'REJECTED':
         return {
           ...base,
@@ -446,26 +458,10 @@ function NonVerifiedMentorView({ mentor, status, userName }: NonVerifiedMentorVi
 }
 
 export function MentorDashboard({ user }: MentorDashboardProps) {
-  const [mentorData, setMentorData] = useState<MentorApplication | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchMentorData = async () => {
-      try {
-        const response = await fetch('/api/mentors/application');
-        const result = await response.json();
-        if (result.success) {
-          setMentorData(result.data as MentorApplication);
-        }
-      } catch (error) {
-        console.error('Error fetching mentor data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMentorData();
-  }, []);
+  const {
+    data: mentorData,
+    isLoading: loading,
+  } = useMentorApplicationQuery();
 
   if (loading) {
     return <div>Loading...</div>;

@@ -37,12 +37,12 @@ export class RateLimitError extends Error {
 
 export function rateLimit(config: RateLimitConfig) {
   return {
-    check: (request: NextRequest, identifier?: string): void => {
+    check: (request: Request | NextRequest, identifier?: string): void => {
       const now = Date.now();
       
       // Create a unique identifier for the request
       const clientId = identifier || getClientIdentifier(request);
-      const key = `${clientId}:${request.nextUrl.pathname}`;
+      const key = `${clientId}:${getRequestPathname(request)}`;
       
       // Get or create record
       let record = requestCounts.get(key);
@@ -73,7 +73,7 @@ export function rateLimit(config: RateLimitConfig) {
   };
 }
 
-function getClientIdentifier(request: NextRequest): string {
+function getClientIdentifier(request: Request | NextRequest): string {
   // Try to get user ID from session/auth
   const authHeader = request.headers.get('authorization');
   if (authHeader) {
@@ -83,8 +83,21 @@ function getClientIdentifier(request: NextRequest): string {
   
   // Fallback to IP address
   const forwarded = request.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0] : request.ip || 'unknown';
+  const ip =
+    forwarded
+      ? forwarded.split(',')[0]
+      : 'ip' in request && typeof request.ip === 'string'
+        ? request.ip
+        : 'unknown';
   return `ip:${ip}`;
+}
+
+function getRequestPathname(request: Request | NextRequest) {
+  if ('nextUrl' in request && request.nextUrl?.pathname) {
+    return request.nextUrl.pathname;
+  }
+
+  return new URL(request.url).pathname;
 }
 
 // Predefined rate limiters for different operations

@@ -33,6 +33,12 @@ import {
 } from 'lucide-react';
 import { VideoPlayer } from '@/components/ui/kibo-video-player';
 import { useAuth } from '@/contexts/auth-context';
+import {
+  useCourseEnrollmentStatusQuery,
+  useEnrollCourseMutation,
+  useSubmitCourseReviewMutation,
+  useToggleCourseReviewHelpfulMutation,
+} from '@/hooks/queries/use-learning-queries';
 import { toast } from 'sonner';
 
 interface CourseDetailViewProps {
@@ -154,8 +160,6 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [enrollmentLoading, setEnrollmentLoading] = useState(false);
-  const [isEnrolled, setIsEnrolled] = useState(false);
-  const [enrollmentData, setEnrollmentData] = useState<any>(null);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [previewVideo, setPreviewVideo] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -170,15 +174,21 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
     title: '',
     review: '',
   });
+  const enrollmentQuery = useCourseEnrollmentStatusQuery(
+    { courseId },
+    Boolean(session && courseId)
+  );
+  const enrollCourse = useEnrollCourseMutation();
+  const submitCourseReview = useSubmitCourseReviewMutation();
+  const toggleCourseReviewHelpful = useToggleCourseReviewHelpfulMutation();
+  const isEnrolled = enrollmentQuery.data?.isEnrolled ?? false;
+  const enrollmentData = enrollmentQuery.data?.enrollment ?? null;
 
   useEffect(() => {
     if (courseId) {
       fetchCourseDetails();
-      if (session) {
-        checkEnrollmentStatus();
-      }
     }
-  }, [courseId, session]);
+  }, [courseId]);
 
   useEffect(() => {
     if (courseId) {
@@ -206,20 +216,6 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
       console.error('Error fetching course details:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const checkEnrollmentStatus = async () => {
-    try {
-      const response = await fetch(`/api/courses/${courseId}/enroll`);
-      const data = await response.json();
-
-      if (data.success) {
-        setIsEnrolled(data.data.isEnrolled);
-        setEnrollmentData(data.data.enrollment);
-      }
-    } catch (error) {
-      console.error('Error checking enrollment status:', error);
     }
   };
 
@@ -266,32 +262,11 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
 
     try {
       setEnrollmentLoading(true);
-      const response = await fetch(`/api/courses/${courseId}/enroll`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setIsEnrolled(true);
-        setEnrollmentData({
-          id: data.data.enrollmentId,
-          status: data.data.status,
-          enrolledAt: data.data.enrolledAt,
-          overallProgress: 0,
-        });
-
-        router.push(`/learn/${courseId}`);
-      } else {
-        alert(data.error || 'Failed to enroll in course');
-      }
+      await enrollCourse.mutateAsync({ courseId });
+      await enrollmentQuery.refetch();
+      router.push(`/learn/${courseId}`);
     } catch (error) {
       console.error('Error enrolling in course:', error);
-      alert('Failed to enroll in course');
     } finally {
       setEnrollmentLoading(false);
     }
@@ -317,24 +292,16 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
 
     try {
       setReviewSubmitting(true);
-      const response = await fetch(`/api/courses/${courseId}/reviews`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rating: reviewForm.rating,
-          title: reviewForm.title.trim() || undefined,
-          review: reviewForm.review.trim() || undefined,
-        }),
+      await submitCourseReview.mutateAsync({
+        courseId,
+        rating: reviewForm.rating,
+        title: reviewForm.title.trim() || undefined,
+        review: reviewForm.review.trim() || undefined,
       });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to submit review');
-      }
       toast.success('Review submitted');
       await fetchCourseReviews(0, false);
     } catch (error) {
       console.error('Error submitting course review:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to submit review');
     } finally {
       setReviewSubmitting(false);
     }
@@ -351,28 +318,21 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
       return;
     }
     try {
-      const response = await fetch(`/api/courses/${courseId}/reviews/${reviewId}/helpful`, {
-        method: 'POST',
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to update helpful vote');
-      }
+      const data = await toggleCourseReviewHelpful.mutateAsync({ reviewId });
 
       setCourseReviews((prev) =>
         prev.map((review) =>
           review.id === reviewId
             ? {
                 ...review,
-                helpfulVotes: data.data.helpfulVotes,
-                viewerHasHelpful: data.data.viewerHasHelpful,
+                helpfulVotes: data.helpfulVotes,
+                viewerHasHelpful: data.viewerHasHelpful,
               }
             : review
         )
       );
     } catch (error) {
       console.error('Error updating helpful vote:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update helpful vote');
     }
   };
 

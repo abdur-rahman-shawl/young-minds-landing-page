@@ -1,5 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useMemo } from 'react';
+
 import { useSession } from '@/lib/auth-client';
+import {
+  useBookingsQuery,
+  useCancelBookingMutation,
+  useCreateBookingMutation,
+} from '@/hooks/queries/use-booking-queries';
+import { buildLegacySessions } from '@/lib/dashboard/mentee-dashboard';
 
 interface Session {
   id: string;
@@ -13,8 +20,9 @@ interface Session {
   rating: number | null;
   feedback: string | null;
   mentorName: string;
-  mentorTitle: string;
-  mentorCompany: string;
+  mentorTitle: string | null;
+  mentorCompany: string | null;
+  mentorImage?: string | null;
 }
 
 interface UseSessionsReturn {
@@ -26,114 +34,56 @@ interface UseSessionsReturn {
   cancelSession: (sessionId: string) => Promise<boolean>;
 }
 
-export function useSessions(type: 'upcoming' | 'past' | 'all' = 'all'): UseSessionsReturn {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function useSessions(
+  type: 'upcoming' | 'past' | 'all' = 'all'
+): UseSessionsReturn {
   const { data: session } = useSession();
-  const hasFetched = useRef(false);
-  const lastType = useRef(type);
+  const bookingsQuery = useBookingsQuery(session?.user?.id, 'mentee', {
+    enabled: !!session?.user?.id,
+  });
+  const createBookingMutation = useCreateBookingMutation();
+  const cancelBookingMutation = useCancelBookingMutation();
 
-  const fetchSessions = async () => {
-    if (!session?.user?.id) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await fetch(`/api/sessions?userId=${session.user.id}&type=${type}`);
-      const result = await response.json();
-      
-      if (result.success) {
-        setSessions(result.data);
-      } else {
-        setError(result.error || 'Failed to fetch sessions');
-      }
-    } catch (err) {
-      setError('Network error occurred');
-    } finally {
-      setLoading(false);
-      hasFetched.current = true;
-    }
-  };
-
-  const bookSession = async (sessionData: any): Promise<boolean> => {
-    if (!session?.user?.id) return false;
-
-    try {
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...sessionData,
-          menteeId: session.user.id,
-          action: 'book'
-        })
-      });
-
-      const result = await response.json();
-      
-      if (result.success) {
-        await fetchSessions(); // Refresh the list
-        return true;
-      } else {
-        setError(result.error || 'Failed to book session');
-        return false;
-      }
-    } catch (err) {
-      setError('Network error occurred');
-      return false;
-    }
-  };
-
-  const cancelSession = async (sessionId: string): Promise<boolean> => {
-    try {
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          action: 'cancel'
-        })
-      });
-
-      const result = await response.json();
-      
-      if (result.success) {
-        await fetchSessions(); // Refresh the list
-        return true;
-      } else {
-        setError(result.error || 'Failed to cancel session');
-        return false;
-      }
-    } catch (err) {
-      setError('Network error occurred');
-      return false;
-    }
-  };
-
-  useEffect(() => {
-    // Check if type changed
-    if (type !== lastType.current) {
-      hasFetched.current = false;
-      lastType.current = type;
-    }
-
-    // Only fetch if we have a session and haven't fetched yet, or if type changed
-    if (session?.user?.id && !hasFetched.current) {
-      fetchSessions();
-    } else if (session === null) {
-      // Session loaded but user is not authenticated
-      setLoading(false);
-    }
-  }, [session?.user?.id, type]); // Re-fetch when session or type changes
+  const sessions = useMemo(() => {
+    return buildLegacySessions(bookingsQuery.data ?? [], type);
+  }, [bookingsQuery.data, type]);
 
   return {
     sessions,
-    loading,
-    error,
-    refetch: fetchSessions,
-    bookSession,
-    cancelSession
+    loading: bookingsQuery.isLoading,
+    error:
+      bookingsQuery.error instanceof Error ? bookingsQuery.error.message : null,
+    refetch: () => {
+      void bookingsQuery.refetch();
+    },
+    bookSession: async (sessionData: any) => {
+      try {
+        await createBookingMutation.mutateAsync({
+          mentorId: sessionData.mentorId,
+          sessionType: sessionData.sessionType ?? 'PAID',
+          title: sessionData.title ?? sessionData.topic ?? 'Mentoring Session',
+          description: sessionData.description ?? sessionData.notes,
+          scheduledAt: sessionData.scheduledAt,
+          duration: sessionData.duration ?? 60,
+          meetingType: sessionData.meetingType ?? 'video',
+          location: sessionData.location,
+          bookingSource: sessionData.bookingSource,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    cancelSession: async (sessionId: string) => {
+      try {
+        await cancelBookingMutation.mutateAsync({
+          bookingId: sessionId,
+          reasonCategory: 'no_longer_needed',
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
   };
-} 
+}

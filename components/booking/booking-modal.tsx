@@ -32,6 +32,9 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useCreateBookingMutation } from '@/hooks/queries/use-booking-queries';
+import { useSubscriptionFeatureLimitAmount } from '@/hooks/queries/use-subscription-queries';
+import { useTRPCClient } from '@/lib/trpc/react';
+import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 
 interface Mentor {
   id: string;
@@ -73,6 +76,7 @@ export function BookingModal({
   allowFreeBooking = true,
   bookingSource = allowFreeBooking ? 'ai' : 'explore',
 }: BookingModalProps) {
+  const trpcClient = useTRPCClient();
   const { session } = useAuth();
   const [currentStep, setCurrentStep] = useState<BookingStep>('time-selection');
   const [bookingData, setBookingData] = useState<Partial<BookingData>>({});
@@ -87,8 +91,12 @@ export function BookingModal({
     paidRemaining?: number | null;
     mentorSessionsRemaining?: number | null;
   } | null>(null);
-  const [aiSpecialRate, setAiSpecialRate] = useState<number | null>(null);
   const createBookingMutation = useCreateBookingMutation();
+  const { limitAmount: aiSpecialRate } = useSubscriptionFeatureLimitAmount(
+    'mentee',
+    FEATURE_KEYS.PAID_VIDEO_SESSIONS_MONTHLY,
+    isOpen && bookingSource === 'ai'
+  );
 
   // Steps definition for UI mapping
   const STEPS = [
@@ -120,27 +128,16 @@ export function BookingModal({
     const loadAvailability = async () => {
       try {
         setAvailabilityLoading(true);
-        const res = await fetch(`/api/mentors/${mentor.userId}/booking-eligibility`, {
-          credentials: 'include',
+        const data = await trpcClient.mentor.bookingEligibility.query({
+          mentorUserId: mentor.userId,
         });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          setSessionAvailability({
-            freeAvailable: Boolean(data.data?.free_available),
-            paidAvailable: Boolean(data.data?.paid_available),
-            freeRemaining: data.data?.free_remaining ?? null,
-            paidRemaining: data.data?.paid_remaining ?? null,
-            mentorSessionsRemaining: data.data?.mentor_sessions_remaining ?? null,
-          });
-        } else {
-          setSessionAvailability({
-            freeAvailable: true,
-            paidAvailable: true,
-            freeRemaining: null,
-            paidRemaining: null,
-            mentorSessionsRemaining: null,
-          });
-        }
+        setSessionAvailability({
+          freeAvailable: Boolean(data.data?.free_available),
+          paidAvailable: Boolean(data.data?.paid_available),
+          freeRemaining: data.data?.free_remaining ?? null,
+          paidRemaining: data.data?.paid_remaining ?? null,
+          mentorSessionsRemaining: data.data?.mentor_sessions_remaining ?? null,
+        });
       } catch (error) {
         setSessionAvailability({
           freeAvailable: true,
@@ -155,59 +152,7 @@ export function BookingModal({
     };
 
     loadAvailability();
-  }, [isOpen, mentor?.userId, allowFreeBooking]);
-
-  useEffect(() => {
-    if (!isOpen || bookingSource !== 'ai') {
-      setAiSpecialRate(null);
-      return;
-    }
-
-    const controller = new AbortController();
-
-    const loadAiRate = async () => {
-      try {
-        const res = await fetch('/api/subscriptions/me?audience=mentee', {
-          credentials: 'include',
-          signal: controller.signal,
-        });
-        const data = await res.json();
-        if (!res.ok || !data?.success) {
-          setAiSpecialRate(null);
-          return;
-        }
-
-        const features = data.data?.features || [];
-        const paidVideoFeature = features.find(
-          (feature: { feature_key: string; limit_amount: number | string | null }) =>
-            feature.feature_key === 'paid_video_sessions_monthly'
-        );
-        const rawRate = paidVideoFeature?.limit_amount ?? null;
-        const parsedRate =
-          typeof rawRate === 'number'
-            ? rawRate
-            : rawRate !== null
-              ? Number(rawRate)
-              : null;
-        if (parsedRate !== null && Number.isFinite(parsedRate) && parsedRate > 0) {
-          setAiSpecialRate(parsedRate);
-        } else {
-          setAiSpecialRate(null);
-        }
-      } catch (error) {
-        if ((error as Error).name !== 'AbortError') {
-          console.error('Failed to load AI plan rate', error);
-        }
-        setAiSpecialRate(null);
-      }
-    };
-
-    loadAiRate();
-
-    return () => {
-      controller.abort();
-    };
-  }, [isOpen, bookingSource]);
+  }, [allowFreeBooking, isOpen, mentor?.userId, trpcClient]);
 
   const effectiveAvailability = sessionAvailability
     ? {

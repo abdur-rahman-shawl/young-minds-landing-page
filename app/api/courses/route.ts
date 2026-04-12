@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { PUBLIC_COURSE_STATUS } from '@/lib/courses/status';
 import { 
   courses, 
   mentorContent, 
@@ -76,7 +77,6 @@ export async function GET(request: NextRequest) {
         eq(courseReviews.courseId, courses.id),
         eq(courseReviews.isPublished, true)
       ))
-      .where(eq(mentorContent.status, 'PUBLISHED'))
       .groupBy(
         courses.id,
         mentorContent.id,
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
       );
 
     // Apply filters
-    const conditions = [];
+    const conditions = [eq(mentorContent.status, PUBLIC_COURSE_STATUS)];
 
     // Search filter
     if (search) {
@@ -126,9 +126,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Apply all conditions
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
+    query = query.where(and(...conditions));
 
     // Apply sorting
     const orderColumn = sortBy === 'price' ? courses.price :
@@ -167,11 +165,7 @@ export async function GET(request: NextRequest) {
       .select({ count: count() })
       .from(courses)
       .innerJoin(mentorContent, eq(courses.contentId, mentorContent.id))
-      .where(
-        conditions.length > 0 
-          ? and(eq(mentorContent.status, 'PUBLISHED'), ...conditions)
-          : eq(mentorContent.status, 'PUBLISHED')
-      );
+      .where(and(...conditions));
 
     const totalCount = totalCountResult[0]?.count || 0;
     const totalPages = Math.ceil(totalCount / limit);

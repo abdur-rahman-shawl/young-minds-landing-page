@@ -72,22 +72,21 @@ When fetching session data, mentors receive the latest `couponCode`, `isCouponCo
 #### Dashboard (`components/mentor/dashboard/mentor-only-dashboard.tsx`)
 
 - Mentors with `payment_status === 'PENDING'` see the payment-required screen with coupon input.
-- Applying a coupon hits `/api/mentor/payments/validate-coupon`:
+- Applying a coupon now calls the authenticated tRPC mutation `mentor.validateCoupon`:
   - Ensures the mentor is authenticated.
   - Confirms `payment_status !== 'COMPLETED'`.
   - Requires `coupon_code` to exist and match the provided code.
   - Requires `is_coupon_code_enabled === true`.
   - On success:
     - Sets `payment_status = 'COMPLETED'`.
-    - Clears `coupon_code`.
     - Updates timestamps.
 
 ---
 
-### Coupon Validation Endpoint (`/api/mentor/payments/validate-coupon`)
+### Coupon Validation Transport (`mentor.validateCoupon`)
 
-1. Auth check.
-2. Body validation with Zod (non-empty code).
+1. Auth check through the shared tRPC protected procedure.
+2. Input validation with Zod (non-empty code).
 3. Fetch mentor record by `user_id`.
 4. Validation order:
    - Mentor exists.
@@ -95,8 +94,8 @@ When fetching session data, mentors receive the latest `couponCode`, `isCouponCo
    - Coupon exists.
    - Coupon is enabled.
    - Provided code (uppercased) matches stored code.
-5. Update mentor to finalize payment and clear coupon state.
-6. Response: `{ success: true, message }` or `{ success: false, error }`.
+5. Update mentor to finalize payment.
+6. Response payload: `{ success: true, message }` or typed tRPC error metadata.
 
 ---
 
@@ -109,7 +108,7 @@ When fetching session data, mentors receive the latest `couponCode`, `isCouponCo
   - Approved → `MENTOR_APPLICATION_APPROVED`.
   - Rejected → `MENTOR_APPLICATION_REJECTED`.
   - Reverification → `MENTOR_APPLICATION_UPDATE_REQUESTED`.
-  - Coupon-specific endpoint doesn’t send notifications beyond the email to avoid spamming dashboards.
+- Coupon validation doesn’t send notifications beyond the email to avoid spamming dashboards.
 
 ---
 

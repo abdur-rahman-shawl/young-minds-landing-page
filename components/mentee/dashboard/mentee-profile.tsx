@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,26 +14,25 @@ import { useAuth } from "@/contexts/auth-context"
 import { motion } from "framer-motion"
 import {
   Briefcase,
-  GraduationCap,
   Target,
-  Code,
-  Heart,
-  Brain,
-  Calendar,
   CheckCircle2,
   AlertTriangle,
   Loader2,
-  Sparkles
 } from "lucide-react"
 
 import { ProfileHeader } from "@/components/shared/profile/profile-header"
-import { useProfileLoader, ProfileApiService, ProfileValidators } from "@/components/shared/profile/base-profile"
+import { ProfileValidators, useProfileState } from "@/components/shared/profile/base-profile"
 import { ProfileErrorBoundary } from "@/components/shared/profile/profile-error-boundary"
 import type {
   MenteeProfile as MenteeProfileData,
   BaseUser,
   MenteeProfileFields
 } from "@/components/shared/profile/profile-types"
+import { mapMenteeProfileToFormData } from "@/lib/profile/mentee-profile"
+import {
+  useUpsertMenteeProfileMutation,
+  useUserProfileQuery,
+} from "@/hooks/queries/use-profile-queries"
 
 const INITIAL_MENTEE_DATA: MenteeProfileData = {
   currentRole: '',
@@ -57,33 +56,33 @@ const MenteeProfileComponent = React.memo(() => {
     image: session?.user?.image
   }), [session])
 
-  const extractMenteeProfile = useCallback((data: any): MenteeProfileData => {
-    const profile = data.menteeProfile
-    if (!profile) return INITIAL_MENTEE_DATA
+  const [state, actions] = useProfileState(INITIAL_MENTEE_DATA)
+  const profileQuery = useUserProfileQuery(Boolean(baseUser.id))
+  const upsertMenteeProfile = useUpsertMenteeProfileMutation()
 
-    return {
-      currentRole: profile.currentRole || '',
-      currentCompany: profile.currentCompany || '',
-      education: profile.education || '',
-      careerGoals: profile.careerGoals || '',
-      currentSkills: profile.currentSkills || '',
-      skillsToLearn: profile.skillsToLearn || '',
-      interests: profile.interests || '',
-      learningStyle: profile.learningStyle || '',
-      preferredMeetingFrequency: profile.preferredMeetingFrequency || ''
+  useEffect(() => {
+    actions.setIsLoading(profileQuery.isLoading)
+  }, [actions, profileQuery.isLoading])
+
+  useEffect(() => {
+    if (profileQuery.error) {
+      const message =
+        profileQuery.error instanceof Error
+          ? profileQuery.error.message
+          : 'Failed to load profile'
+      console.error('Profile loading error:', message)
+      actions.setError(message)
     }
-  }, [])
+  }, [actions, profileQuery.error])
 
-  const handleError = useCallback((error: string) => {
-    console.error('Profile loading error:', error)
-  }, [])
-
-  const { state, actions, loadProfile: reloadProfile } = useProfileLoader(
-    baseUser.id,
-    extractMenteeProfile,
-    INITIAL_MENTEE_DATA,
-    handleError
-  )
+  useEffect(() => {
+    if (profileQuery.data && !state.isEditing) {
+      actions.setData(
+        mapMenteeProfileToFormData(profileQuery.data.menteeProfile?.formData)
+      )
+      actions.setError(null)
+    }
+  }, [actions, profileQuery.data, state.isEditing])
 
   const handleInputChange = useCallback((field: MenteeProfileFields, value: string) => {
     actions.setData(prev => ({ ...prev, [field]: value }))
@@ -122,32 +121,33 @@ const MenteeProfileComponent = React.memo(() => {
       actions.setIsSaving(true)
       actions.setError(null)
 
-      const result = await ProfileApiService.saveProfile(
-        baseUser.id,
-        state.data,
-        'create-mentee-profile'
-      )
-
-      if (result.success) {
-        actions.setSuccess('Profile updated successfully!')
-        setTimeout(() => actions.setSuccess(null), 3000)
-      } else {
-        actions.setError(result.error || 'Failed to save profile')
-      }
+      await upsertMenteeProfile.mutateAsync(state.data)
+      actions.setSuccess('Profile updated successfully!')
+      await profileQuery.refetch()
+      setTimeout(() => actions.setSuccess(null), 3000)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save profile'
       actions.setError(errorMessage)
     } finally {
       actions.setIsSaving(false)
     }
-  }, [validateForm, baseUser.id, state.data, actions.setIsSaving, actions.setError, actions.setSuccess])
+  }, [
+    validateForm,
+    baseUser.id,
+    state.data,
+    upsertMenteeProfile,
+    profileQuery.refetch,
+    actions.setIsSaving,
+    actions.setError,
+    actions.setSuccess,
+  ])
 
   const handleCancel = useCallback(() => {
     actions.setIsEditing(false)
     actions.setError(null)
     actions.setSuccess(null)
-    reloadProfile()
-  }, [actions.setIsEditing, actions.setError, actions.setSuccess, reloadProfile])
+    void profileQuery.refetch()
+  }, [actions.setIsEditing, actions.setError, actions.setSuccess, profileQuery.refetch])
 
   if (state.isLoading) {
     return (

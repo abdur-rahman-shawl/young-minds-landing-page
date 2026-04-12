@@ -1,62 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { mentors, mentorsProfileAudit, type Mentor } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+
+import { requireMentor } from '@/lib/api/guards';
+import { db } from '@/lib/db';
+import { mentors } from '@/lib/db/schema';
 import {
-  uploadProfilePicture,
-  uploadResume,
-  uploadBannerImage,
-  storage,
   extractStoragePath,
   normalizeStorageValue,
-  resolveStorageUrl,
+  storage,
+  uploadBannerImage,
+  uploadProfilePicture,
+  uploadResume,
 } from '@/lib/storage';
-import { requireMentor } from '@/lib/api/guards';
+import { MentorLifecycleServiceError } from '@/lib/mentor/server/errors';
+import { updateMentorProfile } from '@/lib/mentor/server/service';
+
+function parseOptionalInteger(value: FormDataEntryValue | null) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function parseOptionalBoolean(value: FormDataEntryValue | null) {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  if (value === 'true') {
+    return true;
+  }
+
+  if (value === 'false') {
+    return false;
+  }
+
+  return undefined;
+}
+
+function parseOptionalString(value: FormDataEntryValue | null) {
+  return typeof value === 'string' ? value : undefined;
+}
 
 export async function POST(request: NextRequest) {
-  console.log('🚀 === MENTOR PROFILE UPDATE API CALLED ===');
-
   try {
     const guard = await requireMentor(request, true);
     if ('error' in guard) {
       return guard.error;
     }
-    const sessionUserId = guard.session.user.id;
-
-    // Try to get FormData first, fall back to JSON for backward compatibility
-    let userId: string;
-    let updateData: any = {};
-    let profilePicture: File | null = null;
-    let bannerImage: File | null = null;
-    let resume: File | null = null;
 
     const contentType = request.headers.get('content-type');
-
-    if (contentType?.includes('multipart/form-data')) {
-      // Handle FormData (with file uploads)
-      const formData = await request.formData();
-      console.log('📋 FormData received with entries:', Array.from(formData.entries()));
-
-      userId = formData.get('userId') as string;
-      profilePicture = formData.get('profilePicture') as File;
-      bannerImage = formData.get('bannerImage') as File;
-      resume = formData.get('resume') as File;
-
-      // Extract all other form fields
-      for (const [key, value] of formData.entries()) {
-        if (key !== 'userId' && key !== 'profilePicture' && key !== 'bannerImage' && key !== 'resume') {
-          updateData[key] = value;
-        }
-      }
-    } else {
-      // Handle JSON (backward compatibility)
-      const data = await request.json();
-      console.log('📋 JSON data received:', JSON.stringify(data, null, 2));
-      ({ userId, ...updateData } = data);
+    if (!contentType?.includes('multipart/form-data')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Multipart form data is required for mentor profile uploads',
+        },
+        { status: 415 }
+      );
     }
 
-    if (!userId) {
-      console.error('❌ VALIDATION FAILED: No user ID provided');
+    const formData = await request.formData();
+    const userId = formData.get('userId');
+    const sessionUserId = guard.session.user.id;
+
+    if (typeof userId !== 'string' || !userId) {
       return NextResponse.json(
         { success: false, error: 'User ID is required' },
         { status: 400 }
@@ -70,251 +80,144 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if mentor profile exists
-    console.log('🔍 Step 1: Checking if mentor profile exists...');
     const [existingMentor] = await db
-      .select()
+      .select({
+        id: mentors.id,
+        profileImageUrl: mentors.profileImageUrl,
+        bannerImageUrl: mentors.bannerImageUrl,
+        resumeUrl: mentors.resumeUrl,
+      })
       .from(mentors)
       .where(eq(mentors.userId, userId))
       .limit(1);
 
     if (!existingMentor) {
-      console.error('❌ MENTOR PROFILE NOT FOUND for user:', userId);
       return NextResponse.json(
         { success: false, error: 'Mentor profile not found' },
         { status: 404 }
       );
     }
 
-    console.log('✅ Existing mentor profile found:', existingMentor.id);
+    const profilePicture = formData.get('profilePicture');
+    const bannerImage = formData.get('bannerImage');
+    const resume = formData.get('resume');
 
-    const serializeMentorRecord = (record: Mentor) => ({
-      ...record,
-      createdAt: record.createdAt instanceof Date ? record.createdAt.toISOString() : record.createdAt,
-      updatedAt: record.updatedAt instanceof Date ? record.updatedAt.toISOString() : record.updatedAt,
+    let nextProfileImageUrl = existingMentor.profileImageUrl;
+    let nextBannerImageUrl = existingMentor.bannerImageUrl;
+    let nextResumeUrl = existingMentor.resumeUrl;
+
+    if (profilePicture instanceof File && profilePicture.size > 0) {
+      if (existingMentor.profileImageUrl) {
+        const oldPath = extractStoragePath(existingMentor.profileImageUrl);
+        if (oldPath) {
+          try {
+            await storage.delete(oldPath);
+          } catch (error) {
+            console.warn('Could not delete old profile picture:', error);
+          }
+        }
+      }
+
+      const uploadResult = await uploadProfilePicture(profilePicture, userId);
+      nextProfileImageUrl = uploadResult.path;
+    }
+
+    if (bannerImage instanceof File && bannerImage.size > 0) {
+      if (existingMentor.bannerImageUrl) {
+        const oldPath = extractStoragePath(existingMentor.bannerImageUrl);
+        if (oldPath) {
+          try {
+            await storage.delete(oldPath);
+          } catch (error) {
+            console.warn('Could not delete old banner image:', error);
+          }
+        }
+      }
+
+      const uploadResult = await uploadBannerImage(bannerImage, userId);
+      nextBannerImageUrl = uploadResult.path;
+    }
+
+    if (resume instanceof File && resume.size > 0) {
+      if (existingMentor.resumeUrl) {
+        const oldPath = extractStoragePath(existingMentor.resumeUrl);
+        if (oldPath) {
+          try {
+            await storage.delete(oldPath);
+          } catch (error) {
+            console.warn('Could not delete old resume:', error);
+          }
+        }
+      }
+
+      const uploadResult = await uploadResume(resume, userId);
+      nextResumeUrl = uploadResult.path;
+    }
+
+    const updatedMentor = await updateMentorProfile(userId, {
+      fullName: parseOptionalString(formData.get('fullName')),
+      email: parseOptionalString(formData.get('email')),
+      phone: parseOptionalString(formData.get('phone')),
+      title: parseOptionalString(formData.get('title')),
+      company: parseOptionalString(formData.get('company')),
+      city: parseOptionalString(formData.get('city')),
+      state: parseOptionalString(formData.get('state')),
+      country: parseOptionalString(formData.get('country')),
+      industry: parseOptionalString(formData.get('industry')),
+      expertise: parseOptionalString(formData.get('expertise')),
+      experience: parseOptionalInteger(formData.get('experience')),
+      about: parseOptionalString(formData.get('about')),
+      linkedinUrl: parseOptionalString(formData.get('linkedinUrl')),
+      githubUrl: parseOptionalString(formData.get('githubUrl')),
+      websiteUrl: parseOptionalString(formData.get('websiteUrl')),
+      hourlyRate: parseOptionalString(formData.get('hourlyRate')),
+      currency: parseOptionalString(formData.get('currency')),
+      availability: parseOptionalString(formData.get('availability')),
+      headline: parseOptionalString(formData.get('headline')),
+      maxMentees: parseOptionalInteger(formData.get('maxMentees')),
+      profileImageUrl:
+        profilePicture instanceof File && profilePicture.size > 0
+          ? nextProfileImageUrl
+          : normalizeStorageValue(parseOptionalString(formData.get('profileImageUrl'))) ??
+            existingMentor.profileImageUrl,
+      bannerImageUrl:
+        bannerImage instanceof File && bannerImage.size > 0
+          ? nextBannerImageUrl
+          : normalizeStorageValue(parseOptionalString(formData.get('bannerImageUrl'))) ??
+            existingMentor.bannerImageUrl,
+      resumeUrl:
+        resume instanceof File && resume.size > 0
+          ? nextResumeUrl
+          : normalizeStorageValue(parseOptionalString(formData.get('resumeUrl'))) ??
+            existingMentor.resumeUrl,
+      isAvailable: parseOptionalBoolean(formData.get('isAvailable')),
+      searchMode:
+        formData.get('searchMode') === 'EXCLUSIVE_SEARCH'
+          ? 'EXCLUSIVE_SEARCH'
+          : formData.get('searchMode') === 'AI_SEARCH'
+            ? 'AI_SEARCH'
+            : undefined,
+    }, guard.user);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Mentor profile updated successfully',
+      data: updatedMentor,
     });
-
-    const previousProfileSnapshot = serializeMentorRecord(existingMentor);
-
-    // Handle file uploads
-    let newProfileImageUrl = existingMentor.profileImageUrl;
-    let newResumeUrl = existingMentor.resumeUrl;
-
-    if (profilePicture && profilePicture.size > 0) {
-      try {
-        // Delete old profile picture if it exists
-        if (existingMentor.profileImageUrl) {
-          try {
-            const oldPath = extractStoragePath(existingMentor.profileImageUrl);
-            if (oldPath) await storage.delete(oldPath);
-          } catch (deleteError) {
-            console.warn('⚠️ Could not delete old profile picture:', deleteError);
-          }
-        }
-
-        const uploadResult = await uploadProfilePicture(profilePicture, userId);
-        newProfileImageUrl = uploadResult.path;
-        console.log('✅ New profile picture uploaded:', newProfileImageUrl);
-      } catch (uploadError) {
-        console.error('❌ Profile picture upload failed:', uploadError);
-        return NextResponse.json(
-          { success: false, error: 'Failed to upload profile picture' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Handle Banner Image Upload (similar to profile picture)
-    let newBannerImageUrl = existingMentor.bannerImageUrl;
-
-    if (bannerImage && bannerImage.size > 0) {
-      try {
-        // Delete old banner if it exists
-        if (existingMentor.bannerImageUrl) {
-          try {
-            const oldPath = extractStoragePath(existingMentor.bannerImageUrl);
-            if (oldPath) await storage.delete(oldPath);
-          } catch (deleteError) {
-            console.warn('⚠️ Could not delete old banner image:', deleteError);
-          }
-        }
-
-        const uploadResult = await uploadBannerImage(bannerImage, userId);
-        newBannerImageUrl = uploadResult.path;
-        console.log('✅ New banner image uploaded:', newBannerImageUrl);
-      } catch (uploadError) {
-        console.error('❌ Banner image upload failed:', uploadError);
-        return NextResponse.json(
-          { success: false, error: 'Failed to upload banner image' },
-          { status: 400 }
-        );
-      }
-    }
-
-    if (resume && resume.size > 0) {
-      try {
-        console.log('📤 Processing resume upload in update-profile API...');
-        console.log('📄 Resume file details:', { name: resume.name, size: resume.size, type: resume.type });
-
-        // Delete old resume if it exists
-        if (existingMentor.resumeUrl) {
-          try {
-            const oldPath = extractStoragePath(existingMentor.resumeUrl);
-            if (oldPath) {
-              console.log('🗑️ Deleting old resume:', oldPath);
-              await storage.delete(oldPath);
-            }
-          } catch (deleteError) {
-            console.warn('⚠️ Could not delete old resume:', deleteError);
-          }
-        }
-
-        const uploadResult = await uploadResume(resume, userId);
-        newResumeUrl = uploadResult.path;
-        console.log('✅ New resume uploaded successfully:', newResumeUrl);
-      } catch (uploadError) {
-        console.error('❌ Resume upload failed in update-profile:', uploadError);
-        return NextResponse.json(
-          { success: false, error: 'Failed to upload resume' },
-          { status: 400 }
-        );
-      }
-    } else {
-      console.log('📄 No resume file provided for update');
-    }
-
-    // If profileImageUrl is provided in JSON and no new profilePicture file uploaded, use it
-    if (!profilePicture && updateData.profileImageUrl) {
-      newProfileImageUrl = normalizeStorageValue(updateData.profileImageUrl as string)
-    }
-
-    // If bannerImageUrl is provided in JSON and no new bannerImage file uploaded, use it
-    if (!bannerImage && updateData.bannerImageUrl) {
-      newBannerImageUrl = normalizeStorageValue(updateData.bannerImageUrl as string)
-    }
-
-    // If resumeUrl is provided in JSON and no resume file uploaded, use it
-    if (!resume && updateData.resumeUrl) {
-      newResumeUrl = normalizeStorageValue(updateData.resumeUrl as string)
-    }
-
-    // Prepare update data
-    const toNullableNumber = (value: unknown) => {
-      if (value === undefined || value === null || value === '') return null;
-      const parsed = Number(value);
-      return Number.isNaN(parsed) ? null : parsed;
-    };
-
-    const toNullableString = (value: unknown) => {
-      if (value === undefined || value === null) return null;
-      const str = String(value).trim();
-      return str.length === 0 ? null : str;
-    };
-
-    const parsedExperience = toNullableNumber(updateData.experience);
-    const parsedHourlyRate = toNullableString(updateData.hourlyRate);
-    const parsedMaxMentees = toNullableNumber(updateData.maxMentees);
-    const parsedAvailability = toNullableString(updateData.availability);
-    const parsedState = toNullableString(updateData.state);
-    const parsedCountry = toNullableString(updateData.country);
-    const parsedCity = toNullableString(updateData.city);
-    const parsedVerificationNotes = toNullableString(updateData.verificationNotes);
-    const parseBooleanFlag = (value: unknown, fallback: boolean) => {
-      if (typeof value === 'boolean') return value;
-      if (typeof value === 'string') {
-        const lowered = value.toLowerCase();
-        if (lowered === 'true') return true;
-        if (lowered === 'false') return false;
-      }
-      return fallback;
-    };
-    const parsedIsAvailable = parseBooleanFlag(updateData.isAvailable, existingMentor.isAvailable !== false);
-    const parsedSearchMode =
-      updateData.searchMode === 'EXCLUSIVE_SEARCH' || updateData.searchMode === 'AI_SEARCH'
-        ? updateData.searchMode
-        : existingMentor.searchMode || 'AI_SEARCH';
-
-    const mentorUpdateData = {
-      fullName: toNullableString(updateData.fullName),
-      email: toNullableString(updateData.email),
-      phone: toNullableString(updateData.phone),
-      title: toNullableString(updateData.title),
-      company: toNullableString(updateData.company),
-      city: parsedCity,
-      state: parsedState,
-      country: parsedCountry,
-      industry: toNullableString(updateData.industry),
-      expertise: toNullableString(updateData.expertise),
-      experience: parsedExperience,
-      about: toNullableString(updateData.about),
-      linkedinUrl: toNullableString(updateData.linkedinUrl),
-      githubUrl: toNullableString(updateData.githubUrl),
-      websiteUrl: toNullableString(updateData.websiteUrl),
-      hourlyRate: parsedHourlyRate,
-      currency: toNullableString(updateData.currency) || existingMentor.currency || 'USD',
-      availability: parsedAvailability,
-      headline: toNullableString(updateData.headline),
-      maxMentees: parsedMaxMentees,
-      profileImageUrl: newProfileImageUrl,
-      bannerImageUrl: newBannerImageUrl,
-      resumeUrl: newResumeUrl,
-      verificationStatus: 'UPDATED_PROFILE',
-      verificationNotes: parsedVerificationNotes,
-      isAvailable: parsedIsAvailable,
-      searchMode: parsedSearchMode,
-    };
-
-    console.log('📝 Step 2: Updating mentor profile with data:', JSON.stringify(mentorUpdateData, null, 2));
-
-    try {
-      const [updatedMentor] = await db
-        .update(mentors)
-        .set(mentorUpdateData)
-        .where(eq(mentors.userId, userId))
-        .returning();
-
-      try {
-        await db.insert(mentorsProfileAudit).values({
-          mentorId: updatedMentor.id,
-          userId,
-          previousData: previousProfileSnapshot,
-          updatedData: serializeMentorRecord(updatedMentor),
-          changedAt: new Date(),
-        });
-      } catch (auditError) {
-        console.error('Failed to record mentor profile audit:', auditError);
-      }
-
-      console.log('🎉 SUCCESS: Mentor profile updated in database:', updatedMentor);
-
-      const responseMentor = {
-        ...updatedMentor,
-        profileImageUrl: await resolveStorageUrl(updatedMentor.profileImageUrl),
-        bannerImageUrl: await resolveStorageUrl(updatedMentor.bannerImageUrl),
-        resumeUrl: await resolveStorageUrl(updatedMentor.resumeUrl),
-      };
-
-      return NextResponse.json({
-        success: true,
-        message: 'Mentor profile updated successfully',
-        data: responseMentor
-      });
-
-    } catch (updateError) {
-      console.error('❌ DATABASE UPDATE ERROR:', updateError);
-      throw updateError;
-    }
-
   } catch (error) {
-    console.error('❌ === FATAL ERROR IN MENTOR PROFILE UPDATE ===');
-    console.error('Error details:', error);
-    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace available');
-
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-
+    console.error('Mentor profile update error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update mentor profile: ' + errorMessage },
-      { status: 500 }
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to update mentor profile',
+      },
+      {
+        status:
+          error instanceof MentorLifecycleServiceError ? error.status : 500,
+      }
     );
   }
 }

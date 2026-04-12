@@ -55,11 +55,13 @@ Do NOT re‑implement these unless fixing a bug:
 - `lib/messaging/server/service.ts` (`sendMessage`, `sendRequest`)
 - `app/api/chat/route.ts`
 - `app/api/ai-chatbot-messages/route.ts`
-- `app/api/courses/[id]/enroll/route.ts`
-- `app/api/analytics/mentor/route.ts`
-- `app/api/student/learning-analytics/route.ts`
+- `lib/learning/server/service.ts` (`enrollInCourse`)
+- `lib/analytics/server/service.ts`
+  - Mentor and mentee analytics now run through the shared analytics service + tRPC.
 - `lib/content/server/service.ts`
   - Internal mentor/admin content flows now run through shared service + tRPC. Uploads remain on `app/api/upload/route.ts`.
+- `lib/subscriptions/server/service.ts`
+  - Authenticated self-subscription reads and admin subscription management now run through shared service + tRPC. Public plan discovery remains on `app/api/subscriptions/plans/public/route.ts`.
 - `app/api/bookings/[id]/cancel/route.ts`
 
 ## Required Audit Procedure (Step‑by‑Step)

@@ -1,86 +1,24 @@
-import { useState, useEffect } from 'react';
 import { DateRange } from 'react-day-picker';
 
-export interface MentorAnalyticsData {
-  kpis: {
-    totalCompletedSessions: number;
-    totalEarnings: number;
-    periodEarnings: number;
-    averageRating: number | null;
-    unreadMessages: number;
+import {
+  useMentorAnalyticsQuery,
+  type MentorAnalyticsData,
+} from '@/hooks/queries/use-analytics-queries';
+
+export type { MentorAnalyticsData };
+
+export function useMentorAnalytics(dateRange: DateRange | undefined, enabled = true) {
+  const query = useMentorAnalyticsQuery(
+    {
+      startDate: dateRange?.from?.toISOString(),
+      endDate: dateRange?.to?.toISOString(),
+    },
+    enabled && Boolean(dateRange?.from && dateRange?.to)
+  );
+
+  return {
+    data: query.data ?? null,
+    isLoading: query.isLoading,
+    error: query.error instanceof Error ? query.error.message : null,
   };
-  earningsOverTime: { month: string; earnings: number }[];
-  upcomingSessions: {
-    sessionId: string;
-    menteeName: string;
-    title: string;
-    scheduledAt: string;
-  }[];
-  recentReviews: {
-    reviewId: string;
-    menteeName: string;
-    rating: number;
-    feedback: string;
-  }[];
-}
-
-export function useMentorAnalytics(
-  dateRange: DateRange | undefined,
-  enabled = true
-) {
-  const [data, setData] = useState<MentorAnalyticsData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // 2. The useEffect now depends on dateRange
-  useEffect(() => {
-    const fetchData = async (from: Date, to: Date) => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams({
-          startDate: from.toISOString(), // This is now 100% safe
-          endDate: to.toISOString(),     // This is now 100% safe
-        });
-        const response = await fetch(`/api/analytics/mentor?${params.toString()}`);
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.error ||
-              errorData.message ||
-              'Failed to fetch mentor analytics'
-          );
-        }
-
-        const result: MentorAnalyticsData = await response.json();
-        setData(result);
-      } catch (err: any) {
-        setError(err.message);
-        setData(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    // This is the main logic block.
-    // We check if the dates are valid first.
-    if (!enabled) {
-      setIsLoading(false);
-      setError(null);
-      setData(null);
-      return;
-    }
-
-    if (dateRange && dateRange.from && dateRange.to) {
-      // If they are valid, we call our safe async function.
-      fetchData(dateRange.from, dateRange.to);
-    } else {
-      // If the date range is incomplete, we ensure we are not stuck in a loading state.
-      setIsLoading(false);
-      setData(null);
-    }
-  }, [dateRange, enabled]); // Re-run this effect whenever dateRange changes
-
-  return { data, isLoading, error };
 }
