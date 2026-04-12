@@ -21,7 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2, Search, Users } from "lucide-react";
+import { Loader2, MessageSquare, Search, Users } from "lucide-react";
+import { AdminDirectMessageDialog } from "./admin-direct-message-dialog";
 
 interface Mentee {
   id: string;
@@ -46,6 +47,7 @@ export function AdminMentees() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [messageRecipient, setMessageRecipient] = useState<Mentee | null>(null);
 
   const fetchMentees = async () => {
     setLoading(true);
@@ -173,12 +175,13 @@ export function AdminMentees() {
                 <TableHead>Existing skills</TableHead>
                 <TableHead>Learning style</TableHead>
                 <TableHead>Registered</TableHead>
+                <TableHead className="w-[120px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredMentees.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                     No mentees found for that search term.
                   </TableCell>
                 </TableRow>
@@ -225,6 +228,18 @@ export function AdminMentees() {
                     <TableCell className="text-sm text-muted-foreground">
                       {formatRelativeDate(mentee.createdAt)}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => setMessageRecipient(mentee)}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Message
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -232,6 +247,18 @@ export function AdminMentees() {
           </Table>
         </CardContent>
       </Card>
+
+      <AdminDirectMessageDialog
+        open={!!messageRecipient}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMessageRecipient(null);
+          }
+        }}
+        recipientId={messageRecipient?.userId ?? null}
+        recipientName={messageRecipient?.name || 'this mentee'}
+        recipientRoleLabel="mentee"
+      />
     </div>
   );
 }

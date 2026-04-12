@@ -12,7 +12,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { useContent, MentorContent } from '@/hooks/queries/use-content-queries';
+import {
+  contentKeys,
+  useContent,
+  useDeleteContentItem,
+  useDeleteModule,
+  useDeleteSection,
+  type MentorContent,
+} from '@/hooks/queries/use-content-queries';
 import { useQueryClient } from '@tanstack/react-query';
 import { safeJsonParse } from '@/lib/utils/safe-json';
 import { CreateCourseDialog } from './create-course-dialog';
@@ -22,6 +29,7 @@ import { CreateContentItemDialog } from './create-content-item-dialog';
 import { EditItemDialog } from './edit-item-dialog';
 import { ReorderableModules } from './reorderable-modules';
 import { CourseStructureSkeleton, CourseDetailsSkeleton } from './course-structure-skeleton';
+import { useTRPCClient } from '@/lib/trpc/react';
 
 interface CourseBuilderProps {
   content: MentorContent;
@@ -55,6 +63,10 @@ export const CourseBuilder = memo(({ content, onBack }: CourseBuilderProps) => {
   
   const { data: fullContent, isLoading } = useContent(content.id);
   const queryClient = useQueryClient();
+  const trpcClient = useTRPCClient();
+  const deleteModuleMutation = useDeleteModule();
+  const deleteSectionMutation = useDeleteSection();
+  const deleteContentItemMutation = useDeleteContentItem();
   
   // Memoize event handlers to prevent unnecessary re-renders
   const handleEdit = useCallback((type: string, data: any) => {
@@ -63,25 +75,22 @@ export const CourseBuilder = memo(({ content, onBack }: CourseBuilderProps) => {
   
   const handleReorderModules = useCallback(async (reorderedModules: any[]) => {
     try {
-      // Update module order indices on the server
       await Promise.all(
         reorderedModules.map((module, index) =>
-          fetch(`/api/mentors/content/${content.id}/course/modules/${module.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderIndex: index }),
+          trpcClient.content.updateModule.mutate({
+            contentId: content.id,
+            moduleId: module.id,
+            data: { orderIndex: index },
           })
         )
       );
-      
-      // Refresh the content data
-      queryClient.invalidateQueries({ queryKey: ['mentor-content', content.id] });
+
+      queryClient.invalidateQueries({ queryKey: contentKeys.detail(content.id) });
     } catch (error) {
       console.error('Error reordering modules:', error);
-      // Revert the UI change if the API call fails
-      queryClient.invalidateQueries({ queryKey: ['mentor-content', content.id] });
+      queryClient.invalidateQueries({ queryKey: contentKeys.detail(content.id) });
     }
-  }, [content.id, queryClient]);
+  }, [content.id, queryClient, trpcClient]);
   
   const handleDelete = useCallback(async (type: string, data: any) => {
     if (!confirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`)) {
@@ -89,31 +98,32 @@ export const CourseBuilder = memo(({ content, onBack }: CourseBuilderProps) => {
     }
     
     try {
-      let endpoint = '';
       if (type === 'module') {
-        endpoint = `/api/mentors/content/${content.id}/course/modules/${data.id}`;
+        await deleteModuleMutation.mutateAsync({
+          contentId: content.id,
+          moduleId: data.id,
+        });
       } else if (type === 'section') {
-        endpoint = `/api/mentors/content/modules/${data.moduleId}/sections/${data.id}`;
+        await deleteSectionMutation.mutateAsync({
+          moduleId: data.moduleId,
+          sectionId: data.id,
+        });
       } else if (type === 'contentItem') {
-        endpoint = `/api/mentors/content/sections/${data.sectionId}/content-items/${data.id}`;
+        await deleteContentItemMutation.mutateAsync({
+          sectionId: data.sectionId,
+          itemId: data.id,
+        });
       }
-      
-      const response = await fetch(endpoint, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to delete ${type}`);
-      }
-      
-      // Refresh the content data using React Query
-      queryClient.invalidateQueries({ queryKey: ['mentor-content', content.id] });
-      queryClient.invalidateQueries({ queryKey: ['mentor-content'] });
     } catch (error) {
       console.error(`Error deleting ${type}:`, error);
       alert(`Failed to delete ${type}. Please try again.`);
     }
-  }, [content.id, queryClient]);
+  }, [
+    content.id,
+    deleteContentItemMutation,
+    deleteModuleMutation,
+    deleteSectionMutation,
+  ]);
   
   // Memoize dialog handlers
   const handleCreateSectionOpen = useCallback((moduleId: string) => {

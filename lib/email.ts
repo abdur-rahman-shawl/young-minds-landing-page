@@ -1,6 +1,12 @@
 
 import nodemailer from 'nodemailer';
 import { recordEmailEvent } from '@/lib/audit';
+import {
+  buildMentorDiscoveryLink,
+  buildRescheduleResponseLink,
+  buildSelectMentorLink,
+  buildSessionDashboardLink,
+} from '@/lib/bookings/dashboard-links';
 
 async function sendEmail({
   to,
@@ -42,6 +48,10 @@ async function sendEmail({
     subject,
     html,
   });
+}
+
+function buildAbsoluteAppUrl(path: string) {
+  return `${process.env.NEXT_PUBLIC_BASE_URL}${path}`;
 }
 
 export async function sendApplicationReceivedEmail(email: string, name: string) {
@@ -274,7 +284,7 @@ export async function sendBookingConfirmedEmail(
         
         <p>You can join the session from your dashboard when it's time.</p>
         
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?section=sessions" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Session Details</a>
+        <a href="${buildAbsoluteAppUrl(buildSessionDashboardLink('mentee', booking.sessionId))}" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Session Details</a>
         
         <p style="margin-top: 20px;">Best regards,</p>
         <p><strong>The SharingMinds Team</strong></p>
@@ -332,7 +342,7 @@ export async function sendNewBookingAlertEmail(
           <p style="margin: 6px 0;"><strong>Meeting Type:</strong> ${booking.meetingType.charAt(0).toUpperCase() + booking.meetingType.slice(1)} Call</p>
         </div>
         
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?section=schedule" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Your Schedule</a>
+        <a href="${buildAbsoluteAppUrl(buildSessionDashboardLink('mentor', booking.sessionId))}" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Your Schedule</a>
         
         <p style="margin-top: 20px;">Best regards,</p>
         <p><strong>The SharingMinds Team</strong></p>
@@ -397,7 +407,7 @@ export async function sendMentorCancelledReassignedEmail(
           <li><strong>Cancel</strong> for a full refund</li>
         </ul>
         
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?section=sessions" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Options</a>
+        <a href="${buildAbsoluteAppUrl(buildSessionDashboardLink('mentee', booking.sessionId))}" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Options</a>
         
         <p style="margin-top: 20px;">Best regards,</p>
         <p><strong>The SharingMinds Team</strong></p>
@@ -459,7 +469,7 @@ export async function sendMentorCancelledNoMentorEmail(
           <li><strong>Cancel</strong> for a full refund</li>
         </ul>
         
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/sessions/${booking.sessionId}/select-mentor" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Browse Available Mentors</a>
+        <a href="${buildAbsoluteAppUrl(buildSelectMentorLink(booking.sessionId))}" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Browse Available Mentors</a>
         
         <p style="margin-top: 20px;">Best regards,</p>
         <p><strong>The SharingMinds Team</strong></p>
@@ -517,7 +527,7 @@ export async function sendMenteeCancelledEmail(
         
         <p>This time slot is now open for other bookings.</p>
         
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?section=schedule" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Your Schedule</a>
+        <a href="${buildAbsoluteAppUrl(buildSessionDashboardLink('mentor', booking.sessionId))}" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Your Schedule</a>
         
         <p style="margin-top: 20px;">Best regards,</p>
         <p><strong>The SharingMinds Team</strong></p>
@@ -581,7 +591,7 @@ export async function sendRescheduleRequestEmail(
           <li><strong>Decline</strong> and keep the original time</li>
         </ul>
         
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?section=sessions" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Respond to Request</a>
+        <a href="${buildAbsoluteAppUrl(buildRescheduleResponseLink(requestorRole === 'mentor' ? 'mentee' : 'mentor', booking.sessionId))}" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Respond to Request</a>
         
         <p style="margin-top: 20px;">Best regards,</p>
         <p><strong>The SharingMinds Team</strong></p>
@@ -618,6 +628,7 @@ export async function sendRescheduleRequestEmail(
 export async function sendRescheduleConfirmedEmail(
   recipientEmail: string,
   recipientName: string,
+  recipientRole: 'mentor' | 'mentee',
   otherPartyName: string,
   booking: BookingEmailData,
   oldTime: Date,
@@ -641,7 +652,7 @@ export async function sendRescheduleConfirmedEmail(
         
         <p>Please update your calendar accordingly.</p>
         
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?section=sessions" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Session</a>
+        <a href="${buildAbsoluteAppUrl(buildSessionDashboardLink(recipientRole, booking.sessionId))}" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Session</a>
         
         <p style="margin-top: 20px;">Best regards,</p>
         <p><strong>The SharingMinds Team</strong></p>
@@ -710,7 +721,7 @@ export async function sendMenteeCancellationConfirmationEmail(
         
         <p>Your mentor has been notified of the cancellation.</p>
         
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?section=sessions" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Browse Mentors</a>
+        <a href="${buildAbsoluteAppUrl(buildMentorDiscoveryLink())}" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Browse Mentors</a>
         
         <p style="margin-top: 20px;">Best regards,</p>
         <p><strong>The SharingMinds Team</strong></p>
@@ -775,7 +786,7 @@ export async function sendMentorCancellationConfirmationEmail(
         
         <p>${statusMessage}</p>
         
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?section=schedule" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Schedule</a>
+        <a href="${buildAbsoluteAppUrl(buildSessionDashboardLink('mentor', booking.sessionId))}" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Schedule</a>
         
         <p style="margin-top: 20px;">Best regards,</p>
         <p><strong>The SharingMinds Team</strong></p>
@@ -841,7 +852,7 @@ export async function sendNewMentorAssignedEmail(
         
         ${isReassignment ? '<p><strong>Note:</strong> The mentee will review and confirm this assignment. You will be notified of their decision.</p>' : ''}
         
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?section=schedule" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Your Schedule</a>
+        <a href="${buildAbsoluteAppUrl(buildSessionDashboardLink('mentor', booking.sessionId))}" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Your Schedule</a>
         
         <p style="margin-top: 20px;">Best regards,</p>
         <p><strong>The SharingMinds Team</strong></p>
@@ -900,7 +911,7 @@ export async function sendAlternativeMentorSelectedEmail(
         
         <p>Your new mentor has been notified and the session is confirmed.</p>
         
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?section=sessions" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Session</a>
+        <a href="${buildAbsoluteAppUrl(buildSessionDashboardLink('mentee', booking.sessionId))}" style="display: inline-block; background-color: #0056b3; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-top: 10px;">View Session</a>
         
         <p style="margin-top: 20px;">Best regards,</p>
         <p><strong>The SharingMinds Team</strong></p>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { format } from 'date-fns';
 import {
   Card,
@@ -25,67 +25,26 @@ import {
   Send,
   AlertCircle,
 } from 'lucide-react';
-import { toast } from 'sonner';
-
-interface MessageRequest {
-  request: {
-    id: string;
-    requesterId: string;
-    recipientId: string;
-    requestType: 'mentor_to_mentee' | 'mentee_to_mentor';
-    status: 'pending' | 'accepted' | 'rejected' | 'expired' | 'cancelled';
-    initialMessage: string;
-    requestReason?: string;
-    maxMessages: number;
-    messagesUsed: number;
-    createdAt: string;
-    expiresAt: string;
-    respondedAt?: string;
-    responseMessage?: string;
-  };
-  requester: {
-    id: string;
-    name: string;
-    email: string;
-    image?: string;
-  };
-}
+import {
+  useHandleRequestMutation,
+  useMessageRequestsQuery,
+  type MessageRequest,
+} from '@/hooks/queries/use-messaging-queries';
 
 interface MessageRequestsListProps {
   userId: string;
 }
 
 export function MessageRequestsList({ userId }: MessageRequestsListProps) {
-  const [requests, setRequests] = useState<MessageRequest[]>([]);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [responseMessages, setResponseMessages] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    fetchRequests();
-  }, [activeTab, userId]);
-
-  const fetchRequests = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/messaging/requests?userId=${userId}&type=${activeTab}&status=all`
-      );
-      const data = await response.json();
-      
-      if (data.success) {
-        setRequests(data.data);
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error) {
-      console.error('Error fetching requests:', error);
-      toast.error('Failed to load message requests');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: requests = [], isLoading: loading } = useMessageRequestsQuery(
+    userId,
+    activeTab,
+    'all'
+  );
+  const handleRequestMutation = useHandleRequestMutation();
 
   const handleRequestAction = async (
     requestId: string,
@@ -94,39 +53,17 @@ export function MessageRequestsList({ userId }: MessageRequestsListProps) {
     setProcessingId(requestId);
     
     try {
-      const response = await fetch(`/api/messaging/requests/${requestId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          action,
-          responseMessage: responseMessages[requestId],
-        }),
+      await handleRequestMutation.mutateAsync({
+        requestId,
+        userId,
+        action,
+        responseMessage: responseMessages[requestId],
       });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to process request');
-      }
-
-      toast.success(
-        action === 'accept'
-          ? 'Request accepted! You can now message this user.'
-          : action === 'reject'
-          ? 'Request rejected.'
-          : 'Request cancelled.'
-      );
-
-      fetchRequests();
       setResponseMessages((prev) => {
         const newMessages = { ...prev };
         delete newMessages[requestId];
         return newMessages;
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
-      toast.error(errorMessage);
     } finally {
       setProcessingId(null);
     }
@@ -153,6 +90,7 @@ export function MessageRequestsList({ userId }: MessageRequestsListProps) {
     const isReceived = activeTab === 'received';
     const isPending = item.request.status === 'pending';
     const isExpired = new Date(item.request.expiresAt) < new Date();
+    const counterpart = isReceived ? item.requester : item.recipient;
 
     return (
       <Card key={item.request.id} className="mb-4">
@@ -160,13 +98,15 @@ export function MessageRequestsList({ userId }: MessageRequestsListProps) {
           <div className="flex items-start justify-between">
             <div className="flex items-center space-x-3">
               <Avatar>
-                <AvatarImage src={item.requester.image} />
+                <AvatarImage src={counterpart.image ?? undefined} />
                 <AvatarFallback>
-                  {item.requester.name?.charAt(0) || 'U'}
+                  {counterpart.name?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
               <div>
-                <CardTitle className="text-lg">{item.requester.name}</CardTitle>
+                <CardTitle className="text-lg">
+                  {counterpart.name || 'Unknown User'}
+                </CardTitle>
                 <CardDescription>
                   {format(new Date(item.request.createdAt), 'PPp')}
                 </CardDescription>

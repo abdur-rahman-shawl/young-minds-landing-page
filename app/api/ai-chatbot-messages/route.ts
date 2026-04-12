@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { aiChatbotMessages } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { recordChatInsight } from '@/lib/chatbot/insights';
 import {
   consumeFeature,
@@ -18,10 +18,24 @@ export async function GET(request: NextRequest) {
     if (!chatSessionId) {
       return NextResponse.json({ success: false, error: 'chatSessionId is required' }, { status: 400 });
     }
+
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const messages = await db
       .select()
       .from(aiChatbotMessages)
-      .where(eq(aiChatbotMessages.chatSessionId, chatSessionId))
+      .where(
+        and(
+          eq(aiChatbotMessages.chatSessionId, chatSessionId),
+          eq(aiChatbotMessages.userId, session.user.id)
+        )
+      )
       .orderBy(aiChatbotMessages.createdAt);
     return NextResponse.json({ success: true, data: messages });
   } catch (error) {

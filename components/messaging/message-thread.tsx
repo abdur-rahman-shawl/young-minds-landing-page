@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   ArrowLeft,
@@ -24,11 +24,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useThreadQuery } from '@/hooks/queries/use-messaging-queries';
+import {
+  useDeleteMessageMutation,
+  useEditMessageMutation,
+  useInfiniteThreadQuery,
+  useToggleReactionMutation,
+} from '@/hooks/queries/use-messaging-queries';
 import { MessageReactions } from './message-reactions';
 import { ReactionPicker } from './reaction-picker';
 import { MessageEditForm } from './message-edit-form';
 import { MessageActionsMenu } from './message-actions-menu';
+import { MessageThreadLayout } from './message-thread-layout';
+import {
+  flattenThreadHistoryPages,
+  getPrependedThreadScrollTop,
+  isThreadViewportNearBottom,
+} from '@/lib/messaging/thread-history';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -92,22 +103,12 @@ function MessageWithReactions({
     : null;
 
   const handleEdit = async (newContent: string) => {
-    try {
-      await onEdit(msg.message.id, newContent);
-      setIsEditing(false);
-      toast.success('Message edited');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to edit message');
-    }
+    await onEdit(msg.message.id, newContent);
+    setIsEditing(false);
   };
 
   const handleDelete = async () => {
-    try {
-      await onDelete(msg.message.id);
-      toast.success('Message deleted');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to delete message');
-    }
+    await onDelete(msg.message.id);
   };
 
   return (
@@ -285,61 +286,164 @@ export function MessageThread({
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
-  const { data: threadData, isLoading, refetch } = useThreadQuery(threadId, userId);
+  const pendingHistoryAnchorRef = useRef<{
+    scrollTop: number;
+    scrollHeight: number;
+  } | null>(null);
+  const didInitializeScrollRef = useRef(false);
+  const previousThreadIdRef = useRef<string | null>(null);
+  const previousFirstMessageIdRef = useRef<string | null>(null);
+  const previousLastMessageIdRef = useRef<string | null>(null);
+  const shouldForceScrollToBottomRef = useRef(false);
+  const wasNearBottomRef = useRef(true);
+  const {
+    data: threadPagesData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteThreadQuery(threadId, userId);
+  const editMessageMutation = useEditMessageMutation();
+  const deleteMessageMutation = useDeleteMessageMutation();
+  const toggleReactionMutation = useToggleReactionMutation();
 
-  const thread = threadData?.thread;
-  const messages = threadData?.messages || [];
-  const otherUser = threadData?.otherUser;
+  const threadPages = threadPagesData?.pages ?? [];
+  const messages = flattenThreadHistoryPages(threadPages);
+  const otherUser = threadPages[0]?.otherUser;
 
   // Handler for toggling reactions - calls API directly
   const handleToggleReaction = async (messageId: string, emoji: string) => {
-    try {
-      await fetch(`/api/messaging/messages/${messageId}/reactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emoji }),
-      });
-      // Refetch thread data to get updated reactions
-      refetch();
-    } catch (error) {
-      toast.error('Failed to update reaction');
-    }
+    await toggleReactionMutation.mutateAsync({
+      threadId,
+      userId,
+      messageId,
+      emoji,
+    });
   };
 
   // Handler for editing messages
   const editMessage = async (messageId: string, content: string) => {
-    const response = await fetch(`/api/messaging/messages/${messageId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+    await editMessageMutation.mutateAsync({
+      threadId,
+      userId,
+      messageId,
+      content,
     });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to edit message');
-    }
-    refetch();
   };
 
   // Handler for deleting messages
   const deleteMessage = async (messageId: string) => {
-    const response = await fetch(`/api/messaging/messages/${messageId}`, {
-      method: 'DELETE',
+    await deleteMessageMutation.mutateAsync({
+      threadId,
+      userId,
+      messageId,
     });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to delete message');
-    }
-    refetch();
   };
 
   useEffect(() => {
-    // Scroll to bottom when messages change
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    if (previousThreadIdRef.current === threadId) {
+      return;
     }
-  }, [messages]);
+
+    previousThreadIdRef.current = threadId;
+    pendingHistoryAnchorRef.current = null;
+    didInitializeScrollRef.current = false;
+    previousFirstMessageIdRef.current = null;
+    previousLastMessageIdRef.current = null;
+    shouldForceScrollToBottomRef.current = false;
+    wasNearBottomRef.current = true;
+  }, [threadId]);
+
+  useEffect(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const updateViewportState = () => {
+      wasNearBottomRef.current = isThreadViewportNearBottom({
+        scrollTop: viewport.scrollTop,
+        clientHeight: viewport.clientHeight,
+        scrollHeight: viewport.scrollHeight,
+      });
+    };
+
+    const maybeLoadOlderMessages = () => {
+      if (
+        pendingHistoryAnchorRef.current ||
+        viewport.scrollTop > 80 ||
+        !hasNextPage ||
+        isFetchingNextPage
+      ) {
+        return;
+      }
+
+      pendingHistoryAnchorRef.current = {
+        scrollTop: viewport.scrollTop,
+        scrollHeight: viewport.scrollHeight,
+      };
+
+      void fetchNextPage();
+    };
+
+    const handleScroll = () => {
+      updateViewportState();
+      maybeLoadOlderMessages();
+    };
+
+    updateViewportState();
+    maybeLoadOlderMessages();
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll);
+    };
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, messages.length, threadId]);
+
+  useLayoutEffect(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const firstMessageId = messages[0]?.message.id ?? null;
+    const latestMessageId = messages[messages.length - 1]?.message.id ?? null;
+
+    if (pendingHistoryAnchorRef.current) {
+      if (firstMessageId && firstMessageId !== previousFirstMessageIdRef.current) {
+        const { scrollTop, scrollHeight } = pendingHistoryAnchorRef.current;
+        viewport.scrollTop = getPrependedThreadScrollTop(
+          scrollTop,
+          scrollHeight,
+          viewport.scrollHeight
+        );
+        pendingHistoryAnchorRef.current = null;
+      } else if (!isFetchingNextPage) {
+        pendingHistoryAnchorRef.current = null;
+      }
+    } else if (!didInitializeScrollRef.current && messages.length > 0) {
+      viewport.scrollTop = viewport.scrollHeight;
+      didInitializeScrollRef.current = true;
+    } else if (
+      latestMessageId &&
+      latestMessageId !== previousLastMessageIdRef.current &&
+      (shouldForceScrollToBottomRef.current || wasNearBottomRef.current)
+    ) {
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+
+    previousFirstMessageIdRef.current = firstMessageId;
+    previousLastMessageIdRef.current = latestMessageId;
+    shouldForceScrollToBottomRef.current = false;
+    wasNearBottomRef.current = isThreadViewportNearBottom({
+      scrollTop: viewport.scrollTop,
+      clientHeight: viewport.clientHeight,
+      scrollHeight: viewport.scrollHeight,
+    });
+  }, [isFetchingNextPage, messages, threadId]);
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || isSending) return;
@@ -350,6 +454,7 @@ export function MessageThread({
     setMessageInput('');
     setReplyingTo(null);
     setIsSending(true);
+    shouldForceScrollToBottomRef.current = true;
 
     try {
       await onSendMessage(threadId, message, replyToId);
@@ -357,6 +462,7 @@ export function MessageThread({
       toast.error(error instanceof Error ? error.message : 'Failed to send message');
       setMessageInput(message); // Restore message on error
       if (replyToId) setReplyingTo(replyingTo); // Restore reply state
+      shouldForceScrollToBottomRef.current = false;
     } finally {
       setIsSending(false);
     }
@@ -416,23 +522,24 @@ export function MessageThread({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between p-4 border-b border-border bg-card/80 backdrop-blur-sm">
-          <Skeleton className="h-12 w-full" />
-        </div>
-        <div className="flex-1 p-4 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-16 w-3/4" />
-          ))}
-        </div>
-      </div>
+      <MessageThreadLayout
+        header={<Skeleton className="h-12 w-full" />}
+        headerClassName="border-border bg-card/80 backdrop-blur-sm"
+        body={
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-16 w-3/4" />
+            ))}
+          </div>
+        }
+        bodyClassName="overflow-hidden"
+      />
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b p-4">
+    <MessageThreadLayout
+      header={
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {showBackButton && (
@@ -453,7 +560,19 @@ export function MessageThread({
             </Avatar>
 
             <div className="min-w-0">
-              <h3 className="font-semibold text-foreground truncate">{otherUser?.name || 'Unknown User'}</h3>
+              <div className="flex min-w-0 items-center gap-2">
+                <h3 className="truncate font-semibold text-foreground">
+                  {otherUser?.name || 'Unknown User'}
+                </h3>
+                {otherUser?.isAdmin && (
+                  <Badge
+                    variant="secondary"
+                    className="h-5 shrink-0 px-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                  >
+                    Admin
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground truncate">
                 {otherUser?.email}
               </p>
@@ -483,128 +602,137 @@ export function MessageThread({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
-
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4 bg-gradient-to-b from-muted/20 to-transparent" ref={scrollAreaRef}>
-        <div className="space-y-4">
-          {messages.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No messages yet. Start the conversation!</p>
-            </div>
-          ) : (
-            messages.map((msg, index) => {
-              const showDateSeparator = index === 0 ||
-                new Date(messages[index - 1].message.createdAt).toDateString() !==
-                new Date(msg.message.createdAt).toDateString();
-
-              const isOwnMessage = msg.message.senderId === userId;
-
-              return (
-                <div
-                  key={msg.message.id}
-                  ref={(el) => {
-                    if (el) messageRefs.current[msg.message.id] = el;
-                  }}
-                  className="transition-colors duration-300"
-                >
-                  <MessageWithReactions
-                    msg={msg}
-                    isOwnMessage={isOwnMessage}
-                    userId={userId}
-                    showDateSeparator={showDateSeparator}
-                    renderDateSeparator={renderDateSeparator}
-                    formatMessageDate={formatMessageDate}
-                    onReply={handleReply}
-                    onEdit={editMessage}
-                    onDelete={deleteMessage}
-                    messages={messages}
-                    scrollToMessage={scrollToMessage}
-                    onToggleReaction={handleToggleReaction}
-                  />
-                </div>
-              );
-            })
-          )}
-        </div>
-      </ScrollArea>
-
-      {/* Message Input */}
-      <div className="border-t border-border bg-card/80 backdrop-blur-sm">
-        {/* Reply Bar */}
-        {replyingTo && (
-          <div className="px-4 pt-3 pb-2 bg-accent/50 border-b border-border rounded-t-xl">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-muted-foreground mb-1">
-                  Replying to {replyingTo.sender?.name || 'Unknown'}
-                </p>
-                <p className="text-sm text-muted-foreground truncate">
-                  {replyingTo.message.content}
-                </p>
+      }
+      body={
+        <div className="relative min-h-full">
+          {isFetchingNextPage && messages.length > 0 ? (
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center">
+              <div className="inline-flex items-center gap-2 rounded-full border bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading older messages
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => setReplyingTo(null)}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </Button>
             </div>
-          </div>
-        )}
+          ) : null}
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSendMessage();
-          }}
-          className="flex gap-3 p-4"
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="hidden md:flex"
-          >
-            <Paperclip className="h-5 w-5" />
-          </Button>
-
-          <Input
-            placeholder="Type a message..."
-            value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
-            disabled={isSending}
-            className="flex-1 rounded-xl border-border bg-background shadow-subtle focus-visible:ring-primary/30"
-          />
-
-          <Button
-            type="submit"
-            disabled={!messageInput.trim() || isSending}
-            className="rounded-xl shadow-sm h-11 w-11 p-0"
-          >
-            {isSending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+          <div className="space-y-4">
+            {messages.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No messages yet. Start the conversation!</p>
+              </div>
             ) : (
-              <Send className="h-5 w-5" />
+              messages.map((msg, index) => {
+                const showDateSeparator = index === 0 ||
+                  new Date(messages[index - 1].message.createdAt).toDateString() !==
+                  new Date(msg.message.createdAt).toDateString();
+
+                const isOwnMessage = msg.message.senderId === userId;
+
+                return (
+                  <div
+                    key={msg.message.id}
+                    ref={(el) => {
+                      if (el) messageRefs.current[msg.message.id] = el;
+                    }}
+                    className="transition-colors duration-300"
+                  >
+                    <MessageWithReactions
+                      msg={msg}
+                      isOwnMessage={isOwnMessage}
+                      userId={userId}
+                      showDateSeparator={showDateSeparator}
+                      renderDateSeparator={renderDateSeparator}
+                      formatMessageDate={formatMessageDate}
+                      onReply={handleReply}
+                      onEdit={editMessage}
+                      onDelete={deleteMessage}
+                      messages={messages}
+                      scrollToMessage={scrollToMessage}
+                      onToggleReaction={handleToggleReaction}
+                    />
+                  </div>
+                );
+              })
             )}
-          </Button>
-        </form>
-      </div>
-    </div>
+          </div>
+        </div>
+      }
+      composer={
+        <>
+          {replyingTo && (
+            <div className="px-4 pt-3 pb-2 bg-accent/50 border-b border-border rounded-t-xl">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">
+                    Replying to {replyingTo.sender?.name || 'Unknown'}
+                  </p>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {replyingTo.message.content}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setReplyingTo(null)}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendMessage();
+            }}
+            className="flex gap-3 p-4"
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="hidden md:flex"
+            >
+              <Paperclip className="h-5 w-5" />
+            </Button>
+
+            <Input
+              placeholder="Type a message..."
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              disabled={isSending}
+              className="flex-1 rounded-xl border-border bg-background shadow-subtle focus-visible:ring-primary/30"
+            />
+
+            <Button
+              type="submit"
+              disabled={!messageInput.trim() || isSending}
+              className="rounded-xl shadow-sm h-11 w-11 p-0"
+            >
+              {isSending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
+            </Button>
+          </form>
+        </>
+      }
+      scrollViewportRef={scrollViewportRef}
+    />
   );
 }

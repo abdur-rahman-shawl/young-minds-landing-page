@@ -24,7 +24,10 @@ export interface MentorAnalyticsData {
   }[];
 }
 
-export function useMentorAnalytics(dateRange: DateRange | undefined) {
+export function useMentorAnalytics(
+  dateRange: DateRange | undefined,
+  enabled = true
+) {
   const [data, setData] = useState<MentorAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +46,11 @@ export function useMentorAnalytics(dateRange: DateRange | undefined) {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to fetch mentor analytics');
+          throw new Error(
+            errorData.error ||
+              errorData.message ||
+              'Failed to fetch mentor analytics'
+          );
         }
 
         const result: MentorAnalyticsData = await response.json();
@@ -58,6 +65,13 @@ export function useMentorAnalytics(dateRange: DateRange | undefined) {
 
     // This is the main logic block.
     // We check if the dates are valid first.
+    if (!enabled) {
+      setIsLoading(false);
+      setError(null);
+      setData(null);
+      return;
+    }
+
     if (dateRange && dateRange.from && dateRange.to) {
       // If they are valid, we call our safe async function.
       fetchData(dateRange.from, dateRange.to);
@@ -66,7 +80,7 @@ export function useMentorAnalytics(dateRange: DateRange | undefined) {
       setIsLoading(false);
       setData(null);
     }
-  }, [dateRange]); // Re-run this effect whenever dateRange changes
+  }, [dateRange, enabled]); // Re-run this effect whenever dateRange changes
 
   return { data, isLoading, error };
 }

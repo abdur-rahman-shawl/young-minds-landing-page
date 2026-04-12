@@ -33,18 +33,30 @@ import { useAuth } from "@/contexts/auth-context"
 import { useMessaging } from "@/hooks/use-messaging-v2"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { getNavigationSections, type DashboardNavigationScope } from "@/lib/dashboard/sections"
 
 interface UserSidebarProps {
   activeSection: string
   onSectionChange: (section: string) => void
   userRole?: string
+  navigationScope?: DashboardNavigationScope
 }
 
-export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSidebarProps) {
+export function UserSidebar({
+  activeSection,
+  onSectionChange,
+  userRole,
+  navigationScope = "dashboard",
+}: UserSidebarProps) {
   const { session, primaryRole, isLoading } = useAuth()
   const { totalUnreadCount } = useMessaging(session?.user?.id)
 
-  const menuItems = useMemo(() => [
+  const menuItems = useMemo(() => {
+    const allowedKeys = new Set(
+      getNavigationSections("mentee", navigationScope).map((section) => section.key)
+    )
+
+    return [
     { title: "Home", icon: Home, key: "home" },
     { title: "Dashboard", icon: LayoutDashboard, key: "dashboard" },
     { title: "Explore Mentors", icon: Users, key: "explore" },
@@ -56,7 +68,8 @@ export function UserSidebar({ activeSection, onSectionChange, userRole }: UserSi
     { title: "Sessions", icon: Calendar, key: "sessions" },
     { title: "Subscription", icon: Sparkles, key: "subscription" },
     { title: "Profile", icon: User, key: "profile" }
-  ], [])
+    ].filter((item) => allowedKeys.has(item.key))
+  }, [navigationScope])
 
   return (
     <Sidebar className="bg-background/80 dark:bg-background/90 backdrop-blur-xl border-r border-border mt-16 z-20">

@@ -52,15 +52,14 @@ Do NOT re‑implement these unless fixing a bug:
   - Uses policy runtime for mentee/mentor checks and metering.
 - `app/api/sessions/route.ts`
   - Uses policy runtime for booking branch and metering.
-- `app/api/messaging/threads/[id]/messages/route.ts`
-- `app/api/messaging/requests/route.ts`
+- `lib/messaging/server/service.ts` (`sendMessage`, `sendRequest`)
 - `app/api/chat/route.ts`
 - `app/api/ai-chatbot-messages/route.ts`
 - `app/api/courses/[id]/enroll/route.ts`
 - `app/api/analytics/mentor/route.ts`
 - `app/api/student/learning-analytics/route.ts`
-- `app/api/mentors/content/route.ts`
-- `app/api/mentors/content/upload/route.ts`
+- `lib/content/server/service.ts`
+  - Internal mentor/admin content flows now run through shared service + tRPC. Uploads remain on `app/api/upload/route.ts`.
 - `app/api/bookings/[id]/cancel/route.ts`
 
 ## Required Audit Procedure (Step‑by‑Step)

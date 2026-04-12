@@ -30,14 +30,14 @@ async function ensureAdmin(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest, { params }: { params: { mentorId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ mentorId: string }> }) {
   try {
     const adminCheck = await ensureAdmin(request);
     if ('error' in adminCheck) {
       return adminCheck.error;
     }
 
-    const { mentorId } = params;
+    const { mentorId } = await params;
 
     if (!mentorId) {
       return NextResponse.json({ success: false, error: 'Mentor ID is required' }, { status: 400 });

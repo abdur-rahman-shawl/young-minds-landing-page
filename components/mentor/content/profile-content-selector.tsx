@@ -1,69 +1,17 @@
 "use client";
 
-import { useState, useCallback, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Book, FileText, Link as LinkIcon, GripVertical, Save, Eye } from 'lucide-react';
-import { toast } from 'sonner';
-import { MentorContent } from '@/hooks/queries/use-content-queries';
-
-interface ProfileContentItem extends MentorContent {
-  displayOrder?: number;
-  addedAt?: string;
-}
-
-function useApprovedContent() {
-  return useQuery<MentorContent[]>({
-    queryKey: ['mentor-content'],
-    queryFn: async () => {
-      const response = await fetch('/api/mentors/content');
-      if (!response.ok) throw new Error('Failed to fetch content');
-      return response.json();
-    },
-    select: (data) => data.filter(item => item.status === 'APPROVED'),
-  });
-}
-
-function useProfileContent() {
-  return useQuery<ProfileContentItem[]>({
-    queryKey: ['mentor-profile-content'],
-    queryFn: async () => {
-      const response = await fetch('/api/mentors/profile-content');
-      if (!response.ok) throw new Error('Failed to fetch profile content');
-      const json = await response.json();
-      return json.data || [];
-    },
-  });
-}
-
-function useUpdateProfileContent() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (contentIds: string[]) => {
-      const response = await fetch('/api/mentors/profile-content', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contentIds }),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update profile content');
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mentor-profile-content'] });
-      toast.success('Profile content updated successfully');
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
-}
+import { Book, FileText, Link as LinkIcon, Save, Eye } from 'lucide-react';
+import {
+  useContentList,
+  useProfileContentList,
+  useUpdateProfileContent,
+  type MentorContent,
+} from '@/hooks/queries/use-content-queries';
 
 const getContentIcon = (type: string) => {
   switch (type) {
@@ -75,9 +23,13 @@ const getContentIcon = (type: string) => {
 };
 
 export function ProfileContentSelector() {
-  const { data: approvedContent = [], isLoading: loadingApproved } = useApprovedContent();
-  const { data: profileContent = [], isLoading: loadingProfile } = useProfileContent();
+  const { data: content = [], isLoading: loadingContent } = useContentList();
+  const { data: profileContent = [], isLoading: loadingProfile } = useProfileContentList();
   const updateMutation = useUpdateProfileContent();
+  const approvedContent = useMemo(
+    () => content.filter((item) => item.status === 'APPROVED'),
+    [content]
+  );
 
   const selectedIds = useMemo(() => {
     return new Set(profileContent.map(item => item.id));
@@ -87,7 +39,7 @@ export function ProfileContentSelector() {
   const [hasChanges, setHasChanges] = useState(false);
 
   // Sync local state when profile data loads
-  useMemo(() => {
+  useEffect(() => {
     setLocalSelectedIds(new Set(selectedIds));
     setHasChanges(false);
   }, [selectedIds]);
@@ -114,7 +66,7 @@ export function ProfileContentSelector() {
     setHasChanges(false);
   }, [approvedContent, localSelectedIds, updateMutation]);
 
-  const isLoading = loadingApproved || loadingProfile;
+  const isLoading = loadingContent || loadingProfile;
 
   if (isLoading) {
     return (

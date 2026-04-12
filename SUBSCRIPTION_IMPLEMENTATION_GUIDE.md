@@ -679,8 +679,8 @@ trackFeatureUsage(
    - **Feature Key:** `'mentor_sessions_monthly'`
    - **Tracks:** count: 1, minutes: duration
 
-3. **`app/api/messaging/threads/[id]/messages/route.ts`** ✅
-   - **Line ~99:** REPLACED old `checkAndUpdateMessageQuota()` with subscription enforcement
+3. **`lib/messaging/server/service.ts` (`sendMessage`)** ✅
+   - Shared messaging service now owns the direct-message subscription enforcement
    - Uses `checkFeatureAccess()` before write + `trackFeatureUsage()` after successful write
    - **Feature Key:** `'direct_messages_daily'`
    - **Tracks:** count: 1
@@ -695,8 +695,8 @@ trackFeatureUsage(
    - **Feature Key:** `'ai_helper_messages_limit'`
    - **Tracks:** count: 1 per user message
 
-6. **`app/api/messaging/requests/route.ts`** ✅
-   - Added subscription check for message requests
+6. **`lib/messaging/server/service.ts` (`sendRequest`)** ✅
+   - Shared messaging service owns the message-request subscription check
    - Added usage tracking on successful request
    - **Feature Key:** `'message_requests_daily'`
    - **Tracks:** count: 1
@@ -718,11 +718,11 @@ trackFeatureUsage(
 **Enforcement Coverage:**
 - ✅ Session bookings (primary endpoint)
 - ✅ Session creation (secondary endpoint)
-- ✅ Direct messaging (thread messages)
+- ✅ Direct messaging (shared messaging service)
 - ✅ AI chat access control
 - ✅ AI chat usage tracking
 - ✅ Message requests enforced
-- ⏳ Legacy messaging API (not yet enforced)
+- ✅ Legacy messaging API retired in favor of tRPC + shared service
 - ⏳ Session rescheduling
 - ✅ Course enrollments enforced
 - ✅ Recording access enforced
@@ -785,7 +785,7 @@ users (Drizzle)
    - Limit fields: `limit_minutes`, `limit_interval`
 
 4. **`text`** - Display text
-   - Example: `create_post_content` ("Unlimited" or "Limited")
+   - Example: `content_posting_access` ("Unlimited" or "Limited")
    - Limit fields: `limit_text`
 
 5. **`amount`** - Monetary/numeric
@@ -987,8 +987,8 @@ However, with service role key, RLS policies may not apply. The helper functions
 - Mentor session limits: `mentor_sessions_monthly` in `app/api/bookings/route.ts` and `app/api/sessions/route.ts`
 - Mentee session limits by type: `free_video_sessions_monthly`, `paid_video_sessions_monthly`, `counseling_sessions_monthly` in `app/api/bookings/route.ts` and `app/api/sessions/route.ts`
 - Session duration limits: `session_duration_minutes` in `app/api/bookings/route.ts` and `app/api/sessions/route.ts`
-- Direct messages: `direct_messages_daily` in `app/api/messaging/threads/[id]/messages/route.ts`
-- Message requests: `message_requests_daily` in `app/api/messaging/requests/route.ts`
+- Direct messages: `direct_messages_daily` in `lib/messaging/server/service.ts` (`sendMessage`)
+- Message requests: `message_requests_daily` in `lib/messaging/server/service.ts` (`sendRequest`)
 - AI chat access + messages: `ai_helper_chat_access` and `ai_helper_messages_limit` in `app/api/chat/route.ts` and `app/api/ai-chatbot-messages/route.ts`
 - Course enrollments: `free_courses_limit` in `app/api/courses/[id]/enroll/route.ts`
 - Course access/discount at enroll: `courses_access`, `course_discount_percent` in `app/api/courses/[id]/enroll/route.ts`

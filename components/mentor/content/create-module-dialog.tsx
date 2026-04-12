@@ -12,8 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useCreateModule } from '@/hooks/queries/use-content-queries';
 
 const createModuleSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100, 'Title must be less than 100 characters'),
@@ -83,33 +82,7 @@ const MODULE_TEMPLATES = [
 ];
 
 export function CreateModuleDialog({ contentId, open, onOpenChange }: CreateModuleDialogProps) {
-  const queryClient = useQueryClient();
-  
-  const createModuleMutation = useMutation({
-    mutationFn: async (data: CreateModuleForm) => {
-      const response = await fetch(`/api/mentors/content/${contentId}/course/modules`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create module');
-      }
-      
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mentor-content', contentId] });
-      toast.success('Module created successfully!');
-      onOpenChange(false);
-      form.reset();
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
+  const createModuleMutation = useCreateModule();
   
   const form = useForm<CreateModuleForm>({
     resolver: zodResolver(createModuleSchema),
@@ -126,7 +99,18 @@ export function CreateModuleDialog({ contentId, open, onOpenChange }: CreateModu
   };
   
   const onSubmit = (data: CreateModuleForm) => {
-    createModuleMutation.mutate(data);
+    createModuleMutation.mutate(
+      {
+        contentId,
+        data,
+      },
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+          form.reset();
+        },
+      }
+    );
   };
   
   const isLoading = createModuleMutation.isPending;

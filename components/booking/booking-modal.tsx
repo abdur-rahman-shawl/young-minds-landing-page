@@ -31,6 +31,7 @@ import { parseExpertise } from '@/lib/utils/safe-json';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useCreateBookingMutation } from '@/hooks/queries/use-booking-queries';
 
 interface Mentor {
   id: string;
@@ -87,6 +88,7 @@ export function BookingModal({
     mentorSessionsRemaining?: number | null;
   } | null>(null);
   const [aiSpecialRate, setAiSpecialRate] = useState<number | null>(null);
+  const createBookingMutation = useCreateBookingMutation();
 
   // Steps definition for UI mapping
   const STEPS = [
@@ -259,36 +261,17 @@ export function BookingModal({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mentorId: mentor.userId,
+      const data = await createBookingMutation.mutateAsync({
+        mentorId: mentor.userId,
         bookingSource,
-          sessionType: bookingData.sessionType,
-          title: bookingData.title,
-          description: bookingData.description,
-          scheduledAt: bookingData.scheduledAt?.toISOString(),
-          duration: bookingData.duration,
-          meetingType: bookingData.meetingType,
-          location: bookingData.location,
-        }),
+        sessionType: bookingData.sessionType!,
+        title: bookingData.title!,
+        description: bookingData.description,
+        scheduledAt: bookingData.scheduledAt!.toISOString(),
+        duration: bookingData.duration!,
+        meetingType: bookingData.meetingType!,
+        location: bookingData.location,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMessage = data?.error || 'Failed to book session';
-        const errorDetails = data?.details || data?.message;
-        if (data?.upgrade_required) {
-          toast.error(errorMessage, {
-            description: errorDetails || 'Upgrade your plan to continue.',
-          });
-          setIsSubmitting(false);
-          return;
-        }
-        throw new Error(errorMessage);
-      }
 
       setBookingId(data.booking.id);
       setCurrentStep('success');

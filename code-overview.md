@@ -13,7 +13,7 @@ The root directory contains configuration files, scripts, and documentation.
 *   `tsconfig.json`: Configuration file for TypeScript.
 *   `tailwind.config.ts`: Configuration file for Tailwind CSS.
 *   `postcss.config.mjs`: Configuration file for PostCSS.
-*   `middleware.ts`: Next.js middleware for handling requests.
+*   `proxy.ts`: Next.js proxy for handling requests.
 *   `*.ts` / `*.js` (e.g., `clear-users.ts`, `make-user-admin.ts`): Standalone scripts for various administrative tasks.
 *   `*.md` (e.g., `README.md`, `HLD.md`): Documentation files.
 

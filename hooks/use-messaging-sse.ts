@@ -196,41 +196,12 @@ export function useMessagingSSE(userId: string | undefined, enabled = true) {
   const handleNewMessage = (message: any) => {
     if (!userId) return;
 
-    // Update thread cache with new message
-    queryClient.setQueryData(
-      messagingKeys.thread(message.threadId, userId),
-      (oldData: any) => {
-        if (!oldData) return oldData;
-        return {
-          ...oldData,
-          messages: [...oldData.messages, { message, sender: null }],
-        };
-      }
-    );
-
-    // Update threads list
-    queryClient.setQueryData(
-      messagingKeys.threads(userId),
-      (oldThreads: any[]) => {
-        if (!oldThreads) return oldThreads;
-        return oldThreads.map(thread => {
-          if (thread.thread.id === message.threadId) {
-            return {
-              ...thread,
-              thread: {
-                ...thread.thread,
-                lastMessageAt: message.createdAt,
-                lastMessagePreview: message.content?.substring(0, 100),
-              },
-              unreadCount: message.receiverId === userId
-                ? thread.unreadCount + 1
-                : thread.unreadCount,
-            };
-          }
-          return thread;
-        });
-      }
-    );
+    queryClient.invalidateQueries({
+      queryKey: messagingKeys.threadPrefix(message.threadId, userId),
+    });
+    queryClient.invalidateQueries({
+      queryKey: messagingKeys.threadsPrefix(userId),
+    });
 
     // Show notification if not on thread
     if (!window.location.pathname.includes(message.threadId)) {
@@ -243,83 +214,49 @@ export function useMessagingSSE(userId: string | undefined, enabled = true) {
   const handleMessageRead = (data: { threadId: string; userId: string }) => {
     if (!userId) return;
 
-    queryClient.setQueryData(
-      messagingKeys.threads(userId),
-      (oldThreads: any[]) => {
-        if (!oldThreads) return oldThreads;
-        return oldThreads.map(thread => {
-          if (thread.thread.id === data.threadId) {
-            return { ...thread, unreadCount: 0 };
-          }
-          return thread;
-        });
-      }
-    );
+    queryClient.invalidateQueries({
+      queryKey: messagingKeys.threadPrefix(data.threadId, userId),
+    });
+    queryClient.invalidateQueries({
+      queryKey: messagingKeys.threadsPrefix(userId),
+    });
   };
 
   const handleMessageEdited = (editedMessage: any) => {
     if (!userId) return;
 
-    queryClient.setQueryData(
-      messagingKeys.thread(editedMessage.threadId, userId),
-      (oldData: any) => {
-        if (!oldData) return oldData;
-        return {
-          ...oldData,
-          messages: oldData.messages.map((msg: any) =>
-            msg.message.id === editedMessage.id
-              ? { ...msg, message: editedMessage }
-              : msg
-          ),
-        };
-      }
-    );
+    queryClient.invalidateQueries({
+      queryKey: messagingKeys.threadPrefix(editedMessage.threadId, userId),
+    });
   };
 
   const handleMessageDeleted = (deletedMessage: any) => {
     if (!userId) return;
 
-    queryClient.setQueryData(
-      messagingKeys.thread(deletedMessage.threadId, userId),
-      (oldData: any) => {
-        if (!oldData) return oldData;
-        return {
-          ...oldData,
-          messages: oldData.messages.filter(
-            (msg: any) => msg.message.id !== deletedMessage.id
-          ),
-        };
-      }
-    );
+    queryClient.invalidateQueries({
+      queryKey: messagingKeys.threadPrefix(deletedMessage.threadId, userId),
+    });
   };
 
   const handleNewRequestEvent = (request: any) => {
     if (!userId) return;
 
-    queryClient.setQueryData(
-      messagingKeys.requests(userId, 'received', 'pending'),
-      (oldRequests: any[]) => {
-        if (!oldRequests) return [request];
-        return [request, ...oldRequests];
-      }
-    );
+    queryClient.invalidateQueries({
+      queryKey: messagingKeys.requestsPrefix(userId),
+    });
     toast.info('New message request', {
-      description: `From ${request.requester?.name || 'someone'}`,
+      description: 'Open requests to review it.',
     });
   };
 
   const handleRequestAccepted = (data: any) => {
     if (!userId) return;
 
-    queryClient.setQueryData(
-      messagingKeys.requests(userId, 'sent', 'pending'),
-      (oldRequests: any[]) => {
-        if (!oldRequests) return oldRequests;
-        return oldRequests.filter(req => req.request.id !== data.requestId);
-      }
-    );
     queryClient.invalidateQueries({
-      queryKey: messagingKeys.threads(userId),
+      queryKey: messagingKeys.requestsPrefix(userId),
+    });
+    queryClient.invalidateQueries({
+      queryKey: messagingKeys.threadsPrefix(userId),
     });
     toast.success('Your message request was accepted!');
   };
@@ -327,17 +264,9 @@ export function useMessagingSSE(userId: string | undefined, enabled = true) {
   const handleRequestRejected = (data: any) => {
     if (!userId) return;
 
-    queryClient.setQueryData(
-      messagingKeys.requests(userId, 'sent', 'pending'),
-      (oldRequests: any[]) => {
-        if (!oldRequests) return oldRequests;
-        return oldRequests.map(req =>
-          req.request.id === data.requestId
-            ? { ...req, request: { ...req.request, status: 'rejected' } }
-            : req
-        );
-      }
-    );
+    queryClient.invalidateQueries({
+      queryKey: messagingKeys.requestsPrefix(userId),
+    });
     toast.info('Your message request was declined');
   };
 

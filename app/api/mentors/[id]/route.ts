@@ -6,7 +6,7 @@ import { requireMentee } from '@/lib/api/guards';
 import { resolveStorageUrl } from '@/lib/storage';
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {

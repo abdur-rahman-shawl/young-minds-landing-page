@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -10,129 +10,67 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Bell, Calendar, MessageSquare, User, Clock, Check, X, MoreHorizontal, RotateCcw } from 'lucide-react';
+import { Bell, Calendar, MessageSquare, User, Check, X, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
-
-interface Notification {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  isRead: boolean;
-  createdAt: string;
-  actionUrl?: string;
-  actionText?: string;
-}
+import {
+  type NotificationItem,
+  useBulkNotificationsMutation,
+  useDeleteNotificationMutation,
+  useNotificationsQuery,
+  useUpdateNotificationMutation,
+} from '@/hooks/queries/use-notification-queries';
 
 export function NotificationBell() {
   const { session } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  
-  // Use refs to prevent infinite loops and track state without causing re-renders
-  const isFetchingRef = useRef(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const lastFetchTimeRef = useRef<number>(0);
-  const hasFetchedInitialRef = useRef(false);
-
-  // Fetch notifications - NOT memoized to avoid dependency issues
-  const fetchNotifications = async () => {
-    // Prevent concurrent fetches and rate limit to every 10 seconds minimum
-    const now = Date.now();
-    if (!session || isFetchingRef.current || (now - lastFetchTimeRef.current < 10000)) {
-      return;
-    }
-    
-    // Abort any ongoing request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    isFetchingRef.current = true;
-    lastFetchTimeRef.current = now;
-    abortControllerRef.current = new AbortController();
-
-    try {
-      const response = await fetch('/api/notifications?limit=10', {
-        signal: abortControllerRef.current.signal
-      });
-      const data = await response.json();
-
-      if (response.ok) {
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unreadCount || 0);
-      }
-    } catch (error: any) {
-      // Ignore abort errors
-      if (error?.name !== 'AbortError') {
-        console.error('Failed to fetch notifications:', error);
-      }
-    } finally {
-      isFetchingRef.current = false;
-    }
-  };
+  const userId = session?.user?.id;
+  const notificationsQuery = useNotificationsQuery(userId, { limit: 10 });
+  const updateNotificationMutation = useUpdateNotificationMutation();
+  const bulkNotificationsMutation = useBulkNotificationsMutation();
+  const deleteNotificationMutation = useDeleteNotificationMutation();
+  const notifications = notificationsQuery.data?.notifications ?? [];
+  const unreadCount = notificationsQuery.data?.unreadCount ?? 0;
+  const loading = notificationsQuery.isLoading && notifications.length === 0;
 
   // Mark notification as read
   const markAsRead = async (notificationId: string) => {
-    try {
-      const response = await fetch(`/api/notifications/${notificationId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isRead: true }),
-      });
-
-      if (response.ok) {
-        setNotifications(prev =>
-          prev.map(notif =>
-            notif.id === notificationId ? { ...notif, isRead: true } : notif
-          )
-        );
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      }
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+    if (!userId) {
+      return;
     }
+
+    await updateNotificationMutation.mutateAsync({
+      notificationId,
+      userId,
+      isRead: true,
+    });
   };
 
   // Mark all as read
   const markAllAsRead = async () => {
-    try {
-      const response = await fetch('/api/notifications/bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'mark_read', markAllAsRead: true }),
-      });
-
-      if (response.ok) {
-        setNotifications(prev => prev.map(notif => ({ ...notif, isRead: true })));
-        setUnreadCount(0);
-        toast.success('All notifications marked as read');
-      }
-    } catch (error) {
-      console.error('Failed to mark all as read:', error);
-      toast.error('Failed to mark notifications as read');
+    if (!userId) {
+      return;
     }
+
+    await bulkNotificationsMutation.mutateAsync({
+      userId,
+      action: 'mark_read',
+      markAllAsRead: true,
+    });
+    toast.success('All notifications marked as read');
   };
 
   // Delete notification
   const deleteNotification = async (notificationId: string) => {
-    try {
-      const response = await fetch(`/api/notifications/${notificationId}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
-        toast.success('Notification deleted');
-      }
-    } catch (error) {
-      console.error('Failed to delete notification:', error);
-      toast.error('Failed to delete notification');
+    if (!userId) {
+      return;
     }
+
+    await deleteNotificationMutation.mutateAsync({
+      notificationId,
+      userId,
+    });
   };
 
   // Get notification icon
@@ -181,9 +119,9 @@ export function NotificationBell() {
   };
 
   // Handle notification click
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = (notification: NotificationItem) => {
     if (!notification.isRead) {
-      markAsRead(notification.id);
+      void markAsRead(notification.id);
     }
 
     if (notification.actionUrl) {
@@ -193,42 +131,13 @@ export function NotificationBell() {
     setIsOpen(false);
   };
 
-  // Single effect for initial fetch only when session becomes available
   useEffect(() => {
-    if (!session || hasFetchedInitialRef.current) return;
-    
-    hasFetchedInitialRef.current = true;
-    fetchNotifications();
-  }, [session]); // Only depend on session
+    if (!session || !isOpen) {
+      return;
+    }
 
-  // Effect for dropdown state changes
-  useEffect(() => {
-    if (!session || !isOpen) return;
-    
-    // Fetch when dropdown opens (rate limited by the function itself)
-    fetchNotifications();
-  }, [isOpen]); // Only depend on isOpen
-
-  // Effect for polling - separate to avoid dependency issues
-  useEffect(() => {
-    if (!session) return;
-
-    // Set up polling with reasonable interval
-    const pollInterval = setInterval(() => {
-      // Only poll if dropdown is closed
-      if (!isOpen) {
-        fetchNotifications();
-      }
-    }, 60000); // Poll every minute
-
-    // Cleanup
-    return () => {
-      clearInterval(pollInterval);
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [session]); // Only depend on session, isOpen is intentionally read from outer scope
+    void notificationsQuery.refetch();
+  }, [isOpen, notificationsQuery.refetch, session]);
 
   if (!session) return null;
 

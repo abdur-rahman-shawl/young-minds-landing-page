@@ -31,6 +31,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
+import { AdminDirectMessageDialog } from './admin-direct-message-dialog';
 import {
   CheckCircle2,
   ExternalLink,
@@ -43,6 +44,7 @@ import {
   Phone,
   Github,
   Mail,
+  MessageSquare,
   Crown,
   Send,
 } from 'lucide-react';
@@ -193,6 +195,7 @@ export function AdminMentors() {
   const [expertToggles, setExpertToggles] = useState<Record<string, boolean>>({});
   const [sendingCouponId, setSendingCouponId] = useState<string | null>(null);
   const [updatingExpertId, setUpdatingExpertId] = useState<string | null>(null);
+  const [messageRecipient, setMessageRecipient] = useState<Mentor | null>(null);
   const [verifiedFilters, setVerifiedFilters] = useState({
     paymentPending: false,
     couponEnabled: false,
@@ -380,6 +383,10 @@ export function AdminMentors() {
     setShowDetails(false);
     setSelectedMentor(null);
     setAuditData(null);
+  };
+
+  const openMessageDialog = (mentor: Mentor) => {
+    setMessageRecipient(mentor);
   };
 
   const handleRowKeyDown = (
@@ -857,6 +864,15 @@ export function AdminMentors() {
                         </Button>
                       </>
                     )}
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      className='gap-1.5'
+                      onClick={handleButtonClick(() => openMessageDialog(mentor))}
+                    >
+                      <MessageSquare className='h-4 w-4' />
+                      Message
+                    </Button>
                     </div>
                   </div>
                 </div>
@@ -1381,6 +1397,15 @@ export function AdminMentors() {
             </div>
             <DialogFooter className="pt-4 border-t">
               <section className='flex flex-wrap justify-end gap-2'>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='gap-1.5'
+                  onClick={() => openMessageDialog(selectedMentor)}
+                >
+                  <MessageSquare className='h-4 w-4' />
+                  Message
+                </Button>
                 {(selectedMentor.verificationStatus === 'IN_PROGRESS' || selectedMentor.verificationStatus === 'RESUBMITTED' || selectedMentor.verificationStatus === 'UPDATED_PROFILE') && (
                   <>
                     <Button
@@ -1497,6 +1522,21 @@ export function AdminMentors() {
           </DialogContent>
         )}
       </Dialog>
+      <AdminDirectMessageDialog
+        open={!!messageRecipient}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMessageRecipient(null);
+          }
+        }}
+        recipientId={messageRecipient?.userId ?? null}
+        recipientName={
+          messageRecipient?.name ||
+          messageRecipient?.fullName ||
+          'this mentor'
+        }
+        recipientRoleLabel='mentor'
+      />
     </div>
   );
 }

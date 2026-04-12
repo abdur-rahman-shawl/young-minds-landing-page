@@ -18,7 +18,6 @@ import {
   addMinutes,
   isBefore,
   isAfter,
-  isWithinInterval,
   getDay,
   parse,
   addHours,
@@ -29,6 +28,7 @@ import {
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { applyBlockedTimes } from '@/lib/utils/availability-validation';
 import { requireMentee } from '@/lib/api/guards';
+import { hasBlockingAvailabilityException } from '@/lib/mentor/availability-rules';
 
 interface TimeBlock {
   startTime: string;
@@ -48,9 +48,11 @@ interface AvailableSlot {
 // Returns available time slots for a mentor within a date range
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const guard = await requireMentee(req, true);
     if ('error' in guard) {
       return guard.error;
@@ -83,7 +85,7 @@ export async function GET(
     const mentor = await db
       .select()
       .from(mentors)
-      .where(eq(mentors.userId, params.id))
+      .where(eq(mentors.userId, id))
       .limit(1);
 
     if (!mentor.length) {
@@ -157,7 +159,7 @@ export async function GET(
       .from(sessions)
       .where(
         and(
-          eq(sessions.mentorId, mentor[0].id),
+          eq(sessions.mentorId, mentor[0].userId),
           gte(sessions.scheduledAt, start),
           lte(sessions.scheduledAt, end),
           eq(sessions.status, 'scheduled')
@@ -187,11 +189,9 @@ export async function GET(
       
       if (pattern && pattern.isEnabled && pattern.timeBlocks) {
         // Check if this day is within an exception period
-        const isException = exceptions.some(exc => 
-          isWithinInterval(currentDate, {
-            start: exc.startDate,
-            end: exc.endDate
-          }) && exc.type === 'UNAVAILABLE'
+        const isException = hasBlockingAvailabilityException(
+          exceptions,
+          currentDate
         );
 
         if (!isException) {

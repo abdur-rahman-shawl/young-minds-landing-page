@@ -18,6 +18,7 @@ import { Check, Clock, XCircle, Calendar, ArrowRight, AlertCircle } from "lucide
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { TimeSlotSelectorV2 } from "./time-slot-selector-v2";
+import { useRespondToRescheduleRequestMutation } from "@/hooks/queries/use-booking-queries";
 
 interface RescheduleResponseDialogProps {
     open: boolean;
@@ -55,6 +56,7 @@ export function RescheduleResponseDialog({
     const [cancellationReason, setCancellationReason] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
+    const respondToRescheduleRequestMutation = useRespondToRescheduleRequestMutation();
 
     const maxCounterProposals = 3;
     const canCounterPropose = counterProposalCount < maxCounterProposals;
@@ -92,17 +94,13 @@ export function RescheduleResponseDialog({
 
         setIsLoading(true);
         try {
-            const response = await fetch(`/api/bookings/${sessionId}/reschedule/respond`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
+            await respondToRescheduleRequestMutation.mutateAsync({
+                bookingId: sessionId,
+                requestId,
+                action: action as 'accept' | 'reject' | 'counter_propose' | 'cancel_session',
+                counterProposedTime: body.counterProposedTime as string | undefined,
+                cancellationReason: body.cancellationReason as string | undefined,
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || "Failed to process response");
-            }
 
             let successTitle = "";
             let successMessage = "";

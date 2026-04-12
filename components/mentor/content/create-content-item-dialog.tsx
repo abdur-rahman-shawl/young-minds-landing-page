@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Video, FileText, Type, Link as LinkIcon, Upload, X, Save, Loader2, Clock, Eye, Play, Check } from 'lucide-react';
+import { Video, FileText, Type, Link as LinkIcon, Upload, X, Save, Loader2, Clock, Eye, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,9 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import { MentorContentErrorBoundary, useMentorContentErrorHandler } from './mentor-content-error-boundary';
+import {
+  useCreateContentItem,
+  useUploadFile,
+} from '@/hooks/queries/use-content-queries';
 
 const contentItemSchema = z.object({
   type: z.enum(['VIDEO', 'DOCUMENT', 'TEXT', 'URL']),
@@ -90,67 +92,9 @@ export function CreateContentItemDialog({ sectionId, open, onOpenChange }: Creat
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const queryClient = useQueryClient();
   const { handleError } = useMentorContentErrorHandler();
-  
-  const createContentItemMutation = useMutation({
-    mutationFn: async (data: ContentItemForm) => {
-      const response = await fetch(`/api/mentors/content/sections/${sectionId}/content-items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create content item');
-      }
-      
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mentor-content'] });
-      toast.success('Content item created successfully!');
-      onOpenChange(false);
-      form.reset();
-      setSelectedFile(null);
-      setActiveTab('type');
-      setUploadProgress(0);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-      setUploadProgress(0);
-    },
-  });
-  
-  const uploadFileMutation = useMutation({
-    mutationFn: async (file: File) => {
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', 'content-item');
-        
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || 'Upload failed');
-        }
-        
-        return response.json();
-      } catch (error) {
-        handleError(error as Error, 'file-upload');
-        throw error;
-      }
-    },
-    onError: (error: Error) => {
-      toast.error(`Upload failed: ${error.message}`);
-      setUploadProgress(0);
-    },
-  });
+  const createContentItemMutation = useCreateContentItem();
+  const uploadFileMutation = useUploadFile();
   
   const form = useForm<ContentItemForm>({
     resolver: zodResolver(contentItemSchema),
@@ -218,7 +162,10 @@ export function CreateContentItemDialog({ sectionId, open, onOpenChange }: Creat
         finalData.content = data.url; // Backend expects 'content' field for URL
       } else if ((data.type === 'VIDEO' || data.type === 'DOCUMENT') && selectedFile) {
         setUploadProgress(10);
-        const uploadResult = await uploadFileMutation.mutateAsync(selectedFile);
+        const uploadResult = await uploadFileMutation.mutateAsync({
+          file: selectedFile,
+          type: 'content-item',
+        });
         setUploadProgress(70);
         
         finalData.fileUrl = uploadResult.fileUrl;
@@ -231,10 +178,22 @@ export function CreateContentItemDialog({ sectionId, open, onOpenChange }: Creat
       }
       
       setUploadProgress(90);
-      await createContentItemMutation.mutateAsync(finalData);
+      await createContentItemMutation.mutateAsync({
+        sectionId,
+        data: finalData,
+      });
       setUploadProgress(100);
+      onOpenChange(false);
+      form.reset();
+      setSelectedFile(null);
+      setActiveTab('type');
+      setUploadProgress(0);
     } catch (error) {
+      if (error instanceof Error) {
+        handleError(error, 'content-item-create');
+      }
       console.error('Error creating content item:', error);
+      setUploadProgress(0);
     }
   };
   

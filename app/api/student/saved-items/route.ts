@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db } from '@/lib/db';
-import { auth } from '@/lib/auth';
 import {
   courseEnrollments,
   courseProgress,
@@ -15,6 +14,7 @@ import {
   mentors,
   users,
 } from '@/lib/db/schema';
+import { requireMentee } from '@/lib/api/guards';
 import { rateLimit, RateLimitError } from '@/lib/rate-limit';
 
 const savedItemsRateLimit = rateLimit({
@@ -29,15 +29,9 @@ export async function GET(request: NextRequest) {
   try {
     savedItemsRateLimit.check(request);
 
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+    const guard = await requireMentee(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
 
     const mentorUsers = alias(users, 'mentor_users');
@@ -67,7 +61,7 @@ export async function GET(request: NextRequest) {
       .innerJoin(mentorUsers, eq(mentors.userId, mentorUsers.id))
       .where(
         and(
-          eq(users.id, session.user.id),
+          eq(users.id, guard.session.user.id),
           sql`${courseProgress.bookmarkedAt} IS NOT NULL`
         )
       )
@@ -98,15 +92,9 @@ export async function DELETE(request: NextRequest) {
   try {
     savedItemsRateLimit.check(request);
 
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+    const guard = await requireMentee(request, true);
+    if ('error' in guard) {
+      return guard.error;
     }
 
     const { searchParams } = new URL(request.url);
@@ -130,7 +118,7 @@ export async function DELETE(request: NextRequest) {
         eq(courseEnrollments.menteeId, mentees.id),
         eq(courseEnrollments.courseId, courseId)
       ))
-      .where(eq(users.id, session.user.id))
+      .where(eq(users.id, guard.session.user.id))
       .limit(1);
 
     if (!enrollment.length) {

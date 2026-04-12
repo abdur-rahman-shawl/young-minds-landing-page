@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,12 @@ import { Calendar, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { TimeSlotSelectorV2 } from "./time-slot-selector-v2";
+import { useAuth } from "@/contexts/auth-context";
+import {
+  useBookingQuery,
+  useCreateRescheduleRequestMutation,
+  useSessionPoliciesQuery,
+} from "@/hooks/queries/use-booking-queries";
 
 interface RescheduleDialogProps {
   open: boolean;
@@ -50,14 +56,20 @@ export function RescheduleDialog({
 }: RescheduleDialogProps) {
   const [selectedTime, setSelectedTime] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionData, setSessionData] = useState<{
-    rescheduleCount: number;
-    mentorRescheduleCount: number;
-  } | null>(null);
-  const [policyData, setPolicyData] = useState<PolicyData | null>(null);
-  const [loadingSession, setLoadingSession] = useState(false);
-  const [loadingPolicies, setLoadingPolicies] = useState(false);
+  const { session } = useAuth();
   const { toast } = useToast();
+  const bookingQuery = useBookingQuery(open ? sessionId : null, session?.user?.id);
+  const policiesQuery = useSessionPoliciesQuery(session?.user?.id, open ? userRole : undefined);
+  const createRescheduleRequestMutation = useCreateRescheduleRequestMutation();
+  const sessionData = bookingQuery.data
+    ? {
+        rescheduleCount: bookingQuery.data.rescheduleCount ?? 0,
+        mentorRescheduleCount: bookingQuery.data.mentorRescheduleCount ?? 0,
+      }
+    : null;
+  const policyData = (policiesQuery.data as PolicyData | undefined) ?? null;
+  const loadingSession = bookingQuery.isLoading;
+  const loadingPolicies = policiesQuery.isLoading;
 
   // Use fetched session data if available, otherwise use props
   const currentRescheduleCount = sessionData
@@ -71,55 +83,6 @@ export function RescheduleDialog({
   const remainingReschedules = maxReschedules - currentRescheduleCount;
   const canReschedule = remainingReschedules > 0;
   const otherPartyLabel = userRole === "mentor" ? "mentee" : "mentor";
-
-  // Fetch policies when dialog opens
-  useEffect(() => {
-    const fetchPolicies = async () => {
-      if (!open) return;
-
-      setLoadingPolicies(true);
-      try {
-        const response = await fetch(`/api/session-policies?role=${userRole}`);
-        const data = await response.json();
-
-        if (response.ok) {
-          setPolicyData(data);
-        }
-      } catch (error) {
-        console.error("Error fetching policies:", error);
-      } finally {
-        setLoadingPolicies(false);
-      }
-    };
-
-    fetchPolicies();
-  }, [open, userRole]);
-
-  // Fetch session data when dialog opens to get accurate reschedule count
-  useEffect(() => {
-    const fetchSessionData = async () => {
-      if (!open || !sessionId) return;
-
-      setLoadingSession(true);
-      try {
-        const response = await fetch(`/api/bookings/${sessionId}`);
-        const data = await response.json();
-
-        if (response.ok && data.booking) {
-          setSessionData({
-            rescheduleCount: data.booking.rescheduleCount ?? 0,
-            mentorRescheduleCount: data.booking.mentorRescheduleCount ?? 0,
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching session data:", error);
-      } finally {
-        setLoadingSession(false);
-      }
-    };
-
-    fetchSessionData();
-  }, [open, sessionId]);
 
   const handleTimeSelected = (time: Date) => {
     setSelectedTime(time);
@@ -146,22 +109,11 @@ export function RescheduleDialog({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/bookings/${sessionId}/reschedule`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          scheduledAt: selectedTime.toISOString(),
-          duration: currentDuration,
-        }),
+      await createRescheduleRequestMutation.mutateAsync({
+        bookingId: sessionId,
+        scheduledAt: selectedTime.toISOString(),
+        duration: currentDuration,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to reschedule session");
-      }
 
       toast({
         title: "📅 Reschedule Request Sent",
@@ -187,8 +139,6 @@ export function RescheduleDialog({
   const handleClose = (open: boolean) => {
     if (!open) {
       setSelectedTime(null);
-      setSessionData(null);
-      setPolicyData(null);
     }
     onOpenChange(open);
   };

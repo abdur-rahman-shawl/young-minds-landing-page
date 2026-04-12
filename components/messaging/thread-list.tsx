@@ -35,6 +35,7 @@ interface Thread {
     name: string;
     email: string;
     image?: string;
+    isAdmin?: boolean;
   } | null;
   unreadCount: number;
   isArchived: boolean;
@@ -93,7 +94,7 @@ export function ThreadList({ threads, loading, onThreadSelect, userId }: ThreadL
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="p-4 pb-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
@@ -106,7 +107,7 @@ export function ThreadList({ threads, loading, onThreadSelect, userId }: ThreadL
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-2 p-4 pt-0">
           {filteredThreads.map((thread) => (
             <Card
@@ -127,10 +128,20 @@ export function ThreadList({ threads, loading, onThreadSelect, userId }: ThreadL
                 </Avatar>
 
                 <div className="flex-1 min-w-0 overflow-hidden">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="font-semibold text-sm truncate pr-2">
-                      {thread.otherUser?.name || 'Unknown User'}
-                    </h4>
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2 pr-2">
+                      <h4 className="truncate text-sm font-semibold">
+                        {thread.otherUser?.name || 'Unknown User'}
+                      </h4>
+                      {thread.otherUser?.isAdmin && (
+                        <Badge
+                          variant="secondary"
+                          className="h-5 shrink-0 px-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                        >
+                          Admin
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {thread.unreadCount > 0 && (
                         <span className="flex h-2 w-2 rounded-full bg-primary" />

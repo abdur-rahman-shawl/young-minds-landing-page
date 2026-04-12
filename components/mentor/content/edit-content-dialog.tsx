@@ -4,26 +4,23 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { FileText, Link, Upload, X, Save, Eye, Clock, Loader2, Calendar, User, BarChart3 } from 'lucide-react';
+import { FileText, Upload, X, Save, Eye, Clock, Loader2, User, BarChart3 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { useUpdateContent, useUploadFile, MentorContent } from '@/hooks/queries/use-content-queries';
-import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 
 const editContentSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100, 'Title must be less than 100 characters'),
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
-  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
   url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
   urlTitle: z.string().max(100, 'URL title must be less than 100 characters').optional(),
   urlDescription: z.string().max(200, 'URL description must be less than 200 characters').optional(),
@@ -51,7 +48,6 @@ export function EditContentDialog({ content, open, onOpenChange }: EditContentDi
     defaultValues: {
       title: content.title,
       description: content.description || '',
-      status: content.status,
       url: content.url || '',
       urlTitle: content.urlTitle || '',
       urlDescription: content.urlDescription || '',
@@ -79,7 +75,8 @@ export function EditContentDialog({ content, open, onOpenChange }: EditContentDi
       await updateContentMutation.mutateAsync({
         id: content.id,
         data: {
-          ...data,
+          title: data.title,
+          description: data.description,
           // Only include URL fields if this is a URL type content
           ...(content.type === 'URL' ? {
             url: data.url,
@@ -136,10 +133,18 @@ export function EditContentDialog({ content, open, onOpenChange }: EditContentDi
         });
         
         updateData = {
-          ...updateData,
-          fileUrl: uploadResult.url,
-          fileName: uploadResult.name,
-          fileSize: uploadResult.size,
+          title: data.title,
+          description: data.description,
+          ...(content.type === 'URL'
+            ? {
+                url: data.url,
+                urlTitle: data.urlTitle,
+                urlDescription: data.urlDescription,
+              }
+            : {}),
+          fileUrl: uploadResult.fileUrl,
+          fileName: uploadResult.fileName,
+          fileSize: uploadResult.fileSize,
           mimeType: uploadResult.mimeType,
         };
       }
@@ -149,7 +154,6 @@ export function EditContentDialog({ content, open, onOpenChange }: EditContentDi
         data: updateData,
       });
       
-      toast.success('Content updated successfully!');
       onOpenChange(false);
     } catch (error) {
       console.error('Error updating content:', error);
@@ -158,12 +162,18 @@ export function EditContentDialog({ content, open, onOpenChange }: EditContentDi
   
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'PUBLISHED':
+      case 'APPROVED':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'DRAFT':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'PENDING_REVIEW':
+        return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'REJECTED':
+        return 'bg-red-100 text-red-800 border-red-200';
       case 'ARCHIVED':
         return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'FLAGGED':
+        return 'bg-rose-100 text-rose-800 border-rose-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -255,52 +265,6 @@ export function EditContentDialog({ content, open, onOpenChange }: EditContentDi
                       )}
                     />
                     
-                    <FormField
-                      control={form.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Status</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="DRAFT">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-                                  <div>
-                                    <div className="font-medium">Draft</div>
-                                    <div className="text-xs text-gray-500">Not visible to mentees</div>
-                                  </div>
-                                </div>
-                              </SelectItem>
-                              <SelectItem value="PUBLISHED">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 bg-green-500 rounded-full" />
-                                  <div>
-                                    <div className="font-medium">Published</div>
-                                    <div className="text-xs text-gray-500">Visible to mentees</div>
-                                  </div>
-                                </div>
-                              </SelectItem>
-                              <SelectItem value="ARCHIVED">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 bg-gray-500 rounded-full" />
-                                  <div>
-                                    <div className="font-medium">Archived</div>
-                                    <div className="text-xs text-gray-500">Hidden from mentees</div>
-                                  </div>
-                                </div>
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                   </div>
                   
                   <Card>

@@ -1,11 +1,13 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { users, mentors, userRoles, roles, mentorsFormAuditTrail } from '@/lib/db/schema';
+import { users, mentors, userRoles, roles, mentorsFormAuditTrail, type NotificationType } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { uploadProfilePicture, uploadResume, normalizeStorageValue } from '@/lib/storage';
 import { sendApplicationReceivedEmail } from '@/lib/email';
+import { createNotificationRecord } from '@/lib/notifications/server/service';
+import { buildDashboardSectionUrl } from '@/lib/dashboard/sections';
 
 const MAX_RESUME_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -20,12 +22,13 @@ async function getAdminUserId() {
   return adminUser?.id;
 }
 
-async function sendNotification(userId: string, type: string, title: string, message: string, actionUrl?: string) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
-  await fetch(`${baseUrl}/api/notifications`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, type, title, message, actionUrl }),
+async function sendNotification(userId: string, type: NotificationType, title: string, message: string, actionUrl?: string) {
+  await createNotificationRecord({
+    userId,
+    type,
+    title,
+    message,
+    actionUrl,
   });
 }
 
@@ -226,7 +229,7 @@ export async function POST(request: NextRequest) {
           'MENTOR_APPLICATION_UPDATE_REQUESTED',
           'Mentor Application Updated',
           `${fullName} has updated their mentor application.`,
-          `/admin/dashboard?section=mentors&mentorId=${existingMentor.id}`
+          buildDashboardSectionUrl('/dashboard', 'mentors')
         );
       }
 

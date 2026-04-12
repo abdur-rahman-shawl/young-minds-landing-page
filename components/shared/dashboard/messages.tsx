@@ -28,5 +28,9 @@ export function Messages() {
     );
   }
 
-  return <MessagingHub userId={session.user.id} />;
+  return (
+    <div className="flex h-full min-h-0 w-full flex-1 overflow-hidden">
+      <MessagingHub userId={session.user.id} />
+    </div>
+  );
 } 

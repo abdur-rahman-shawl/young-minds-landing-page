@@ -23,10 +23,9 @@ import {
 } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Send, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
+import { useSendRequestMutation } from '@/hooks/queries/use-messaging-queries';
 
 const messageRequestSchema = z.object({
   initialMessage: z
@@ -59,6 +58,7 @@ export function MessageRequestModal({
 }: MessageRequestModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sendRequestMutation = useSendRequestMutation();
 
   const form = useForm<MessageRequestFormData>({
     resolver: zodResolver(messageRequestSchema),
@@ -76,31 +76,19 @@ export function MessageRequestModal({
     setError(null);
 
     try {
-      const response = await fetch('/api/messaging/requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          recipientId,
-          requestType,
-          ...data,
-        }),
+      await sendRequestMutation.mutateAsync({
+        userId,
+        recipientId,
+        requestType,
+        ...data,
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to send message request');
-      }
-
-      toast.success('Message request sent successfully');
       form.reset();
       onSuccess?.();
       onClose();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       setError(errorMessage);
-      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

@@ -115,7 +115,7 @@ export const adminAuditTrail = pgTable('admin_audit_trail', {
 
 ### 3.1 Middleware Protection
 
-**File:** `middleware.ts`
+**File:** `proxy.ts`
 
 ```typescript
 // Admin-only routes
@@ -651,31 +651,30 @@ const items = [
 
 ## 7. Admin Sessions Management
 
-> **Status:** Planned  
+> **Status:** Implemented  
 > **Full Documentation:** See [booking-system.md → Admin Sessions Management](./booking-system.md#admin-sessions-management)
 
-The Admin Sessions Dashboard provides full visibility and control over all platform sessions.
+The current admin sessions runtime uses a shared bookings service plus tRPC. The old internal `/api/admin/sessions/**` handlers have been retired.
 
 ### 7.1 Dashboard Features
 
 | Feature | Description |
 |---------|-------------|
 | **KPI Cards** | Total sessions, completed, cancelled, no-show rate, revenue, refunds |
-| **Sessions Table** | Filterable, sortable, paginated list of all sessions |
-| **Session Detail Panel** | Full session info with mentor/mentee profiles, timeline, notes |
-| **Bulk Actions** | Export to CSV, bulk cancel |
+| **Sessions Table** | Searchable, status-filtered, paginated list of all sessions |
+| **Operational Actions** | Force cancel, force complete, manual refund, clear no-show |
+| **Typed Admin Transport** | Shared service + tRPC-backed queries and mutations |
 
 ### 7.2 Admin Actions on Sessions
 
-| Action | API Endpoint | Audit Action |
-|--------|--------------|---------------|
-| **Force Cancel** | `POST /api/admin/sessions/[id]/cancel` | `ADMIN_FORCE_CANCEL` |
-| **Force Complete** | `POST /api/admin/sessions/[id]/complete` | `ADMIN_FORCE_COMPLETE` |
-| **Issue Refund** | `POST /api/admin/sessions/[id]/refund` | `ADMIN_MANUAL_REFUND` |
-| **Reassign Session** | `POST /api/admin/sessions/[id]/reassign` | `ADMIN_REASSIGN_SESSION` |
-| **Clear No-Show** | `POST /api/admin/sessions/[id]/clear-no-show` | `ADMIN_CLEAR_NO_SHOW` |
-| **Override Policy** | `POST /api/admin/sessions/[id]/override-policy` | `ADMIN_POLICY_OVERRIDE` |
-| **Add Note** | `POST /api/admin/sessions/[id]/notes` | `ADMIN_NOTE_ADDED` |
+| Action | Runtime Procedure | Audit Action |
+|--------|-------------------|---------------|
+| **Force Cancel** | `bookings.adminCancel` | `ADMIN_FORCE_CANCEL` |
+| **Force Complete** | `bookings.adminComplete` | `ADMIN_FORCE_COMPLETE` |
+| **Issue Refund** | `bookings.adminRefund` | `ADMIN_MANUAL_REFUND` |
+| **Reassign Session** | `bookings.adminReassign` | `ADMIN_REASSIGN_SESSION` |
+| **Clear No-Show** | `bookings.adminClearNoShow` | `ADMIN_CLEAR_NO_SHOW` |
+| **Add Note** | `bookings.adminAddNote` | `ADMIN_NOTE_ADDED` |
 
 ### 7.3 New Database Tables
 
@@ -685,40 +684,38 @@ The Admin Sessions Dashboard provides full visibility and control over all platf
 | `admin_session_notes` | `lib/db/schema/admin-session-notes.ts` | Internal notes on sessions |
 | `session_disputes` | `lib/db/schema/session-disputes.ts` | Dispute tracking (optional) |
 
-### 7.4 Session-Specific API Endpoints
+### 7.4 Current Runtime Procedures
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/admin/sessions` | GET | Fetch all sessions (paginated, filtered) |
-| `/api/admin/sessions/stats` | GET | Dashboard statistics |
-| `/api/admin/sessions/export` | GET | Export to CSV |
-| `/api/admin/sessions/[id]` | GET | Session details |
-| `/api/admin/sessions/[id]/cancel` | POST | Force cancel |
-| `/api/admin/sessions/[id]/complete` | POST | Force complete |
-| `/api/admin/sessions/[id]/refund` | POST | Manual refund |
-| `/api/admin/sessions/[id]/reassign` | POST | Reassign to different mentor |
-| `/api/admin/sessions/[id]/clear-no-show` | POST | Clear no-show flag |
-| `/api/admin/sessions/[id]/override-policy` | POST | Bypass policy limits |
-| `/api/admin/sessions/[id]/notes` | GET/POST | Admin notes |
+| Procedure | Type | Purpose |
+|-----------|------|---------|
+| `bookings.adminList` | query | Fetch all sessions (paginated, filtered) |
+| `bookings.adminStats` | query | Dashboard statistics |
+| `bookings.adminGet` | query | Session details |
+| `bookings.adminCancel` | mutation | Force cancel |
+| `bookings.adminComplete` | mutation | Force complete |
+| `bookings.adminRefund` | mutation | Manual refund |
+| `bookings.adminReassign` | mutation | Reassign to different mentor |
+| `bookings.adminClearNoShow` | mutation | Clear no-show flag |
+| `bookings.adminListNotes` | query | Read admin notes |
+| `bookings.adminAddNote` | mutation | Add admin notes |
+
+Not currently implemented in shipped runtime:
+- admin session CSV export
+- admin policy override flow
+- dedicated admin-session detail-panel UI
 
 ### 7.5 Session Admin Emails
 
-| Email | Trigger | Recipients |
-|-------|---------|------------|
-| `sendAdminCancelledSessionEmail` | Admin force-cancels | Mentor + Mentee |
-| `sendAdminRefundIssuedEmail` | Admin issues refund | Mentee |
-| `sendAdminReassignedToMenteeEmail` | Admin reassigns | Mentee |
-| `sendAdminAssignedToMentorEmail` | Admin reassigns | New Mentor |
+Dedicated admin-session email templates are not currently wired in the shipped runtime. The current implementation focuses on RBAC, state transitions, audit logging, and typed internal transport.
 
 ### 7.6 Components
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `AdminSessions` | `admin-sessions.tsx` | Main sessions dashboard |
-| `SessionDetailPanel` | `session-detail-panel.tsx` | Side panel with full details |
-| `SessionsTable` | `sessions/sessions-table.tsx` | Data table component |
-| `SessionsFilters` | `sessions/sessions-filters.tsx` | Filter controls |
-| Action Dialogs | `sessions/*.tsx` | Force cancel, refund, reassign dialogs |
+| `AdminSessions` | `components/admin/dashboard/admin-sessions.tsx` | Main sessions dashboard |
+| `useAdminBookingQueries` | `hooks/queries/use-admin-booking-queries.ts` | Typed admin session queries and mutations |
+| `admin-service` | `lib/bookings/server/admin-service.ts` | Shared admin session business logic |
+| `bookingsRouter` | `lib/trpc/routers/bookings.ts` | Admin session tRPC procedures |
 
 > 📖 **For full implementation details**, see [booking-system.md → Admin Sessions Management](./booking-system.md#admin-sessions-management)
 
@@ -883,21 +880,6 @@ young-minds-landing-page/
 │           │   └── [mentorId]/
 │           │       └── audit/
 │           │           └── route.ts        # GET mentor audit
-│           ├── sessions/
-│           │   ├── route.ts                # GET all sessions
-│           │   ├── stats/
-│           │   │   └── route.ts            # GET dashboard stats
-│           │   ├── export/
-│           │   │   └── route.ts            # GET CSV export
-│           │   └── [id]/
-│           │       ├── route.ts            # GET session details
-│           │       ├── cancel/route.ts     # POST force cancel
-│           │       ├── complete/route.ts   # POST force complete
-│           │       ├── refund/route.ts     # POST manual refund
-│           │       ├── reassign/route.ts   # POST reassign
-│           │       ├── clear-no-show/route.ts
-│           │       ├── override-policy/route.ts
-│           │       └── notes/route.ts      # GET/POST admin notes
 │           └── subscriptions/
 │               ├── stats/
 │               │   └── route.ts            # GET subscription stats
@@ -913,17 +895,10 @@ young-minds-landing-page/
 │       │   ├── admin-overview.tsx          # Overview section
 │       │   ├── admin-mentors.tsx           # Mentors management (1400+ lines)
 │       │   ├── admin-mentees.tsx           # Mentees management
-│       │   ├── admin-sessions.tsx          # Sessions management (NEW)
-│       │   ├── session-detail-panel.tsx    # Session detail side panel (NEW)
+│       │   ├── admin-sessions.tsx          # Sessions management
 │       │   ├── admin-enquiries.tsx         # Enquiries management
 │       │   ├── admin-subscriptions.tsx     # Subscriptions management
 │       │   ├── MentorAuditView.tsx         # Profile change diff viewer
-│       │   ├── sessions/                   # Session action dialogs (NEW)
-│       │   │   ├── sessions-table.tsx
-│       │   │   ├── sessions-filters.tsx
-│       │   │   ├── force-cancel-dialog.tsx
-│       │   │   ├── manual-refund-dialog.tsx
-│       │   │   └── reassign-dialog.tsx
 │       │   └── subscriptions/
 │       │       ├── plans-management.tsx
 │       │       ├── features-management.tsx
@@ -931,6 +906,18 @@ young-minds-landing-page/
 │       │       └── usage-analytics.tsx
 │       └── sidebars/
 │           └── admin-sidebar.tsx           # Admin navigation sidebar
+│
+├── hooks/
+│   └── queries/
+│       └── use-admin-booking-queries.ts    # Admin session queries/mutations
+│
+├── lib/
+│   ├── bookings/
+│   │   └── server/
+│   │       └── admin-service.ts            # Shared admin session service
+│   └── trpc/
+│       └── routers/
+│           └── bookings.ts                 # Admin session procedures
 │
 ├── contexts/
 │   └── auth-context.tsx                    # isAdmin flag exposed
@@ -958,7 +945,7 @@ young-minds-landing-page/
 │   └── queries/
 │       └── use-session-query.ts            # React Query session hook
 │
-├── middleware.ts                           # Route protection middleware
+├── proxy.ts                                # Route protection proxy
 │
 └── scripts/
     └── make-user-admin.ts                  # Script to assign admin role

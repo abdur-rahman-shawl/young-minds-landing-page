@@ -21,6 +21,12 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { TimeSlotSelectorV2 } from "@/components/booking/time-slot-selector-v2";
+import { useAuth } from "@/contexts/auth-context";
+import {
+    useAlternativeMentorsQuery,
+    useRejectReassignmentMutation,
+    useSelectAlternativeMentorMutation,
+} from "@/hooks/queries/use-booking-queries";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -54,10 +60,9 @@ export default function SelectMentorPage() {
     const params = useParams();
     const router = useRouter();
     const { toast } = useToast();
+    const { session } = useAuth();
     const sessionId = params.id as string;
 
-    const [loading, setLoading] = useState(true);
-    const [sessionData, setSessionData] = useState<SessionData | null>(null);
     const [selectedMentor, setSelectedMentor] = useState<AlternativeMentor | null>(null);
     const [selectedTime, setSelectedTime] = useState<Date | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,40 +71,31 @@ export default function SelectMentorPage() {
 
     // Determine if this is fixed time (auto-reassigned) or flexible (no mentor found)
     const [fixedTimeMode, setFixedTimeMode] = useState(true);
+    const fixedTimeQuery = useAlternativeMentorsQuery(sessionId, session?.user?.id, true);
+    const flexibleTimeQuery = useAlternativeMentorsQuery(
+        sessionId,
+        session?.user?.id,
+        false
+    );
+    const selectAlternativeMentorMutation = useSelectAlternativeMentorMutation();
+    const rejectReassignmentMutation = useRejectReassignmentMutation();
 
     useEffect(() => {
-        fetchAlternativeMentors();
-    }, [sessionId]);
-
-    const fetchAlternativeMentors = async () => {
-        try {
-            // First try fixed time, if no mentors available, try flexible
-            let response = await fetch(`/api/bookings/${sessionId}/alternative-mentors?fixedTime=true`);
-            let data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to fetch mentors');
-            }
-
-            // If no mentors available at original time, try flexible mode
-            if (data.mentors.length === 0 || !data.mentors.some((m: AlternativeMentor) => m.isAvailableAtOriginalTime)) {
-                response = await fetch(`/api/bookings/${sessionId}/alternative-mentors?fixedTime=false`);
-                data = await response.json();
-                setFixedTimeMode(false);
-            }
-
-            setSessionData(data);
-        } catch (error) {
-            console.error('Error fetching mentors:', error);
-            toast({
-                title: "Error",
-                description: "Failed to load available mentors",
-                variant: "destructive",
-            });
-        } finally {
-            setLoading(false);
+        if (!fixedTimeQuery.isSuccess) {
+            return;
         }
-    };
+
+        const hasFixedTimeMentors =
+            fixedTimeQuery.data.mentors.length > 0 &&
+            fixedTimeQuery.data.mentors.some((mentor) => mentor.isAvailableAtOriginalTime);
+
+        setFixedTimeMode(hasFixedTimeMentors);
+    }, [fixedTimeQuery.data, fixedTimeQuery.isSuccess]);
+
+    const loading = fixedTimeMode
+        ? fixedTimeQuery.isLoading
+        : flexibleTimeQuery.isLoading;
+    const sessionData = (fixedTimeMode ? fixedTimeQuery.data : flexibleTimeQuery.data) as SessionData | undefined;
 
     const handleSelectMentor = async () => {
         if (!selectedMentor) return;
@@ -124,17 +120,11 @@ export default function SelectMentorPage() {
                 body.scheduledAt = selectedTime.toISOString();
             }
 
-            const response = await fetch(`/api/bookings/${sessionId}/select-alternative-mentor`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
+            await selectAlternativeMentorMutation.mutateAsync({
+                bookingId: sessionId,
+                newMentorId: body.newMentorId,
+                scheduledAt: body.scheduledAt,
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to select mentor');
-            }
 
             toast({
                 title: "✅ Session Confirmed!",
@@ -158,17 +148,10 @@ export default function SelectMentorPage() {
     const handleCancelSession = async () => {
         setIsCancelling(true);
         try {
-            const response = await fetch(`/api/bookings/${sessionId}/reject-reassignment`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reason: 'No suitable mentor found' }),
+            await rejectReassignmentMutation.mutateAsync({
+                bookingId: sessionId,
+                reason: 'No suitable mentor found',
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to cancel session');
-            }
 
             toast({
                 title: "✅ Session Cancelled",

@@ -23,7 +23,7 @@ while IFS= read -r route; do
   [[ "$route" =~ ^# ]] && continue
 
   if [[ ! -f "$route" ]]; then
-    echo "ERROR: Required route missing: $route"
+    echo "ERROR: Required policy entry point missing: $route"
     failures=$((failures + 1))
     continue
   fi
@@ -39,4 +39,4 @@ if [[ "$failures" -gt 0 ]]; then
   exit 1
 fi
 
-echo "OK: All required routes call policy runtime."
+echo "OK: All required policy entry points call policy runtime."

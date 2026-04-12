@@ -10,8 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, Save } from 'lucide-react';
-import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
+import {
+  useUpdateContentItem,
+  useUpdateModule,
+  useUpdateSection,
+} from '@/hooks/queries/use-content-queries';
 
 const moduleSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -43,7 +46,9 @@ interface EditItemDialogProps {
 
 export function EditItemDialog({ open, onOpenChange, type, data, contentId }: EditItemDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const queryClient = useQueryClient();
+  const updateModuleMutation = useUpdateModule();
+  const updateSectionMutation = useUpdateSection();
+  const updateContentItemMutation = useUpdateContentItem();
   
   const getSchema = () => {
     switch (type) {
@@ -81,39 +86,28 @@ export function EditItemDialog({ open, onOpenChange, type, data, contentId }: Ed
     setIsLoading(true);
     
     try {
-      let endpoint = '';
-      
       if (type === 'module') {
-        endpoint = `/api/mentors/content/${contentId}/course/modules/${data.id}`;
+        await updateModuleMutation.mutateAsync({
+          contentId: contentId!,
+          moduleId: data.id,
+          data: formData,
+        });
       } else if (type === 'section') {
-        endpoint = `/api/mentors/content/modules/${data.moduleId}/sections/${data.id}`;
+        await updateSectionMutation.mutateAsync({
+          moduleId: data.moduleId,
+          sectionId: data.id,
+          data: formData,
+        });
       } else if (type === 'contentItem') {
-        endpoint = `/api/mentors/content/sections/${data.sectionId}/content-items/${data.id}`;
+        await updateContentItemMutation.mutateAsync({
+          sectionId: data.sectionId,
+          itemId: data.id,
+          data: formData,
+        });
       }
-
-      const response = await fetch(endpoint, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to update ${type}`);
-      }
-
-      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`);
       onOpenChange(false);
-      
-      // Refresh the content data using React Query
-      if (contentId) {
-        queryClient.invalidateQueries({ queryKey: ['mentor-content', contentId] });
-      }
-      queryClient.invalidateQueries({ queryKey: ['mentor-content'] });
     } catch (error) {
       console.error(`Error updating ${type}:`, error);
-      toast.error(`Failed to update ${type}. Please try again.`);
     } finally {
       setIsLoading(false);
     }

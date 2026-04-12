@@ -18,6 +18,10 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, CheckCircle, XCircle, Loader2, UserRoundX, DollarSign, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+    useAcceptReassignmentMutation,
+    useRejectReassignmentMutation,
+} from "@/hooks/queries/use-booking-queries";
 
 interface ReassignmentResponseBannerProps {
     sessionId: string;
@@ -46,6 +50,8 @@ export function ReassignmentResponseBanner({
     const [rejectReason, setRejectReason] = useState("");
     const { toast } = useToast();
     const router = useRouter();
+    const acceptReassignmentMutation = useAcceptReassignmentMutation();
+    const rejectReassignmentMutation = useRejectReassignmentMutation();
 
     // Normalize sessionRate to number (may come as string from database)
     const rate = typeof sessionRate === 'string' ? parseFloat(sessionRate) : (sessionRate || 0);
@@ -53,16 +59,9 @@ export function ReassignmentResponseBanner({
     const handleAccept = async () => {
         setIsAccepting(true);
         try {
-            const response = await fetch(`/api/bookings/${sessionId}/accept-reassignment`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+            const data = await acceptReassignmentMutation.mutateAsync({
+                bookingId: sessionId,
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || "Failed to accept reassignment");
-            }
 
             toast({
                 title: "Session Confirmed!",
@@ -85,17 +84,10 @@ export function ReassignmentResponseBanner({
     const handleReject = async () => {
         setIsRejecting(true);
         try {
-            const response = await fetch(`/api/bookings/${sessionId}/reject-reassignment`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ reason: rejectReason.trim() || undefined }),
+            const data = await rejectReassignmentMutation.mutateAsync({
+                bookingId: sessionId,
+                reason: rejectReason.trim() || undefined,
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || "Failed to cancel session");
-            }
 
             toast({
                 title: "Session Cancelled",

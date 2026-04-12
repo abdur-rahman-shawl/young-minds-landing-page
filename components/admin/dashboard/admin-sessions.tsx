@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import {
     Card,
     CardContent,
@@ -37,8 +37,18 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import {
+    useAdminCancelSessionMutation,
+    useAdminClearNoShowMutation,
+    useAdminCompleteSessionMutation,
+    useAdminRefundSessionMutation,
+    useAdminSessionStatsQuery,
+    useAdminSessionsQuery,
+    type AdminSessionItem,
+    type AdminSessionPagination,
+    type AdminSessionStats,
+} from "@/hooks/queries/use-admin-booking-queries";
 import {
     CalendarClock,
     CheckCircle2,
@@ -55,62 +65,6 @@ import {
     Loader2,
 } from "lucide-react";
 
-// Types
-interface SessionUser {
-    id: string;
-    name: string | null;
-    email: string;
-    image: string | null;
-}
-
-interface Session {
-    id: string;
-    title: string;
-    description: string | null;
-    status: string;
-    scheduledAt: string;
-    duration: number | null;
-    meetingType: string | null;
-    rate: string | null;
-    currency: string | null;
-    cancelledBy: string | null;
-    cancellationReason: string | null;
-    rescheduleCount: number;
-    mentorRescheduleCount: number;
-    refundAmount: string | null;
-    refundPercentage: number | null;
-    refundStatus: string | null;
-    wasReassigned: boolean;
-    reassignmentStatus: string | null;
-    pendingRescheduleBy: string | null;
-    createdAt: string;
-    mentor: SessionUser | null;
-    mentee: SessionUser | null;
-}
-
-interface SessionStats {
-    totalSessions: number;
-    completedSessions: number;
-    cancelledSessions: number;
-    noShowCount: number;
-    noShowRate: number;
-    avgSessionRating: number;
-    totalRevenue: number;
-    refundsIssued: number;
-    netRevenue: number;
-    sessionsToday: number;
-    pendingReschedules: number;
-    cancellationsByMentor: number;
-    cancellationsByMentee: number;
-}
-
-interface Pagination {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-}
-
 // Status badge colors
 const statusColors: Record<string, string> = {
     scheduled: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
@@ -123,78 +77,67 @@ const statusColors: Record<string, string> = {
 export function AdminSessions() {
     const { toast } = useToast();
 
-    // State
-    const [sessions, setSessions] = useState<Session[]>([]);
-    const [stats, setStats] = useState<SessionStats | null>(null);
-    const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
-    const [isLoading, setIsLoading] = useState(true);
-    const [isLoadingStats, setIsLoadingStats] = useState(true);
-
     // Filters
+    const [page, setPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState("");
+    const deferredSearchQuery = useDeferredValue(searchQuery.trim());
 
     // Action dialogs
-    const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+    const [selectedSession, setSelectedSession] = useState<AdminSessionItem | null>(null);
     const [actionDialog, setActionDialog] = useState<string | null>(null);
     const [actionReason, setActionReason] = useState("");
-    const [actionLoading, setActionLoading] = useState(false);
     const [refundAmount, setRefundAmount] = useState("");
+    const sessionsQuery = useAdminSessionsQuery({
+        page,
+        limit: 20,
+        status: statusFilter !== "all" ? [statusFilter] : undefined,
+        search: deferredSearchQuery || undefined,
+    });
+    const statsQuery = useAdminSessionStatsQuery();
+    const cancelSessionMutation = useAdminCancelSessionMutation();
+    const completeSessionMutation = useAdminCompleteSessionMutation();
+    const refundSessionMutation = useAdminRefundSessionMutation();
+    const clearNoShowMutation = useAdminClearNoShowMutation();
 
-    // Fetch sessions
-    const fetchSessions = async (page = 1) => {
-        setIsLoading(true);
-        try {
-            const params = new URLSearchParams({
-                page: page.toString(),
-                limit: "20",
+    const sessions = sessionsQuery.data?.sessions ?? [];
+    const stats: AdminSessionStats | null = statsQuery.data ?? null;
+    const pagination: AdminSessionPagination = sessionsQuery.data?.pagination ?? {
+        page,
+        limit: 20,
+        total: 0,
+        totalPages: 1,
+    };
+    const isLoading = sessionsQuery.isLoading;
+    const actionLoading =
+        cancelSessionMutation.isPending ||
+        completeSessionMutation.isPending ||
+        refundSessionMutation.isPending ||
+        clearNoShowMutation.isPending;
+
+    useEffect(() => {
+        setPage(1);
+    }, [statusFilter, deferredSearchQuery]);
+
+    useEffect(() => {
+        if (sessionsQuery.error) {
+            toast({
+                title: "Error",
+                description: sessionsQuery.error instanceof Error ? sessionsQuery.error.message : "Failed to fetch sessions",
+                variant: "destructive",
             });
-
-            if (statusFilter && statusFilter !== "all") {
-                params.set("status", statusFilter);
-            }
-
-            const response = await fetch(`/api/admin/sessions?${params}`);
-            const data = await response.json();
-
-            if (data.success) {
-                setSessions(data.data.sessions);
-                setPagination(data.data.pagination);
-            } else {
-                toast({ title: "Error", description: data.error, variant: "destructive" });
-            }
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to fetch sessions", variant: "destructive" });
-        } finally {
-            setIsLoading(false);
         }
-    };
-
-    // Fetch stats
-    const fetchStats = async () => {
-        setIsLoadingStats(true);
-        try {
-            const response = await fetch("/api/admin/sessions/stats");
-            const data = await response.json();
-
-            if (data.success) {
-                setStats(data.data);
-            }
-        } catch (error) {
-            console.error("Failed to fetch stats:", error);
-        } finally {
-            setIsLoadingStats(false);
-        }
-    };
+    }, [sessionsQuery.error, toast]);
 
     useEffect(() => {
-        fetchSessions();
-        fetchStats();
-    }, []);
-
-    useEffect(() => {
-        fetchSessions(1);
-    }, [statusFilter]);
+        if (statsQuery.error) {
+            toast({
+                title: "Error",
+                description: statsQuery.error instanceof Error ? statsQuery.error.message : "Failed to fetch session stats",
+                variant: "destructive",
+            });
+        }
+    }, [statsQuery.error, toast]);
 
     // Format date
     const formatDate = (dateString: string) => {
@@ -208,59 +151,62 @@ export function AdminSessions() {
         });
     };
 
+    const resetActionDialog = () => {
+        setActionDialog(null);
+        setSelectedSession(null);
+        setActionReason("");
+        setRefundAmount("");
+    };
+
     // Handle action
     const handleAction = async () => {
         if (!selectedSession || !actionDialog) return;
 
-        setActionLoading(true);
         try {
-            let endpoint = "";
-            let body: any = { reason: actionReason };
+            let successMessage = "Session updated successfully";
 
             switch (actionDialog) {
                 case "cancel":
-                    endpoint = `/api/admin/sessions/${selectedSession.id}/cancel`;
-                    body.refundPercentage = 100;
+                    successMessage = (await cancelSessionMutation.mutateAsync({
+                        bookingId: selectedSession.id,
+                        reason: actionReason,
+                        refundPercentage: 100,
+                        notifyParties: true,
+                    })).message;
                     break;
                 case "complete":
-                    endpoint = `/api/admin/sessions/${selectedSession.id}/complete`;
+                    successMessage = (await completeSessionMutation.mutateAsync({
+                        bookingId: selectedSession.id,
+                        reason: actionReason,
+                    })).message;
                     break;
                 case "refund":
-                    endpoint = `/api/admin/sessions/${selectedSession.id}/refund`;
-                    body.amount = parseFloat(refundAmount);
-                    body.refundType = "partial";
+                    successMessage = (await refundSessionMutation.mutateAsync({
+                        bookingId: selectedSession.id,
+                        amount: parseFloat(refundAmount),
+                        reason: actionReason,
+                        refundType: "partial",
+                    })).message;
                     break;
                 case "clearNoShow":
-                    endpoint = `/api/admin/sessions/${selectedSession.id}/clear-no-show`;
-                    body.restoreStatus = "completed";
+                    successMessage = (await clearNoShowMutation.mutateAsync({
+                        bookingId: selectedSession.id,
+                        reason: actionReason,
+                        restoreStatus: "completed",
+                    })).message;
                     break;
                 default:
                     return;
             }
 
-            const response = await fetch(endpoint, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                toast({ title: "Success", description: data.message });
-                setActionDialog(null);
-                setSelectedSession(null);
-                setActionReason("");
-                setRefundAmount("");
-                fetchSessions(pagination.page);
-                fetchStats();
-            } else {
-                toast({ title: "Error", description: data.error, variant: "destructive" });
-            }
+            toast({ title: "Success", description: successMessage });
+            resetActionDialog();
         } catch (error) {
-            toast({ title: "Error", description: "Action failed", variant: "destructive" });
-        } finally {
-            setActionLoading(false);
+            toast({
+                title: "Error",
+                description: error instanceof Error ? error.message : "Action failed",
+                variant: "destructive",
+            });
         }
     };
 
@@ -272,7 +218,13 @@ export function AdminSessions() {
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Sessions</h1>
                     <p className="text-gray-500 dark:text-gray-400">Manage all platform sessions</p>
                 </div>
-                <Button variant="outline" onClick={() => { fetchSessions(pagination.page); fetchStats(); }}>
+                <Button
+                    variant="outline"
+                    onClick={() => {
+                        void Promise.all([sessionsQuery.refetch(), statsQuery.refetch()]);
+                    }}
+                    disabled={sessionsQuery.isFetching || statsQuery.isFetching}
+                >
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Refresh
                 </Button>
@@ -522,7 +474,7 @@ export function AdminSessions() {
                                         variant="outline"
                                         size="sm"
                                         disabled={pagination.page <= 1}
-                                        onClick={() => fetchSessions(pagination.page - 1)}
+                                        onClick={() => setPage(pagination.page - 1)}
                                     >
                                         <ChevronLeft className="w-4 h-4" />
                                     </Button>
@@ -530,7 +482,7 @@ export function AdminSessions() {
                                         variant="outline"
                                         size="sm"
                                         disabled={pagination.page >= pagination.totalPages}
-                                        onClick={() => fetchSessions(pagination.page + 1)}
+                                        onClick={() => setPage(pagination.page + 1)}
                                     >
                                         <ChevronRight className="w-4 h-4" />
                                     </Button>
@@ -542,7 +494,7 @@ export function AdminSessions() {
             </Card>
 
             {/* Action Dialogs */}
-            <Dialog open={actionDialog === "cancel"} onOpenChange={() => setActionDialog(null)}>
+            <Dialog open={actionDialog === "cancel"} onOpenChange={(open) => { if (!open) resetActionDialog(); }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Force Cancel Session</DialogTitle>
@@ -566,7 +518,7 @@ export function AdminSessions() {
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
+                        <Button variant="outline" onClick={resetActionDialog}>Cancel</Button>
                         <Button
                             variant="destructive"
                             onClick={handleAction}
@@ -579,7 +531,7 @@ export function AdminSessions() {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={actionDialog === "complete"} onOpenChange={() => setActionDialog(null)}>
+            <Dialog open={actionDialog === "complete"} onOpenChange={(open) => { if (!open) resetActionDialog(); }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Force Complete Session</DialogTitle>
@@ -603,7 +555,7 @@ export function AdminSessions() {
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
+                        <Button variant="outline" onClick={resetActionDialog}>Cancel</Button>
                         <Button
                             onClick={handleAction}
                             disabled={!actionReason || actionLoading}
@@ -615,7 +567,7 @@ export function AdminSessions() {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={actionDialog === "refund"} onOpenChange={() => setActionDialog(null)}>
+            <Dialog open={actionDialog === "refund"} onOpenChange={(open) => { if (!open) resetActionDialog(); }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Issue Manual Refund</DialogTitle>
@@ -649,7 +601,7 @@ export function AdminSessions() {
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
+                        <Button variant="outline" onClick={resetActionDialog}>Cancel</Button>
                         <Button
                             onClick={handleAction}
                             disabled={!actionReason || !refundAmount || actionLoading}
@@ -661,7 +613,7 @@ export function AdminSessions() {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={actionDialog === "clearNoShow"} onOpenChange={() => setActionDialog(null)}>
+            <Dialog open={actionDialog === "clearNoShow"} onOpenChange={(open) => { if (!open) resetActionDialog(); }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Clear No-Show Flag</DialogTitle>
@@ -685,7 +637,7 @@ export function AdminSessions() {
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
+                        <Button variant="outline" onClick={resetActionDialog}>Cancel</Button>
                         <Button
                             onClick={handleAction}
                             disabled={!actionReason || actionLoading}
