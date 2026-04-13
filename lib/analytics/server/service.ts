@@ -1,5 +1,10 @@
 import { and, count, desc, eq, gte, sql, lte } from 'drizzle-orm';
 
+import {
+  AccessPolicyError,
+  assertMenteeFeatureAccess as assertSharedMenteeFeatureAccess,
+  assertMentorFeatureAccess as assertSharedMentorFeatureAccess,
+} from '@/lib/access-policy/server';
 import { db } from '@/lib/db';
 import {
   learningAchievements,
@@ -22,6 +27,8 @@ import {
   getTopUniversitiesSearched,
 } from '@/lib/db/queries/analytics.queries';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
+import { MENTEE_FEATURE_KEYS } from '@/lib/mentee/access-policy';
+import { MENTOR_FEATURE_KEYS } from '@/lib/mentor/access-policy';
 import {
   enforceFeature,
   isSubscriptionPolicyError,
@@ -94,6 +101,46 @@ async function enforceAnalyticsFeature(
   }
 }
 
+async function enforceMentorAnalyticsAccess(
+  userId: string,
+  currentUser?: CurrentUser
+) {
+  try {
+    await assertSharedMentorFeatureAccess({
+      userId,
+      feature: MENTOR_FEATURE_KEYS.analyticsView,
+      currentUser,
+      source: 'analytics.mentor',
+    });
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      throw new AnalyticsServiceError(error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
+}
+
+async function enforceMenteeAnalyticsAccess(
+  userId: string,
+  currentUser?: CurrentUser
+) {
+  try {
+    await assertSharedMenteeFeatureAccess({
+      userId,
+      feature: MENTEE_FEATURE_KEYS.analyticsView,
+      currentUser,
+      source: 'analytics.mentee',
+    });
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      throw new AnalyticsServiceError(error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
+}
+
 function parseAnalyticsDateRange(
   input: AnalyticsDateRangeInput,
   defaultWindowDays: number
@@ -115,9 +162,7 @@ export async function getMentorAnalytics(
 ) {
   const parsed = analyticsDateRangeInputSchema.parse(input ?? {});
   const resolvedUser = await getAnalyticsUser(userId, currentUser);
-  const isMentor = resolvedUser.roles.some((role) => role.name === 'mentor');
-
-  assertAnalytics(isMentor, 403, 'Mentor access required');
+  await enforceMentorAnalyticsAccess(userId, resolvedUser);
   await enforceAnalyticsFeature('analytics.mentor', userId);
 
   const { startDate, endDate } = parseAnalyticsDateRange(parsed, 90);
@@ -161,7 +206,9 @@ export async function getAdminAnalytics(
 ) {
   const parsed = analyticsDateRangeInputSchema.parse(input ?? {});
   const resolvedUser = await getAnalyticsUser(userId, currentUser);
-  const isAdmin = resolvedUser.roles.some((role) => role.name === 'admin');
+  const isAdmin = resolvedUser.roles.some(
+    (role: { name: string }) => role.name === 'admin'
+  );
 
   assertAnalytics(isAdmin, 403, 'Admin access required');
 
@@ -258,9 +305,7 @@ export async function getMenteeLearningAnalytics(
 ) {
   const parsed = menteeLearningAnalyticsInputSchema.parse(input ?? {});
   const resolvedUser = await getAnalyticsUser(userId, currentUser);
-  const isMentee = resolvedUser.roles.some((role) => role.name === 'mentee');
-
-  assertAnalytics(isMentee, 403, 'Mentee access required');
+  await enforceMenteeAnalyticsAccess(userId, resolvedUser);
   await enforceAnalyticsFeature('analytics.mentee', userId);
 
   const timeRangeDays = parsed.timeRange ?? 30;

@@ -96,4 +96,44 @@ describe('buildMentorProfileUpdate', () => {
     expect(result.hourlyRate).toBe('120.00');
     expect(result.searchMode).toBe('AI_SEARCH');
   });
+
+  it('keeps in-progress applications in progress on profile edits', () => {
+    const result = buildMentorProfileUpdate(
+      {
+        fullName: 'Existing Mentor',
+        email: 'mentor@example.com',
+        phone: null,
+        title: 'Engineer',
+        company: 'YoungMinds',
+        city: null,
+        state: null,
+        country: null,
+        industry: null,
+        expertise: null,
+        experience: null,
+        about: null,
+        linkedinUrl: null,
+        githubUrl: null,
+        websiteUrl: null,
+        hourlyRate: '120.00',
+        currency: 'USD',
+        availability: null,
+        headline: null,
+        maxMentees: 10,
+        profileImageUrl: null,
+        bannerImageUrl: null,
+        resumeUrl: null,
+        verificationStatus: 'IN_PROGRESS',
+        verificationNotes: 'Still under review',
+        isAvailable: true,
+        searchMode: 'AI_SEARCH',
+      },
+      {
+        company: 'Updated Company',
+      }
+    );
+
+    expect(result.verificationStatus).toBe('IN_PROGRESS');
+    expect(result.verificationNotes).toBe('Still under review');
+  });
 });

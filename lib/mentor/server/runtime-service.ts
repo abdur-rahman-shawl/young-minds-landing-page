@@ -9,6 +9,11 @@ import {
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
+import {
+  AccessPolicyError,
+  assertMenteeFeatureAccess as assertSharedMenteeFeatureAccess,
+  assertMentorFeatureAccess as assertSharedMentorFeatureAccess,
+} from '@/lib/access-policy/server';
 import { db } from '@/lib/db';
 import {
   contentItemReviews,
@@ -40,11 +45,10 @@ import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 import { getPlanFeatures } from '@/lib/subscriptions/enforcement';
 import { safeJsonParse } from '@/lib/utils/safe-json';
 import {
-  canAccessMentorOperations,
-  canBrowseMentorDirectory,
   sanitizeMentorDetailForViewer,
 } from '@/lib/mentor/access';
-
+import { MENTEE_FEATURE_KEYS } from '@/lib/mentee/access-policy';
+import { MENTOR_FEATURE_KEYS, type MentorFeatureKey } from '@/lib/mentor/access-policy';
 import { assertMentorLifecycle } from './errors';
 import {
   mentorCourseCommentReplyInputSchema,
@@ -113,28 +117,51 @@ async function getMentorRuntimeUser(
   return resolvedUser;
 }
 
-function getRoleNames(user: CurrentUser) {
-  return user.roles.map((role) => role.name);
-}
-
-function assertMentorDirectoryAccess(user: CurrentUser) {
-  assertMentorLifecycle(
-    canBrowseMentorDirectory(getRoleNames(user)),
-    403,
-    'Mentee access required'
-  );
-}
-
-function assertMentorOperationsAccess(user: CurrentUser) {
-  assertMentorLifecycle(
-    canAccessMentorOperations(getRoleNames(user)),
-    403,
-    'Mentor access required'
-  );
-}
-
 function isAdmin(user: CurrentUser) {
-  return user.roles.some((role) => role.name === 'admin');
+  return user.roles.some(
+    (role: { name: string }) => role.name === 'admin'
+  );
+}
+
+async function assertMentorDirectoryFeatureAccess(
+  userId: string,
+  currentUser?: CurrentUser
+) {
+  try {
+    await assertSharedMenteeFeatureAccess({
+      userId,
+      feature: MENTEE_FEATURE_KEYS.mentorDirectoryView,
+      currentUser,
+      source: `mentor.runtime.${MENTEE_FEATURE_KEYS.mentorDirectoryView}`,
+    });
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      assertMentorLifecycle(false, error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
+}
+
+async function assertMentorFeatureAccess(
+  userId: string,
+  feature: MentorFeatureKey,
+  currentUser?: CurrentUser
+) {
+  try {
+    await assertSharedMentorFeatureAccess({
+      userId,
+      feature,
+      currentUser,
+      source: `mentor.runtime.${feature}`,
+    });
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      assertMentorLifecycle(false, error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
 }
 
 async function resolveMentorListRow(row: MentorListRow) {
@@ -165,7 +192,7 @@ export async function listMentors(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorDirectoryAccess(resolvedUser);
+  await assertMentorDirectoryFeatureAccess(userId, resolvedUser);
 
   const parsed = mentorListInputSchema.parse(input ?? {});
   const filters = [eq(mentors.verificationStatus, 'VERIFIED')];
@@ -265,7 +292,7 @@ export async function getMentorDetail(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorDirectoryAccess(resolvedUser);
+  await assertMentorDirectoryFeatureAccess(userId, resolvedUser);
 
   const { mentorId } = mentorDetailInputSchema.parse(input);
 
@@ -347,7 +374,7 @@ export async function listSavedMentors(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorDirectoryAccess(resolvedUser);
+  await assertMentorDirectoryFeatureAccess(userId, resolvedUser);
 
   return {
     data: [],
@@ -360,7 +387,7 @@ export async function saveMentor(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorDirectoryAccess(resolvedUser);
+  await assertMentorDirectoryFeatureAccess(userId, resolvedUser);
 
   const parsed = savedMentorInputSchema.parse(input);
 
@@ -381,7 +408,7 @@ export async function unsaveMentor(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorDirectoryAccess(resolvedUser);
+  await assertMentorDirectoryFeatureAccess(userId, resolvedUser);
 
   savedMentorInputSchema.parse(input);
 
@@ -396,7 +423,11 @@ export async function getMentorDashboardRuntimeStats(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorOperationsAccess(resolvedUser);
+  await assertMentorFeatureAccess(
+    userId,
+    MENTOR_FEATURE_KEYS.dashboardStats,
+    resolvedUser
+  );
   return getMentorDashboardStats(userId);
 }
 
@@ -406,7 +437,11 @@ export async function listMentorRecentSessionsRuntime(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorOperationsAccess(resolvedUser);
+  await assertMentorFeatureAccess(
+    userId,
+    MENTOR_FEATURE_KEYS.dashboardSessions,
+    resolvedUser
+  );
 
   const parsed = mentorRecentListInputSchema.parse(input ?? {});
   const sessionsList = await getMentorRecentSessions(userId, parsed.limit);
@@ -423,7 +458,11 @@ export async function listMentorRecentMessagesRuntime(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorOperationsAccess(resolvedUser);
+  await assertMentorFeatureAccess(
+    userId,
+    MENTOR_FEATURE_KEYS.dashboardMessages,
+    resolvedUser
+  );
 
   const parsed = mentorRecentListInputSchema.parse(input ?? {});
   const messagesList = await getMentorRecentMessages(userId, parsed.limit);
@@ -439,7 +478,11 @@ export async function listMentorPendingReviewsRuntime(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorOperationsAccess(resolvedUser);
+  await assertMentorFeatureAccess(
+    userId,
+    MENTOR_FEATURE_KEYS.dashboardReviews,
+    resolvedUser
+  );
 
   const rows = await db
     .select({
@@ -474,7 +517,11 @@ export async function listMentorMenteesRuntime(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorOperationsAccess(resolvedUser);
+  await assertMentorFeatureAccess(
+    userId,
+    MENTOR_FEATURE_KEYS.menteesView,
+    resolvedUser
+  );
 
   const parsed = mentorMenteesInputSchema.parse(input ?? {});
   const statusFilter = parsed.status
@@ -500,7 +547,11 @@ export async function listMentorMenteeSessionsRuntime(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorOperationsAccess(resolvedUser);
+  await assertMentorFeatureAccess(
+    userId,
+    MENTOR_FEATURE_KEYS.menteesView,
+    resolvedUser
+  );
 
   const [menteesList, stats] = await Promise.all([
     getMentorMenteesFromSessions(userId),
@@ -519,7 +570,11 @@ export async function listMentorReviewsRuntime(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorOperationsAccess(resolvedUser);
+  await assertMentorFeatureAccess(
+    userId,
+    MENTOR_FEATURE_KEYS.reviewsManage,
+    resolvedUser
+  );
 
   const menteeUser = alias(users, 'mentee_user');
 
@@ -590,7 +645,11 @@ export async function listMentorCourseCommentsRuntime(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorOperationsAccess(resolvedUser);
+  await assertMentorFeatureAccess(
+    userId,
+    MENTOR_FEATURE_KEYS.contentManage,
+    resolvedUser
+  );
 
   const mentor = await getMentorForContent(userId);
   assertMentorLifecycle(mentor, 404, 'Mentor not found');
@@ -695,7 +754,11 @@ export async function replyToMentorCourseComment(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getMentorRuntimeUser(userId, currentUser);
-  assertMentorOperationsAccess(resolvedUser);
+  await assertMentorFeatureAccess(
+    userId,
+    MENTOR_FEATURE_KEYS.contentManage,
+    resolvedUser
+  );
 
   const mentor = await getMentorForContent(userId);
   assertMentorLifecycle(mentor, 404, 'Mentor not found');

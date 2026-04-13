@@ -131,7 +131,7 @@ async function getSubscriptionActor(
 }
 
 function roleSet(user: CurrentUser) {
-  return new Set(user.roles.map((role) => role.name));
+  return new Set(user.roles.map((role: { name: string }) => role.name));
 }
 
 function resolveSubscriptionContext(

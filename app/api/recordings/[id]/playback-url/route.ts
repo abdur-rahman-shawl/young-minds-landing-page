@@ -20,12 +20,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { db } from '@/lib/db';
-import { livekitRecordings } from '@/lib/db/schema';
-import { resolveRecordingPlaybackAccess } from '@/lib/recordings/authorization';
-import { getPlaybackUrl } from '@/lib/livekit/recording-manager';
-import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
-import { eq } from 'drizzle-orm';
+import { AppHttpError } from '@/lib/http/app-error';
+import { nextErrorResponse } from '@/lib/http/next-response-error';
+import { getRecordingPlaybackUrl } from '@/lib/recordings/server/service';
 
 export async function GET(
   request: NextRequest,
@@ -44,14 +41,7 @@ export async function GET(
     });
 
     if (!session || !session.user) {
-      console.error('❌ Unauthorized playback URL request - no session');
-      return NextResponse.json(
-        {
-          error: 'Unauthorized',
-          message: 'Authentication required to access recording',
-        },
-        { status: 401 }
-      );
+      throw new AppHttpError(401, 'Authentication required to access recording');
     }
 
     const userId = session.user.id;
@@ -59,64 +49,19 @@ export async function GET(
       `🎥 Playback URL request: recording=${recordingId}, user=${userId}`
     );
 
-    const recording = await db.query.livekitRecordings.findFirst({
-      where: eq(livekitRecordings.id, recordingId),
-      with: {
-        room: {
-          with: {
-            session: true,
-          },
-        },
-      },
-    });
-
-    if (!recording?.room?.session) {
-      return NextResponse.json(
-        {
-          error: 'Not Found',
-          message: 'Recording not found',
-        },
-        { status: 404 }
-      );
-    }
-
-    const sessionData = recording.room.session;
-    const recordingsAction = resolveRecordingPlaybackAccess({
-      userId,
-      mentorId: sessionData.mentorId,
-      menteeId: sessionData.menteeId,
-    });
-
-    try {
-      await enforceFeature({
-        action: recordingsAction,
-        userId,
-      });
-    } catch (error) {
-      if (isSubscriptionPolicyError(error)) {
-        return NextResponse.json(error.payload, { status: error.status });
-      }
-      throw error;
-    }
-
-    // ======================================================================
-    // GENERATE PLAYBACK URL (includes authorization check)
-    // ======================================================================
-    const playbackUrl = await getPlaybackUrl(recordingId, userId);
-
-    const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
+    const playback = await getRecordingPlaybackUrl(recordingId, userId);
 
     console.log(
-      `✅ Playback URL generated for user ${userId}, expires at ${expiresAt.toISOString()}`
+      `✅ Playback URL generated for user ${userId}, expires at ${playback.expiresAt}`
     );
 
     return NextResponse.json(
       {
         success: true,
         data: {
-          playbackUrl,
-          expiresAt: expiresAt.toISOString(),
-          expiresIn: 3600, // seconds
+          playbackUrl: playback.playbackUrl,
+          expiresAt: playback.expiresAt,
+          expiresIn: playback.expiresIn,
         },
         message: 'Playback URL generated successfully',
       },
@@ -129,57 +74,6 @@ export async function GET(
       stack: error instanceof Error ? error.stack : undefined,
     });
 
-    // ======================================================================
-    // ERROR HANDLING - Specific error types
-    // ======================================================================
-    if (error instanceof Error) {
-      const message = error.message;
-
-      // Authorization error (403 Forbidden)
-      if (message.includes('UNAUTHORIZED') || message.includes('not authorized')) {
-        return NextResponse.json(
-          {
-            error: 'Forbidden',
-            message: 'You are not authorized to access this recording',
-            details: 'Only session participants can view recordings',
-          },
-          { status: 403 }
-        );
-      }
-
-      // Recording not found (404)
-      if (message.includes('not found')) {
-        return NextResponse.json(
-          {
-            error: 'Not Found',
-            message: 'Recording not found',
-            details: message,
-          },
-          { status: 404 }
-        );
-      }
-
-      // Recording not ready (423 Locked)
-      if (message.includes('not ready') || message.includes('status:')) {
-        return NextResponse.json(
-          {
-            error: 'Recording Not Ready',
-            message: 'Recording is still being processed',
-            details: message,
-          },
-          { status: 423 }
-        );
-      }
-    }
-
-    // Generic server error (500)
-    return NextResponse.json(
-      {
-        error: 'Internal Server Error',
-        message: 'Failed to generate playback URL',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return nextErrorResponse(error, 'Failed to generate playback URL');
   }
 }

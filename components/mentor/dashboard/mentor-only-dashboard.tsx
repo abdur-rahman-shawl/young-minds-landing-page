@@ -10,87 +10,77 @@ import {
   Users,
   Calendar,
   DollarSign,
-  Clock,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-  FileText,
   Star,
-  TrendingUp,
   MessageSquare,
-  TrendingDown,
   Video,
   ArrowRight,
 } from "lucide-react"
 import { useMentorDashboardStats, useMentorRecentSessions, useMentorRecentMessages, useMentorPendingReviews } from "@/hooks/use-mentor-dashboard"
-import { format, formatDistanceToNow } from "date-fns"
+import { format } from "date-fns"
 import { useRouter } from "next/navigation"
-import { MentorAnalyticsSection } from './mentor-analytics-section';
 import Link from "next/link"
+import {
+  MentorFeatureCardGate,
+  MentorVerificationNotice,
+} from "@/components/mentor/verification/mentor-verification-state"
+import {
+  buildDashboardSectionUrl,
+  type DashboardRouteBasePath,
+} from "@/lib/dashboard/sections"
+import {
+  getMentorFeatureDecision,
+  hasMentorVerificationRestrictions,
+  MENTOR_FEATURE_KEYS,
+} from "@/lib/mentor/access-policy"
 
 interface MentorOnlyDashboardProps {
   user: any
+  routeBasePath?: DashboardRouteBasePath
 }
 
-export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
-  const { mentorProfile, isLoading: profileLoading, refreshUserData } = useAuth()
-  const { stats, isLoading: statsLoading, error: statsError } = useMentorDashboardStats()
-  const { sessions, isLoading: sessionsLoading } = useMentorRecentSessions(5)
-  const { messages, isLoading: messagesLoading } = useMentorRecentMessages(5)
-  const { sessionsToReview, isLoading: reviewsLoading, error: reviewsError } = useMentorPendingReviews(user)
+export function MentorOnlyDashboard({
+  user,
+  routeBasePath = '/dashboard',
+}: MentorOnlyDashboardProps) {
+  const {
+    mentorProfile,
+    mentorAccess,
+    isLoading: profileLoading,
+  } = useAuth()
+  const statsAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.dashboardStats
+  )
+  const sessionsAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.dashboardSessions
+  )
+  const reviewsAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.dashboardReviews
+  )
+  const messagesAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.dashboardMessages
+  )
+  const profileAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.dashboardProfile
+  )
+  const canViewStats = Boolean(statsAccess?.allowed)
+  const canViewSessions = Boolean(sessionsAccess?.allowed)
+  const canViewReviews = Boolean(reviewsAccess?.allowed)
+  const canViewMessages = Boolean(messagesAccess?.allowed)
+  const canViewProfile = Boolean(profileAccess?.allowed)
+  const { stats, isLoading: statsLoading } = useMentorDashboardStats(canViewStats)
+  const { sessions, isLoading: sessionsLoading } = useMentorRecentSessions(5, canViewSessions)
+  const { messages, isLoading: messagesLoading } = useMentorRecentMessages(5, canViewMessages)
+  const { sessionsToReview, isLoading: reviewsLoading, error: reviewsError } = useMentorPendingReviews(user, canViewReviews)
   const router = useRouter()
   // Note: Payment gate is now handled at DashboardShell level
   // This component will only render if payment is complete
 
-  const getVerificationStatusInfo = (status: string) => {
-    switch (status) {
-      case 'YET_TO_APPLY':
-        return {
-          color: 'bg-gray-100 text-gray-800',
-          icon: FileText,
-          title: 'Complete Application',
-          message: 'Set up your mentor profile to start accepting mentees'
-        }
-      case 'IN_PROGRESS':
-        return {
-          color: 'bg-yellow-100 text-yellow-800',
-          icon: Clock,
-          title: 'Under Review',
-          message: 'Your application is being reviewed by our team'
-        }
-      case 'VERIFIED':
-        return {
-          color: 'bg-green-100 text-green-800',
-          icon: CheckCircle,
-          title: 'Verified Mentor',
-          message: 'You can now accept mentees and conduct sessions'
-        }
-      case 'REJECTED':
-        return {
-          color: 'bg-red-100 text-red-800',
-          icon: XCircle,
-          title: 'Application Rejected',
-          message: 'Please review feedback and reapply'
-        }
-      case 'REVERIFICATION':
-        return {
-          color: 'bg-orange-100 text-orange-800',
-          icon: RefreshCw,
-          title: 'Additional Info Required',
-          message: 'Please provide the requested information'
-        }
-      default:
-        return {
-          color: 'bg-gray-100 text-gray-800',
-          icon: AlertCircle,
-          title: 'Unknown Status',
-          message: 'Please contact support'
-        }
-    }
-  }
-
-  if (profileLoading || statsLoading) {
+  if (profileLoading || (canViewStats && statsLoading)) {
     return (
       <div className="space-y-4">
         <div className="space-y-1">
@@ -112,126 +102,6 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
       </div>
     )
   }
-
-  const verificationInfo = mentorProfile
-    ? getVerificationStatusInfo(mentorProfile.verificationStatus)
-    : getVerificationStatusInfo('YET_TO_APPLY')
-
-  const StatusIcon = verificationInfo.icon
-  const isVerified = mentorProfile?.verificationStatus === 'VERIFIED'
-
-  // If not verified, show restricted view
-  if (!isVerified) {
-    return (
-      <div className="space-y-6">
-        {/* Welcome Section */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Welcome{user?.name ? `, ${user.name.split(' ')[0]}` : ''}! 👨‍🏫</h1>
-            <p className="text-gray-600 mt-1">Complete your verification to start mentoring</p>
-          </div>
-        </div>
-
-        {/* Verification Status - Prominent Display */}
-        <Card className="border-l-4 border-l-orange-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <StatusIcon className="w-12 h-12 text-orange-500" />
-              <div className="flex-1">
-                <h3 className="font-bold text-xl text-gray-900">{verificationInfo.title}</h3>
-                <p className="text-gray-600 text-lg mt-1">{verificationInfo.message}</p>
-                {mentorProfile?.verificationNotes && (
-                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-700"><strong>Admin Notes:</strong> {mentorProfile.verificationNotes}</p>
-                  </div>
-                )}
-
-                {mentorProfile?.verificationStatus === 'YET_TO_APPLY' && (
-                  <div className="mt-4">
-                    <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                      Complete Application
-                    </Button>
-                  </div>
-                )}
-
-                {(mentorProfile?.verificationStatus === 'REJECTED' || mentorProfile?.verificationStatus === 'REVERIFICATION') && (
-                  <div className="mt-4">
-                    <Button
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => router.push('/become-expert')}
-                    >
-                      Reapply Now
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <Badge className={`${verificationInfo.color} text-lg px-4 py-2`}>
-                {verificationInfo.title}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Restricted Access Message */}
-        <Card className="bg-gray-50">
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-gray-400" />
-              </div>
-              <h3 className="font-semibold text-lg text-gray-900 mb-2">Access Restricted</h3>
-              <p className="text-gray-600 mb-4">You need to be verified before you can access mentoring features.</p>
-              <div className="text-sm text-gray-500">
-                <p>Once verified, you'll be able to:</p>
-                <ul className="mt-2 space-y-1">
-                  <li>• Accept mentee requests</li>
-                  <li>• Schedule mentoring sessions</li>
-                  <li>• Chat with mentees</li>
-                  <li>• Track your earnings</li>
-                  <li>• View analytics</li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Profile Summary (still accessible) */}
-        {mentorProfile && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile Summary</CardTitle>
-              <CardDescription>Your submitted mentor profile information</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-start gap-4">
-                <Avatar className="w-16 h-16">
-                  <AvatarImage src={user?.image || undefined} />
-                  <AvatarFallback>{user?.name?.charAt(0) || 'M'}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg">{mentorProfile.title}</h3>
-                  <p className="text-gray-600">{mentorProfile.company}</p>
-                  <p className="text-sm text-gray-500 mt-1">{mentorProfile.headline}</p>
-                  <div className="flex items-center gap-4 mt-3">
-                    <span className="text-sm"><strong>Rate:</strong> ${mentorProfile.hourlyRate}/{mentorProfile.currency}</span>
-                    <span className="text-sm"><strong>Max Mentees:</strong> {mentorProfile.maxMentees}</span>
-                  </div>
-                </div>
-                <Button variant="outline" size="sm" disabled>
-                  Edit Profile (Restricted)
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    )
-  }
-
-  // Calculate trends
-  const sessionsTrend = stats && stats.sessionsLastMonth > 0
-    ? ((stats.sessionsThisMonth - stats.sessionsLastMonth) / stats.sessionsLastMonth * 100).toFixed(0)
-    : stats?.sessionsThisMonth > 0 ? '100' : '0';
 
   // Format rating display
   const ratingDisplay = stats?.averageRating
@@ -276,6 +146,13 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
 
   return (
     <div className="space-y-4">
+      {hasMentorVerificationRestrictions(mentorAccess) && (
+        <MentorVerificationNotice
+          mentorProfile={mentorProfile}
+          routeBasePath={routeBasePath}
+        />
+      )}
+
       {/* Welcome Section */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -288,34 +165,48 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
               : 'Manage your mentees and track your mentoring progress'}
           </p>
         </div>
-        <Button size="sm" onClick={() => router.push('/dashboard?section=mentees')}>
+        <Button
+          size="sm"
+          onClick={() =>
+            router.push(buildDashboardSectionUrl(routeBasePath, 'mentees'))
+          }
+        >
           <Users className="mr-2 h-4 w-4" />
           View All Mentees
         </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {dashboardStats.map((stat, index) => (
-          <Card key={index} className="py-3">
-            <CardHeader className="flex flex-row items-center justify-between py-0 pb-1 px-4">
-              <CardTitle className="text-xs font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <div className={`rounded p-1.5 ${stat.color.replace('text-', 'bg-').replace('500', '100')} dark:bg-opacity-20`}>
-                <stat.icon className={`h-3 w-3 ${stat.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent className="py-0 px-4">
-              <div className="text-xl font-bold">{stat.value}</div>
-              <p className="text-[11px] text-muted-foreground">{stat.description}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {canViewStats ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {dashboardStats.map((stat, index) => (
+            <Card key={index} className="py-3">
+              <CardHeader className="flex flex-row items-center justify-between py-0 pb-1 px-4">
+                <CardTitle className="text-xs font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+                <div className={`rounded p-1.5 ${stat.color.replace('text-', 'bg-').replace('500', '100')} dark:bg-opacity-20`}>
+                  <stat.icon className={`h-3 w-3 ${stat.color}`} />
+                </div>
+              </CardHeader>
+              <CardContent className="py-0 px-4">
+                <div className="text-xl font-bold">{stat.value}</div>
+                <p className="text-[11px] text-muted-foreground">{stat.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <MentorFeatureCardGate
+          feature={MENTOR_FEATURE_KEYS.dashboardStats}
+          access={statsAccess}
+          mentorProfile={mentorProfile}
+          routeBasePath={routeBasePath}
+        />
+      )}
 
       {/* Message Stats Bar */}
-      {stats && stats.unreadMessages > 0 && (
+      {canViewStats && stats && stats.unreadMessages > 0 && (
         <Card className="border-primary/20 bg-primary/5 py-2">
           <CardContent className="py-0 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -326,7 +217,13 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
                 {stats.unreadMessages} unread message{stats.unreadMessages > 1 ? 's' : ''}
               </span>
             </div>
-            <Button size="sm" variant="secondary" onClick={() => router.push('/dashboard?section=messages')}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                router.push(buildDashboardSectionUrl(routeBasePath, 'messages'))
+              }
+            >
               View
               <ArrowRight className="ml-1 h-3 w-3" />
             </Button>
@@ -336,71 +233,88 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {/* Recent Sessions */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
-            <div>
-              <CardTitle className="text-sm">Recent Sessions</CardTitle>
-              <CardDescription className="text-xs">Your latest mentoring sessions</CardDescription>
-            </div>
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => router.push('/dashboard?section=schedule')}>
-              View All
-              <ArrowRight className="ml-1 h-3 w-3" />
-            </Button>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 pt-0">
-            {sessionsLoading ? (
-              <div className="space-y-2">
-                {[1, 2].map((i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <Skeleton className="h-8 w-8 rounded-full" />
-                    <div className="flex-1 space-y-1">
-                      <Skeleton className="h-3 w-28" />
-                      <Skeleton className="h-2 w-20" />
-                    </div>
-                  </div>
-                ))}
+        {canViewSessions ? (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
+              <div>
+                <CardTitle className="text-sm">Recent Sessions</CardTitle>
+                <CardDescription className="text-xs">Your latest mentoring sessions</CardDescription>
               </div>
-            ) : sessions && sessions.length > 0 ? (
-              <div className="space-y-1">
-                {sessions.slice(0, 4).map((session) => (
-                  <div key={session.id} className="flex items-center justify-between py-2 px-2 -mx-2 rounded hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7">
-                        <AvatarImage src={session.mentee.image || undefined} />
-                        <AvatarFallback className="text-[10px]">
-                          {session.mentee.name?.charAt(0) || session.mentee.email.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-xs font-medium leading-none">{session.mentee.name || session.mentee.email}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          {format(new Date(session.scheduledAt), 'MMM d, h:mm a')}
-                        </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() =>
+                  router.push(buildDashboardSectionUrl(routeBasePath, 'schedule'))
+                }
+              >
+                View All
+                <ArrowRight className="ml-1 h-3 w-3" />
+              </Button>
+            </CardHeader>
+            <CardContent className="px-4 pb-3 pt-0">
+              {sessionsLoading ? (
+                <div className="space-y-2">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Skeleton className="h-8 w-8 rounded-full" />
+                      <div className="flex-1 space-y-1">
+                        <Skeleton className="h-3 w-28" />
+                        <Skeleton className="h-2 w-20" />
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant={session.status === 'scheduled' ? 'default' : session.status === 'completed' ? 'secondary' : 'outline'} className="capitalize text-[10px] h-5 px-1.5">
-                        {session.status}
-                      </Badge>
-                      {session.meetingType === 'video' && <Video className="h-3 w-3 text-muted-foreground" />}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-6 text-center">
-                <div className="rounded-full bg-muted p-2 mb-2">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  ))}
                 </div>
-                <p className="text-xs font-medium">No sessions scheduled</p>
-                <p className="text-[10px] text-muted-foreground">Start accepting mentees</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              ) : sessions && sessions.length > 0 ? (
+                <div className="space-y-1">
+                  {sessions.slice(0, 4).map((session) => (
+                    <div key={session.id} className="flex items-center justify-between py-2 px-2 -mx-2 rounded hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7">
+                          <AvatarImage src={session.mentee.image || undefined} />
+                          <AvatarFallback className="text-[10px]">
+                            {session.mentee.name?.charAt(0) || session.mentee.email.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="text-xs font-medium leading-none">{session.mentee.name || session.mentee.email}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {format(new Date(session.scheduledAt), 'MMM d, h:mm a')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant={session.status === 'scheduled' ? 'default' : session.status === 'completed' ? 'secondary' : 'outline'} className="capitalize text-[10px] h-5 px-1.5">
+                          {session.status}
+                        </Badge>
+                        {session.meetingType === 'video' && <Video className="h-3 w-3 text-muted-foreground" />}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <div className="rounded-full bg-muted p-2 mb-2">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                  <p className="text-xs font-medium">No sessions scheduled</p>
+                  <p className="text-[10px] text-muted-foreground">Start accepting mentees</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <MentorFeatureCardGate
+            feature={MENTOR_FEATURE_KEYS.dashboardSessions}
+            access={sessionsAccess}
+            mentorProfile={mentorProfile}
+            routeBasePath={routeBasePath}
+          />
+        )}
 
 
-        {sessionsToReview && sessionsToReview.length > 0 && (
+        {canViewReviews ? (
+          sessionsToReview && sessionsToReview.length > 0 ? (
           <Card className="border-l-2 border-l-primary">
             <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
               <div>
@@ -409,7 +323,7 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
               </div>
               {sessionsToReview.length > 3 && (
                 <Button variant="ghost" size="sm" className="h-7 text-xs" asChild>
-                  <Link href="/dashboard?section=reviews">
+                  <Link href={buildDashboardSectionUrl(routeBasePath, 'reviews')}>
                     View All
                     <ArrowRight className="ml-1 h-3 w-3" />
                   </Link>
@@ -453,18 +367,48 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
               )}
             </CardContent>
           </Card>
+          ) : (
+            <Card>
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-sm">Pending Reviews</CardTitle>
+                <CardDescription className="text-xs">Your post-session feedback queue</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center justify-center px-4 pb-3 pt-0 text-center">
+                <div className="rounded-full bg-muted p-2 mb-2">
+                  <Star className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <p className="text-xs font-medium">No pending reviews</p>
+                <p className="text-[10px] text-muted-foreground">Completed sessions that need feedback will appear here</p>
+              </CardContent>
+            </Card>
+          )
+        ) : (
+          <MentorFeatureCardGate
+            feature={MENTOR_FEATURE_KEYS.dashboardReviews}
+            access={reviewsAccess}
+            mentorProfile={mentorProfile}
+            routeBasePath={routeBasePath}
+          />
         )}
 
 
 
         {/* Recent Messages */}
+        {canViewMessages ? (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
             <div>
               <CardTitle className="text-sm">Recent Messages</CardTitle>
               <CardDescription className="text-xs">Latest messages from mentees</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => router.push('/dashboard?section=messages')}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() =>
+                router.push(buildDashboardSectionUrl(routeBasePath, 'messages'))
+              }
+            >
               View All
               <ArrowRight className="ml-1 h-3 w-3" />
             </Button>
@@ -515,16 +459,31 @@ export function MentorOnlyDashboard({ user }: MentorOnlyDashboardProps) {
             )}
           </CardContent>
         </Card>
+        ) : (
+          <MentorFeatureCardGate
+            feature={MENTOR_FEATURE_KEYS.dashboardMessages}
+            access={messagesAccess}
+            mentorProfile={mentorProfile}
+            routeBasePath={routeBasePath}
+          />
+        )}
 
         {/* Profile Summary */}
-        {mentorProfile && (
+        {mentorProfile && canViewProfile && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
               <div>
                 <CardTitle className="text-sm">Profile Summary</CardTitle>
                 <CardDescription className="text-xs">Your mentor profile</CardDescription>
               </div>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => router.push('/dashboard?section=profile')}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() =>
+                  router.push(buildDashboardSectionUrl(routeBasePath, 'profile'))
+                }
+              >
                 Edit
                 <ArrowRight className="ml-1 h-3 w-3" />
               </Button>

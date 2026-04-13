@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
+  MockAccessPolicyError,
+  assertSharedMenteeFeatureAccess,
+  assertSharedMentorFeatureAccess,
   enforceFeature,
   isSubscriptionPolicyError,
   getAdminDashboardKpis,
@@ -13,6 +16,17 @@ const {
   getTopMenteeQuestions,
   getTopUniversitiesSearched,
 } = vi.hoisted(() => ({
+  MockAccessPolicyError: class AccessPolicyError extends Error {
+    constructor(
+      public readonly status: number,
+      message: string,
+      public readonly data?: unknown
+    ) {
+      super(message);
+    }
+  },
+  assertSharedMenteeFeatureAccess: vi.fn(),
+  assertSharedMentorFeatureAccess: vi.fn(),
   enforceFeature: vi.fn(),
   isSubscriptionPolicyError: vi.fn(() => false),
   getAdminDashboardKpis: vi.fn(),
@@ -24,6 +38,12 @@ const {
   getMentorRecentSessions: vi.fn(),
   getTopMenteeQuestions: vi.fn(),
   getTopUniversitiesSearched: vi.fn(),
+}));
+
+vi.mock('@/lib/access-policy/server', () => ({
+  assertMenteeFeatureAccess: assertSharedMenteeFeatureAccess,
+  assertMentorFeatureAccess: assertSharedMentorFeatureAccess,
+  AccessPolicyError: MockAccessPolicyError,
 }));
 
 vi.mock('@/lib/subscriptions/policy-runtime', () => ({
@@ -57,9 +77,15 @@ import {
 describe('analytics service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    assertSharedMenteeFeatureAccess.mockResolvedValue(undefined);
+    assertSharedMentorFeatureAccess.mockResolvedValue(undefined);
   });
 
   it('rejects mentor analytics for non-mentor users', async () => {
+    assertSharedMentorFeatureAccess.mockRejectedValueOnce(
+      new MockAccessPolicyError(403, 'Mentor access required')
+    );
+
     await expect(
       getMentorAnalytics(
         'user-1',
@@ -69,7 +95,7 @@ describe('analytics service', () => {
           roles: [{ name: 'mentee', displayName: 'Mentee' }],
         } as any
       )
-    ).rejects.toMatchObject<Partial<AnalyticsServiceError>>({
+    ).rejects.toMatchObject({
       status: 403,
       message: 'Mentor access required',
     });
@@ -78,6 +104,10 @@ describe('analytics service', () => {
   });
 
   it('rejects mentee analytics for non-mentee users', async () => {
+    assertSharedMenteeFeatureAccess.mockRejectedValueOnce(
+      new MockAccessPolicyError(403, 'Mentee access required')
+    );
+
     await expect(
       getMenteeLearningAnalytics(
         'user-1',
@@ -87,7 +117,7 @@ describe('analytics service', () => {
           roles: [{ name: 'mentor', displayName: 'Mentor' }],
         } as any
       )
-    ).rejects.toMatchObject<Partial<AnalyticsServiceError>>({
+    ).rejects.toMatchObject({
       status: 403,
       message: 'Mentee access required',
     });
@@ -105,7 +135,7 @@ describe('analytics service', () => {
           roles: [{ name: 'mentor', displayName: 'Mentor' }],
         } as any
       )
-    ).rejects.toMatchObject<Partial<AnalyticsServiceError>>({
+    ).rejects.toMatchObject({
       status: 403,
       message: 'Admin access required',
     });
@@ -132,7 +162,7 @@ describe('analytics service', () => {
           roles: [{ name: 'mentor', displayName: 'Mentor' }],
         } as any
       )
-    ).rejects.toMatchObject<Partial<AnalyticsServiceError>>({
+    ).rejects.toMatchObject({
       status: 403,
       message: 'Analytics access not included in your plan',
       data: policyError.payload,

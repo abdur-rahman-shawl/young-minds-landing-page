@@ -1,9 +1,10 @@
-import { TRPCError } from '@trpc/server';
-import { z } from 'zod';
-
-import { adminProcedure, createTRPCRouter, mentorProcedure } from '../init';
 import {
-  ContentServiceError,
+  adminProcedure,
+  createTRPCRouter,
+  mentorFeatureProcedure,
+} from '../init';
+import { MENTOR_FEATURE_KEYS } from '@/lib/mentor/access-policy';
+import {
   archiveContent,
   createContent,
   createContentItem,
@@ -26,6 +27,7 @@ import {
   updateProfileContent,
   updateSection,
 } from '@/lib/content/server/service';
+import { throwAsTRPCError } from '@/lib/trpc/router-error';
 import {
   archiveContentInputSchema,
   createContentInputSchema,
@@ -48,60 +50,15 @@ import {
   updateModuleInputSchema,
 } from '@/lib/content/server/schemas';
 
-function mapStatusToTRPCCode(status: number): TRPCError['code'] {
-  switch (status) {
-    case 400:
-      return 'BAD_REQUEST';
-    case 401:
-      return 'UNAUTHORIZED';
-    case 403:
-      return 'FORBIDDEN';
-    case 404:
-      return 'NOT_FOUND';
-    case 409:
-      return 'CONFLICT';
-    default:
-      return 'INTERNAL_SERVER_ERROR';
-  }
-}
-
-function throwAsTRPCError(error: unknown, fallbackMessage: string): never {
-  if (error instanceof TRPCError) {
-    throw error;
-  }
-
-  if (error instanceof ContentServiceError) {
-    throw new TRPCError({
-      code: mapStatusToTRPCCode(error.status),
-      message: error.message,
-      cause: error,
-    });
-  }
-
-  if (error instanceof z.ZodError) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: error.errors[0]?.message ?? 'Invalid input',
-      cause: error,
-    });
-  }
-
-  throw new TRPCError({
-    code: 'INTERNAL_SERVER_ERROR',
-    message: fallbackMessage,
-    cause: error instanceof Error ? error : undefined,
-  });
-}
-
 export const contentRouter = createTRPCRouter({
-  list: mentorProcedure.query(async ({ ctx }) => {
+  list: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage).query(async ({ ctx }) => {
     try {
       return await listContent(ctx.userId, ctx.currentUser);
     } catch (error) {
       throwAsTRPCError(error, 'Failed to fetch content');
     }
   }),
-  get: mentorProcedure
+  get: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(getContentInputSchema)
     .query(async ({ ctx, input }) => {
       try {
@@ -110,7 +67,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch content');
       }
     }),
-  create: mentorProcedure
+  create: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(createContentInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -119,7 +76,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to create content');
       }
     }),
-  update: mentorProcedure
+  update: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(updateContentInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -128,7 +85,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to update content');
       }
     }),
-  archive: mentorProcedure
+  archive: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(archiveContentInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -137,7 +94,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to update content status');
       }
     }),
-  delete: mentorProcedure
+  delete: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(deleteContentInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -146,7 +103,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to delete content');
       }
     }),
-  saveCourse: mentorProcedure
+  saveCourse: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(saveCourseInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -155,7 +112,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to save course');
       }
     }),
-  createModule: mentorProcedure
+  createModule: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(createModuleInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -164,7 +121,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to create module');
       }
     }),
-  updateModule: mentorProcedure
+  updateModule: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(updateModuleInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -173,7 +130,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to update module');
       }
     }),
-  deleteModule: mentorProcedure
+  deleteModule: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(deleteModuleInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -182,7 +139,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to delete module');
       }
     }),
-  createSection: mentorProcedure
+  createSection: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(createSectionInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -191,7 +148,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to create section');
       }
     }),
-  updateSection: mentorProcedure
+  updateSection: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(updateSectionInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -200,7 +157,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to update section');
       }
     }),
-  deleteSection: mentorProcedure
+  deleteSection: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(deleteSectionInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -209,7 +166,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to delete section');
       }
     }),
-  createContentItem: mentorProcedure
+  createContentItem: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(createContentItemInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -218,7 +175,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to create content item');
       }
     }),
-  updateContentItem: mentorProcedure
+  updateContentItem: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(updateContentItemInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -227,7 +184,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to update content item');
       }
     }),
-  deleteContentItem: mentorProcedure
+  deleteContentItem: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(deleteContentItemInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -236,7 +193,7 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to delete content item');
       }
     }),
-  submitForReview: mentorProcedure
+  submitForReview: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(submitContentForReviewInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -245,14 +202,14 @@ export const contentRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to submit content for review');
       }
     }),
-  profileList: mentorProcedure.query(async ({ ctx }) => {
+  profileList: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage).query(async ({ ctx }) => {
     try {
       return await listProfileContent(ctx.userId, ctx.currentUser);
     } catch (error) {
       throwAsTRPCError(error, 'Failed to fetch profile content');
     }
   }),
-  profileUpdate: mentorProcedure
+  profileUpdate: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.contentManage)
     .input(updateProfileContentInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {

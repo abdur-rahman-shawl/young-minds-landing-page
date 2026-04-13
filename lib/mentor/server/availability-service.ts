@@ -12,6 +12,11 @@ import {
   getDay,
 } from 'date-fns';
 
+import {
+  AccessPolicyError,
+  assertMenteeFeatureAccess as assertSharedMenteeFeatureAccess,
+  assertMentorFeatureAccess as assertSharedMentorFeatureAccess,
+} from '@/lib/access-policy/server';
 import { db } from '@/lib/db';
 import {
   mentorAvailabilityExceptions,
@@ -23,11 +28,10 @@ import {
 } from '@/lib/db/schema';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
 import {
-  canBrowseMentorDirectory,
-} from '@/lib/mentor/access';
-import {
   canManageMentorAvailability,
 } from '@/lib/mentor/availability-access';
+import { MENTEE_FEATURE_KEYS } from '@/lib/mentee/access-policy';
+import { MENTOR_FEATURE_KEYS } from '@/lib/mentor/access-policy';
 import {
   hasBlockingAvailabilityException,
   isBlockingAvailabilityExceptionType,
@@ -41,7 +45,6 @@ import {
   validateTimeBlock,
   validateWeeklySchedule,
 } from '@/lib/utils/availability-validation';
-
 import { assertMentorLifecycle } from './errors';
 import {
   deleteMentorAvailabilityExceptionsInputSchema,
@@ -87,15 +90,29 @@ async function getAvailabilityUser(
 }
 
 function isAdmin(user: CurrentUser) {
-  return user.roles.some((role) => role.name === 'admin');
+  return user.roles.some(
+    (role: { name: string }) => role.name === 'admin'
+  );
 }
 
-function assertBrowseAccess(user: CurrentUser) {
-  assertMentorLifecycle(
-    canBrowseMentorDirectory(user.roles.map((role) => role.name)),
-    403,
-    'Mentee access required'
-  );
+async function assertBrowseAccess(
+  userId: string,
+  currentUser?: CurrentUser
+) {
+  try {
+    await assertSharedMenteeFeatureAccess({
+      userId,
+      feature: MENTEE_FEATURE_KEYS.mentorDirectoryView,
+      currentUser,
+      source: `mentor.availability.${MENTEE_FEATURE_KEYS.mentorDirectoryView}`,
+    });
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      assertMentorLifecycle(false, error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
 }
 
 async function getMentorRecordByUserId(mentorUserId: string) {
@@ -144,6 +161,26 @@ function assertAvailabilityManagerAccess(
   );
 }
 
+async function assertAvailabilityFeatureAccess(
+  userId: string,
+  currentUser?: CurrentUser
+) {
+  try {
+    await assertSharedMentorFeatureAccess({
+      userId,
+      feature: MENTOR_FEATURE_KEYS.availabilityManage,
+      currentUser,
+      source: 'mentor.availability.manage',
+    });
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      assertMentorLifecycle(false, error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
+}
+
 export async function getMentorAvailability(
   userId: string,
   input: MentorAvailabilityQueryInput,
@@ -153,6 +190,7 @@ export async function getMentorAvailability(
   const parsed = mentorAvailabilityQueryInputSchema.parse(input);
 
   assertAvailabilityManagerAccess(actor, parsed.mentorUserId);
+  await assertAvailabilityFeatureAccess(parsed.mentorUserId, actor);
 
   const { mentor, schedule } = await getScheduleByMentorUserId(parsed.mentorUserId);
 
@@ -244,6 +282,7 @@ export async function upsertMentorAvailability(
 ) {
   const actor = await getAvailabilityUser(userId, currentUser);
   assertAvailabilityManagerAccess(actor, mentorUserId);
+  await assertAvailabilityFeatureAccess(mentorUserId, actor);
 
   const mentor = await getMentorRecordByUserId(mentorUserId);
   assertMentorLifecycle(mentor, 409, MENTOR_PROFILE_REQUIRED_ERROR);
@@ -333,6 +372,7 @@ export async function listMentorAvailabilityExceptions(
   const parsed = mentorAvailabilityQueryInputSchema.parse(input);
 
   assertAvailabilityManagerAccess(actor, parsed.mentorUserId);
+  await assertAvailabilityFeatureAccess(parsed.mentorUserId, actor);
 
   const { mentor, schedule } = await getScheduleByMentorUserId(parsed.mentorUserId);
   assertMentorLifecycle(mentor, 409, MENTOR_PROFILE_REQUIRED_ERROR);
@@ -374,6 +414,7 @@ export async function createMentorAvailabilityException(
   const parsed = mentorAvailabilityExceptionInputSchema.parse(input);
 
   assertAvailabilityManagerAccess(actor, parsed.mentorUserId);
+  await assertAvailabilityFeatureAccess(parsed.mentorUserId, actor);
 
   const { mentor, schedule } = await getScheduleByMentorUserId(parsed.mentorUserId);
   assertMentorLifecycle(mentor, 409, MENTOR_PROFILE_REQUIRED_ERROR);
@@ -438,6 +479,7 @@ export async function deleteMentorAvailabilityExceptions(
   const parsed = deleteMentorAvailabilityExceptionsInputSchema.parse(input);
 
   assertAvailabilityManagerAccess(actor, parsed.mentorUserId);
+  await assertAvailabilityFeatureAccess(parsed.mentorUserId, actor);
 
   const { mentor, schedule } = await getScheduleByMentorUserId(parsed.mentorUserId);
   assertMentorLifecycle(mentor, 409, MENTOR_PROFILE_REQUIRED_ERROR);
@@ -477,7 +519,7 @@ export async function listMentorAvailableSlots(
   currentUser?: CurrentUser
 ) {
   const actor = await getAvailabilityUser(userId, currentUser);
-  assertBrowseAccess(actor);
+  await assertBrowseAccess(userId, actor);
 
   const parsed = mentorSlotsInputSchema.parse(input);
   const { mentor, schedule } = await getScheduleByMentorUserId(parsed.mentorUserId);

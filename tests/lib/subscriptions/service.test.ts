@@ -141,9 +141,7 @@ describe('subscription service', () => {
       new Error('Multiple active subscriptions found for user user-1 across audiences (mentor, mentee); audience context is required')
     );
 
-    await expect(getSelfSubscription('user-1')).rejects.toMatchObject<
-      Partial<SubscriptionServiceError>
-    >({
+    await expect(getSelfSubscription('user-1')).rejects.toMatchObject({
       status: 409,
       message:
         'Multiple active subscriptions found. Please provide audience=mentor|mentee.',
@@ -166,7 +164,7 @@ describe('subscription service', () => {
       selectSelfSubscriptionPlan('user-1', {
         planId: 'plan-1',
       })
-    ).rejects.toMatchObject<Partial<SubscriptionServiceError>>({
+    ).rejects.toMatchObject({
       status: 403,
       message: 'Plan audience does not match your role',
     });
@@ -204,7 +202,7 @@ describe('subscription service', () => {
         endDate: '2026-04-03T00:00:00.000Z',
         audience: 'all',
       })
-    ).rejects.toMatchObject<Partial<SubscriptionServiceError>>({
+    ).rejects.toMatchObject({
       status: 400,
       message: 'startDate must be earlier than or equal to endDate.',
     });

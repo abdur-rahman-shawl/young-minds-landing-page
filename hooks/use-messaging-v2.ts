@@ -17,29 +17,29 @@ import { useMessagingSSE } from './use-messaging-sse';
  * Enhanced messaging hook with TanStack Query caching
  * Provides all messaging functionality with optimized performance
  */
-export function useMessaging(userId: string | undefined) {
+export function useMessaging(userId: string | undefined, enabled = true) {
   // Use the dedicated SSE hook for real-time updates
-  const { isConnected } = useMessagingSSE(userId);
+  const { isConnected } = useMessagingSSE(userId, enabled);
 
   // Fetch data using React Query hooks
   const {
     data: threads = [],
     isLoading: threadsLoading,
     error: threadsError
-  } = useThreadsQuery(userId);
+  } = useThreadsQuery(userId, false, enabled);
 
   const {
     data: requests = [],
     isLoading: requestsLoading,
     error: requestsError
-  } = useMessageRequestsQuery(userId, 'received', 'pending');
+  } = useMessageRequestsQuery(userId, 'received', 'pending', enabled);
 
   // Get unread counts from cached data
   const {
     unreadThreadsCount,
     pendingRequestsCount,
     totalUnreadCount,
-  } = useUnreadCountQuery(userId);
+  } = useUnreadCountQuery(userId, enabled);
 
   // Mutations
   const sendMessageMutation = useSendMessageMutation();

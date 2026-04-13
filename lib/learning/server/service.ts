@@ -1,6 +1,10 @@
 import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import { NodePgTransaction } from 'drizzle-orm/node-postgres';
 
+import {
+  AccessPolicyError,
+  assertMenteeFeatureAccess as assertSharedMenteeFeatureAccess,
+} from '@/lib/access-policy/server';
 import { db } from '@/lib/db';
 import * as schema from '@/lib/db/schema';
 import {
@@ -35,6 +39,7 @@ import {
   canReviewCourseEnrollment,
 } from '@/lib/learning/course-runtime';
 import { calculateWeightedReviewScore, canRequestReviewQuestions, resolveReviewContext } from '@/lib/learning/reviews';
+import { MENTEE_FEATURE_KEYS, type MenteeFeatureKey } from '@/lib/mentee/access-policy';
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 import { getPlanFeatures } from '@/lib/subscriptions/enforcement';
 import {
@@ -124,14 +129,45 @@ async function getLearningUser(
   return resolvedUser;
 }
 
+async function assertMenteeFeatureAccess(
+  userId: string,
+  feature: MenteeFeatureKey,
+  currentUser?: CurrentUser
+) {
+  try {
+    const result = await assertSharedMenteeFeatureAccess({
+      userId,
+      feature,
+      currentUser,
+      source: `learning.${feature}`,
+    });
+
+    return result.currentUser;
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      throw new LearningServiceError(error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
+}
+
+async function assertLearningWorkspaceAccess(
+  userId: string,
+  currentUser?: CurrentUser
+) {
+  return assertMenteeFeatureAccess(
+    userId,
+    MENTEE_FEATURE_KEYS.learningWorkspace,
+    currentUser
+  );
+}
+
 async function getOrCreateMenteeId(
   userId: string,
   currentUser?: CurrentUser
 ): Promise<{ currentUser: CurrentUser; menteeId: string }> {
-  const resolvedUser = await getLearningUser(userId, currentUser);
-  const isMentee = resolvedUser.roles.some((role) => role.name === 'mentee');
-
-  assertLearning(isMentee, 403, 'Mentee access required');
+  const resolvedUser = await assertLearningWorkspaceAccess(userId, currentUser);
 
   const existingMentee = await db
     .select({ id: mentees.id })
@@ -196,9 +232,7 @@ async function getRequiredMenteeId(
   userId: string,
   currentUser?: CurrentUser
 ): Promise<{ currentUser: CurrentUser; menteeId: string }> {
-  const resolvedUser = await getLearningUser(userId, currentUser);
-  const isMentee = resolvedUser.roles.some((role) => role.name === 'mentee');
-  assertLearning(isMentee, 403, 'Mentee access required');
+  const resolvedUser = await assertLearningWorkspaceAccess(userId, currentUser);
 
   const menteeId = await getExistingMenteeId(userId);
   assertLearning(menteeId, 403, 'Mentee profile not found');
@@ -339,6 +373,7 @@ export async function enrollInCourse(
 ) {
   const parsed = enrollCourseInputSchema.parse(input);
   const { menteeId } = await getOrCreateCourseAccessMenteeId(userId, currentUser);
+  await assertMenteeFeatureAccess(userId, MENTEE_FEATURE_KEYS.learningWorkspace);
 
   const [course] = await db
     .select({
@@ -533,7 +568,11 @@ export async function getCourseProgress(
   currentUser?: CurrentUser
 ) {
   const parsed = courseProgressInputSchema.parse(input);
-  await getLearningUser(userId, currentUser);
+  const resolvedUser = await assertMenteeFeatureAccess(
+    userId,
+    MENTEE_FEATURE_KEYS.learningWorkspace,
+    currentUser
+  );
 
   const enrollmentData = await db
     .select({
@@ -554,7 +593,7 @@ export async function getCourseProgress(
         eq(courseEnrollments.courseId, parsed.courseId)
       )
     )
-    .where(eq(users.id, userId))
+    .where(eq(users.id, resolvedUser.id))
     .limit(1);
 
   assertLearning(enrollmentData.length > 0, 404, 'Not enrolled in this course');
@@ -850,7 +889,11 @@ export async function updateCourseProgress(
   currentUser?: CurrentUser
 ) {
   const parsed = updateCourseProgressInputSchema.parse(input);
-  await getLearningUser(userId, currentUser);
+  const resolvedUser = await assertMenteeFeatureAccess(
+    userId,
+    MENTEE_FEATURE_KEYS.learningWorkspace,
+    currentUser
+  );
 
   const enrollmentData = await db
     .select({
@@ -866,7 +909,7 @@ export async function updateCourseProgress(
         eq(courseEnrollments.courseId, parsed.courseId)
       )
     )
-    .where(eq(users.id, userId))
+    .where(eq(users.id, resolvedUser.id))
     .limit(1);
 
   assertLearning(enrollmentData.length > 0, 404, 'Not enrolled in this course');
@@ -1190,7 +1233,12 @@ export async function listEnrolledCourses(
   currentUser?: CurrentUser
 ) {
   const parsed = listEnrolledCoursesInputSchema.parse(input ?? {});
-  const { menteeId } = await getOrCreateMenteeId(userId, currentUser);
+  const { currentUser: resolvedUser, menteeId } = await getOrCreateMenteeId(userId, currentUser);
+  await assertMenteeFeatureAccess(
+    userId,
+    MENTEE_FEATURE_KEYS.learningWorkspace,
+    resolvedUser
+  );
 
   const page = parsed.page ?? 1;
   const limit = parsed.limit ?? 12;
@@ -1336,7 +1384,12 @@ export async function listSavedItems(
   userId: string,
   currentUser?: CurrentUser
 ) {
-  const { menteeId } = await getOrCreateMenteeId(userId, currentUser);
+  const { currentUser: resolvedUser, menteeId } = await getOrCreateMenteeId(userId, currentUser);
+  await assertMenteeFeatureAccess(
+    userId,
+    MENTEE_FEATURE_KEYS.learningWorkspace,
+    resolvedUser
+  );
 
   return db
     .select({
@@ -1377,7 +1430,12 @@ export async function removeSavedItem(
   currentUser?: CurrentUser
 ) {
   const parsed = removeSavedItemInputSchema.parse(input);
-  const { menteeId } = await getOrCreateMenteeId(userId, currentUser);
+  const { currentUser: resolvedUser, menteeId } = await getOrCreateMenteeId(userId, currentUser);
+  await assertMenteeFeatureAccess(
+    userId,
+    MENTEE_FEATURE_KEYS.learningWorkspace,
+    resolvedUser
+  );
 
   const [enrollment] = await db
     .select({

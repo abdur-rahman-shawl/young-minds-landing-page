@@ -1,65 +1,24 @@
-import { TRPCError } from '@trpc/server';
-import { z } from 'zod';
-
-import { adminProcedure, createTRPCRouter, mentorProcedure, protectedProcedure } from '../init';
 import {
-  AnalyticsServiceError,
+  adminProcedure,
+  createTRPCRouter,
+  menteeFeatureProcedure,
+  mentorFeatureProcedure,
+} from '../init';
+import {
   getAdminAnalytics,
   getMenteeLearningAnalytics,
   getMentorAnalytics,
 } from '@/lib/analytics/server/service';
+import { MENTEE_FEATURE_KEYS } from '@/lib/mentee/access-policy';
+import { MENTOR_FEATURE_KEYS } from '@/lib/mentor/access-policy';
+import { throwAsTRPCError } from '@/lib/trpc/router-error';
 import {
   analyticsDateRangeInputSchema,
   menteeLearningAnalyticsInputSchema,
 } from '@/lib/analytics/server/schemas';
 
-function mapStatusToTRPCCode(status: number): TRPCError['code'] {
-  switch (status) {
-    case 400:
-      return 'BAD_REQUEST';
-    case 401:
-      return 'UNAUTHORIZED';
-    case 403:
-      return 'FORBIDDEN';
-    case 404:
-      return 'NOT_FOUND';
-    case 409:
-      return 'CONFLICT';
-    default:
-      return 'INTERNAL_SERVER_ERROR';
-  }
-}
-
-function throwAsTRPCError(error: unknown, fallbackMessage: string): never {
-  if (error instanceof TRPCError) {
-    throw error;
-  }
-
-  if (error instanceof AnalyticsServiceError) {
-    throw new TRPCError({
-      code: mapStatusToTRPCCode(error.status),
-      message: error.message,
-      cause: error,
-    });
-  }
-
-  if (error instanceof z.ZodError) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: error.errors[0]?.message ?? 'Invalid input',
-      cause: error,
-    });
-  }
-
-  throw new TRPCError({
-    code: 'INTERNAL_SERVER_ERROR',
-    message: fallbackMessage,
-    cause: error instanceof Error ? error : undefined,
-  });
-}
-
 export const analyticsRouter = createTRPCRouter({
-  mentorDashboard: mentorProcedure
+  mentorDashboard: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.analyticsView)
     .input(analyticsDateRangeInputSchema.optional())
     .query(async ({ ctx, input }) => {
       try {
@@ -68,11 +27,11 @@ export const analyticsRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch mentor analytics');
       }
     }),
-  menteeLearning: protectedProcedure
+  menteeLearning: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.analyticsView)
     .input(menteeLearningAnalyticsInputSchema.optional())
     .query(async ({ ctx, input }) => {
       try {
-        return await getMenteeLearningAnalytics(ctx.userId, input);
+        return await getMenteeLearningAnalytics(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to fetch learning analytics');
       }

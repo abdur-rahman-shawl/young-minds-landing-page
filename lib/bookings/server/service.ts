@@ -15,6 +15,10 @@ import {
   getDay,
 } from 'date-fns';
 
+import {
+  AccessPolicyError,
+  assertMentorFeatureAccess as assertSharedMentorFeatureAccess,
+} from '@/lib/access-policy/server';
 import type { TRPCContext } from '@/lib/trpc/context';
 import { db } from '@/lib/db';
 import {
@@ -46,6 +50,7 @@ import {
 } from '@/lib/subscriptions/policies';
 import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 import { findAvailableReplacementMentor } from '@/lib/services/mentor-matching';
+import { MENTOR_FEATURE_KEYS } from '@/lib/mentor/access-policy';
 import {
   sendAlternativeMentorSelectedEmail,
   sendBookingConfirmedEmail,
@@ -155,6 +160,22 @@ async function getActorRoleFlags(userId: string) {
     isMentor: roleNames.has('mentor'),
     isMentee: roleNames.has('mentee'),
   };
+}
+
+async function assertMentorScheduleFeatureAccess(userId: string) {
+  try {
+    await assertSharedMentorFeatureAccess({
+      userId,
+      feature: MENTOR_FEATURE_KEYS.scheduleManage,
+      source: 'bookings.schedule.manage',
+    });
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      throw new BookingServiceError(error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
 }
 
 async function getPolicyValue(key: string, defaultValue: string) {
@@ -273,6 +294,9 @@ export async function listBookings(
 ) {
   const parsed = listBookingsInputSchema.parse(input);
   const actor = await getActorRoleFlags(context.userId);
+  if (parsed.role === 'mentor' && actor.isMentor && !actor.isAdmin) {
+    await assertMentorScheduleFeatureAccess(context.userId);
+  }
   const access = resolveListBookingsAccess(actor, parsed);
   const conditions = [];
 
@@ -358,6 +382,11 @@ export async function getBooking(
     .limit(1);
 
   assertBooking(booking, 404, 'Booking not found or access denied');
+
+  if (booking.mentorId === context.userId) {
+    await assertMentorScheduleFeatureAccess(context.userId);
+  }
+
   return booking;
 }
 
@@ -830,6 +859,7 @@ export async function markBookingNoShow(
     403,
     'Only mentors can mark sessions as no-show'
   );
+  await assertMentorScheduleFeatureAccess(context.userId);
   assertBooking(
     booking.status === 'scheduled',
     400,
@@ -1374,6 +1404,9 @@ export async function withdrawRescheduleRequest(
 
   const now = new Date();
   const userRole = rescheduleRequest.initiatedBy;
+  if (booking.mentorId === context.userId) {
+    await assertMentorScheduleFeatureAccess(context.userId);
+  }
 
   await db
     .update(rescheduleRequests)
@@ -1451,6 +1484,9 @@ export async function createRescheduleRequest(
 
   const isMentor = booking.mentorId === context.userId;
   const isMentee = booking.menteeId === context.userId;
+  if (isMentor) {
+    await assertMentorScheduleFeatureAccess(context.userId);
+  }
   assertBooking(
     isMentor || isMentee,
     403,
@@ -1670,6 +1706,9 @@ export async function respondToRescheduleRequest(
 
   const isMentor = booking.mentorId === context.userId;
   const isMentee = booking.menteeId === context.userId;
+  if (isMentor) {
+    await assertMentorScheduleFeatureAccess(context.userId);
+  }
   const userRole = isMentor ? 'mentor' : 'mentee';
   const lastActionBy =
     rescheduleRequest.status === 'counter_proposed'
@@ -1989,6 +2028,9 @@ export async function cancelBooking(
 
   const isMentor = booking.mentorId === context.userId;
   const isMentee = booking.menteeId === context.userId;
+  if (isMentor) {
+    await assertMentorScheduleFeatureAccess(context.userId);
+  }
 
   assertBooking(
     isMentor || isMentee,

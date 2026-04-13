@@ -3,8 +3,7 @@
 import { motion } from "framer-motion"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge"
 import {
   Sidebar,
   SidebarContent,
@@ -24,13 +23,31 @@ import {
   User,
   BookOpen,
   CalendarClock,
-  CreditCard
+  CreditCard,
+  Lock
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useMentorDashboardStats } from "@/hooks/use-mentor-dashboard"
 import { useMessaging } from "@/hooks/use-messaging-v2"
-import { Badge } from "@/components/ui/badge"
-import { getNavigationSections, type DashboardNavigationScope } from "@/lib/dashboard/sections"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  getNavigationSections,
+  type DashboardNavigationScope,
+  type DashboardSectionKey,
+} from "@/lib/dashboard/sections"
+import {
+  getMentorVerificationStatusMeta,
+} from "@/components/mentor/verification/mentor-verification-state"
+import {
+  getMentorDashboardSectionFeature,
+  getMentorFeatureDecision,
+  MENTOR_FEATURE_KEYS,
+} from "@/lib/mentor/access-policy"
 
 interface MentorSidebarProps {
   activeSection: string
@@ -43,9 +60,19 @@ export function MentorSidebar({
   onSectionChange,
   navigationScope = "dashboard",
 }: MentorSidebarProps) {
-  const { session, primaryRole, mentorProfile, isLoading } = useAuth()
-  const { stats, isLoading: statsLoading } = useMentorDashboardStats()
-  const { totalUnreadCount } = useMessaging(session?.user?.id)
+  const { session, primaryRole, mentorProfile, mentorAccess, isLoading } = useAuth()
+  const statsAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.dashboardStats
+  )
+  const messagesAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.messagesView
+  )
+  const canViewStats = Boolean(statsAccess?.allowed)
+  const canViewMessages = Boolean(messagesAccess?.allowed)
+  const { stats, isLoading: statsLoading } = useMentorDashboardStats(canViewStats)
+  const { totalUnreadCount } = useMessaging(session?.user?.id, canViewMessages)
 
   const allowedKeys = new Set(
     getNavigationSections("mentor", navigationScope).map((section) => section.key)
@@ -106,6 +133,7 @@ export function MentorSidebar({
 
   const mentorName = mentorProfile?.fullName || session?.user?.name || 'Mentor'
   const mentorInitials = mentorName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+  const verificationMeta = getMentorVerificationStatusMeta(mentorProfile?.verificationStatus)
 
   return (
     <Sidebar className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 mt-16">
@@ -129,11 +157,10 @@ export function MentorSidebar({
                   </AvatarFallback>
                 </Avatar>
 
-                {/* Pulsing Online Status */}
+                {/* Verification Signal */}
                 <div className="absolute -bottom-0.5 -right-0.5">
                   <span className="relative flex h-3.5 w-3.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white dark:border-gray-700"></span>
+                    <span className={`relative inline-flex h-3.5 w-3.5 rounded-full border-2 border-white shadow-sm dark:border-gray-700 ${verificationMeta.iconClassName}`}></span>
                   </span>
                 </div>
               </div>
@@ -146,6 +173,47 @@ export function MentorSidebar({
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {mentorProfile?.title || (isLoading ? 'Loading...' : (primaryRole?.displayName || 'Mentor'))}
                 </p>
+                <TooltipProvider delayDuration={120}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-full text-[11px] font-medium text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                        aria-label={`Mentor status: ${verificationMeta.label}`}
+                      >
+                        <span
+                          className={`h-2 w-2 rounded-full shadow-sm ${verificationMeta.iconClassName}`}
+                        />
+                        <span>{verificationMeta.shortLabel}</span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="bottom"
+                      align="start"
+                      sideOffset={8}
+                      className="max-w-[280px] rounded-2xl border border-slate-200/80 bg-white/95 p-0 shadow-xl shadow-slate-200/50 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 dark:shadow-black/30"
+                    >
+                      <div className="space-y-3 p-4">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={`h-2.5 w-2.5 rounded-full shadow-sm ${verificationMeta.iconClassName}`}
+                          />
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                              Mentor Status
+                            </p>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                              {verificationMeta.label}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                          {verificationMeta.description}
+                        </p>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
 
@@ -158,7 +226,7 @@ export function MentorSidebar({
                   <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Mentees</span>
                 </div>
                 <p className="text-lg font-bold text-gray-900 dark:text-white leading-none">
-                  {statsLoading ? '...' : (stats?.totalMentees || 0)}
+                  {canViewStats ? (statsLoading ? '...' : (stats?.totalMentees || 0)) : '—'}
                 </p>
               </div>
 
@@ -169,7 +237,9 @@ export function MentorSidebar({
                   <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Rating</span>
                 </div>
                 <p className="text-lg font-bold text-gray-900 dark:text-white leading-none">
-                  {statsLoading ? '...' : (stats?.averageRating ? stats.averageRating.toFixed(1) : 'N/A')}
+                  {canViewStats
+                    ? (statsLoading ? '...' : (stats?.averageRating ? stats.averageRating.toFixed(1) : 'N/A'))
+                    : '—'}
                 </p>
               </div>
             </div>
@@ -180,26 +250,49 @@ export function MentorSidebar({
       {/* Navigation Menu */}
       <SidebarContent className="px-3 py-2">
         <SidebarMenu className="space-y-0.5">
-          {mentorMenuItems.map((item) => (
-            <SidebarMenuItem key={item.key}>
-              <SidebarMenuButton
-                onClick={() => onSectionChange(item.key)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${activeSection === item.key
-                  ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border-l-2 border-blue-500'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-              >
-                <item.icon className={`w-4 h-4 flex-shrink-0 ${activeSection === item.key ? 'text-blue-500' : ''
-                  }`} />
-                <span className="truncate">{item.title}</span>
-                {item.key === 'messages' && totalUnreadCount > 0 && (
-                  <Badge variant="destructive" className="ml-auto">
-                    {totalUnreadCount}
-                  </Badge>
-                )}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {mentorMenuItems.map((item) => {
+            const feature = getMentorDashboardSectionFeature(
+              item.key as DashboardSectionKey
+            )
+            const access = feature ? getMentorFeatureDecision(mentorAccess, feature) : null
+            const isRestricted = Boolean(access && !access.allowed)
+
+            return (
+              <SidebarMenuItem key={item.key}>
+                <SidebarMenuButton
+                  onClick={() => {
+                    if (!isRestricted) {
+                      onSectionChange(item.key)
+                    }
+                  }}
+                  disabled={isRestricted}
+                  tooltip={isRestricted ? access?.blockedSummary : undefined}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${activeSection === item.key
+                    ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border-l-2 border-blue-500'
+                    : isRestricted
+                      ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                >
+                  <item.icon className={`w-4 h-4 flex-shrink-0 ${activeSection === item.key
+                    ? 'text-blue-500'
+                    : isRestricted
+                      ? 'text-gray-400 dark:text-gray-500'
+                      : ''
+                    }`} />
+                  <span className="truncate">{item.title}</span>
+                  {isRestricted && (
+                    <Lock className="ml-auto h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
+                  )}
+                  {item.key === 'messages' && totalUnreadCount > 0 && (
+                    <Badge variant="destructive" className="ml-auto">
+                      {totalUnreadCount}
+                    </Badge>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
         </SidebarMenu>
       </SidebarContent>
 

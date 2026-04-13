@@ -53,7 +53,9 @@ export async function getCurrentUserProfile(
   currentUser?: CurrentUser
 ) {
   const resolvedUser = await getProfileUser(userId, currentUser);
-  const roleNames = new Set(resolvedUser.roles.map((role) => role.name));
+  const roleNames = new Set(
+    resolvedUser.roles.map((role: { name: string }) => role.name)
+  );
 
   const [menteeProfile, mentorProfileRaw] = await Promise.all([
     roleNames.has('mentee')

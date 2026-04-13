@@ -8,16 +8,40 @@ import { motion } from "framer-motion"
 import { formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
 import { useRemoveSavedItemMutation, useSavedItemsQuery } from "@/hooks/queries/use-learning-queries"
+import {
+  getMenteeFeatureDecision,
+  MENTEE_FEATURE_KEYS,
+} from "@/lib/mentee/access-policy"
+import { MenteeFeaturePageGate } from "@/components/mentee/access/mentee-feature-state"
 
 interface SavedItemsProps {
   onMentorSelect: (mentorId: string) => void
 }
 
-export function SavedItems({ onMentorSelect }: SavedItemsProps) {
+export function SavedItems({ onMentorSelect: _onMentorSelect }: SavedItemsProps) {
   const router = useRouter()
-  const { data, isLoading: loading, error } = useSavedItemsQuery()
+  const { menteeAccess } = useAuth()
+  const learningAccess = getMenteeFeatureDecision(
+    menteeAccess,
+    MENTEE_FEATURE_KEYS.learningWorkspace
+  )
+  const canViewSavedItems = Boolean(learningAccess?.allowed)
+  const { data, isLoading: loading, error } = useSavedItemsQuery(canViewSavedItems)
   const removeSavedItemMutation = useRemoveSavedItemMutation()
+
+  if (!canViewSavedItems) {
+    return (
+      <div className="p-4 md:p-8">
+        <MenteeFeaturePageGate
+          feature={MENTEE_FEATURE_KEYS.learningWorkspace}
+          access={learningAccess}
+          routeBasePath="/dashboard"
+        />
+      </div>
+    )
+  }
 
   const savedItems = useMemo(
     () =>

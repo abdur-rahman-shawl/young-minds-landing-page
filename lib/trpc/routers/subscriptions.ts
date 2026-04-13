@@ -1,7 +1,11 @@
-import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import { adminProcedure, createTRPCRouter, protectedProcedure } from '../init';
+import {
+  adminProcedure,
+  createTRPCRouter,
+  publicProcedure,
+  userProcedure,
+} from '../init';
 import {
   createAdminSubscriptionFeature,
   createAdminSubscriptionPlan,
@@ -18,7 +22,6 @@ import {
   listAdminSubscriptionPlans,
   listAdminSubscriptions,
   selectSelfSubscriptionPlan,
-  SubscriptionServiceError,
   updateAdminSubscriptionFeature,
   updateAdminSubscriptionPlan,
   updateAdminSubscriptionPlanPrice,
@@ -40,54 +43,33 @@ import {
   selectSubscriptionPlanInputSchema,
   subscriptionScopeInputSchema,
 } from '@/lib/subscriptions/server/schemas';
-
-function mapStatusToTRPCCode(status: number): TRPCError['code'] {
-  switch (status) {
-    case 400:
-      return 'BAD_REQUEST';
-    case 401:
-      return 'UNAUTHORIZED';
-    case 403:
-      return 'FORBIDDEN';
-    case 404:
-      return 'NOT_FOUND';
-    case 409:
-      return 'CONFLICT';
-    default:
-      return 'INTERNAL_SERVER_ERROR';
-  }
-}
-
-function throwAsTRPCError(error: unknown, fallbackMessage: string): never {
-  if (error instanceof TRPCError) {
-    throw error;
-  }
-
-  if (error instanceof SubscriptionServiceError) {
-    throw new TRPCError({
-      code: mapStatusToTRPCCode(error.status),
-      message: error.message,
-      cause: error,
-    });
-  }
-
-  if (error instanceof z.ZodError) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: error.errors[0]?.message ?? 'Invalid input',
-      cause: error,
-    });
-  }
-
-  throw new TRPCError({
-    code: 'INTERNAL_SERVER_ERROR',
-    message: fallbackMessage,
-    cause: error instanceof Error ? error : undefined,
-  });
-}
+import { listPublicPlans } from '@/lib/db/queries/subscriptions';
+import { throwAsTRPCError } from '@/lib/trpc/router-error';
 
 export const subscriptionsRouter = createTRPCRouter({
-  me: protectedProcedure
+  publicPlans: publicProcedure
+    .input(
+      z
+        .object({
+          audience: z.enum(['mentor', 'mentee']).optional(),
+        })
+        .optional()
+    )
+    .query(async ({ input }) => {
+      try {
+        const audience = input?.audience;
+        const data = await listPublicPlans(audience);
+
+        if (data.length === 0) {
+          return await listPublicPlans(audience, true);
+        }
+
+        return data;
+      } catch (error) {
+        throwAsTRPCError(error, 'Failed to fetch plans');
+      }
+    }),
+  me: userProcedure
     .input(subscriptionScopeInputSchema.optional())
     .query(async ({ ctx, input }) => {
       try {
@@ -96,7 +78,7 @@ export const subscriptionsRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to load subscription details');
       }
     }),
-  usage: protectedProcedure
+  usage: userProcedure
     .input(subscriptionScopeInputSchema.optional())
     .query(async ({ ctx, input }) => {
       try {
@@ -105,7 +87,7 @@ export const subscriptionsRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to load subscription usage');
       }
     }),
-  selectPlan: protectedProcedure
+  selectPlan: userProcedure
     .input(selectSubscriptionPlanInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {

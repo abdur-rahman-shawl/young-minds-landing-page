@@ -21,6 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { countryPhoneCodes } from "@/lib/country-phone-codes"
 import { Combobox } from "@/components/ui/combobox"
 import { useMentorApplicationQuery, useSubmitMentorApplicationMutation } from "@/hooks/queries/use-mentor-queries"
+import { useTRPCClient } from "@/lib/trpc/react"
 
 const INDUSTRY_OPTIONS = new Set(['ITSoftware','Marketing','Finance','Education','Healthcare','Entrepreneurship','Design','Sales','HR','Other']);
 
@@ -50,6 +51,7 @@ function splitPhoneParts(value?: string | null) {
 }
 
 export default function BecomeExpertPage() {
+  const trpcClient = useTRPCClient()
   const [showMentorForm, setShowMentorForm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<z.ZodError | null>(null)
@@ -135,8 +137,7 @@ export default function BecomeExpertPage() {
     const fetchCountries = async () => {
       setLocationsLoading(prev => ({ ...prev, countries: true }));
       try {
-        const response = await fetch('/api/locations/countries');
-        const data = await response.json();
+        const data = await trpcClient.public.listCountries.query();
         setCountries(data);
         // Automatically select India if it exists
         const india = data.find((c: { name: string; }) => c.name === 'India');
@@ -149,8 +150,8 @@ export default function BecomeExpertPage() {
         setLocationsLoading(prev => ({ ...prev, countries: false }));
       }
     };
-    fetchCountries();
-  }, []);
+    void fetchCountries();
+  }, [trpcClient]);
 
   useEffect(() => {
     if (!mentorFormData.countryId) {
@@ -163,8 +164,9 @@ export default function BecomeExpertPage() {
       setCities([]);
       setMentorFormData(prev => ({ ...prev, stateId: '', cityId: '' }));
       try {
-        const response = await fetch(`/api/locations/states?countryId=${mentorFormData.countryId}`);
-        const data = await response.json();
+        const data = await trpcClient.public.listStates.query({
+          countryId: Number(mentorFormData.countryId),
+        });
         setStates(data);
         const pendingStateName = pendingLocationRef.current.stateName?.toLowerCase();
         if (pendingStateName) {
@@ -181,8 +183,8 @@ export default function BecomeExpertPage() {
       }
     };
 
-    fetchStates();
-  }, [mentorFormData.countryId]);
+    void fetchStates();
+  }, [mentorFormData.countryId, trpcClient]);
 
   useEffect(() => {
     if (!mentorFormData.stateId) {
@@ -194,8 +196,9 @@ export default function BecomeExpertPage() {
       setCities([]);
       setMentorFormData(prev => ({ ...prev, cityId: '' }));
       try {
-        const response = await fetch(`/api/locations/cities?stateId=${mentorFormData.stateId}`);
-        const data = await response.json();
+        const data = await trpcClient.public.listCities.query({
+          stateId: Number(mentorFormData.stateId),
+        });
         setCities(data);
         const pendingCityName = pendingLocationRef.current.cityName?.toLowerCase();
         if (pendingCityName) {
@@ -212,8 +215,8 @@ export default function BecomeExpertPage() {
       }
     };
 
-    fetchCities();
-  }, [mentorFormData.stateId]);
+    void fetchCities();
+  }, [mentorFormData.stateId, trpcClient]);
 
   const [otp, setOtp] = useState("")
   const [showOtpInput, setShowOtpInput] = useState(false)
@@ -238,22 +241,13 @@ export default function BecomeExpertPage() {
   const handleSendOtp = async () => {
   try {
     setOtpError(null);
-    const res = await fetch("/api/auth/send-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: mentorFormData.email }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || "Failed to send OTP");
-    }
+    await trpcClient.auth.sendOtp.mutate({ email: mentorFormData.email });
 
     console.log("OTP sent successfully to:", mentorFormData.email);
     setShowOtpInput(true);
     startCountdown();
   } catch (err) {
+    setOtpError(err instanceof Error ? err.message : "Failed to send OTP");
     console.error("Error sending OTP:", err);
   }
 };
@@ -261,26 +255,15 @@ export default function BecomeExpertPage() {
 
   const handleVerifyOtp = async () => {
   if (!otp) return alert("Please enter the OTP");
-  let email = mentorFormData.email;
+  const email = mentorFormData.email;
   try {
-    const res = await fetch("/api/auth/verify-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({email, otp }),
-    });
-
-    const data = await res.json();
-
-    if (data.success) {
-      setIsEmailVerified(true);
-      setShowOtpInput(false);
-      setOtpError(null);
-      console.log("OTP verified successfully");
-    } else {
-      setOtpError(data.error || "Invalid or expired OTP. Please try again.");
-    }
+    await trpcClient.auth.verifyOtp.mutate({ email, otp });
+    setIsEmailVerified(true);
+    setShowOtpInput(false);
+    setOtpError(null);
+    console.log("OTP verified successfully");
   } catch (err) {
-    setOtpError("An unexpected error occurred. Please try again.");
+    setOtpError(err instanceof Error ? err.message : "An unexpected error occurred. Please try again.");
     console.error("Error verifying OTP:", err);
   }
 };
@@ -310,21 +293,11 @@ export default function BecomeExpertPage() {
   if (!isCountingDown) {
     setOtpError(null);
     try {
-      const res = await fetch("/api/auth/send-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: mentorFormData.email }),
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        console.log("OTP resent successfully to:", mentorFormData.email);
-        startCountdown(); // restart timer
-      } else {
-        alert(data.error || "Failed to resend OTP");
-      }
+      await trpcClient.auth.sendOtp.mutate({ email: mentorFormData.email });
+      console.log("OTP resent successfully to:", mentorFormData.email);
+      startCountdown(); // restart timer
     } catch (err) {
+      setOtpError(err instanceof Error ? err.message : "Failed to resend OTP");
       console.error("Error resending OTP:", err);
     }
   }

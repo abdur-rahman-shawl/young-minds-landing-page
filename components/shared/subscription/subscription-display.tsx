@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlanCard } from "@/components/shared/subscription/plan-card";
 import { UsageMeter } from "@/components/shared/subscription/usage-meter";
@@ -10,7 +10,9 @@ import { Check } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "sonner";
 import {
+  type PublicSubscriptionPlan,
   useSelectSubscriptionPlanMutation,
+  usePublicSubscriptionPlans,
   useSubscriptionDetails,
   useSubscriptionUsage,
 } from "@/hooks/queries/use-subscription-queries";
@@ -30,60 +32,6 @@ interface SubscriptionFeature {
   limit_interval_count: number | null;
   is_metered: boolean;
   unit?: string | null;
-}
-
-interface SubscriptionInfo {
-  plan_id: string;
-  plan_name: string;
-  status: string;
-  audience: "mentor" | "mentee";
-  current_period_end: string | null;
-}
-
-interface UsageEntry {
-  feature_key: string;
-  name: string;
-  value_type: "boolean" | "count" | "minutes" | "text" | "amount" | "percent" | "json";
-  unit: string | null;
-  usage_count: number;
-  usage_minutes: number;
-  usage_amount: number;
-  limit_count: number | null;
-  limit_minutes: number | null;
-  limit_amount: number | null;
-  limit_percent: number | null;
-}
-
-interface PublicPlan {
-  id: string;
-  plan_key: string;
-  name: string;
-  description: string | null;
-  audience: "mentor" | "mentee";
-  subscription_plan_features: Array<{
-    id: string;
-    is_included: boolean;
-    limit_count: number | null;
-    limit_minutes: number | null;
-    limit_text: string | null;
-    limit_amount: number | null;
-    limit_percent: number | null;
-    limit_interval: string | null;
-    limit_interval_count: number | null;
-    subscription_features: {
-      feature_key: string;
-      name: string;
-      unit: string | null;
-    };
-  }>;
-  subscription_plan_prices: Array<{
-    id: string;
-    amount: number;
-    currency: string;
-    billing_interval: string;
-    billing_interval_count: number;
-    is_active: boolean;
-  }>;
 }
 
 function formatLimit(feature: SubscriptionFeature) {
@@ -117,9 +65,6 @@ function formatLimit(feature: SubscriptionFeature) {
 export function SubscriptionDisplay() {
   const { isMentor, isMentee, isLoading: authLoading } = useAuth();
   const preferredAudience = isMentor ? "mentor" : isMentee ? "mentee" : null;
-  const [plans, setPlans] = useState<PublicPlan[]>([]);
-  const [plansLoading, setPlansLoading] = useState(true);
-  const [plansError, setPlansError] = useState<string | null>(null);
   const [selectingPlanId, setSelectingPlanId] = useState<string | null>(null);
   const {
     data: subscriptionData,
@@ -133,49 +78,18 @@ export function SubscriptionDisplay() {
     preferredAudience ?? "mentee",
     !authLoading && Boolean(preferredAudience)
   );
+  const audienceForPlans = subscriptionData?.subscription?.audience ?? preferredAudience;
+  const {
+    data: plans = [],
+    isLoading: plansLoading,
+    error: plansError,
+  } = usePublicSubscriptionPlans(audienceForPlans, !authLoading && Boolean(audienceForPlans));
   const selectPlanMutation = useSelectSubscriptionPlanMutation();
 
   const subscription = subscriptionData?.subscription ?? null;
   const features = subscriptionData?.features ?? [];
 
-  useEffect(() => {
-    const loadPlans = async () => {
-      try {
-        setPlansLoading(true);
-        setPlansError(null);
-        const audienceParam = subscription?.audience || preferredAudience;
-        const planUrl = audienceParam
-          ? `/api/subscriptions/plans/public?audience=${audienceParam}`
-          : "/api/subscriptions/plans/public";
-        const planRes = await fetch(planUrl, { credentials: "include" });
-        const planData = await planRes.json();
-        if (planRes.ok && planData.success) {
-          setPlans(planData.data || []);
-          return;
-        }
-        setPlansError(planData.message || "Failed to load subscription details");
-      } catch (error) {
-        console.error("Failed to load subscription plans:", error);
-        setPlansError("Failed to load subscription details");
-      } finally {
-        setPlansLoading(false);
-      }
-    };
-
-    if (authLoading) {
-      return;
-    }
-
-    if (!preferredAudience && !subscription?.audience) {
-      setPlans([]);
-      setPlansLoading(false);
-      return;
-    }
-
-    void loadPlans();
-  }, [authLoading, preferredAudience, subscription?.audience]);
-
-  const handleSelectPlan = async (plan: PublicPlan) => {
+  const handleSelectPlan = async (plan: PublicSubscriptionPlan) => {
     if (selectingPlanId) return;
     const monthlyPrice = plan.subscription_plan_prices.find(
       (price) => price.billing_interval === "month" && price.is_active
@@ -200,10 +114,10 @@ export function SubscriptionDisplay() {
     [usage]
   );
 
-  const loading = authLoading || subscriptionLoading || plansLoading;
+  const loading = authLoading || subscriptionLoading || (Boolean(audienceForPlans) && plansLoading);
   const error =
     (subscriptionError instanceof Error ? subscriptionError.message : null) ||
-    plansError;
+    (plansError instanceof Error ? plansError.message : null);
 
   if (loading) {
     return <div>Loading subscription details...</div>;

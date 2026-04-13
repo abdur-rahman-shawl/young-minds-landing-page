@@ -1,4 +1,5 @@
 import type { Mentor } from '@/lib/db/schema';
+import { resolveMentorVerificationTransition } from '@/lib/mentor/verification-state-machine';
 
 export interface MentorProfilePatchInput {
   fullName?: string | null;
@@ -234,7 +235,10 @@ export function buildMentorProfileUpdate(
     profileImageUrl: nextProfileImageUrl,
     bannerImageUrl: nextBannerImageUrl,
     resumeUrl: nextResumeUrl,
-    verificationStatus: 'UPDATED_PROFILE' as const,
+    verificationStatus: resolveMentorVerificationTransition(
+      existingMentor.verificationStatus,
+      'profile_updated'
+    ),
     verificationNotes: existingMentor.verificationNotes,
     isAvailable: resolveBooleanFlag(input.isAvailable, fallbackAvailability),
     searchMode: nextSearchMode,

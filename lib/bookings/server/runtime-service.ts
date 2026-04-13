@@ -1,14 +1,70 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
+import {
+  AccessPolicyError,
+  assertMenteeFeatureAccess as assertSharedMenteeFeatureAccess,
+  assertMentorFeatureAccess as assertSharedMentorFeatureAccess,
+} from '@/lib/access-policy/server';
 import { db } from '@/lib/db';
 import { sessions, users } from '@/lib/db/schema';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
+import { MENTEE_FEATURE_KEYS } from '@/lib/mentee/access-policy';
+import { MENTOR_FEATURE_KEYS } from '@/lib/mentor/access-policy';
 import { canViewSessionDetail } from '@/lib/bookings/session-access';
 
 import { assertBooking } from './errors';
 
 type CurrentUser = NonNullable<Awaited<ReturnType<typeof getUserWithRoles>>>;
+
+async function assertMentorBookingFeatureAccess(
+  userId: string,
+  feature: typeof MENTOR_FEATURE_KEYS.scheduleManage | typeof MENTOR_FEATURE_KEYS.reviewsManage,
+  currentUser?: CurrentUser
+) {
+  if (currentUser?.roles.some((role) => role.name === 'admin')) {
+    return;
+  }
+
+  try {
+    await assertSharedMentorFeatureAccess({
+      userId,
+      feature,
+      currentUser,
+      source: `bookings.runtime.${feature}`,
+    });
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      assertBooking(false, error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
+}
+
+async function assertMenteeBookingFeatureAccess(
+  userId: string,
+  currentUser?: CurrentUser
+) {
+  if (currentUser?.roles.some((role) => role.name === 'admin')) {
+    return;
+  }
+
+  try {
+    await assertSharedMenteeFeatureAccess({
+      userId,
+      feature: MENTEE_FEATURE_KEYS.sessionsView,
+      currentUser,
+      source: `bookings.runtime.${MENTEE_FEATURE_KEYS.sessionsView}`,
+    });
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      assertBooking(false, error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
+}
 
 async function getRuntimeUser(
   userId: string,
@@ -72,6 +128,14 @@ export async function getSessionView(
     'Forbidden'
   );
 
+  if (session.mentorId === actorUserId) {
+    await assertMentorBookingFeatureAccess(
+      actorUserId,
+      MENTOR_FEATURE_KEYS.scheduleManage,
+      actor
+    );
+  }
+
   return session;
 }
 
@@ -80,11 +144,10 @@ export async function listMentorPendingReviews(
   currentUser?: CurrentUser
 ) {
   const actor = await getRuntimeUser(actorUserId, currentUser);
-  const roleNames = new Set(actor.roles.map((role) => role.name));
-  assertBooking(
-    roleNames.has('mentor') || roleNames.has('admin'),
-    403,
-    'Mentor access required'
+  await assertMentorBookingFeatureAccess(
+    actorUserId,
+    MENTOR_FEATURE_KEYS.reviewsManage,
+    actor
   );
 
   const rows = await db
@@ -119,12 +182,7 @@ export async function listMenteePendingReviews(
   currentUser?: CurrentUser
 ) {
   const actor = await getRuntimeUser(actorUserId, currentUser);
-  const roleNames = new Set(actor.roles.map((role) => role.name));
-  assertBooking(
-    roleNames.has('mentee') || roleNames.has('admin'),
-    403,
-    'Mentee access required'
-  );
+  await assertMenteeBookingFeatureAccess(actorUserId, actor);
 
   const rows = await db
     .select({

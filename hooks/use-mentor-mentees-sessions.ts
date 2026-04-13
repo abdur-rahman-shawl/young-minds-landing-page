@@ -2,12 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useTRPCClient } from '@/lib/trpc/react';
 
-export function useMentorMenteeSessions() {
+export function useMentorMenteeSessions(enabled = true) {
   const trpcClient = useTRPCClient();
 
   const query = useQuery({
     queryKey: ['mentor', 'mentee-sessions'],
     queryFn: () => trpcClient.mentor.menteeSessions.query(),
+    enabled,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });

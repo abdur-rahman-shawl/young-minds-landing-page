@@ -2,10 +2,11 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useTRPCClient } from "@/lib/trpc/react"
 
 function VerifyEmailPage() {
   const [otp, setOtp] = useState("")
@@ -15,6 +16,7 @@ function VerifyEmailPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const email = searchParams.get("email")
+  const trpcClient = useTRPCClient()
 
   useEffect(() => {
     if (!email) {
@@ -28,18 +30,11 @@ function VerifyEmailPage() {
     setError(null)
 
     try {
-      const res = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error || "Failed to verify OTP");
-        return;
+      if (!email) {
+        throw new Error("Email is required")
       }
+
+      await trpcClient.auth.verifyOtp.mutate({ email, otp })
 
       // On successful verification, redirect to sign-in page to log in.
       router.push("/auth/signin?verified=true")
@@ -58,17 +53,7 @@ function VerifyEmailPage() {
     setMessage(null)
 
     try {
-      const res = await fetch("/api/auth/send-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to resend OTP");
-      }
+      await trpcClient.auth.sendOtp.mutate({ email })
 
       setMessage("A new OTP has been sent to your email.")
 

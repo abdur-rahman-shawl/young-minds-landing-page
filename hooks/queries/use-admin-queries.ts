@@ -11,6 +11,12 @@ export type AdminPolicyRecord = RouterOutputs['admin']['getPolicies']['policies'
 export type GroupedAdminPolicies = RouterOutputs['admin']['getPolicies']['grouped'];
 export type AdminMentorAudit = RouterOutputs['admin']['getMentorAudit'];
 export type AdminUpdateMentorInput = RouterInputs['admin']['updateMentor'];
+export type AdminAccessPolicyConfig =
+  RouterOutputs['admin']['getAccessPolicyConfig'];
+export type AdminAccessPolicyDraftInput =
+  RouterInputs['admin']['upsertAccessPolicyDraft'];
+export type AdminAccessPolicyOverrides =
+  AdminAccessPolicyDraftInput['overrides'];
 
 export const adminKeys = {
   all: ['admin'] as const,
@@ -20,6 +26,7 @@ export const adminKeys = {
   mentees: () => ['admin', 'mentees'] as const,
   enquiries: () => ['admin', 'enquiries'] as const,
   policies: () => ['admin', 'policies'] as const,
+  accessPolicyConfig: () => ['admin', 'access-policy-config'] as const,
 };
 
 async function invalidateAdminQueries(
@@ -106,6 +113,17 @@ export function useAdminPoliciesQuery() {
   });
 }
 
+export function useAdminAccessPolicyConfigQuery() {
+  const trpcClient = useTRPCClient();
+
+  return useQuery({
+    queryKey: adminKeys.accessPolicyConfig(),
+    queryFn: () => trpcClient.admin.getAccessPolicyConfig.query(),
+    staleTime: 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+}
+
 export function useAdminUpdateMentorMutation() {
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
@@ -166,6 +184,53 @@ export function useAdminResetPoliciesMutation() {
     mutationFn: () => trpcClient.admin.resetPolicies.mutate(),
     onSuccess: async () => {
       await invalidateAdminQueries(queryClient);
+    },
+  });
+}
+
+export function useAdminUpsertAccessPolicyDraftMutation() {
+  const trpcClient = useTRPCClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: AdminAccessPolicyDraftInput) =>
+      trpcClient.admin.upsertAccessPolicyDraft.mutate(input),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminKeys.accessPolicyConfig() }),
+        queryClient.invalidateQueries({ queryKey: adminKeys.all }),
+      ]);
+    },
+  });
+}
+
+export function useAdminPublishAccessPolicyDraftMutation() {
+  const trpcClient = useTRPCClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => trpcClient.admin.publishAccessPolicyDraft.mutate(),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminKeys.accessPolicyConfig() }),
+        queryClient.invalidateQueries({ queryKey: adminKeys.all }),
+      ]);
+    },
+  });
+}
+
+export function useAdminResetAccessPolicyDraftMutation() {
+  const trpcClient = useTRPCClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input?: RouterInputs['admin']['resetAccessPolicyDraft']) =>
+      trpcClient.admin.resetAccessPolicyDraft.mutate(input),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminKeys.accessPolicyConfig() }),
+        queryClient.invalidateQueries({ queryKey: adminKeys.all }),
+      ]);
     },
   });
 }

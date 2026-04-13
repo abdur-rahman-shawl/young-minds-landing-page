@@ -26,6 +26,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Send, AlertCircle } from 'lucide-react';
 import { useSendRequestMutation } from '@/hooks/queries/use-messaging-queries';
+import { useAuth } from '@/contexts/auth-context';
+import {
+  getMessagingAccessDecision,
+  MESSAGING_ACCESS_INTENTS,
+} from '@/lib/messaging/access-policy';
 
 const messageRequestSchema = z.object({
   initialMessage: z
@@ -59,6 +64,7 @@ export function MessageRequestModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sendRequestMutation = useSendRequestMutation();
+  const { isAdmin, mentorAccess, menteeAccess, primaryRole } = useAuth();
 
   const form = useForm<MessageRequestFormData>({
     resolver: zodResolver(messageRequestSchema),
@@ -70,8 +76,29 @@ export function MessageRequestModal({
 
   const requestType = recipientType === 'mentor' ? 'mentee_to_mentor' : 'mentor_to_mentee';
   const messageLimit = requestType === 'mentee_to_mentor' ? 1 : 3;
+  const requestAudience = recipientType === 'mentor' ? 'mentee' : 'mentor';
+  const preferredAudience =
+    primaryRole?.name === 'mentor' || primaryRole?.name === 'mentee'
+      ? primaryRole.name
+      : null;
+  const requestAccess = getMessagingAccessDecision(
+    {
+      isAdmin,
+      mentorAccess,
+      menteeAccess,
+      preferredAudience,
+    },
+    MESSAGING_ACCESS_INTENTS.messageRequests,
+    requestAudience
+  );
+  const canSendRequest = requestAccess.allowed;
 
   const handleSubmit = async (data: MessageRequestFormData) => {
+    if (!canSendRequest) {
+      setError(requestAccess.blockedSummary);
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -120,6 +147,12 @@ export function MessageRequestModal({
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {!canSendRequest && !error && (
+              <Alert>
+                <AlertDescription>{requestAccess.blockedSummary}</AlertDescription>
               </Alert>
             )}
 
@@ -179,7 +212,7 @@ export function MessageRequestModal({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting || !canSendRequest}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

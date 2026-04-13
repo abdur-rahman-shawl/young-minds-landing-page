@@ -20,8 +20,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useEnrolledCoursesQuery } from '@/hooks/queries/use-learning-queries';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { useSubscriptionFeatureAccess } from '@/hooks/queries/use-subscription-queries';
+import {
+  getMenteeFeatureDecision,
+  MENTEE_FEATURE_KEYS,
+} from '@/lib/mentee/access-policy';
 
 interface EnrolledCourse {
   enrollment: {
@@ -72,20 +74,17 @@ interface LearningStatistics {
 
 export default function MyCourses() {
   const router = useRouter();
-  const { session, isLoading: isAuthLoading } = useAuth();
+  const { session, isLoading: isAuthLoading, menteeAccess } = useAuth();
   const [activeTab, setActiveTab] = useState('all');
-  const {
-    hasAccess: hasCourseAccess,
-    isLoading: courseAccessLoading,
-  } = useSubscriptionFeatureAccess(
-    'mentee',
-    FEATURE_KEYS.COURSES_ACCESS,
-    Boolean(session?.user?.id)
+  const learningWorkspaceAccess = getMenteeFeatureDecision(
+    menteeAccess,
+    MENTEE_FEATURE_KEYS.learningWorkspace
   );
+  const hasCourseAccess = Boolean(learningWorkspaceAccess?.allowed);
 
   const { data, isLoading, error } = useEnrolledCoursesQuery(
     undefined,
-    Boolean(session?.user?.id)
+    Boolean(session?.user?.id) && hasCourseAccess
   );
 
   const courses = (data?.courses ?? []) as EnrolledCourse[];
@@ -273,7 +272,7 @@ export default function MyCourses() {
     </Card>
   );
 
-  if (isLoading || isAuthLoading || courseAccessLoading) {
+  if (isLoading || isAuthLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6">

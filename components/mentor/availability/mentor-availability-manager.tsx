@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +35,12 @@ import {
 } from '@/hooks/queries/use-mentor-queries';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { getMentorAvailabilityAccessState } from '@/lib/mentor/availability-access';
+import { MentorFeaturePageGate } from '@/components/mentor/verification/mentor-verification-state';
+import type { DashboardRouteBasePath } from '@/lib/dashboard/sections';
+import {
+  getMentorFeatureDecision,
+  MENTOR_FEATURE_KEYS,
+} from '@/lib/mentor/access-policy';
 
 interface TimeBlock {
   startTime: string;
@@ -87,8 +91,12 @@ interface AvailabilityResponse {
   }>;
 }
 
-export function MentorAvailabilityManager() {
-  const { session, mentorProfile } = useAuth();
+export function MentorAvailabilityManager({
+  routeBasePath = '/dashboard',
+}: {
+  routeBasePath?: DashboardRouteBasePath;
+}) {
+  const { session, mentorProfile, mentorAccess } = useAuth();
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('schedule');
@@ -108,9 +116,13 @@ export function MentorAvailabilityManager() {
   });
 
   const [originalSchedule, setOriginalSchedule] = useState<AvailabilitySchedule | null>(null);
-  const accessState = getMentorAvailabilityAccessState(mentorProfile);
+  const availabilityAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.availabilityManage
+  );
+  const canManageAvailability = Boolean(availabilityAccess?.allowed);
   const availabilityQuery = useMentorAvailabilityQuery(session?.user?.id, {
-    enabled: accessState === 'ready' && !!session?.user?.id,
+    enabled: canManageAvailability && !!session?.user?.id,
   });
   const upsertAvailabilityMutation = useUpsertMentorAvailabilityMutation();
 
@@ -254,7 +266,7 @@ export function MentorAvailabilityManager() {
   };
 
   useEffect(() => {
-    if (accessState !== 'ready') {
+    if (!canManageAvailability) {
       return;
     }
 
@@ -288,7 +300,7 @@ export function MentorAvailabilityManager() {
       initializeDefaultSchedule();
       setOriginalSchedule(null);
     }
-  }, [accessState, availabilityQuery.data, initializeDefaultSchedule]);
+  }, [canManageAvailability, availabilityQuery.data, initializeDefaultSchedule]);
 
   useEffect(() => {
     if (availabilityQuery.error) {
@@ -300,59 +312,17 @@ export function MentorAvailabilityManager() {
     }
   }, [availabilityQuery.error]);
 
-  const loading = accessState === 'ready' && availabilityQuery.isLoading;
+  const loading = canManageAvailability && availabilityQuery.isLoading;
 
-  if (accessState === 'profile-required') {
+  if (!canManageAvailability) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Availability Management</CardTitle>
-          <CardDescription>
-            Complete your mentor profile before you set up bookable time slots.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Mentor profile required</AlertTitle>
-            <AlertDescription>
-              Availability depends on your mentor profile record. Finish your setup first,
-              then come back here to manage your schedule.
-            </AlertDescription>
-          </Alert>
-          <div className="mt-4">
-            <Button asChild>
-              <Link href="/become-expert">Complete Mentor Profile</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (accessState === 'verification-required') {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Availability Management</CardTitle>
-          <CardDescription>
-            Verified mentors can publish availability and accept new bookings.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <Shield className="h-4 w-4" />
-            <AlertTitle>Verification required</AlertTitle>
-            <AlertDescription>
-              Your current mentor verification status is{' '}
-              <span className="font-medium">
-                {mentorProfile?.verificationStatus ?? 'unknown'}
-              </span>
-              . Availability becomes available once your mentor profile is verified.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
+      <MentorFeaturePageGate
+        feature={MENTOR_FEATURE_KEYS.availabilityManage}
+        access={availabilityAccess}
+        mentorProfile={mentorProfile}
+        routeBasePath={routeBasePath}
+        userName={session?.user?.name}
+      />
     );
   }
 

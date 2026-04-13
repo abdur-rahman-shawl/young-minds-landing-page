@@ -27,13 +27,23 @@ import {
   GraduationCap,
   BookOpen,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Lock,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useMessaging } from "@/hooks/use-messaging-v2"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { getNavigationSections, type DashboardNavigationScope } from "@/lib/dashboard/sections"
+import {
+  getNavigationSections,
+  type DashboardNavigationScope,
+  type DashboardSectionKey,
+} from "@/lib/dashboard/sections"
+import {
+  getMenteeDashboardSectionFeature,
+  getMenteeFeatureDecision,
+  MENTEE_FEATURE_KEYS,
+} from "@/lib/mentee/access-policy"
 
 interface UserSidebarProps {
   activeSection: string
@@ -48,8 +58,13 @@ export function UserSidebar({
   userRole,
   navigationScope = "dashboard",
 }: UserSidebarProps) {
-  const { session, primaryRole, isLoading } = useAuth()
-  const { totalUnreadCount } = useMessaging(session?.user?.id)
+  const { session, primaryRole, isLoading, menteeAccess } = useAuth()
+  const messagesAccess = getMenteeFeatureDecision(
+    menteeAccess,
+    MENTEE_FEATURE_KEYS.messagesView
+  )
+  const canViewMessages = Boolean(messagesAccess?.allowed)
+  const { totalUnreadCount } = useMessaging(session?.user?.id, canViewMessages)
 
   const menuItems = useMemo(() => {
     const allowedKeys = new Set(
@@ -126,11 +141,22 @@ export function UserSidebar({
         <SidebarMenu className="space-y-1">
           {menuItems.map((item) => {
             const isActive = activeSection === item.key;
+            const feature = getMenteeDashboardSectionFeature(
+              item.key as DashboardSectionKey
+            );
+            const access = feature ? getMenteeFeatureDecision(menteeAccess, feature) : null;
+            const isRestricted = Boolean(access && !access.allowed);
             return (
               <SidebarMenuItem key={item.key}>
                 <SidebarMenuButton
-                  onClick={() => onSectionChange(item.key)}
+                  onClick={() => {
+                    if (!isRestricted) {
+                      onSectionChange(item.key)
+                    }
+                  }}
                   className="relative group w-full overflow-hidden"
+                  disabled={isRestricted}
+                  tooltip={isRestricted ? access?.blockedSummary : undefined}
                 >
                   {/* Active Background "Slider" Animation */}
                   {isActive && (
@@ -148,14 +174,24 @@ export function UserSidebar({
                     "relative z-10 flex items-center w-full gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-200",
                     isActive
                       ? "text-primary"
-                      : "text-muted-foreground hover:text-foreground"
+                      : isRestricted
+                        ? "text-muted-foreground/70"
+                        : "text-muted-foreground hover:text-foreground"
                   )}>
                     <item.icon className={cn(
                       "w-4 h-4 flex-shrink-0 transition-colors",
-                      isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                      isActive
+                        ? "text-primary"
+                        : isRestricted
+                          ? "text-muted-foreground/70"
+                          : "text-muted-foreground group-hover:text-foreground"
                     )} />
 
                     <span className="truncate">{item.title}</span>
+
+                    {isRestricted && (
+                      <Lock className="ml-auto h-3.5 w-3.5 text-muted-foreground/70" />
+                    )}
 
                     {item.key === 'messages' && totalUnreadCount > 0 && (
                       <Badge className="ml-auto bg-rose-500 hover:bg-rose-600 text-white h-5 min-w-[1.25rem] px-1 flex items-center justify-center border-0">
@@ -164,7 +200,7 @@ export function UserSidebar({
                     )}
 
                     {/* Hover Chevron */}
-                    {!isActive && (
+                    {!isActive && !isRestricted && (
                       <ChevronRight className="w-3 h-3 ml-auto opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-muted-foreground" />
                     )}
                   </div>

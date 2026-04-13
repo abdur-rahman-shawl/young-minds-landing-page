@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,7 @@ import {
   useToggleCourseReviewHelpfulMutation,
 } from '@/hooks/queries/use-learning-queries';
 import { toast } from 'sonner';
+import { useTRPCClient } from '@/lib/trpc/react';
 
 interface CourseDetailViewProps {
   courseId: string;
@@ -156,6 +157,7 @@ interface CourseReview {
 export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
   const router = useRouter();
   const { session } = useAuth();
+  const trpcClient = useTRPCClient();
 
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -184,66 +186,45 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
   const isEnrolled = enrollmentQuery.data?.isEnrolled ?? false;
   const enrollmentData = enrollmentQuery.data?.enrollment ?? null;
 
-  useEffect(() => {
-    if (courseId) {
-      fetchCourseDetails();
-    }
-  }, [courseId]);
-
-  useEffect(() => {
-    if (courseId) {
-      setReviewsOffset(0);
-      setReviewsHasMore(false);
-      setMyReview(null);
-      setReviewForm({ rating: 0, title: '', review: '' });
-      fetchCourseReviews(0, false);
-    }
-  }, [courseId]);
-
-  const fetchCourseDetails = async () => {
+  const fetchCourseDetails = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/courses/${courseId}`);
-      const data = await response.json();
+      const data = await trpcClient.public.getCourse.query({ courseId });
 
-      if (data.success) {
-        setCourse(data.data);
-        if (data.data.curriculum.length > 0) {
-          setExpandedModules(new Set([data.data.curriculum[0].id]));
-        }
+      setCourse(data);
+      if (data.curriculum.length > 0) {
+        setExpandedModules(new Set([data.curriculum[0].id]));
       }
     } catch (error) {
       console.error('Error fetching course details:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [courseId, trpcClient]);
 
-  const fetchCourseReviews = async (nextOffset = 0, append = false) => {
+  const fetchCourseReviews = useCallback(async (nextOffset = 0, append = false) => {
     try {
       setReviewsLoading(true);
-      const response = await fetch(
-        `/api/courses/${courseId}/reviews?limit=10&offset=${nextOffset}&includeMine=true`
-      );
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setCourseReviews((prev) => (append ? [...prev, ...data.data] : data.data));
-        setReviewsOffset(nextOffset);
-        setReviewsHasMore(Boolean(data.pagination?.hasMore));
-        if (data.myReview) {
-          setMyReview(data.myReview);
-          setReviewForm({
-            rating: data.myReview.rating || 0,
-            title: data.myReview.title || '',
-            review: data.myReview.review || '',
-          });
-        } else {
-          setMyReview(null);
-          setReviewForm({ rating: 0, title: '', review: '' });
-        }
+      const data = await trpcClient.public.listCourseReviews.query({
+        courseId,
+        limit: 10,
+        offset: nextOffset,
+        includeMine: true,
+      });
+
+      setCourseReviews((prev) => (append ? [...prev, ...data.reviews] : data.reviews));
+      setReviewsOffset(nextOffset);
+      setReviewsHasMore(Boolean(data.pagination?.hasMore));
+      if (data.myReview) {
+        setMyReview(data.myReview);
+        setReviewForm({
+          rating: data.myReview.rating || 0,
+          title: data.myReview.title || '',
+          review: data.myReview.review || '',
+        });
       } else {
-        setCourseReviews([]);
-        setReviewsHasMore(false);
+        setMyReview(null);
+        setReviewForm({ rating: 0, title: '', review: '' });
       }
     } catch (error) {
       console.error('Error fetching course reviews:', error);
@@ -252,7 +233,23 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
     } finally {
       setReviewsLoading(false);
     }
-  };
+  }, [courseId, trpcClient]);
+
+  useEffect(() => {
+    if (courseId) {
+      void fetchCourseDetails();
+    }
+  }, [courseId, fetchCourseDetails]);
+
+  useEffect(() => {
+    if (courseId) {
+      setReviewsOffset(0);
+      setReviewsHasMore(false);
+      setMyReview(null);
+      setReviewForm({ rating: 0, title: '', review: '' });
+      void fetchCourseReviews(0, false);
+    }
+  }, [courseId, fetchCourseReviews]);
 
   const handleEnroll = async () => {
     if (!session) {

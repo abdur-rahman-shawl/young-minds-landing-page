@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,13 +36,19 @@ import {
   X
 } from 'lucide-react';
 import { VideoPlayer } from '@/components/ui/kibo-video-player';
+import { MenteeFeaturePageGate } from '@/components/mentee/access/mentee-feature-state';
 import { useAuth } from '@/contexts/auth-context';
 import {
   useCourseProgressQuery,
   useSubmitContentItemReviewMutation,
   useUpdateCourseProgressMutation,
 } from '@/hooks/queries/use-learning-queries';
+import {
+  getMenteeFeatureDecision,
+  MENTEE_FEATURE_KEYS,
+} from '@/lib/mentee/access-policy';
 import { toast } from 'sonner';
+import { useTRPCClient } from '@/lib/trpc/react';
 
 interface LearningProgress {
   enrollment: {
@@ -130,8 +136,14 @@ interface ContentItemReview {
 export default function LearnCoursePage() {
   const params = useParams();
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, menteeAccess } = useAuth();
+  const trpcClient = useTRPCClient();
   const courseId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
+  const learningWorkspaceAccess = getMenteeFeatureDecision(
+    menteeAccess,
+    MENTEE_FEATURE_KEYS.learningWorkspace
+  );
+  const canUseLearningWorkspace = Boolean(learningWorkspaceAccess?.allowed);
 
   const [courseData, setCourseData] = useState<LearningProgress | null>(null);
   const [currentItem, setCurrentItem] = useState<LearningContentItem | null>(null);
@@ -150,7 +162,7 @@ export default function LearnCoursePage() {
   const [reviewFormOpen, setReviewFormOpen] = useState(false);
   const courseProgressQuery = useCourseProgressQuery(
     { courseId },
-    Boolean(courseId && session)
+    Boolean(courseId && session && canUseLearningWorkspace)
   );
   const updateCourseProgressMutation = useUpdateCourseProgressMutation();
   const submitContentItemReview = useSubmitContentItemReviewMutation();
@@ -334,19 +346,16 @@ export default function LearnCoursePage() {
     }
   };
 
-  const fetchItemReviews = async (itemId: string) => {
+  const fetchItemReviews = useCallback(async (itemId: string) => {
     try {
       setReviewsLoading(true);
-      const response = await fetch(
-        `/api/courses/${courseId}/content-items/${itemId}/reviews?limit=20&offset=0`
-      );
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setItemReviews(data.data);
-      } else {
-        toast.error(data.error || 'Failed to load reviews');
-        setItemReviews([]);
-      }
+      const data = await trpcClient.public.listContentItemReviews.query({
+        courseId,
+        itemId,
+        limit: 20,
+        offset: 0,
+      });
+      setItemReviews(data.reviews);
     } catch (error) {
       console.error('Failed to load reviews:', error);
       toast.error('Failed to load reviews');
@@ -354,7 +363,7 @@ export default function LearnCoursePage() {
     } finally {
       setReviewsLoading(false);
     }
-  };
+  }, [courseId, trpcClient]);
 
   const handleSubmitReview = async () => {
     if (!currentItem) return;
@@ -392,9 +401,9 @@ export default function LearnCoursePage() {
       setReviewForm({ rating: 0, title: '', review: '' });
       setReviewPanelOpen(false);
       setReviewFormOpen(false);
-      fetchItemReviews(currentItem.id);
+      void fetchItemReviews(currentItem.id);
     }
-  }, [currentItem?.id]);
+  }, [currentItem?.id, fetchItemReviews]);
 
   const renderStars = (rating: number) =>
     Array.from({ length: 5 }).map((_, index) => (
@@ -461,6 +470,18 @@ export default function LearnCoursePage() {
             <Skeleton className="h-4 w-3/4" />
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (session && learningWorkspaceAccess && !learningWorkspaceAccess.allowed) {
+    return (
+      <div className='mx-auto w-full max-w-6xl p-6'>
+        <MenteeFeaturePageGate
+          feature={MENTEE_FEATURE_KEYS.learningWorkspace}
+          access={learningWorkspaceAccess}
+          routeBasePath='/dashboard'
+        />
       </div>
     );
   }

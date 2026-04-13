@@ -23,9 +23,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+
 import { auth } from '@/lib/auth';
-import { LiveKitRoomManager } from '@/lib/livekit/room-manager';
+import { AppHttpError } from '@/lib/http/app-error';
+import { nextErrorResponse } from '@/lib/http/next-response-error';
+import { getSessionAccessToken } from '@/lib/recordings/server/service';
 import { z } from 'zod';
 
 // ============================================================================
@@ -44,22 +46,17 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  let requestedSessionId: string | undefined;
+
   try {
-    // ========================================================================
-    // AUTHENTICATION
-    // ========================================================================
     const session = await auth.api.getSession({
-      headers: await headers(),
+      headers: request.headers,
     });
 
     if (!session || !session.user) {
-      console.error('❌ Unauthorized attempt to get access token - no session');
-      return NextResponse.json(
-        {
-          error: 'Unauthorized',
-          message: 'Authentication required. Please log in to access the meeting.',
-        },
-        { status: 401 }
+      throw new AppHttpError(
+        401,
+        'Authentication required. Please log in to access the meeting.'
       );
     }
 
@@ -69,19 +66,13 @@ export async function GET(
     // INPUT VALIDATION
     // ========================================================================
     const { sessionId } = await params;
+    requestedSessionId = sessionId;
 
-    // Validate UUID format
     const validationResult = sessionIdSchema.safeParse(sessionId);
     if (!validationResult.success) {
-      console.error(`❌ Invalid session ID format: ${sessionId}`);
-      return NextResponse.json(
-        {
-          error: 'Invalid session ID',
-          message: 'Session ID must be a valid UUID',
-          details: validationResult.error.errors,
-        },
-        { status: 400 }
-      );
+      throw new AppHttpError(400, 'Session ID must be a valid UUID', {
+        details: validationResult.error.errors,
+      });
     }
 
     // ========================================================================
@@ -91,10 +82,7 @@ export async function GET(
       `🔐 Generating access token for user ${userId} in session ${sessionId}`
     );
 
-    const tokenData = await LiveKitRoomManager.generateAccessToken(
-      sessionId,
-      userId
-    );
+    const tokenData = await getSessionAccessToken(sessionId, userId);
 
     console.log(
       `✅ Access token generated for ${tokenData.participantName} in room ${tokenData.roomName}`
@@ -118,77 +106,12 @@ export async function GET(
       { status: 200 }
     );
   } catch (error) {
-    // ========================================================================
-    // ERROR HANDLING - FAIL LOUDLY
-    // ========================================================================
     console.error('❌ CRITICAL ERROR generating access token:', {
-      sessionId: params.sessionId,
+      sessionId: requestedSessionId,
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
     });
 
-    // Check for specific error types
-    if (error instanceof Error) {
-      // User not authorized (403 Forbidden)
-      if (
-        error.message.includes('UNAUTHORIZED') ||
-        error.message.includes('not a participant')
-      ) {
-        return NextResponse.json(
-          {
-            error: 'Forbidden',
-            message: 'You are not authorized to join this meeting',
-            details: error.message,
-          },
-          { status: 403 }
-        );
-      }
-
-      // User kicked (403 Forbidden)
-      if (error.message.includes('FORBIDDEN') || error.message.includes('kicked')) {
-        return NextResponse.json(
-          {
-            error: 'Forbidden',
-            message: 'You have been removed from this meeting',
-            details: error.message,
-          },
-          { status: 403 }
-        );
-      }
-
-      // Room not found (404)
-      if (error.message.includes('No LiveKit room found')) {
-        return NextResponse.json(
-          {
-            error: 'Room not found',
-            message: 'No meeting room exists for this session',
-            details: error.message,
-          },
-          { status: 404 }
-        );
-      }
-
-      // User not found (500 - critical)
-      if (error.message.includes('User') && error.message.includes('not found')) {
-        return NextResponse.json(
-          {
-            error: 'Internal server error',
-            message: 'User data inconsistency detected',
-            details: error.message,
-          },
-          { status: 500 }
-        );
-      }
-    }
-
-    // Generic server error
-    return NextResponse.json(
-      {
-        error: 'Internal server error',
-        message: 'Failed to generate access token',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return nextErrorResponse(error, 'Failed to generate access token');
   }
 }

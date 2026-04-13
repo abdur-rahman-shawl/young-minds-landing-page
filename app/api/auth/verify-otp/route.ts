@@ -1,36 +1,38 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { emailVerifications } from "@/lib/db/schema/email-verifications";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
-export async function POST(req: NextRequest) {
+import { nextErrorResponse } from '@/lib/http/next-response-error';
+import { authRateLimit, rateLimit } from '@/lib/rate-limit';
+import {
+  normalizeVerificationEmail,
+  verifyVerificationOtp,
+} from '@/lib/otp';
+
+const requestSchema = z.object({
+  email: z.string().trim().email('Invalid email address'),
+  otp: z.string().trim().regex(/^\d{6}$/, 'OTP must be a 6-digit code'),
+});
+
+const otpVerifyRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 10,
+});
+
+export async function POST(request: NextRequest) {
   try {
-    const { email, otp } = await req.json();
-    if (!email || !otp) {
-      return NextResponse.json({ success: false, error: "Email and OTP required" }, { status: 400 });
-    }
+    const body = requestSchema.parse(await request.json());
+    const email = normalizeVerificationEmail(body.email);
 
-    // Atomically delete the row only if:
-    //  - email matches
-    //  - code matches
-    //  - expiresAt is still in the future relative to the DB server's time (now())
-    const deleted = await db
-      .delete(emailVerifications)
-      .where(and(
-        eq(emailVerifications.email, email),
-        eq(emailVerifications.code, Number(otp)),
-        gt(emailVerifications.expiresAt, sql`now()`) // DB clock, not Node clock
-      ))
-      .returning({ id: emailVerifications.id });
+    authRateLimit.check(request);
+    otpVerifyRateLimit.check(request, `otp:verify:${email}`);
 
-    if (deleted.length === 0) {
-      // Either no match, wrong OTP, or expired
-      return NextResponse.json({ success: false, error: "Invalid or expired OTP" }, { status: 400 });
-    }
+    const result = await verifyVerificationOtp(email, body.otp);
 
-    return NextResponse.json({ success: true, message: "OTP verified" });
-  } catch (err) {
-    console.error("Error verifying OTP:", err);
-    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error) {
+    return nextErrorResponse(error, 'Failed to verify OTP');
   }
 }

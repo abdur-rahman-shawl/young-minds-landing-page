@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
+import {
   Play, 
   Clock, 
   BookOpen, 
@@ -26,8 +26,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { cn } from "@/lib/utils"; // Assuming you have this util, if not just use classNames
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
-import { useSubscriptionFeatureAccess } from '@/hooks/queries/use-subscription-queries';
+import {
+  getMenteeFeatureDecision,
+  MENTEE_FEATURE_KEYS,
+} from '@/lib/mentee/access-policy';
 import { useMenteeLearningAnalyticsQuery } from '@/hooks/queries/use-analytics-queries';
 import { useEnrolledCoursesQuery } from '@/hooks/queries/use-learning-queries';
 
@@ -134,30 +136,25 @@ interface LearningAnalytics {
 
 export function MyLearning() {
   const router = useRouter();
-  const { session, isLoading: isAuthLoading } = useAuth();
+  const { session, isLoading: isAuthLoading, menteeAccess } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
+  const learningWorkspaceAccess = getMenteeFeatureDecision(
+    menteeAccess,
+    MENTEE_FEATURE_KEYS.learningWorkspace
+  );
+  const learningAnalyticsAccess = getMenteeFeatureDecision(
+    menteeAccess,
+    MENTEE_FEATURE_KEYS.analyticsView
+  );
+  const hasCourseAccess = Boolean(learningWorkspaceAccess?.allowed);
+  const hasLearningAnalyticsAccess = Boolean(learningAnalyticsAccess?.allowed);
   const {
     data: learningData,
     isLoading: learningLoading,
     error: learningError,
-  } = useEnrolledCoursesQuery(undefined, Boolean(session?.user?.id));
-  const {
-    hasAccess: hasCourseAccess,
-    isLoading: courseAccessLoading,
-  } = useSubscriptionFeatureAccess(
-    'mentee',
-    FEATURE_KEYS.COURSES_ACCESS,
-    Boolean(session?.user?.id)
-  );
-  const {
-    hasAccess: hasLearningAnalyticsAccess,
-    isLoading: analyticsAccessLoading,
-    isError: analyticsAccessError,
-    error: learningAnalyticsAccessError,
-  } = useSubscriptionFeatureAccess(
-    'mentee',
-    FEATURE_KEYS.ANALYTICS_ACCESS_LEVEL,
-    Boolean(session?.user?.id)
+  } = useEnrolledCoursesQuery(
+    undefined,
+    Boolean(session?.user?.id) && hasCourseAccess
   );
   const {
     data: analytics = null,
@@ -181,7 +178,7 @@ export function MyLearning() {
   const weeklyGoal = analytics?.weeklyGoal?.goalHours || 5;
   const weeklyProgress = analytics?.weeklyGoal?.actualHours || 0;
   const shouldBlockForAnalytics =
-    analyticsAccessLoading || (hasLearningAnalyticsAccess && analyticsLoading);
+    hasLearningAnalyticsAccess && analyticsLoading;
 
   const recentCourses = courses
     .filter(course => course.enrollment.lastAccessedAt)
@@ -403,7 +400,7 @@ export function MyLearning() {
   );
 
   // Loading State
-  if (isAuthLoading || learningLoading || courseAccessLoading || shouldBlockForAnalytics) {
+  if (isAuthLoading || learningLoading || shouldBlockForAnalytics) {
     return (
       <div className="space-y-8 p-4">
         <div className="space-y-2">
@@ -679,18 +676,7 @@ export function MyLearning() {
            {/* Reusing existing analytics logic but with better cards */}
            <h3 className="text-lg font-bold">Learning Analytics</h3>
 
-           {analyticsAccessError ? (
-             <Card className="border-destructive/30 bg-destructive/5">
-               <CardContent className="py-8 text-center">
-                 <p className="font-medium text-destructive">Could not verify analytics access</p>
-                 <p className="text-sm text-muted-foreground mt-1">
-                   {learningAnalyticsAccessError instanceof Error
-                     ? learningAnalyticsAccessError.message
-                     : 'Failed to load subscription features'}
-                 </p>
-               </CardContent>
-             </Card>
-           ) : !hasLearningAnalyticsAccess ? (
+           {!hasLearningAnalyticsAccess ? (
              <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900/30 dark:bg-amber-950/10">
                <CardContent className="py-8 text-center">
                  <p className="font-medium">Learning analytics are not included in your plan</p>

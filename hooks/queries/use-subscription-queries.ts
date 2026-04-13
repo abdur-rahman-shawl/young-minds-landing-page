@@ -16,10 +16,12 @@ export type SubscriptionAudience = 'mentor' | 'mentee';
 
 type SelfSubscriptionResponse = RouterOutputs['subscriptions']['me'];
 type SelfSubscriptionUsage = RouterOutputs['subscriptions']['usage'];
+type PublicPlansResponse = RouterOutputs['subscriptions']['publicPlans'];
 
 export type SubscriptionInfo = SelfSubscriptionResponse['subscription'];
 export type SubscriptionFeature = SelfSubscriptionResponse['features'][number];
 export type SubscriptionUsageEntry = SelfSubscriptionUsage[number];
+export type PublicSubscriptionPlan = PublicPlansResponse[number];
 
 export const subscriptionKeys = {
   all: ['subscription'] as const,
@@ -27,6 +29,8 @@ export const subscriptionKeys = {
     [...subscriptionKeys.all, 'me', audience] as const,
   usage: (audience: SubscriptionAudience) =>
     [...subscriptionKeys.all, 'usage', audience] as const,
+  publicPlans: (audience: SubscriptionAudience | null) =>
+    [...subscriptionKeys.all, 'public-plans', audience ?? 'all'] as const,
 };
 
 async function invalidateSubscriptionQueries(
@@ -85,6 +89,24 @@ export function useSelectSubscriptionPlanMutation() {
         error instanceof Error ? error.message : 'Failed to select plan'
       );
     },
+  });
+}
+
+export function usePublicSubscriptionPlans(
+  audience?: SubscriptionAudience | null,
+  enabled = true
+) {
+  const trpcClient = useTRPCClient();
+
+  return useQuery({
+    queryKey: subscriptionKeys.publicPlans(audience ?? null),
+    queryFn: () =>
+      trpcClient.subscriptions.publicPlans.query(
+        audience ? { audience } : undefined
+      ),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 

@@ -40,6 +40,11 @@ import {
   useMentorReviewsQuery,
   useReplyMentorCourseCommentMutation,
 } from '@/hooks/queries/use-mentor-queries';
+import {
+  getMentorFeatureDecision,
+  MENTOR_FEATURE_KEYS,
+} from '@/lib/mentor/access-policy';
+import { MentorFeaturePageGate } from '@/components/mentor/verification/mentor-verification-state';
 
 type PendingSession = {
   sessionId: string;
@@ -212,25 +217,30 @@ export function MentorReviewsSection() {
   );
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [savingReplyId, setSavingReplyId] = useState<string | null>(null);
-  const { session } = useAuth();
+  const { session, mentorProfile, mentorAccess } = useAuth();
+  const reviewsAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.reviewsManage
+  );
+  const canManageReviews = Boolean(reviewsAccess?.allowed);
   const {
     sessionsToReview,
     isLoading: pendingLoading,
     error: pendingError,
     mutate: mutatePendingReviews,
-  } = useMentorPendingReviews(session?.user);
+  } = useMentorPendingReviews(session?.user, canManageReviews);
   const {
     data: reviewsData,
     error: reviewsError,
     isLoading: reviewsLoading,
     refetch: refetchReviews,
-  } = useMentorReviewsQuery(!!session?.user?.id);
+  } = useMentorReviewsQuery(!!session?.user?.id && canManageReviews);
   const {
     data: courseCommentsData,
     error: courseCommentsError,
     isLoading: courseCommentsLoading,
     refetch: refetchCourseComments,
-  } = useMentorCourseCommentsQuery(!!session?.user?.id);
+  } = useMentorCourseCommentsQuery(!!session?.user?.id && canManageReviews);
   const replyToCourseCommentMutation = useReplyMentorCourseCommentMutation();
 
   const submittedReviews = (reviewsData?.reviews ?? []) as SubmittedReview[];
@@ -241,6 +251,20 @@ export function MentorReviewsSection() {
     courseCommentsLoading ||
     courseComments.length > 0 ||
     (hasCourseCommentsAccess && hasCourseComments);
+
+  if (!canManageReviews) {
+    return (
+      <div className="p-4 md:p-8">
+        <MentorFeaturePageGate
+          feature={MENTOR_FEATURE_KEYS.reviewsManage}
+          access={reviewsAccess}
+          mentorProfile={mentorProfile}
+          routeBasePath='/dashboard'
+          userName={session?.user?.name}
+        />
+      </div>
+    );
+  }
 
   const handleReplySave = async (comment: CourseComment) => {
     const response = (

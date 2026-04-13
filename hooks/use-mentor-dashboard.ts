@@ -56,13 +56,14 @@ interface RecentMessage {
   };
 }
 
-export function useMentorDashboardStats() {
+export function useMentorDashboardStats(enabled = true) {
   const trpcClient = useTRPCClient();
 
   const query = useQuery({
     queryKey: ['mentor', 'dashboard-stats'],
     queryFn: (): Promise<MentorDashboardStats> =>
       trpcClient.mentor.dashboardStats.query(),
+    enabled,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     refetchInterval: 60 * 1000,
@@ -76,12 +77,13 @@ export function useMentorDashboardStats() {
   };
 }
 
-export function useMentorRecentSessions(limit = 5) {
+export function useMentorRecentSessions(limit = 5, enabled = true) {
   const trpcClient = useTRPCClient();
 
   const query = useQuery({
     queryKey: ['mentor', 'recent-sessions', limit],
     queryFn: () => trpcClient.mentor.recentSessions.query({ limit }),
+    enabled,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
@@ -95,31 +97,35 @@ export function useMentorRecentSessions(limit = 5) {
   };
 }
 
-export function useMentorPendingReviews(user: { id?: string } | null | undefined) {
+export function useMentorPendingReviews(
+  user: { id?: string } | null | undefined,
+  enabled = true
+) {
   const trpcClient = useTRPCClient();
 
   const query = useQuery({
     queryKey: ['mentor', 'pending-reviews', user?.id ?? 'anonymous'],
     queryFn: () => trpcClient.mentor.pendingReviews.query(),
-    enabled: !!user?.id,
+    enabled: !!user?.id && enabled,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
 
   return {
     sessionsToReview: (query.data?.data ?? []) as SessionToReview[],
-    isLoading: user?.id ? query.isLoading : false,
+    isLoading: user?.id && enabled ? query.isLoading : false,
     error: query.error,
     mutate: query.refetch,
   };
 }
 
-export function useMentorRecentMessages(limit = 5) {
+export function useMentorRecentMessages(limit = 5, enabled = true) {
   const trpcClient = useTRPCClient();
 
   const query = useQuery({
     queryKey: ['mentor', 'recent-messages', limit],
     queryFn: () => trpcClient.mentor.recentMessages.query({ limit }),
+    enabled,
     refetchOnWindowFocus: true,
     refetchOnReconnect: false,
     refetchInterval: 30 * 1000,

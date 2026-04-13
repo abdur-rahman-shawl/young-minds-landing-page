@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,9 +39,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDebounce } from '@/hooks/use-performance';
 import { cn } from '@/lib/utils';
 import { CourseDetailView } from '@/components/shared/courses/course-detail';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
 import { useAuth } from '@/contexts/auth-context';
-import { useSubscriptionFeatureAccess } from '@/hooks/queries/use-subscription-queries';
+import {
+  getMenteeFeatureDecision,
+  MENTEE_FEATURE_KEYS,
+} from '@/lib/mentee/access-policy';
+import { useTRPCClient } from '@/lib/trpc/react';
 
 // ... [Keep Interfaces Exactly the Same] ...
 interface Course {
@@ -83,7 +86,8 @@ export function Courses() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const courseId = searchParams.get('courseId');
-  const { session, isLoading: authLoading } = useAuth();
+  const { session, isLoading: authLoading, menteeAccess } = useAuth();
+  const trpcClient = useTRPCClient();
 
   // State
   const [courses, setCourses] = useState<Course[]>([]);
@@ -91,14 +95,12 @@ export function Courses() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
-  const {
-    hasAccess: hasCourseAccess,
-    isLoading: accessCheckedLoading,
-  } = useSubscriptionFeatureAccess(
-    'mentee',
-    FEATURE_KEYS.COURSES_ACCESS,
-    !authLoading && Boolean(session?.user?.id)
+  const coursesBrowseAccess = getMenteeFeatureDecision(
+    menteeAccess,
+    MENTEE_FEATURE_KEYS.coursesBrowse
   );
+  const hasCourseAccess = Boolean(coursesBrowseAccess?.allowed);
+  const accessCheckedLoading = false;
   const accessChecked = !authLoading && !accessCheckedLoading;
 
   // Query parameters
@@ -122,7 +124,7 @@ export function Courses() {
 
   const debouncedSearch = useDebounce(searchQuery, 500);
 
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       if (accessChecked && !hasCourseAccess) {
         setLoading(false);
@@ -130,32 +132,41 @@ export function Courses() {
       }
 
       setLoading(true);
-      const queryParams = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: '12',
-        ...(debouncedSearch && { search: debouncedSearch }),
-        ...(selectedCategory && { category: selectedCategory }),
-        ...(selectedDifficulty && { difficulty: selectedDifficulty }),
-        ...(minPrice && { minPrice }),
-        ...(maxPrice && { maxPrice }),
-        sortBy,
-        sortOrder,
+      const data = await trpcClient.public.listCourses.query({
+        page: currentPage,
+        limit: 12,
+        search: debouncedSearch || undefined,
+        category: selectedCategory || undefined,
+        difficulty: selectedDifficulty
+          ? (selectedDifficulty as Course['difficulty'])
+          : undefined,
+        minPrice: minPrice ? Number(minPrice) : undefined,
+        maxPrice: maxPrice ? Number(maxPrice) : undefined,
+        sortBy: sortBy as 'created_at' | 'price' | 'rating' | 'enrollment_count',
+        sortOrder: sortOrder as 'asc' | 'desc',
       });
 
-      const response = await fetch(`/api/courses?${queryParams}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setCourses(data.data.courses);
-        setCategories(data.data.filters.categories);
-        setPagination(data.data.pagination);
-      }
+      setCourses(data.courses);
+      setCategories(data.filters.categories);
+      setPagination(data.pagination);
     } catch (error) {
       console.error('Error fetching courses:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    accessChecked,
+    currentPage,
+    debouncedSearch,
+    hasCourseAccess,
+    maxPrice,
+    minPrice,
+    selectedCategory,
+    selectedDifficulty,
+    sortBy,
+    sortOrder,
+    trpcClient,
+  ]);
 
   if (courseId) {
     return (
@@ -173,8 +184,8 @@ export function Courses() {
 
   useEffect(() => {
     if (!accessChecked || !hasCourseAccess) return;
-    fetchCourses();
-  }, [accessChecked, hasCourseAccess, debouncedSearch, selectedCategory, selectedDifficulty, minPrice, maxPrice, sortBy, sortOrder, currentPage]);
+    void fetchCourses();
+  }, [accessChecked, hasCourseAccess, fetchCourses]);
 
   const clearFilters = () => {
     setSearchQuery('');

@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Star, ChevronLeft, ChevronRight, ArrowRight, Briefcase, MapPin, CheckCircle } from "lucide-react"
+import { Star, ChevronLeft, ChevronRight, ArrowRight, Briefcase, CheckCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useTRPCClient } from "@/lib/trpc/react"
 
 interface Mentor {
   id: string
@@ -23,21 +24,33 @@ export function MentorSection() {
   const [loading, setLoading] = useState(true)
   const [currentIndex, setCurrentIndex] = useState(0)
   const router = useRouter()
+  const trpcClient = useTRPCClient()
 
   useEffect(() => {
+    let isMounted = true
+
     const fetchMentors = async () => {
       try {
-        const res = await fetch('/api/public-mentors?pageSize=9&availableOnly=true')
-        const json = await res.json()
-        setMentors(json?.data ?? [])
+        const data = await trpcClient.public.listMentors.query({
+          page: 1,
+          pageSize: 9,
+          availableOnly: true,
+        })
+        if (!isMounted) return
+        setMentors(data.mentors ?? [])
       } catch (e) {
         console.error('Error fetching mentors:', e)
       } finally {
+        if (!isMounted) return
         setLoading(false)
       }
     }
-    fetchMentors()
-  }, [])
+    void fetchMentors()
+
+    return () => {
+      isMounted = false
+    }
+  }, [trpcClient])
 
   const visibleCount = 3
   const maxIndex = Math.max(mentors.length - visibleCount, 0)

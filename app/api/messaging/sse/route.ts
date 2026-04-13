@@ -12,6 +12,9 @@ import {
   createSSEConnectionState,
   enqueueSSEPayload,
 } from '@/lib/messaging/sse-stream';
+import { MESSAGING_ACCESS_INTENTS } from '@/lib/messaging/access-policy';
+import { assertMessagingAccess } from '@/lib/access-policy/server';
+import { nextErrorResponse } from '@/lib/http/next-response-error';
 
 const activeConnections = new Map<
   string,
@@ -43,6 +46,16 @@ export async function GET(request: NextRequest) {
       { success: false, error: 'Authentication required' },
       { status: 401 }
     );
+  }
+
+  try {
+    await assertMessagingAccess({
+      userId,
+      intent: MESSAGING_ACCESS_INTENTS.mailbox,
+      source: 'route.messaging.sse',
+    });
+  } catch (error) {
+    return nextErrorResponse(error, 'Unable to verify messaging access');
   }
 
   const lastEventId = providedLastEventId && !isNaN(Date.parse(providedLastEventId))

@@ -18,7 +18,10 @@ describe('getMentorAvailabilityAccessState', () => {
 
   it('allows access once the mentor is verified', () => {
     expect(
-      getMentorAvailabilityAccessState({ verificationStatus: 'VERIFIED' })
+      getMentorAvailabilityAccessState({
+        verificationStatus: 'VERIFIED',
+        paymentStatus: 'COMPLETED',
+      })
     ).toBe('ready');
   });
 });

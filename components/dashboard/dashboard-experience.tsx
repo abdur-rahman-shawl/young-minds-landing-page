@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle } from 'lucide-react';
 
 import { Header } from '@/components/layout/header';
 import { HeroSection } from '@/components/landing/hero-section';
@@ -16,10 +15,10 @@ import { CollabExpertsSection } from '@/components/landing/collab-experts-sectio
 import { CaseStudySection } from '@/components/landing/case-study-section';
 import { ServicesGrid } from '@/components/landing/services-grid';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { UserSidebar } from '@/components/mentee/sidebars/user-sidebar';
 import { MentorSidebar } from '@/components/mentor/sidebars/mentor-sidebar';
 import { AdminSidebar } from '@/components/admin/sidebars/admin-sidebar';
+import { AccountAccessPageGate } from '@/components/account/account-access-state';
 import { Dashboard } from '@/components/shared/dashboard/dashboard';
 import { MentorOnlyDashboard } from '@/components/mentor/dashboard/mentor-only-dashboard';
 import { ExploreMentors } from '@/components/shared/dashboard/explore';
@@ -46,8 +45,13 @@ import { AdminContent } from '@/components/admin/dashboard/admin-content';
 import { MentorSubscription } from '@/components/mentor/dashboard/mentor-subscription';
 import { MentorReviewsSection } from '@/components/mentor/dashboard/mentor-reviews-section';
 import { MenteeSubscription } from '@/components/mentee/dashboard/mentee-subscription';
+import { MenteeFeaturePageGate } from '@/components/mentee/access/mentee-feature-state';
 import { AuthLoadingSkeleton } from '@/components/common/skeletons';
 import { DashboardSectionFrame } from '@/components/dashboard/dashboard-section-frame';
+import {
+  MentorFeaturePageGate,
+  MentorVerificationNotice,
+} from '@/components/mentor/verification/mentor-verification-state';
 import { useAuth } from '@/contexts/auth-context';
 import { cn } from '@/lib/utils';
 import {
@@ -58,6 +62,15 @@ import {
   type DashboardRouteBasePath,
   type DashboardSectionKey,
 } from '@/lib/dashboard/sections';
+import {
+  getMenteeDashboardSectionFeature,
+  getMenteeFeatureDecision,
+} from '@/lib/mentee/access-policy';
+import {
+  getMentorDashboardSectionFeature,
+  getMentorFeatureDecision,
+  hasMentorVerificationRestrictions,
+} from '@/lib/mentor/access-policy';
 import {
   getDashboardShellClassNames,
   getDashboardShellMode,
@@ -146,7 +159,10 @@ export function DashboardExperience({
     isLoading,
     isAdmin,
     isMentor,
-    isMentorWithIncompleteProfile,
+    accountAccess,
+    menteeAccess,
+    mentorProfile,
+    mentorAccess,
   } = useAuth();
 
   const [activeSection, setActiveSection] = useState<DashboardSectionKey>('dashboard');
@@ -162,6 +178,24 @@ export function DashboardExperience({
     scopeByAudience?.[currentAudience] ?? DEFAULT_SCOPE_BY_AUDIENCE[currentAudience];
   const shellMode = getDashboardShellMode(activeSection);
   const shellClasses = getDashboardShellClassNames(shellMode);
+  const mentorSectionFeature = isMentor
+    ? getMentorDashboardSectionFeature(activeSection)
+    : null;
+  const mentorSectionAccess =
+    mentorSectionFeature && mentorAccess
+      ? getMentorFeatureDecision(mentorAccess, mentorSectionFeature)
+      : null;
+  const menteeSectionFeature =
+    !isAdmin && !isMentor ? getMenteeDashboardSectionFeature(activeSection) : null;
+  const menteeSectionAccess =
+    menteeSectionFeature && menteeAccess
+      ? getMenteeFeatureDecision(menteeAccess, menteeSectionFeature)
+      : null;
+  const showMentorVerificationNotice =
+    isMentor &&
+    hasMentorVerificationRestrictions(mentorAccess) &&
+    activeSection !== 'dashboard' &&
+    Boolean(!mentorSectionAccess || mentorSectionAccess.allowed);
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
@@ -289,9 +323,26 @@ export function DashboardExperience({
     }
 
     if (isMentor) {
+      if (mentorSectionFeature && mentorSectionAccess && !mentorSectionAccess.allowed) {
+        return (
+          <MentorFeaturePageGate
+            feature={mentorSectionFeature}
+            access={mentorSectionAccess}
+            mentorProfile={mentorProfile}
+            routeBasePath={routeBasePath}
+            userName={session?.user?.name}
+          />
+        );
+      }
+
       switch (activeSection) {
         case 'dashboard':
-          return <MentorOnlyDashboard user={session?.user} />;
+          return (
+            <MentorOnlyDashboard
+              user={session?.user}
+              routeBasePath={routeBasePath}
+            />
+          );
         case 'mentees':
           return (
             <div className='p-4 md:p-8'>
@@ -312,7 +363,7 @@ export function DashboardExperience({
           return (
             <div className='p-4 md:p-8'>
               <div className='mx-auto max-w-6xl'>
-                <MentorAvailabilityManager />
+                <MentorAvailabilityManager routeBasePath={routeBasePath} />
               </div>
             </div>
           );
@@ -363,8 +414,23 @@ export function DashboardExperience({
         case 'profile':
           return <MentorProfileEdit />;
         default:
-          return <MentorOnlyDashboard user={session?.user} />;
+          return (
+            <MentorOnlyDashboard
+              user={session?.user}
+              routeBasePath={routeBasePath}
+            />
+          );
       }
+    }
+
+    if (menteeSectionFeature && menteeSectionAccess && !menteeSectionAccess.allowed) {
+      return (
+        <MenteeFeaturePageGate
+          feature={menteeSectionFeature}
+          access={menteeSectionAccess}
+          routeBasePath={routeBasePath}
+        />
+      );
     }
 
     switch (activeSection) {
@@ -429,6 +495,10 @@ export function DashboardExperience({
     return <AuthLoadingSkeleton />;
   }
 
+  if (accountAccess && !accountAccess.allowed) {
+    return <AccountAccessPageGate accountAccess={accountAccess} />;
+  }
+
   return (
     <SidebarProvider>
       <div
@@ -469,29 +539,16 @@ export function DashboardExperience({
             )}
           >
             <AnimatePresence mode='wait'>
-              {isMentorWithIncompleteProfile && (
+              {showMentorVerificationNotice && (
                 <motion.div
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   className='mb-8'
                 >
-                  <Alert className='relative overflow-hidden border-amber-200 bg-amber-50/80 backdrop-blur-sm dark:border-amber-900/50 dark:bg-amber-900/20'>
-                    <div className='absolute inset-y-0 left-0 w-1 bg-amber-500' />
-                    <AlertTriangle className='h-5 w-5 text-amber-600' />
-                    <AlertDescription className='ml-2 text-amber-900 dark:text-amber-100'>
-                      <span className='font-semibold'>Action Required:</span>{' '}
-                      Complete your mentor profile to start accepting bookings.
-                      <button
-                        onClick={() => router.push('/auth/mentor-verification')}
-                        className='group ml-3 inline-flex items-center font-medium text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300'
-                      >
-                        Complete now
-                        <span className='ml-1 transition-transform group-hover:translate-x-1'>
-                          →
-                        </span>
-                      </button>
-                    </AlertDescription>
-                  </Alert>
+                  <MentorVerificationNotice
+                    mentorProfile={mentorProfile}
+                    routeBasePath={routeBasePath}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>

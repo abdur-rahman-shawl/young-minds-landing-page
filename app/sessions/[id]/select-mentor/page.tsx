@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { MenteeFeaturePageGate } from "@/components/mentee/access/mentee-feature-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,10 @@ import {
     useRejectReassignmentMutation,
     useSelectAlternativeMentorMutation,
 } from "@/hooks/queries/use-booking-queries";
+import {
+    getMenteeFeatureDecision,
+    MENTEE_FEATURE_KEYS,
+} from "@/lib/mentee/access-policy";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -60,8 +65,14 @@ export default function SelectMentorPage() {
     const params = useParams();
     const router = useRouter();
     const { toast } = useToast();
-    const { session } = useAuth();
+    const { session, menteeAccess } = useAuth();
     const sessionId = params.id as string;
+    const sessionsAccess = getMenteeFeatureDecision(
+        menteeAccess,
+        MENTEE_FEATURE_KEYS.sessionsView
+    );
+    const canViewSessions = Boolean(sessionsAccess?.allowed);
+    const queryUserId = canViewSessions ? session?.user?.id : undefined;
 
     const [selectedMentor, setSelectedMentor] = useState<AlternativeMentor | null>(null);
     const [selectedTime, setSelectedTime] = useState<Date | null>(null);
@@ -71,10 +82,10 @@ export default function SelectMentorPage() {
 
     // Determine if this is fixed time (auto-reassigned) or flexible (no mentor found)
     const [fixedTimeMode, setFixedTimeMode] = useState(true);
-    const fixedTimeQuery = useAlternativeMentorsQuery(sessionId, session?.user?.id, true);
+    const fixedTimeQuery = useAlternativeMentorsQuery(sessionId, queryUserId, true);
     const flexibleTimeQuery = useAlternativeMentorsQuery(
         sessionId,
-        session?.user?.id,
+        queryUserId,
         false
     );
     const selectAlternativeMentorMutation = useSelectAlternativeMentorMutation();
@@ -172,6 +183,18 @@ export default function SelectMentorPage() {
             setShowCancelDialog(false);
         }
     };
+
+    if (session && sessionsAccess && !sessionsAccess.allowed) {
+        return (
+            <div className="mx-auto w-full max-w-6xl p-6">
+                <MenteeFeaturePageGate
+                    feature={MENTEE_FEATURE_KEYS.sessionsView}
+                    access={sessionsAccess}
+                    routeBasePath="/dashboard"
+                />
+            </div>
+        );
+    }
 
     if (loading) {
         return (

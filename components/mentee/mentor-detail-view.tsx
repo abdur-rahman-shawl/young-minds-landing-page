@@ -36,11 +36,13 @@ import { useMentorDetail } from "@/hooks/use-mentor-detail"
 import { BookingModal } from "@/components/booking/booking-modal"
 import { MessageRequestModal } from "@/components/messaging/message-request-modal"
 import { useAuth } from "@/contexts/auth-context"
-import { FEATURE_KEYS } from "@/lib/subscriptions/feature-keys"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { useSubscriptionFeatureAccess } from "@/hooks/queries/use-subscription-queries"
+import {
+  getMessagingAccessDecision,
+  MESSAGING_ACCESS_INTENTS,
+} from "@/lib/messaging/access-policy"
 
 interface MentorDetailViewProps {
   mentorId: string | null
@@ -55,15 +57,25 @@ export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }
   const urlSource = searchParams.get('from')
   const resolvedSource = bookingSource === 'default' && urlSource === 'explore' ? 'explore' : bookingSource
   const { mentor, loading, error } = useMentorDetail(mentorId)
-  const { session } = useAuth()
+  const { session, isAdmin, mentorAccess, menteeAccess, primaryRole } = useAuth()
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>("overview")
-  const { hasAccess: isMessageMentorEnabled } = useSubscriptionFeatureAccess(
-    "mentee",
-    FEATURE_KEYS.PRIORITY_MESSAGING,
-    Boolean(session?.user?.id)
-  );
+  const preferredAudience =
+    primaryRole?.name === 'mentor' || primaryRole?.name === 'mentee'
+      ? primaryRole.name
+      : null
+  const messageMentorAccess = getMessagingAccessDecision(
+    {
+      isAdmin,
+      mentorAccess,
+      menteeAccess,
+      preferredAudience,
+    },
+    MESSAGING_ACCESS_INTENTS.messageRequests,
+    'mentee'
+  )
+  const isMessageMentorEnabled = Boolean(session?.user?.id && messageMentorAccess.allowed)
 
   const handleBookSession = () => {
     if (!session) {

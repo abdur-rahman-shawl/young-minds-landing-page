@@ -19,6 +19,7 @@ import { sendApplicationReceivedEmail } from '@/lib/email';
 import { createNotificationRecord } from '@/lib/notifications/server/service';
 import { validateMentorCouponRedemption } from '@/lib/mentor/coupon-rules';
 import { buildMentorProfileUpdate } from '@/lib/mentor/profile-patch';
+import { resolveMentorVerificationTransition } from '@/lib/mentor/verification-state-machine';
 import { normalizeStorageValue, resolveStorageUrl } from '@/lib/storage';
 
 import { assertMentorLifecycle, MentorLifecycleServiceError } from './errors';
@@ -43,7 +44,9 @@ async function getMentorLifecycleUser(
 }
 
 function isAdmin(user: CurrentUser) {
-  return user.roles.some((role) => role.name === 'admin');
+  return user.roles.some(
+    (role: { name: string }) => role.name === 'admin'
+  );
 }
 
 function assertSameUserOrAdmin(user: CurrentUser, targetUserId: string) {
@@ -254,7 +257,10 @@ export async function submitMentorApplication(
     linkedinUrl: parsed.linkedinUrl || null,
     githubUrl: parsed.githubUrl || null,
     websiteUrl: parsed.websiteUrl || null,
-    verificationStatus: existingMentor ? ('RESUBMITTED' as const) : ('IN_PROGRESS' as const),
+    verificationStatus: resolveMentorVerificationTransition(
+      existingMentor?.verificationStatus,
+      existingMentor ? 'application_resubmitted' : 'application_submitted'
+    ),
     isAvailable: parsed.isAvailable !== false,
     fullName: parsed.fullName || null,
     email: parsed.email || null,
@@ -323,7 +329,7 @@ export async function submitMentorApplication(
       data: {
         id: updatedMentor.id,
         userId: parsed.userId,
-        status: 'RESUBMITTED' as const,
+        status: mentorProfileData.verificationStatus,
       },
     };
   }

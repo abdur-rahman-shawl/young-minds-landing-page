@@ -1,4 +1,5 @@
 import type { VerificationStatus } from '@/lib/db/schema/mentors';
+import { resolveMentorVerificationTransition } from '@/lib/mentor/verification-state-machine';
 
 const COUPON_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -52,16 +53,33 @@ export function buildMentorAdminUpdatePlan(
   const previousIsExpert = Boolean(input.existingIsExpert);
   const expertChanged =
     input.isExpert !== undefined && input.isExpert !== previousIsExpert;
+  const nextStatus =
+    input.existingStatus === input.nextStatus
+      ? input.existingStatus
+      : input.nextStatus === 'VERIFIED'
+        ? resolveMentorVerificationTransition(
+            input.existingStatus,
+            'admin_verified'
+          )
+        : input.nextStatus === 'REJECTED'
+          ? resolveMentorVerificationTransition(
+              input.existingStatus,
+              'admin_rejected'
+            )
+          : resolveMentorVerificationTransition(
+              input.existingStatus,
+              'admin_reverification_requested'
+            );
 
   return {
-    isStatusChanged: input.existingStatus !== input.nextStatus,
+    isStatusChanged: input.existingStatus !== nextStatus,
     previousIsExpert,
     expertChanged,
     noteToStore,
     shouldEnableCoupon,
     couponCode,
     updateData: {
-      verificationStatus: input.nextStatus,
+      verificationStatus: nextStatus,
       verificationNotes: noteToStore,
       updatedAt: options?.now ?? new Date(),
       isCouponCodeEnabled: shouldEnableCoupon,

@@ -1,8 +1,14 @@
-import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import { createTRPCRouter, mentorProcedure, protectedProcedure, publicProcedure } from '../init';
-import { MentorLifecycleServiceError } from '@/lib/mentor/server/errors';
+import {
+  createTRPCRouter,
+  menteeFeatureProcedure,
+  mentorFeatureProcedure,
+  publicProcedure,
+  userProcedure,
+} from '../init';
+import { MENTEE_FEATURE_KEYS } from '@/lib/mentee/access-policy';
+import { MENTOR_FEATURE_KEYS } from '@/lib/mentor/access-policy';
 import {
   getMentorApplication,
   updateMentorProfile,
@@ -49,79 +55,35 @@ import {
   mentorSlotsInputSchema,
   savedMentorInputSchema,
 } from '@/lib/mentor/server/schemas';
-
-function mapStatusToTRPCCode(status: number): TRPCError['code'] {
-  switch (status) {
-    case 400:
-      return 'BAD_REQUEST';
-    case 401:
-      return 'UNAUTHORIZED';
-    case 403:
-      return 'FORBIDDEN';
-    case 404:
-      return 'NOT_FOUND';
-    case 409:
-      return 'CONFLICT';
-    default:
-      return 'INTERNAL_SERVER_ERROR';
-  }
-}
-
-function throwAsTRPCError(error: unknown, fallbackMessage: string): never {
-  if (error instanceof TRPCError) {
-    throw error;
-  }
-
-  if (error instanceof MentorLifecycleServiceError) {
-    throw new TRPCError({
-      code: mapStatusToTRPCCode(error.status),
-      message: error.message,
-      cause: error,
-    });
-  }
-
-  if (error instanceof z.ZodError) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: error.errors[0]?.message ?? 'Invalid input',
-      cause: error,
-    });
-  }
-
-  throw new TRPCError({
-    code: 'INTERNAL_SERVER_ERROR',
-    message: fallbackMessage,
-    cause: error instanceof Error ? error : undefined,
-  });
-}
+import { throwAsTRPCError } from '@/lib/trpc/router-error';
 
 export const mentorRouter = createTRPCRouter({
-  list: protectedProcedure
+  list: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.mentorDirectoryView)
     .input(mentorListInputSchema.optional())
     .query(async ({ ctx, input }) => {
       try {
-        return await listMentors(ctx.userId, input, (ctx as any).currentUser);
+        return await listMentors(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to fetch mentors');
       }
     }),
-  get: protectedProcedure
+  get: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.mentorDirectoryView)
     .input(mentorDetailInputSchema)
     .query(async ({ ctx, input }) => {
       try {
-        return await getMentorDetail(ctx.userId, input, (ctx as any).currentUser);
+        return await getMentorDetail(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to fetch mentor details');
       }
     }),
-  application: protectedProcedure.query(async ({ ctx }) => {
+  application: userProcedure.query(async ({ ctx }) => {
     try {
       return await getMentorApplication(ctx.userId);
     } catch (error) {
       throwAsTRPCError(error, 'Failed to fetch mentor application');
     }
   }),
-  updateProfile: protectedProcedure
+  updateProfile: userProcedure
     .input(mentorProfileUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -130,7 +92,7 @@ export const mentorRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to update mentor profile');
       }
     }),
-  validateCoupon: protectedProcedure
+  validateCoupon: userProcedure
     .input(mentorCouponInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -139,39 +101,39 @@ export const mentorRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to validate coupon code');
       }
     }),
-  listSaved: protectedProcedure.query(async ({ ctx }) => {
+  listSaved: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.mentorDirectoryView).query(async ({ ctx }) => {
     try {
-      return await listSavedMentors(ctx.userId, (ctx as any).currentUser);
+      return await listSavedMentors(ctx.userId, ctx.currentUser);
     } catch (error) {
       throwAsTRPCError(error, 'Failed to fetch saved mentors');
     }
   }),
-  save: protectedProcedure
+  save: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.mentorDirectoryView)
     .input(savedMentorInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
-        return await saveMentor(ctx.userId, input, (ctx as any).currentUser);
+        return await saveMentor(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to save mentor');
       }
     }),
-  unsave: protectedProcedure
+  unsave: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.mentorDirectoryView)
     .input(savedMentorInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
-        return await unsaveMentor(ctx.userId, input, (ctx as any).currentUser);
+        return await unsaveMentor(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to remove saved mentor');
       }
     }),
-  dashboardStats: mentorProcedure.query(async ({ ctx }) => {
+  dashboardStats: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.dashboardStats).query(async ({ ctx }) => {
     try {
       return await getMentorDashboardRuntimeStats(ctx.userId, ctx.currentUser);
     } catch (error) {
       throwAsTRPCError(error, 'Failed to fetch dashboard statistics');
     }
   }),
-  recentSessions: mentorProcedure
+  recentSessions: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.dashboardSessions)
     .input(mentorRecentListInputSchema.optional())
     .query(async ({ ctx, input }) => {
       try {
@@ -184,7 +146,7 @@ export const mentorRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch recent sessions');
       }
     }),
-  recentMessages: mentorProcedure
+  recentMessages: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.dashboardMessages)
     .input(mentorRecentListInputSchema.optional())
     .query(async ({ ctx, input }) => {
       try {
@@ -197,14 +159,14 @@ export const mentorRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch recent messages');
       }
     }),
-  pendingReviews: mentorProcedure.query(async ({ ctx }) => {
+  pendingReviews: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.reviewsManage).query(async ({ ctx }) => {
     try {
       return await listMentorPendingReviewsRuntime(ctx.userId, ctx.currentUser);
     } catch (error) {
       throwAsTRPCError(error, 'Failed to fetch review queue');
     }
   }),
-  mentees: mentorProcedure
+  mentees: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.menteesView)
     .input(mentorMenteesInputSchema.optional())
     .query(async ({ ctx, input }) => {
       try {
@@ -213,28 +175,28 @@ export const mentorRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch mentees');
       }
     }),
-  menteeSessions: mentorProcedure.query(async ({ ctx }) => {
+  menteeSessions: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.menteesView).query(async ({ ctx }) => {
     try {
       return await listMentorMenteeSessionsRuntime(ctx.userId, ctx.currentUser);
     } catch (error) {
       throwAsTRPCError(error, 'Failed to fetch mentee session overview');
     }
   }),
-  reviews: mentorProcedure.query(async ({ ctx }) => {
+  reviews: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.reviewsManage).query(async ({ ctx }) => {
     try {
       return await listMentorReviewsRuntime(ctx.userId, ctx.currentUser);
     } catch (error) {
       throwAsTRPCError(error, 'Failed to fetch mentor reviews');
     }
   }),
-  courseComments: mentorProcedure.query(async ({ ctx }) => {
+  courseComments: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.reviewsManage).query(async ({ ctx }) => {
     try {
       return await listMentorCourseCommentsRuntime(ctx.userId, ctx.currentUser);
     } catch (error) {
       throwAsTRPCError(error, 'Failed to fetch mentor course comments');
     }
   }),
-  replyToCourseComment: mentorProcedure
+  replyToCourseComment: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.reviewsManage)
     .input(mentorCourseCommentReplyInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -243,7 +205,7 @@ export const mentorRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to save mentor reply');
       }
     }),
-  availability: mentorProcedure
+  availability: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.availabilityManage)
     .input(mentorAvailabilityQueryInputSchema)
     .query(async ({ ctx, input }) => {
       try {
@@ -252,7 +214,7 @@ export const mentorRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch availability');
       }
     }),
-  upsertAvailability: mentorProcedure
+  upsertAvailability: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.availabilityManage)
     .input(
       z.object({
         mentorUserId: z.string().min(1),
@@ -271,7 +233,7 @@ export const mentorRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to save availability');
       }
     }),
-  availabilityExceptions: mentorProcedure
+  availabilityExceptions: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.availabilityManage)
     .input(mentorAvailabilityQueryInputSchema)
     .query(async ({ ctx, input }) => {
       try {
@@ -284,7 +246,7 @@ export const mentorRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch availability exceptions');
       }
     }),
-  createAvailabilityException: mentorProcedure
+  createAvailabilityException: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.availabilityManage)
     .input(mentorAvailabilityExceptionInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -297,7 +259,7 @@ export const mentorRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to create availability exception');
       }
     }),
-  deleteAvailabilityExceptions: mentorProcedure
+  deleteAvailabilityExceptions: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.availabilityManage)
     .input(deleteMentorAvailabilityExceptionsInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -310,14 +272,14 @@ export const mentorRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to delete availability exceptions');
       }
     }),
-  availableSlots: protectedProcedure
+  availableSlots: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.mentorDirectoryView)
     .input(mentorSlotsInputSchema)
     .query(async ({ ctx, input }) => {
       try {
         return await listMentorAvailableSlots(
           ctx.userId,
           input,
-          (ctx as any).currentUser
+          ctx.currentUser
         );
       } catch (error) {
         throwAsTRPCError(error, 'Failed to fetch available slots');

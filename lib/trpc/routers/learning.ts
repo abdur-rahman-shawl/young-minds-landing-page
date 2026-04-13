@@ -1,10 +1,7 @@
-import { TRPCError } from '@trpc/server';
-import { z } from 'zod';
-
-import { createTRPCRouter, protectedProcedure } from '../init';
+import { createTRPCRouter, menteeFeatureProcedure, protectedProcedure } from '../init';
 import { RateLimitError, rateLimit } from '@/lib/rate-limit';
+import { MENTEE_FEATURE_KEYS } from '@/lib/mentee/access-policy';
 import {
-  LearningServiceError,
   enrollInCourse,
   getCourseEnrollmentStatus,
   getCourseProgress,
@@ -18,6 +15,7 @@ import {
   toggleCourseReviewHelpfulVote,
   updateCourseProgress,
 } from '@/lib/learning/server/service';
+import { throwAsTRPCError } from '@/lib/trpc/router-error';
 import {
   courseEnrollmentStatusInputSchema,
   courseProgressInputSchema,
@@ -42,61 +40,6 @@ const learningReviewRateLimit = rateLimit({
   maxRequests: 5,
 });
 
-function mapStatusToTRPCCode(status: number): TRPCError['code'] {
-  switch (status) {
-    case 400:
-      return 'BAD_REQUEST';
-    case 401:
-      return 'UNAUTHORIZED';
-    case 403:
-      return 'FORBIDDEN';
-    case 404:
-      return 'NOT_FOUND';
-    case 409:
-      return 'CONFLICT';
-    case 429:
-      return 'TOO_MANY_REQUESTS';
-    default:
-      return 'INTERNAL_SERVER_ERROR';
-  }
-}
-
-function throwAsTRPCError(error: unknown, fallbackMessage: string): never {
-  if (error instanceof TRPCError) {
-    throw error;
-  }
-
-  if (error instanceof RateLimitError) {
-    throw new TRPCError({
-      code: 'TOO_MANY_REQUESTS',
-      message: error.message,
-      cause: error,
-    });
-  }
-
-  if (error instanceof LearningServiceError) {
-    throw new TRPCError({
-      code: mapStatusToTRPCCode(error.status),
-      message: error.message,
-      cause: error,
-    });
-  }
-
-  if (error instanceof z.ZodError) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: error.errors[0]?.message ?? 'Invalid input',
-      cause: error,
-    });
-  }
-
-  throw new TRPCError({
-    code: 'INTERNAL_SERVER_ERROR',
-    message: fallbackMessage,
-    cause: error instanceof Error ? error : undefined,
-  });
-}
-
 function enforceSavedItemsRateLimit(request: Request, userId: string) {
   savedItemsRateLimit.check(request, `user:${userId}`);
 }
@@ -106,75 +49,75 @@ function enforceLearningReviewRateLimit(request: Request, userId: string) {
 }
 
 export const learningRouter = createTRPCRouter({
-  listCourses: protectedProcedure
+  listCourses: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.learningWorkspace)
     .input(listEnrolledCoursesInputSchema.optional())
     .query(async ({ ctx, input }) => {
       try {
-        return await listEnrolledCourses(ctx.userId, input);
+        return await listEnrolledCourses(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to fetch enrolled courses');
       }
     }),
-  courseEnrollment: protectedProcedure
+  courseEnrollment: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.learningWorkspace)
     .input(courseEnrollmentStatusInputSchema)
     .query(async ({ ctx, input }) => {
       try {
-        return await getCourseEnrollmentStatus(ctx.userId, input);
+        return await getCourseEnrollmentStatus(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to fetch enrollment status');
       }
     }),
-  enrollCourse: protectedProcedure
+  enrollCourse: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.learningWorkspace)
     .input(enrollCourseInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
-        return await enrollInCourse(ctx.userId, input);
+        return await enrollInCourse(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to enroll in course');
       }
     }),
-  courseProgress: protectedProcedure
+  courseProgress: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.learningWorkspace)
     .input(courseProgressInputSchema)
     .query(async ({ ctx, input }) => {
       try {
-        return await getCourseProgress(ctx.userId, input);
+        return await getCourseProgress(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to fetch course progress');
       }
     }),
-  updateCourseProgress: protectedProcedure
+  updateCourseProgress: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.learningWorkspace)
     .input(updateCourseProgressInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
-        return await updateCourseProgress(ctx.userId, input);
+        return await updateCourseProgress(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to update course progress');
       }
     }),
-  listSavedItems: protectedProcedure.query(async ({ ctx }) => {
+  listSavedItems: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.learningWorkspace).query(async ({ ctx }) => {
     try {
       enforceSavedItemsRateLimit(ctx.req, ctx.userId);
-      return await listSavedItems(ctx.userId);
+      return await listSavedItems(ctx.userId, ctx.currentUser);
     } catch (error) {
       throwAsTRPCError(error, 'Failed to fetch saved items');
     }
   }),
-  removeSavedItem: protectedProcedure
+  removeSavedItem: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.learningWorkspace)
     .input(removeSavedItemInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
         enforceSavedItemsRateLimit(ctx.req, ctx.userId);
-        return await removeSavedItem(ctx.userId, input);
+        return await removeSavedItem(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to remove saved item');
       }
     }),
-  submitCourseReview: protectedProcedure
+  submitCourseReview: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.learningWorkspace)
     .input(submitCourseReviewInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
         enforceLearningReviewRateLimit(ctx.req, ctx.userId);
-        return await submitCourseReview(ctx.userId, input);
+        return await submitCourseReview(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to submit course review');
       }
@@ -188,12 +131,12 @@ export const learningRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to update helpful vote');
       }
     }),
-  submitContentItemReview: protectedProcedure
+  submitContentItemReview: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.learningWorkspace)
     .input(submitContentItemReviewInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
         enforceLearningReviewRateLimit(ctx.req, ctx.userId);
-        return await submitContentItemReview(ctx.userId, input);
+        return await submitContentItemReview(ctx.userId, input, ctx.currentUser);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to submit lesson review');
       }

@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Dialog,
     DialogContent,
@@ -40,6 +41,7 @@ import {
     Loader2,
     Info,
 } from "lucide-react";
+import { AdminAccessPolicySettings } from "@/components/admin/dashboard/admin-access-policy-settings";
 
 // Human-readable labels for policy keys
 const POLICY_LABELS: Record<string, string> = {
@@ -71,6 +73,13 @@ const POLICY_UNITS: Record<string, string> = {
     reschedule_request_expiry_hours: "hours",
     max_counter_proposals: "proposals",
 };
+
+interface RenderableAdminPolicyRecord {
+    key: string;
+    value: string;
+    type: string;
+    description: string;
+}
 
 export function AdminPolicies() {
     const { toast } = useToast();
@@ -144,7 +153,7 @@ export function AdminPolicies() {
     };
 
     // Render policy input
-    const renderPolicyInput = (policy: AdminPolicyRecord) => {
+    const renderPolicyInput = (policy: RenderableAdminPolicyRecord) => {
         const label = POLICY_LABELS[policy.key] || policy.key;
         const unit = POLICY_UNITS[policy.key];
         const isModified = editedValues[policy.key] !== policy.value;
@@ -214,119 +223,136 @@ export function AdminPolicies() {
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+        <Tabs defaultValue="session" className="space-y-6">
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Session Policies</h1>
-                    <p className="text-gray-500 dark:text-gray-400">Configure cancellation, rescheduling, and refund rules</p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Policy Settings</h1>
+                    <p className="text-gray-500 dark:text-gray-400">Configure session rules and app-wide access policy outcomes</p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={() => setShowResetDialog(true)}
-                        disabled={updatePoliciesMutation.isPending}
-                    >
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        Reset Defaults
-                    </Button>
-                    <Button
-                        onClick={handleSave}
-                        disabled={!hasChanges() || updatePoliciesMutation.isPending}
-                    >
-                        {updatePoliciesMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                        Save Changes
-                    </Button>
-                </div>
+                <TabsList>
+                    <TabsTrigger value="session">Session Policies</TabsTrigger>
+                    <TabsTrigger value="access">Access Policies</TabsTrigger>
+                </TabsList>
             </div>
 
-            {/* Info Banner */}
-            {hasChanges() && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center gap-2">
-                    <Info className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm text-blue-800 dark:text-blue-200">
-                        You have {getChangedPolicies().length} unsaved change(s)
-                    </span>
-                </div>
-            )}
-
-            {/* Policy Cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Mentee Rules */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                            <Users className="w-5 h-5 text-blue-500" />
-                            <CardTitle className="text-lg">Mentee Rules</CardTitle>
-                        </div>
-                        <CardDescription>Cancellation and rescheduling limits for mentees</CardDescription>
-                    </CardHeader>
-                    <CardContent className="divide-y">
-                        {grouped?.menteeRules.map(policy => renderPolicyInput(policy))}
-                    </CardContent>
-                </Card>
-
-                {/* Mentor Rules */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                            <GraduationCap className="w-5 h-5 text-purple-500" />
-                            <CardTitle className="text-lg">Mentor Rules</CardTitle>
-                        </div>
-                        <CardDescription>Cancellation and rescheduling limits for mentors</CardDescription>
-                    </CardHeader>
-                    <CardContent className="divide-y">
-                        {grouped?.mentorRules.map(policy => renderPolicyInput(policy))}
-                    </CardContent>
-                </Card>
-
-                {/* Refund Rules */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                            <DollarSign className="w-5 h-5 text-green-500" />
-                            <CardTitle className="text-lg">Refund Rules</CardTitle>
-                        </div>
-                        <CardDescription>Refund percentages and cancellation windows</CardDescription>
-                    </CardHeader>
-                    <CardContent className="divide-y">
-                        {grouped?.refundRules.map(policy => renderPolicyInput(policy))}
-                    </CardContent>
-                </Card>
-
-                {/* Reschedule Settings */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                            <RefreshCw className="w-5 h-5 text-orange-500" />
-                            <CardTitle className="text-lg">Reschedule Settings</CardTitle>
-                        </div>
-                        <CardDescription>Request expiry and counter-proposal limits</CardDescription>
-                    </CardHeader>
-                    <CardContent className="divide-y">
-                        {grouped?.rescheduleSettings.map(policy => renderPolicyInput(policy))}
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Reset Confirmation Dialog */}
-            <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Reset All Policies?</DialogTitle>
-                        <DialogDescription>
-                            This will reset all session policies to their default values. This action is logged and cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowResetDialog(false)}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleReset} disabled={resetPoliciesMutation.isPending}>
-                            {resetPoliciesMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                            Reset All Policies
+            <TabsContent value="session" className="space-y-6">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Session Policies</h2>
+                        <p className="text-gray-500 dark:text-gray-400">Configure cancellation, rescheduling, and refund rules</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowResetDialog(true)}
+                            disabled={updatePoliciesMutation.isPending}
+                        >
+                            <RotateCcw className="w-4 h-4 mr-2" />
+                            Reset Defaults
                         </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
+                        <Button
+                            onClick={handleSave}
+                            disabled={!hasChanges() || updatePoliciesMutation.isPending}
+                        >
+                            {updatePoliciesMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                            Save Changes
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Info Banner */}
+                {hasChanges() && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center gap-2">
+                        <Info className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm text-blue-800 dark:text-blue-200">
+                            You have {getChangedPolicies().length} unsaved change(s)
+                        </span>
+                    </div>
+                )}
+
+                {/* Policy Cards */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Mentee Rules */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                                <Users className="w-5 h-5 text-blue-500" />
+                                <CardTitle className="text-lg">Mentee Rules</CardTitle>
+                            </div>
+                            <CardDescription>Cancellation and rescheduling limits for mentees</CardDescription>
+                        </CardHeader>
+                        <CardContent className="divide-y">
+                            {grouped?.menteeRules.map(policy => renderPolicyInput(policy))}
+                        </CardContent>
+                    </Card>
+
+                    {/* Mentor Rules */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                                <GraduationCap className="w-5 h-5 text-purple-500" />
+                                <CardTitle className="text-lg">Mentor Rules</CardTitle>
+                            </div>
+                            <CardDescription>Cancellation and rescheduling limits for mentors</CardDescription>
+                        </CardHeader>
+                        <CardContent className="divide-y">
+                            {grouped?.mentorRules.map(policy => renderPolicyInput(policy))}
+                        </CardContent>
+                    </Card>
+
+                    {/* Refund Rules */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                                <DollarSign className="w-5 h-5 text-green-500" />
+                                <CardTitle className="text-lg">Refund Rules</CardTitle>
+                            </div>
+                            <CardDescription>Refund percentages and cancellation windows</CardDescription>
+                        </CardHeader>
+                        <CardContent className="divide-y">
+                            {grouped?.refundRules.map(policy => renderPolicyInput(policy))}
+                        </CardContent>
+                    </Card>
+
+                    {/* Reschedule Settings */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                                <RefreshCw className="w-5 h-5 text-orange-500" />
+                                <CardTitle className="text-lg">Reschedule Settings</CardTitle>
+                            </div>
+                            <CardDescription>Request expiry and counter-proposal limits</CardDescription>
+                        </CardHeader>
+                        <CardContent className="divide-y">
+                            {grouped?.rescheduleSettings.map(policy => renderPolicyInput(policy))}
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Reset Confirmation Dialog */}
+                <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Reset All Policies?</DialogTitle>
+                            <DialogDescription>
+                                This will reset all session policies to their default values. This action is logged and cannot be undone.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowResetDialog(false)}>Cancel</Button>
+                            <Button variant="destructive" onClick={handleReset} disabled={resetPoliciesMutation.isPending}>
+                                {resetPoliciesMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                                Reset All Policies
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </TabsContent>
+
+            <TabsContent value="access">
+                <AdminAccessPolicySettings />
+            </TabsContent>
+        </Tabs>
     );
 }
