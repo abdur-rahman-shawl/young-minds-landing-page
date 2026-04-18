@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,12 +16,14 @@ import {
   Award, 
   TrendingUp,
   Calendar,
-  Users,
-  Star,
-  Filter,
   Download
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
+import { useEnrolledCoursesQuery } from '@/hooks/queries/use-learning-queries';
+import {
+  getMenteeFeatureDecision,
+  MENTEE_FEATURE_KEYS,
+} from '@/lib/mentee/access-policy';
 
 interface EnrolledCourse {
   enrollment: {
@@ -72,44 +74,34 @@ interface LearningStatistics {
 
 export default function MyCourses() {
   const router = useRouter();
-  const { session } = useAuth();
-  
-  const [courses, setCourses] = useState<EnrolledCourse[]>([]);
-  const [statistics, setStatistics] = useState<LearningStatistics>({
+  const { session, isLoading: isAuthLoading, menteeAccess } = useAuth();
+  const [activeTab, setActiveTab] = useState('all');
+  const learningWorkspaceAccess = getMenteeFeatureDecision(
+    menteeAccess,
+    MENTEE_FEATURE_KEYS.learningWorkspace
+  );
+  const hasCourseAccess = Boolean(learningWorkspaceAccess?.allowed);
+
+  const { data, isLoading, error } = useEnrolledCoursesQuery(
+    undefined,
+    Boolean(session?.user?.id) && hasCourseAccess
+  );
+
+  const courses = (data?.courses ?? []) as EnrolledCourse[];
+  const statistics = (data?.statistics ?? {
     totalCourses: 0,
     activeCourses: 0,
     completedCourses: 0,
     totalTimeSpent: 0,
     averageProgress: 0,
     totalCertificates: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('all');
+  }) as LearningStatistics;
 
   useEffect(() => {
-    if (session) {
-      fetchEnrolledCourses();
-    } else {
+    if (!isAuthLoading && !session) {
       router.push('/auth');
     }
-  }, [session]);
-
-  const fetchEnrolledCourses = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/student/courses');
-      const data = await response.json();
-
-      if (data.success) {
-        setCourses(data.data.courses);
-        setStatistics(data.data.statistics);
-      }
-    } catch (error) {
-      console.error('Error fetching enrolled courses:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [isAuthLoading, router, session]);
 
   const filteredCourses = courses.filter((course) => {
     switch (activeTab) {
@@ -280,7 +272,7 @@ export default function MyCourses() {
     </Card>
   );
 
-  if (loading) {
+  if (isLoading || isAuthLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6">
@@ -310,6 +302,50 @@ export default function MyCourses() {
             ))}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Could not load your courses</CardTitle>
+            <CardDescription>
+              {error instanceof Error
+                ? error.message
+                : 'Failed to fetch enrolled courses.'}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!hasCourseAccess && courses.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">My Learning</h1>
+          <p className="text-muted-foreground">
+            Track your progress and continue learning from where you left off.
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Course access is not included in your plan</CardTitle>
+            <CardDescription>
+              This account cannot access courses right now. Upgrade the subscription to browse or continue course content.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => router.push('/dashboard?section=subscription')}>
+              View Subscription
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

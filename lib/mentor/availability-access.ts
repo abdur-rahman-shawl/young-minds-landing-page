@@ -1,5 +1,11 @@
+import {
+  buildMentorAccessPolicySnapshot,
+  MENTOR_FEATURE_KEYS,
+} from '@/lib/mentor/access-policy';
+
 interface MentorAvailabilityAccessInput {
   verificationStatus?: string | null;
+  paymentStatus?: string | null;
 }
 
 interface MentorAvailabilityManagerInput {
@@ -16,15 +22,21 @@ export type MentorAvailabilityAccessState =
 export function getMentorAvailabilityAccessState(
   mentorProfile: MentorAvailabilityAccessInput | null | undefined
 ): MentorAvailabilityAccessState {
-  if (!mentorProfile) {
+  const policy = buildMentorAccessPolicySnapshot({
+    isMentor: true,
+    mentorProfile,
+  });
+  const availabilityAccess = policy.features[MENTOR_FEATURE_KEYS.availabilityManage];
+
+  if (availabilityAccess.allowed) {
+    return 'ready';
+  }
+
+  if (availabilityAccess.reasonCode === 'application_required') {
     return 'profile-required';
   }
 
-  if (mentorProfile.verificationStatus !== 'VERIFIED') {
-    return 'verification-required';
-  }
-
-  return 'ready';
+  return 'verification-required';
 }
 
 export function canManageMentorAvailability(

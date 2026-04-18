@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { addDays, format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { Bar } from 'react-chartjs-2';
@@ -13,31 +13,44 @@ import { Badge } from "@/components/ui/badge";
 import { DollarSign, Star, TrendingUp, AlertTriangle, Calendar } from 'lucide-react';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { useSubscriptionFeatureAccess } from '@/hooks/queries/use-subscription-queries';
-import { FEATURE_KEYS } from '@/lib/subscriptions/feature-keys';
+import { useAuth } from '@/contexts/auth-context';
+import {
+  getMentorFeatureDecision,
+  MENTOR_FEATURE_KEYS,
+} from '@/lib/mentor/access-policy';
+import { MentorFeaturePageGate } from '@/components/mentor/verification/mentor-verification-state';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 export function MentorAnalyticsSection() {
+  const { mentorAccess, mentorProfile, session } = useAuth();
   const { theme } = useTheme();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -89),
     to: new Date(),
   });
-
-  const {
-    hasAccess: hasAnalyticsAccess,
-    isLoading: isAccessLoading,
-    isError: isAccessError,
-    error: accessError,
-  } = useSubscriptionFeatureAccess('mentor', FEATURE_KEYS.ANALYTICS_ACCESS_LEVEL);
+  const analyticsAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.analyticsView
+  );
+  const canViewAnalytics = Boolean(analyticsAccess?.allowed);
 
   const { data, isLoading, error } = useMentorAnalytics(
     dateRange,
-    hasAnalyticsAccess
+    canViewAnalytics
   );
+
+  if (!canViewAnalytics) {
+    return (
+      <MentorFeaturePageGate
+        feature={MENTOR_FEATURE_KEYS.analyticsView}
+        access={analyticsAccess}
+        mentorProfile={mentorProfile}
+        routeBasePath='/dashboard'
+        userName={session?.user?.name}
+      />
+    );
+  }
 
   const isDark = theme === 'dark';
   const chartColor = isDark ? 'rgba(59, 130, 246, 0.8)' : 'rgba(37, 99, 235, 0.8)';
@@ -45,7 +58,7 @@ export function MentorAnalyticsSection() {
   const textColor = isDark ? '#e2e8f0' : '#475569';
 
   const renderContent = () => {
-    if (isAccessLoading || isLoading) {
+    if (isLoading) {
       return (
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -56,40 +69,6 @@ export function MentorAnalyticsSection() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Skeleton className="h-[400px] w-full rounded-xl" />
             <Skeleton className="h-[400px] w-full rounded-xl" />
-          </div>
-        </CardContent>
-      );
-    }
-
-    if (isAccessError) {
-      return (
-        <CardContent>
-          <div className="flex flex-col items-center justify-center text-destructive h-64 bg-destructive/10 rounded-xl border border-destructive/20">
-            <AlertTriangle className="h-10 w-10 mb-3" />
-            <p className="font-semibold text-lg">Could Not Verify Analytics Access</p>
-            <p className="text-sm opacity-90">
-              {accessError instanceof Error
-                ? accessError.message
-                : 'Failed to load your subscription features'}
-            </p>
-          </div>
-        </CardContent>
-      );
-    }
-
-    if (!hasAnalyticsAccess) {
-      return (
-        <CardContent>
-          <div className="flex flex-col items-center justify-center h-64 rounded-xl border bg-muted/20 text-center px-6">
-            <AlertTriangle className="h-10 w-10 mb-3 text-amber-500" />
-            <p className="font-semibold text-lg">Analytics Not Included</p>
-            <p className="text-sm text-muted-foreground max-w-md mt-1">
-              Your current mentor subscription does not include analytics access.
-              Upgrade your subscription to unlock earnings and review insights.
-            </p>
-            <Button asChild className="mt-4">
-              <Link href="/dashboard?section=subscription">View Subscription</Link>
-            </Button>
           </div>
         </CardContent>
       );

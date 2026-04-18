@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Dialog,
     DialogContent,
@@ -22,6 +23,13 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import {
+    type AdminPolicyRecord,
+    type GroupedAdminPolicies,
+    useAdminPoliciesQuery,
+    useAdminResetPoliciesMutation,
+    useAdminUpdatePoliciesMutation,
+} from "@/hooks/queries/use-admin-queries";
 import {
     Save,
     RotateCcw,
@@ -33,21 +41,7 @@ import {
     Loader2,
     Info,
 } from "lucide-react";
-
-interface Policy {
-    key: string;
-    value: string;
-    type: string;
-    description: string;
-    defaultValue: string;
-}
-
-interface GroupedPolicies {
-    menteeRules: Policy[];
-    mentorRules: Policy[];
-    refundRules: Policy[];
-    rescheduleSettings: Policy[];
-}
+import { AdminAccessPolicySettings } from "@/components/admin/dashboard/admin-access-policy-settings";
 
 // Human-readable labels for policy keys
 const POLICY_LABELS: Record<string, string> = {
@@ -80,47 +74,43 @@ const POLICY_UNITS: Record<string, string> = {
     max_counter_proposals: "proposals",
 };
 
+interface RenderableAdminPolicyRecord {
+    key: string;
+    value: string;
+    type: string;
+    description: string;
+}
+
 export function AdminPolicies() {
     const { toast } = useToast();
+    const {
+        data,
+        isLoading,
+        error,
+        refetch,
+    } = useAdminPoliciesQuery();
+    const updatePoliciesMutation = useAdminUpdatePoliciesMutation();
+    const resetPoliciesMutation = useAdminResetPoliciesMutation();
 
     // State
-    const [policies, setPolicies] = useState<Policy[]>([]);
-    const [grouped, setGrouped] = useState<GroupedPolicies | null>(null);
+    const [policies, setPolicies] = useState<AdminPolicyRecord[]>([]);
+    const [grouped, setGrouped] = useState<GroupedAdminPolicies | null>(null);
     const [editedValues, setEditedValues] = useState<Record<string, string>>({});
-    const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
     const [showResetDialog, setShowResetDialog] = useState(false);
-    const [isResetting, setIsResetting] = useState(false);
-
-    // Fetch policies
-    const fetchPolicies = async () => {
-        setIsLoading(true);
-        try {
-            const response = await fetch("/api/admin/policies");
-            const data = await response.json();
-
-            if (data.success) {
-                setPolicies(data.data.policies);
-                setGrouped(data.data.grouped);
-                // Initialize edited values
-                const initial: Record<string, string> = {};
-                data.data.policies.forEach((p: Policy) => {
-                    initial[p.key] = p.value;
-                });
-                setEditedValues(initial);
-            } else {
-                toast({ title: "Error", description: data.error, variant: "destructive" });
-            }
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to fetch policies", variant: "destructive" });
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     useEffect(() => {
-        fetchPolicies();
-    }, []);
+        if (!data) {
+            return;
+        }
+
+        setPolicies(data.policies);
+        setGrouped(data.grouped);
+        const initial: Record<string, string> = {};
+        data.policies.forEach((policy) => {
+            initial[policy.key] = policy.value;
+        });
+        setEditedValues(initial);
+    }, [data]);
 
     // Check for changes
     const hasChanges = () => {
@@ -139,57 +129,31 @@ export function AdminPolicies() {
         const changes = getChangedPolicies();
         if (changes.length === 0) return;
 
-        setIsSaving(true);
         try {
-            const response = await fetch("/api/admin/policies", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ updates: changes }),
+            const result = await updatePoliciesMutation.mutateAsync({
+                updates: changes,
             });
-
-            const data = await response.json();
-
-            if (data.success) {
-                toast({ title: "Success", description: data.message });
-                fetchPolicies(); // Refresh
-            } else {
-                toast({ title: "Error", description: data.error, variant: "destructive" });
-            }
+            toast({ title: "Success", description: result.message });
+            await refetch();
         } catch (error) {
             toast({ title: "Error", description: "Failed to save changes", variant: "destructive" });
-        } finally {
-            setIsSaving(false);
         }
     };
 
     // Reset to defaults
     const handleReset = async () => {
-        setIsResetting(true);
         try {
-            const response = await fetch("/api/admin/policies", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "reset" }),
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                toast({ title: "Success", description: data.message });
-                setShowResetDialog(false);
-                fetchPolicies(); // Refresh
-            } else {
-                toast({ title: "Error", description: data.error, variant: "destructive" });
-            }
+            const result = await resetPoliciesMutation.mutateAsync();
+            toast({ title: "Success", description: result.message });
+            setShowResetDialog(false);
+            await refetch();
         } catch (error) {
             toast({ title: "Error", description: "Failed to reset policies", variant: "destructive" });
-        } finally {
-            setIsResetting(false);
         }
     };
 
     // Render policy input
-    const renderPolicyInput = (policy: Policy) => {
+    const renderPolicyInput = (policy: RenderableAdminPolicyRecord) => {
         const label = POLICY_LABELS[policy.key] || policy.key;
         const unit = POLICY_UNITS[policy.key];
         const isModified = editedValues[policy.key] !== policy.value;
@@ -246,120 +210,149 @@ export function AdminPolicies() {
         );
     }
 
+    if (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch policies";
+        return (
+            <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                <p className="text-sm text-destructive">{message}</p>
+                <Button variant="outline" onClick={() => void refetch()}>
+                    Retry
+                </Button>
+            </div>
+        );
+    }
+
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+        <Tabs defaultValue="session" className="space-y-6">
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Session Policies</h1>
-                    <p className="text-gray-500 dark:text-gray-400">Configure cancellation, rescheduling, and refund rules</p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Policy Settings</h1>
+                    <p className="text-gray-500 dark:text-gray-400">Configure session rules and app-wide access policy outcomes</p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={() => setShowResetDialog(true)}
-                        disabled={isSaving}
-                    >
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        Reset Defaults
-                    </Button>
-                    <Button
-                        onClick={handleSave}
-                        disabled={!hasChanges() || isSaving}
-                    >
-                        {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                        Save Changes
-                    </Button>
-                </div>
+                <TabsList>
+                    <TabsTrigger value="session">Session Policies</TabsTrigger>
+                    <TabsTrigger value="access">Access Policies</TabsTrigger>
+                </TabsList>
             </div>
 
-            {/* Info Banner */}
-            {hasChanges() && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center gap-2">
-                    <Info className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm text-blue-800 dark:text-blue-200">
-                        You have {getChangedPolicies().length} unsaved change(s)
-                    </span>
-                </div>
-            )}
-
-            {/* Policy Cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Mentee Rules */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                            <Users className="w-5 h-5 text-blue-500" />
-                            <CardTitle className="text-lg">Mentee Rules</CardTitle>
-                        </div>
-                        <CardDescription>Cancellation and rescheduling limits for mentees</CardDescription>
-                    </CardHeader>
-                    <CardContent className="divide-y">
-                        {grouped?.menteeRules.map(policy => renderPolicyInput(policy))}
-                    </CardContent>
-                </Card>
-
-                {/* Mentor Rules */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                            <GraduationCap className="w-5 h-5 text-purple-500" />
-                            <CardTitle className="text-lg">Mentor Rules</CardTitle>
-                        </div>
-                        <CardDescription>Cancellation and rescheduling limits for mentors</CardDescription>
-                    </CardHeader>
-                    <CardContent className="divide-y">
-                        {grouped?.mentorRules.map(policy => renderPolicyInput(policy))}
-                    </CardContent>
-                </Card>
-
-                {/* Refund Rules */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                            <DollarSign className="w-5 h-5 text-green-500" />
-                            <CardTitle className="text-lg">Refund Rules</CardTitle>
-                        </div>
-                        <CardDescription>Refund percentages and cancellation windows</CardDescription>
-                    </CardHeader>
-                    <CardContent className="divide-y">
-                        {grouped?.refundRules.map(policy => renderPolicyInput(policy))}
-                    </CardContent>
-                </Card>
-
-                {/* Reschedule Settings */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center gap-2">
-                            <RefreshCw className="w-5 h-5 text-orange-500" />
-                            <CardTitle className="text-lg">Reschedule Settings</CardTitle>
-                        </div>
-                        <CardDescription>Request expiry and counter-proposal limits</CardDescription>
-                    </CardHeader>
-                    <CardContent className="divide-y">
-                        {grouped?.rescheduleSettings.map(policy => renderPolicyInput(policy))}
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Reset Confirmation Dialog */}
-            <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Reset All Policies?</DialogTitle>
-                        <DialogDescription>
-                            This will reset all session policies to their default values. This action is logged and cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowResetDialog(false)}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleReset} disabled={isResetting}>
-                            {isResetting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                            Reset All Policies
+            <TabsContent value="session" className="space-y-6">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Session Policies</h2>
+                        <p className="text-gray-500 dark:text-gray-400">Configure cancellation, rescheduling, and refund rules</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowResetDialog(true)}
+                            disabled={updatePoliciesMutation.isPending}
+                        >
+                            <RotateCcw className="w-4 h-4 mr-2" />
+                            Reset Defaults
                         </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
+                        <Button
+                            onClick={handleSave}
+                            disabled={!hasChanges() || updatePoliciesMutation.isPending}
+                        >
+                            {updatePoliciesMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                            Save Changes
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Info Banner */}
+                {hasChanges() && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center gap-2">
+                        <Info className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm text-blue-800 dark:text-blue-200">
+                            You have {getChangedPolicies().length} unsaved change(s)
+                        </span>
+                    </div>
+                )}
+
+                {/* Policy Cards */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Mentee Rules */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                                <Users className="w-5 h-5 text-blue-500" />
+                                <CardTitle className="text-lg">Mentee Rules</CardTitle>
+                            </div>
+                            <CardDescription>Cancellation and rescheduling limits for mentees</CardDescription>
+                        </CardHeader>
+                        <CardContent className="divide-y">
+                            {grouped?.menteeRules.map(policy => renderPolicyInput(policy))}
+                        </CardContent>
+                    </Card>
+
+                    {/* Mentor Rules */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                                <GraduationCap className="w-5 h-5 text-purple-500" />
+                                <CardTitle className="text-lg">Mentor Rules</CardTitle>
+                            </div>
+                            <CardDescription>Cancellation and rescheduling limits for mentors</CardDescription>
+                        </CardHeader>
+                        <CardContent className="divide-y">
+                            {grouped?.mentorRules.map(policy => renderPolicyInput(policy))}
+                        </CardContent>
+                    </Card>
+
+                    {/* Refund Rules */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                                <DollarSign className="w-5 h-5 text-green-500" />
+                                <CardTitle className="text-lg">Refund Rules</CardTitle>
+                            </div>
+                            <CardDescription>Refund percentages and cancellation windows</CardDescription>
+                        </CardHeader>
+                        <CardContent className="divide-y">
+                            {grouped?.refundRules.map(policy => renderPolicyInput(policy))}
+                        </CardContent>
+                    </Card>
+
+                    {/* Reschedule Settings */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center gap-2">
+                                <RefreshCw className="w-5 h-5 text-orange-500" />
+                                <CardTitle className="text-lg">Reschedule Settings</CardTitle>
+                            </div>
+                            <CardDescription>Request expiry and counter-proposal limits</CardDescription>
+                        </CardHeader>
+                        <CardContent className="divide-y">
+                            {grouped?.rescheduleSettings.map(policy => renderPolicyInput(policy))}
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Reset Confirmation Dialog */}
+                <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Reset All Policies?</DialogTitle>
+                            <DialogDescription>
+                                This will reset all session policies to their default values. This action is logged and cannot be undone.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowResetDialog(false)}>Cancel</Button>
+                            <Button variant="destructive" onClick={handleReset} disabled={resetPoliciesMutation.isPending}>
+                                {resetPoliciesMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                                Reset All Policies
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </TabsContent>
+
+            <TabsContent value="access">
+                <AdminAccessPolicySettings />
+            </TabsContent>
+        </Tabs>
     );
 }

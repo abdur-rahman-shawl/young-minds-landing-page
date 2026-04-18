@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -22,43 +21,15 @@ import {
   Settings2,
   Users,
   TrendingUp,
-  Plus,
 } from "lucide-react";
 import { PlansManagement } from "./subscriptions/plans-management";
 import { FeaturesManagement } from "./subscriptions/features-management";
 import { SubscriptionsOverview } from "./subscriptions/subscriptions-overview";
 import { UsageAnalytics } from "./subscriptions/usage-analytics";
+import { useAdminSubscriptionStatsQuery } from "@/hooks/queries/use-admin-subscription-queries";
 
 export function AdminSubscriptions() {
-  const [stats, setStats] = useState({
-    totalPlans: 0,
-    activePlans: 0,
-    totalFeatures: 0,
-    activeSubscriptions: 0,
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadStats = async () => {
-      try {
-        const res = await fetch("/api/admin/subscriptions/stats", {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            setStats(data.data);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load subscription stats:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadStats();
-  }, []);
+  const { data: stats, isLoading: loading } = useAdminSubscriptionStatsQuery();
 
   if (loading) {
     return (
@@ -71,19 +42,19 @@ export function AdminSubscriptions() {
   const statCards = [
     {
       title: "Total Plans",
-      value: stats.totalPlans,
-      description: `${stats.activePlans} active`,
+      value: stats?.totalPlans ?? 0,
+      description: `${stats?.activePlans ?? 0} active`,
       icon: Package,
     },
     {
       title: "Total Features",
-      value: stats.totalFeatures,
+      value: stats?.totalFeatures ?? 0,
       description: "Available features",
       icon: Settings2,
     },
     {
       title: "Active Subscriptions",
-      value: stats.activeSubscriptions,
+      value: stats?.activeSubscriptions ?? 0,
       description: "Current users",
       icon: Users,
     },

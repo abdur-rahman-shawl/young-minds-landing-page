@@ -40,31 +40,45 @@ time-selection → details → confirmation → success
 
 ## API Endpoints
 
+Core authenticated booking/session operations now flow through tRPC instead of bespoke REST routes:
+
+- `bookings.list`
+- `bookings.get`
+- `bookings.sessionView`
+- `bookings.create`
+- `bookings.update`
+- `bookings.cancel`
+- `bookings.createRescheduleRequest`
+- `bookings.respondReschedule`
+- `bookings.withdrawRescheduleRequest`
+- `bookings.markNoShow`
+- `bookings.listAlternativeMentors`
+- `bookings.acceptReassignment`
+- `bookings.rejectReassignment`
+- `bookings.selectAlternativeMentor`
+- `bookings.getPolicies`
+- `bookings.mentorPendingReviews`
+- `bookings.menteePendingReviews`
+- `mentor.availableSlots`
+- `mentor.bookingEligibility`
+- `mentor.menteeSessions`
+
+Remaining HTTP endpoints in the booking/session domain are now infrastructure/media endpoints only:
+
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/mentors/[id]/availability/slots` | GET | Fetch available time slots |
-| `/api/bookings` | POST | Create new booking |
-| `/api/bookings` | GET | Get user's bookings (includes rescheduleCount, mentee info for mentors) |
-| `/api/bookings/[id]` | GET | Get specific booking |
-| `/api/bookings/[id]` | PUT | Update booking |
-| `/api/bookings/[id]` | DELETE | Cancel booking |
-| `/api/bookings/[id]/cancel` | POST | Cancel with reason |
-| `/api/bookings/[id]/reschedule` | POST | Request reschedule (creates pending request) |
-| `/api/bookings/[id]/reschedule/respond` | POST | Respond to reschedule (accept/reject/counter) |
-| `/api/bookings/[id]/reschedule/withdraw` | POST | Withdraw own reschedule request |
-| `/api/bookings/[id]/no-show` | POST | Mark as no-show |
-| `/api/bookings/[id]/accept-reassignment` | POST | Mentee accepts auto-assigned mentor |
-| `/api/bookings/[id]/reject-reassignment` | POST | Mentee rejects → full refund |
-| `/api/mentor/mentees-sessions` | GET | **New:** Get unique mentees & session stats for mentor view |
-| `/api/session-policies` | GET | Fetch session policies (optional `?role=mentor\|mentee`) |
+| `/api/sessions/[sessionId]/livekit/access-token` | POST | Create LiveKit access token for a session room |
+| `/api/sessions/[sessionId]/livekit/create-room` | POST | Create the LiveKit room for a session |
+| `/api/sessions/[sessionId]/livekit/end-room` | POST | End the LiveKit room for a session |
+| `/api/sessions/[sessionId]/recordings` | GET | List recordings associated with a session |
 
 ### Session Policies API
 
-`GET /api/session-policies` (`app/api/session-policies/route.ts`):
+`bookings.getPolicies` (tRPC):
 
 Fetches configurable session policies from the database. Used by frontend dialogs to display dynamic policy values.
 
-**Query Parameters:**
+**Input:**
 - `role` (optional): `mentor` or `mentee` - Returns role-specific policies
 
 **Response (with role):**

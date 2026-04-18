@@ -6,6 +6,7 @@ import type { RouterOutputs } from '@/lib/trpc/types';
 
 type BookingItem = RouterOutputs['bookings']['list'][number];
 type BookingDetail = RouterOutputs['bookings']['get'];
+type SessionView = RouterOutputs['bookings']['sessionView'];
 type SessionPolicies = RouterOutputs['bookings']['getPolicies'];
 type AlternativeMentors = RouterOutputs['bookings']['listAlternativeMentors'];
 
@@ -20,6 +21,9 @@ export const bookingKeys = {
   detailPrefix: (bookingId: string) => ['bookings', 'detail', bookingId] as const,
   detail: (bookingId: string, userId: string) =>
     ['bookings', 'detail', bookingId, userId] as const,
+  sessionView: (sessionId: string) => ['bookings', 'session-view', sessionId] as const,
+  mentorPendingReviews: ['bookings', 'mentor-pending-reviews'] as const,
+  menteePendingReviews: ['bookings', 'mentee-pending-reviews'] as const,
   policies: (role?: 'mentor' | 'mentee') =>
     ['bookings', 'policies', role ?? 'all'] as const,
   alternativeMentors: (bookingId: string, fixedTime: boolean) =>
@@ -64,6 +68,50 @@ export function useBookingQuery(
     enabled: !!bookingId && !!userId,
     staleTime: 60 * 1000,
     gcTime: 10 * 60 * 1000,
+  });
+}
+
+export function useSessionViewQuery(
+  sessionId: string | undefined | null,
+  userId: string | undefined
+) {
+  const trpcClient = useTRPCClient();
+
+  return useQuery({
+    queryKey: bookingKeys.sessionView(sessionId!),
+    queryFn: (): Promise<SessionView> =>
+      trpcClient.bookings.sessionView.query({
+        sessionId: sessionId!,
+      }),
+    enabled: !!sessionId && !!userId,
+    staleTime: 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+}
+
+export function useMentorPendingReviewSessionsQuery(
+  userId: string | undefined,
+  enabled = true
+) {
+  const trpcClient = useTRPCClient();
+
+  return useQuery({
+    queryKey: bookingKeys.mentorPendingReviews,
+    queryFn: () => trpcClient.bookings.mentorPendingReviews.query(),
+    enabled: !!userId && enabled,
+  });
+}
+
+export function useMenteePendingReviewSessionsQuery(
+  userId: string | undefined,
+  enabled = true
+) {
+  const trpcClient = useTRPCClient();
+
+  return useQuery({
+    queryKey: bookingKeys.menteePendingReviews,
+    queryFn: () => trpcClient.bookings.menteePendingReviews.query(),
+    enabled: !!userId && enabled,
   });
 }
 

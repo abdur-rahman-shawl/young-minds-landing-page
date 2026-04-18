@@ -35,6 +35,7 @@ import {
 import type { LocalUserChoices } from '@livekit/components-core';
 // Note: @livekit/components-styles now imported in layout.tsx for proper CSS cascade
 import { livekitConfig } from '@/lib/livekit/config';
+import { useTRPCClient } from '@/lib/trpc/react';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -46,14 +47,6 @@ interface Props {
   userRole: 'mentor' | 'mentee';
   sessionTitle: string;
   otherParticipantName: string;
-}
-
-interface TokenData {
-  token: string;
-  roomName: string;
-  participantName: string;
-  wsUrl: string;
-  expiresAt: string;
 }
 
 /**
@@ -135,12 +128,13 @@ const preJoinWrapperStyle: React.CSSProperties = {
 
 export default function MeetingRoom({
   sessionId,
-  userId,
+  userId: _userId,
   userRole,
   sessionTitle,
   otherParticipantName,
 }: Props) {
   const router = useRouter();
+  const trpcClient = useTRPCClient();
 
   // ==========================================================================
   // STATE MANAGEMENT
@@ -172,33 +166,9 @@ export default function MeetingRoom({
       try {
         console.log(`🔐 Fetching access token for session ${sessionId}`);
 
-        const response = await fetch(
-          `/api/sessions/${sessionId}/livekit/access-token`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include', // Include cookies for authentication
-          }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message || `HTTP ${response.status}: ${response.statusText}`
-          );
-        }
-
-        const data = await response.json();
+        const tokenData = await trpcClient.recordings.accessToken.query({ sessionId });
 
         if (!isMounted) return;
-
-        if (!data.success || !data.data) {
-          throw new Error('Invalid response from server');
-        }
-
-        const tokenData: TokenData = data.data;
 
         // Validate token data - FAIL LOUDLY if incomplete
         if (!tokenData.token || !tokenData.wsUrl || !tokenData.roomName) {
@@ -244,7 +214,7 @@ export default function MeetingRoom({
     return () => {
       isMounted = false;
     };
-  }, [sessionId, retryCount]);
+  }, [sessionId, retryCount, trpcClient]);
 
   // ==========================================================================
   // EVENT HANDLERS
@@ -524,7 +494,7 @@ export default function MeetingRoom({
 function MeetingRoomContent({
   sessionTitle,
   otherParticipantName,
-  userRole,
+  userRole: _userRole,
   onLeave,
 }: {
   sessionTitle: string;
@@ -532,6 +502,7 @@ function MeetingRoomContent({
   userRole: 'mentor' | 'mentee';
   onLeave: () => void;
 }) {
+  const trpcClient = useTRPCClient();
   // Get all participants
   const participants = useParticipants();
 
@@ -549,14 +520,9 @@ function MeetingRoomContent({
 
     async function checkRecordingStatus() {
       try {
-        const response = await fetch(`/api/sessions/${sessionId}/recordings`);
-        if (!response.ok) return;
-
-        const data = await response.json();
-        if (!data.success || !data.data) return;
-
         // Check if any recording is in_progress
-        const hasActiveRecording = data.data.some(
+        const recordings = await trpcClient.recordings.listForSession.query({ sessionId });
+        const hasActiveRecording = recordings.some(
           (rec: any) => rec.status === 'in_progress'
         );
 
@@ -574,7 +540,7 @@ function MeetingRoomContent({
     const interval = setInterval(checkRecordingStatus, 30000);
 
     return () => clearInterval(interval);
-  }, [sessionId]);
+  }, [sessionId, trpcClient]);
 
   /**
    * Format chat messages

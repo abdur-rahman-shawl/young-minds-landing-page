@@ -1,4 +1,6 @@
-import useSWR from 'swr';
+import { useQuery } from '@tanstack/react-query';
+
+import { useTRPCClient } from '@/lib/trpc/react';
 
 interface MentorDashboardStats {
   activeMentees: number;
@@ -38,7 +40,7 @@ interface SessionToReview {
     id: string;
     name: string;
     avatar?: string | null;
-  }
+  };
 }
 
 interface RecentMessage {
@@ -54,93 +56,86 @@ interface RecentMessage {
   };
 }
 
-const fetcher = async (url: string) => {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error('Failed to fetch data');
-  }
-  return response.json();
-};
+export function useMentorDashboardStats(enabled = true) {
+  const trpcClient = useTRPCClient();
 
-export function useMentorDashboardStats() {
-  const { data, error, isLoading, mutate } = useSWR<MentorDashboardStats>(
-    '/api/mentor/dashboard-stats',
-    fetcher,
-    {
-      revalidateOnFocus: true,
-      revalidateOnReconnect: true,
-      refreshInterval: 60000, // Refresh every minute
-    }
-  );
+  const query = useQuery({
+    queryKey: ['mentor', 'dashboard-stats'],
+    queryFn: (): Promise<MentorDashboardStats> =>
+      trpcClient.mentor.dashboardStats.query(),
+    enabled,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: 60 * 1000,
+  });
 
   return {
-    stats: data,
-    isLoading,
-    error,
-    mutate,
+    stats: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    mutate: query.refetch,
   };
 }
 
-export function useMentorRecentSessions(limit: number = 5) {
-  const { data, error, isLoading, mutate } = useSWR<{ sessions: RecentSession[]; count: number }>(
-    `/api/mentor/recent-sessions?limit=${limit}`,
-    fetcher,
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    }
-  );
+export function useMentorRecentSessions(limit = 5, enabled = true) {
+  const trpcClient = useTRPCClient();
+
+  const query = useQuery({
+    queryKey: ['mentor', 'recent-sessions', limit],
+    queryFn: () => trpcClient.mentor.recentSessions.query({ limit }),
+    enabled,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
 
   return {
-    sessions: data?.sessions || [],
-    count: data?.count || 0,
-    isLoading,
-    error,
-    mutate,
+    sessions: (query.data?.sessions ?? []) as RecentSession[],
+    count: query.data?.count ?? 0,
+    isLoading: query.isLoading,
+    error: query.error,
+    mutate: query.refetch,
   };
 }
 
-export function useMentorPendingReviews(user: any) {
-  // THE FIX: The key for SWR is now conditional.
-  // If a user exists, the key is the API URL.
-  // If there is no user, the key is `null`, which tells SWR *not* to make a request.
-  const key = user?.id ? '/api/sessions/needs-review' : null;
+export function useMentorPendingReviews(
+  user: { id?: string } | null | undefined,
+  enabled = true
+) {
+  const trpcClient = useTRPCClient();
 
-  const { data, error, isLoading, mutate } = useSWR<{ success: boolean, data: SessionToReview[] }>(
-    key, // Use the conditional key here
-    fetcher,
-    {
-      revalidateOnFocus: true,
-      revalidateOnReconnect: true,
-    }
-  );
+  const query = useQuery({
+    queryKey: ['mentor', 'pending-reviews', user?.id ?? 'anonymous'],
+    queryFn: () => trpcClient.mentor.pendingReviews.query(),
+    enabled: !!user?.id && enabled,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
 
   return {
-    // If data exists, return the 'data' property from the API response, otherwise return an empty array.
-    sessionsToReview: data?.data || [],
-    // If the key is null (no user), we are not loading.
-    isLoading: user?.id ? isLoading : false,
-    error,
-    mutate,
+    sessionsToReview: (query.data?.data ?? []) as SessionToReview[],
+    isLoading: user?.id && enabled ? query.isLoading : false,
+    error: query.error,
+    mutate: query.refetch,
   };
 }
 
-export function useMentorRecentMessages(limit: number = 5) {
-  const { data, error, isLoading, mutate } = useSWR<{ messages: RecentMessage[]; count: number }>(
-    `/api/mentor/recent-messages?limit=${limit}`,
-    fetcher,
-    {
-      revalidateOnFocus: true,
-      revalidateOnReconnect: false,
-      refreshInterval: 30000, // Refresh every 30 seconds for messages
-    }
-  );
+export function useMentorRecentMessages(limit = 5, enabled = true) {
+  const trpcClient = useTRPCClient();
+
+  const query = useQuery({
+    queryKey: ['mentor', 'recent-messages', limit],
+    queryFn: () => trpcClient.mentor.recentMessages.query({ limit }),
+    enabled,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: false,
+    refetchInterval: 30 * 1000,
+  });
 
   return {
-    messages: data?.messages || [],
-    count: data?.count || 0,
-    isLoading,
-    error,
-    mutate,
+    messages: (query.data?.messages ?? []) as RecentMessage[],
+    count: query.data?.count ?? 0,
+    isLoading: query.isLoading,
+    error: query.error,
+    mutate: query.refetch,
   };
 }

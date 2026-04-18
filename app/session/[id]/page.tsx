@@ -8,6 +8,7 @@ import { SessionRating } from "@/components/booking/SessionRating"
 import { CheckCircle, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { logConsentEvents } from "@/lib/consent-client"
+import { useTRPCClient } from "@/lib/trpc/react"
 
 interface SessionUser {
   id: string
@@ -38,6 +39,7 @@ type Stage = "loading" | "in-call" | "rating" | "success" | "error"
 export default function SessionPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
+  const trpcClient = useTRPCClient()
   const { data: authSession, isPending: isAuthLoading, error: authError } = useSession()
 
   const [stage, setStage] = useState<Stage>("loading")
@@ -60,12 +62,9 @@ export default function SessionPage() {
 
     const fetchAndPrepareSession = async () => {
       try {
-        const response = await fetch(`/api/sessions/${params.id}`)
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}))
-          throw new Error(errData.error || "Failed to load session data.")
-        }
-        const data: SessionData = await response.json()
+        const data = await trpcClient.bookings.sessionView.query({
+          sessionId: params.id,
+        })
         setSessionData(data)
         setStage("in-call")
       } catch (err) {
@@ -78,7 +77,7 @@ export default function SessionPage() {
     if (stage === "loading") {
       fetchAndPrepareSession()
     }
-  }, [params.id, authSession, isAuthLoading, authError, stage])
+  }, [params.id, authSession, isAuthLoading, authError, stage, trpcClient])
 
   const reviewee: Reviewee | null = useMemo(() => {
     if (!sessionData || !authSession?.user?.id) {

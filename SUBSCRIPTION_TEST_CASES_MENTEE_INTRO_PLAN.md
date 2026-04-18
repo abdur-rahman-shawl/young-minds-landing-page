@@ -163,7 +163,7 @@ Use the following template for each test case:
 **TC-INTRO-COURSE-001**  
 **Title:** Course enrollment respects access level  
 **Feature key:** `courses_access`  
-**Endpoint / UI path:** `POST /api/courses/[id]/enroll`  
+**Endpoint / UI path:** `learning.enrollCourse`  
 **Preconditions:** Course exists and is published  
 **Steps:**  
 1) Attempt enrollment.  
@@ -174,7 +174,7 @@ Use the following template for each test case:
 **TC-INTRO-COURSE-002**  
 **Title:** Course enrollment limit enforced when limited  
 **Feature key:** `free_courses_limit`  
-**Endpoint / UI path:** `POST /api/courses/[id]/enroll`  
+**Endpoint / UI path:** `learning.enrollCourse`  
 **Preconditions:** Access level is Limited and usage = limit  
 **Steps:**  
 1) Attempt enrollment again.  

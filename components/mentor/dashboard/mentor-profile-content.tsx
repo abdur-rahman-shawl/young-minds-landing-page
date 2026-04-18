@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Book, FileText, ExternalLink } from 'lucide-react';
+import { useTRPCClient } from '@/lib/trpc/react';
 
 interface PublicContentItem {
   id: string;
@@ -30,14 +31,11 @@ interface PublicContentItem {
 }
 
 function usePublicContent(mentorId: string) {
+  const trpcClient = useTRPCClient();
+
   return useQuery<PublicContentItem[]>({
     queryKey: ['public-content', mentorId],
-    queryFn: async () => {
-      const response = await fetch(`/api/mentors/${mentorId}/public-content`);
-      if (!response.ok) return [];
-      const json = await response.json();
-      return json.data || [];
-    },
+    queryFn: () => trpcClient.public.getMentorPublicContent.query({ mentorId }),
     enabled: !!mentorId,
   });
 }

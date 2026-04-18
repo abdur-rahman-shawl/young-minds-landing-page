@@ -133,37 +133,34 @@ export const config = {
 **Protection Flow:**
 1. Check for session cookie (`better-auth.session_token`)
 2. If no cookie → redirect to `/auth` (pages) or return 401 (API)
-3. Admin API routes rely on `ensureAdmin()` in route handlers for role verification
+3. Internal admin operations now rely on `adminProcedure` in the tRPC layer for role verification
 
 ---
 
-### 3.2 ensureAdmin() Helper Function
+### 3.2 Admin tRPC Guard
 
-**File:** `app/api/admin/mentors/route.ts` (pattern used across all admin routes)
+**File:** `lib/trpc/init.ts`
 
 ```typescript
-export async function ensureAdmin(request: NextRequest) {
-  const session = await auth.api.getSession({ headers: request.headers });
+export const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  const currentUser = await getUserWithRoles(ctx.userId);
+  const isAdmin = currentUser?.roles.some((role) => role.name === 'admin');
 
-  if (!session?.user) {
-    return { error: NextResponse.json(
-      { success: false, error: 'Authentication required' }, 
-      { status: 401 }
-    )};
+  if (!currentUser || !isAdmin) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Admin access required',
+    });
   }
 
-  const userWithRoles = await getUserWithRoles(session.user.id);
-  const isAdmin = userWithRoles?.roles?.some((role: any) => role.name === 'admin');
-
-  if (!isAdmin) {
-    return { error: NextResponse.json(
-      { success: false, error: 'Admin access required' }, 
-      { status: 403 }
-    )};
-  }
-
-  return { session };
-}
+  return next({
+    ctx: {
+      ...ctx,
+      currentUser,
+      isAdmin: true,
+    },
+  });
+});
 ```
 
 ---
@@ -212,12 +209,12 @@ export async function getUserWithRoles(userId: string) {
 
 ---
 
-## 4. Admin API Endpoints
+## 4. Admin Runtime Procedures
 
 ### 4.1 Mentor Management
 
-#### GET /api/admin/mentors
-**File:** `app/api/admin/mentors/route.ts`
+#### `admin.listMentors`
+**Files:** `lib/admin/server/service.ts`, `lib/trpc/routers/admin.ts`
 
 **Purpose:** Fetch all mentors with full profile details
 
@@ -264,8 +261,8 @@ export async function getUserWithRoles(userId: string) {
 
 ---
 
-#### PATCH /api/admin/mentors
-**File:** `app/api/admin/mentors/route.ts`
+#### `admin.updateMentor`
+**Files:** `lib/admin/server/service.ts`, `lib/trpc/routers/admin.ts`
 
 **Purpose:** Update mentor verification status
 
@@ -298,8 +295,8 @@ type VerificationStatus =
 
 ---
 
-#### POST /api/admin/mentors/coupon
-**File:** `app/api/admin/mentors/coupon/route.ts`
+#### `admin.sendMentorCoupon`
+**Files:** `lib/admin/server/service.ts`, `lib/trpc/routers/admin.ts`
 
 **Purpose:** Generate and send coupon code to verified mentor
 
@@ -312,8 +309,8 @@ type VerificationStatus =
 
 ---
 
-#### GET /api/admin/mentors/[mentorId]/audit
-**File:** `app/api/admin/mentors/[mentorId]/audit/route.ts`
+#### `admin.getMentorAudit`
+**Files:** `lib/admin/server/service.ts`, `lib/trpc/routers/admin.ts`
 
 **Purpose:** Fetch profile change audit history for a mentor
 
@@ -323,8 +320,8 @@ type VerificationStatus =
 
 ### 4.2 Mentee Management
 
-#### GET /api/admin/mentees
-**File:** `app/api/admin/mentees/route.ts`
+#### `admin.listMentees`
+**Files:** `lib/admin/server/service.ts`, `lib/trpc/routers/admin.ts`
 
 **Purpose:** Fetch all registered mentees
 
@@ -357,8 +354,8 @@ type VerificationStatus =
 
 ### 4.3 Enquiry Management
 
-#### GET /api/admin/enquiries
-**File:** `app/api/admin/enquiries/route.ts`
+#### `admin.listEnquiries`
+**Files:** `lib/admin/server/service.ts`, `lib/trpc/routers/admin.ts`
 
 **Purpose:** Fetch all contact form submissions
 
@@ -383,8 +380,8 @@ type VerificationStatus =
 
 ---
 
-#### PATCH /api/admin/enquiries/[id]
-**File:** `app/api/admin/enquiries/[id]/route.ts`
+#### `admin.updateEnquiry`
+**Files:** `lib/admin/server/service.ts`, `lib/trpc/routers/admin.ts`
 
 **Purpose:** Toggle enquiry resolved status
 
@@ -399,42 +396,36 @@ type VerificationStatus =
 
 ### 4.4 Subscription Management
 
-#### GET /api/admin/subscriptions/stats
-**File:** `app/api/admin/subscriptions/stats/route.ts`
+#### Admin Subscription Surface
+**Service:** `lib/subscriptions/server/service.ts`
+**tRPC Router:** `lib/trpc/routers/subscriptions.ts`
+**Client Hooks:** `hooks/queries/use-admin-subscription-queries.ts`
+
+**Purpose:** Manage subscription plans, features, pricing, active subscriptions, and usage analytics from the admin dashboard.
 
 **Response:**
 ```typescript
 {
-  success: true,
-  data: {
+  stats: {
     totalPlans: number,
     activePlans: number,
     totalFeatures: number,
-    activeSubscriptions: number,
-  }
+    activeSubscriptions: number
+  },
+  plans: SubscriptionPlan[],
+  features: SubscriptionFeature[],
+  subscriptions: AdminSubscriptionRecord[],
+  analytics: AdminSubscriptionAnalytics
 }
 ```
 
 ---
 
-#### GET/POST /api/admin/subscriptions/plans
-**File:** `app/api/admin/subscriptions/plans/route.ts`
-
-**Purpose:** CRUD operations for subscription plans
-
----
-
-#### GET/POST /api/admin/subscriptions/features
-**File:** `app/api/admin/subscriptions/features/route.ts`
-
-**Purpose:** CRUD operations for plan features
-
----
-
 ### 4.5 Analytics
 
-#### GET /api/analytics/admin
-**File:** `app/api/analytics/admin/route.ts`
+#### Admin Analytics Surface
+**Service:** `lib/analytics/server/service.ts`
+**tRPC Router:** `lib/trpc/routers/analytics.ts`
 
 **Query Parameters:**
 ```
@@ -639,13 +630,13 @@ const items = [
 
 ### 6.2 Admin Action Effects
 
-| Action | API Call | Email Sent | Notification | Audit Log |
+| Action | Runtime Procedure | Email Sent | Notification | Audit Log |
 |--------|----------|------------|--------------|-----------|
-| Approve Mentor | `PATCH /api/admin/mentors` | `sendMentorApplicationApprovedEmail` | `MENTOR_APPLICATION_APPROVED` | ✅ |
-| Reject Mentor | `PATCH /api/admin/mentors` | `sendMentorApplicationRejectedEmail` | `MENTOR_APPLICATION_REJECTED` | ✅ |
-| Request Updates | `PATCH /api/admin/mentors` | `sendMentorApplicationReverificationRequestEmail` | `MENTOR_APPLICATION_UPDATE_REQUESTED` | ✅ |
-| Send Coupon | `POST /api/admin/mentors/coupon` | Coupon email | - | ✅ |
-| Resolve Enquiry | `PATCH /api/admin/enquiries/[id]` | - | - | ✅ |
+| Approve Mentor | `admin.updateMentor` | `sendMentorApplicationApprovedEmail` | `MENTOR_APPLICATION_APPROVED` | ✅ |
+| Reject Mentor | `admin.updateMentor` | `sendMentorApplicationRejectedEmail` | `MENTOR_APPLICATION_REJECTED` | ✅ |
+| Request Updates | `admin.updateMentor` | `sendMentorApplicationReverificationRequestEmail` | `MENTOR_APPLICATION_UPDATE_REQUESTED` | ✅ |
+| Send Coupon | `admin.sendMentorCoupon` | Coupon email | - | ✅ |
+| Resolve Enquiry | `admin.updateEnquiry` | - | - | ✅ |
 
 ---
 
@@ -750,15 +741,15 @@ export const sessionPolicies = pgTable('session_policies', {
 });
 ```
 
-### 8.3 API Endpoints
+### 8.3 Runtime Procedures
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/admin/policies` | GET | Fetch all policies with current values |
-| `/api/admin/policies` | PATCH | Update one or more policies |
-| `/api/admin/policies` | POST | Reset all policies to defaults |
+| Procedure | Type | Purpose |
+|-----------|------|---------|
+| `admin.getPolicies` | query | Fetch all policies with current values |
+| `admin.updatePolicies` | mutation | Update one or more policies |
+| `admin.resetPolicies` | mutation | Reset all policies to defaults |
 
-**File:** `app/api/admin/policies/route.ts`
+**Files:** `lib/admin/server/service.ts`, `lib/trpc/routers/admin.ts`
 
 ### 8.4 Configurable Policies
 

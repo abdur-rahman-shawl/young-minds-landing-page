@@ -57,6 +57,11 @@ import {
     useWithdrawRescheduleRequestMutation,
 } from '@/hooks/queries/use-booking-queries';
 import { findSessionFromDashboardParams } from '@/lib/bookings/dashboard-session-intent';
+import {
+    getMentorFeatureDecision,
+    MENTOR_FEATURE_KEYS,
+} from '@/lib/mentor/access-policy';
+import { MentorFeaturePageGate } from '@/components/mentor/verification/mentor-verification-state';
 
 // Feature flags
 const ALLOW_WITHDRAW_RESCHEDULE = true;
@@ -135,9 +140,14 @@ const getSessionColors = (sessionData: Session) => {
 };
 
 export function MentorScheduleView() {
-    const { session } = useAuth();
+    const { session, mentorProfile, mentorAccess } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
+    const scheduleAccess = getMentorFeatureDecision(
+        mentorAccess,
+        MENTOR_FEATURE_KEYS.scheduleManage
+    );
+    const canManageSchedule = Boolean(scheduleAccess?.allowed);
 
     const [currentWeek, setCurrentWeek] = useState(new Date());
     const [viewType, setViewType] = useState<ViewType>('week');
@@ -152,7 +162,9 @@ export function MentorScheduleView() {
     const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
     const [withdrawLoading, setWithdrawLoading] = useState(false);
     const [lobbySessionId, setLobbySessionId] = useState<string | null>(null);
-    const bookingsQuery = useBookingsQuery(session?.user?.id, 'mentor');
+    const bookingsQuery = useBookingsQuery(session?.user?.id, 'mentor', {
+        enabled: canManageSchedule,
+    });
     const withdrawRescheduleRequestMutation = useWithdrawRescheduleRequestMutation();
     const sessions = (bookingsQuery.data ?? []) as Session[];
     const loading = bookingsQuery.isLoading;
@@ -217,6 +229,18 @@ export function MentorScheduleView() {
     };
 
     if (!session) return null;
+
+    if (!canManageSchedule) {
+        return (
+            <MentorFeaturePageGate
+                feature={MENTOR_FEATURE_KEYS.scheduleManage}
+                access={scheduleAccess}
+                mentorProfile={mentorProfile}
+                routeBasePath='/dashboard'
+                userName={session.user?.name}
+            />
+        );
+    }
 
     const isReschedulePending = selectedSession?.pendingRescheduleBy === 'mentee';
     const isInitiator = selectedSession?.pendingRescheduleBy === 'mentor';

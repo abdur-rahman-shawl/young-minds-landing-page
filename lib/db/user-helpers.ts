@@ -19,6 +19,7 @@ export async function getUserWithRoles(userId: string) {
       name: users.name,
       image: users.image,
       isActive: users.isActive,
+      isBlocked: users.isBlocked,
       roleName: roles.name,
       roleDisplayName: roles.displayName,
     })
@@ -171,4 +172,4 @@ export async function createMenteeProfile(userId: string, menteeData: {
   }).returning();
 
   return mentee[0];
-} 
+}

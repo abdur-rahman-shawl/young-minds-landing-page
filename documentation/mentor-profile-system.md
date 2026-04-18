@@ -125,9 +125,9 @@ export const uploadResume = async (file: File, userId: string) => {
 
 ### `POST /api/mentors/update-profile` (`app/api/mentors/update-profile/route.ts`)
 
-Updates mentor profile with optional file uploads.
+Handles upload-backed mentor profile updates.
 
-**Request:** FormData or JSON
+**Request:** `multipart/form-data`
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -144,7 +144,7 @@ Updates mentor profile with optional file uploads.
 4. **Handle file uploads:**
    - If new profile picture: Delete old one, upload new, get URL
    - If new resume: Delete old one, upload new, get URL
-5. Update mentor record in DB
+5. Delegate the profile patch to the shared mentor lifecycle service
 6. Create audit log entry
 7. Return updated mentor data
 
@@ -169,10 +169,12 @@ Lists all verified mentors:
 - Returns: Array of mentor objects with merged profile data
 - **Image logic:** `image: mentor.profileImageUrl || mentor.userImage`
 
-### `GET /api/user/profile` (`app/api/user/profile/route.ts`)
+### Current User Profile (`profile.me`)
 
-Gets current user's profile including mentor data if applicable:
-- Includes `profileImageUrl` from mentors table
+Current-user profile reads now run through the shared profile service and the
+`profile.me` tRPC query:
+- Returns the authenticated user's roles, mentee profile, and mentor profile
+- Resolves mentor `profileImageUrl` and `resumeUrl` through storage before returning
 
 ---
 
@@ -195,25 +197,28 @@ Full mentor profile editing interface:
 **Image Upload Flow:**
 ```typescript
 const handleImageUpload = async (file: File) => {
-  // 1. Upload to storage
-  const uploadResult = await uploadProfilePicture(file, session.user.id);
-  
-  // 2. Update local state
-  setMentorData(prev => ({ ...prev, profileImageUrl: uploadResult.url }));
-  
-  // 3. Immediately save to DB via API
-  await fetch('/api/mentors/update-profile', {
-    method: 'POST',
-    body: JSON.stringify({ userId, profileImageUrl: uploadResult.url })
-  });
-  
-  // 4. Force image refresh with cache-busting
+  const formData = new FormData();
+  formData.append('userId', session.user.id);
+  formData.append('profilePicture', file);
+
+  // 1. Send the file through the multipart upload route
+  const result = await uploadMentorProfileFormMutation.mutateAsync(formData);
+
+  // 2. Update local state with the resolved asset URL
+  setMentorData(prev => ({ ...prev, profileImageUrl: result.profileImageUrl }));
+
+  // 3. Force image refresh with cache-busting
   setImageRefresh(Date.now());
-  
-  // 5. Refresh user data context
+
+  // 4. Refresh user data context
   refreshUserData();
 };
 ```
+
+**Transport Note**
+
+- Multipart uploads stay on HTTP (`/api/mentors/apply`, `/api/mentors/update-profile`) and now cover the profile image, banner, and resume flows.
+- Authenticated JSON mentor lifecycle reads/mutations now run through the shared mentor service and the `mentor.*` tRPC router.
 
 **Image Display Logic:**
 ```typescript

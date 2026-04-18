@@ -1,87 +1,42 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { addDays } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { Line, Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement, Filler } from 'chart.js';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { useAdminAnalyticsQuery } from '@/hooks/queries/use-analytics-queries';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement, Filler);
 
 export default function AdminAnalyticsPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -29),
     to: new Date(),
   });
-
-  useEffect(() => {
-    // All the previous logs are still here for context
-    console.log("1. Effect is running. Initial dateRange:", dateRange);
-
-    const fetchData = async (from: Date, to: Date) => {
-      console.log("3. fetchData function has been called with:", { from, to });
-      setLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams({
-          startDate: from.toISOString(),
-          endDate: to.toISOString(),
-        });
-        const response = await fetch(`/api/analytics/admin?${params.toString()}`);
-        
-        console.log("4. API response status:", response.status);
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || `Request failed with status ${response.status}`);
-        }
-        
-        const apiResponse = await response.json();
-        console.log("5. SUCCESS: Data received from API:", apiResponse);
-        setData(apiResponse);
-      } catch (err: any) {
-        console.error("6. ERROR: An error occurred during fetch:", err);
-        setError(err.message);
-        setData(null);
-      } finally {
-        console.log("7. FINALLY: Setting loading to false.");
-        setLoading(false);
-      }
-    };
-
-    if (dateRange && dateRange.from && dateRange.to) {
-      console.log("2. Date range is valid. Preparing to fetch data.");
-      fetchData(dateRange.from, dateRange.to);
-    } else {
-      console.log("2b. Date range is NOT valid or incomplete. Clearing data.");
-      setLoading(false);
-      setData(null);
-    }
-  }, [dateRange]);
-
-  // === THIS IS THE NEW, CRITICAL LOG ===
-  // It shows us the component's state right before it decides what to render.
-  console.log("--- COMPONENT IS RE-RENDERING WITH STATE ---", { loading, error, data });
+  const {
+    data = null,
+    isLoading: loading,
+    error,
+  } = useAdminAnalyticsQuery(
+    {
+      startDate: dateRange?.from?.toISOString(),
+      endDate: dateRange?.to?.toISOString(),
+    },
+    Boolean(dateRange?.from && dateRange?.to)
+  );
 
   // === LOADING AND ERROR STATES ===
   if (loading) {
-    console.log("Rendering: LOADING state");
     return <div className="p-6 text-center">Loading analytics...</div>;
   }
   if (error) {
-    console.log("Rendering: ERROR state");
-    return <div className="p-6 text-center text-red-500">Error: {error}</div>;
+    return <div className="p-6 text-center text-red-500">Error: {error instanceof Error ? error.message : 'Failed to load analytics'}</div>;
   }
   if (!data) {
-    console.log("Rendering: NO DATA state");
     return <div className="p-6 text-center">No data available.</div>;
   }
-
-  console.log("Rendering: SUCCESS state, showing dashboard.");
 
   // === CHART DATA PREPARATION ===
   // ... (The rest of the file is exactly the same as before)

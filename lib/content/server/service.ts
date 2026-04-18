@@ -10,6 +10,10 @@ import {
   sql,
 } from 'drizzle-orm';
 
+import {
+  AccessPolicyError,
+  assertMentorFeatureAccess as assertSharedMentorFeatureAccess,
+} from '@/lib/access-policy/server';
 import { client as pgClient, db } from '@/lib/db';
 import {
   contentReviewAudit,
@@ -27,6 +31,7 @@ import {
   getMentorContentOwnershipCondition,
   getMentorForContent,
 } from '@/lib/api/mentor-content';
+import { MENTOR_FEATURE_KEYS } from '@/lib/mentor/access-policy';
 import {
   deleteStorageValues,
   normalizeStorageValue,
@@ -189,7 +194,10 @@ async function getContentActor(
     resolvedUser?.roles.some((role) => role.name === 'mentor') ?? false;
 
   assertContent(resolvedUser, 401, 'Authentication required');
-  assertContent(isAdmin || isMentor, 403, 'Mentor access required');
+
+  if (!isAdmin) {
+    await assertMentorContentFeatureAccess(userId, resolvedUser);
+  }
 
   const mentor = await getMentorForContent(userId);
 
@@ -212,6 +220,26 @@ async function getContentActor(
     mentor,
     ownershipCondition,
   };
+}
+
+async function assertMentorContentFeatureAccess(
+  userId: string,
+  currentUser: CurrentUser
+) {
+  try {
+    await assertSharedMentorFeatureAccess({
+      userId,
+      feature: MENTOR_FEATURE_KEYS.contentManage,
+      currentUser,
+      source: 'content.manage',
+    });
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      assertContent(false, error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
 }
 
 async function hydrateRootContent<T extends { fileUrl: string | null }>(content: T) {

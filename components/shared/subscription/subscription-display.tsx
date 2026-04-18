@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlanCard } from "@/components/shared/subscription/plan-card";
 import { UsageMeter } from "@/components/shared/subscription/usage-meter";
@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "sonner";
+import {
+  type PublicSubscriptionPlan,
+  useSelectSubscriptionPlanMutation,
+  usePublicSubscriptionPlans,
+  useSubscriptionDetails,
+  useSubscriptionUsage,
+} from "@/hooks/queries/use-subscription-queries";
 
 interface SubscriptionFeature {
   feature_key: string;
@@ -25,60 +32,6 @@ interface SubscriptionFeature {
   limit_interval_count: number | null;
   is_metered: boolean;
   unit?: string | null;
-}
-
-interface SubscriptionInfo {
-  plan_id: string;
-  plan_name: string;
-  status: string;
-  audience: "mentor" | "mentee";
-  current_period_end: string | null;
-}
-
-interface UsageEntry {
-  feature_key: string;
-  name: string;
-  value_type: "boolean" | "count" | "minutes" | "text" | "amount" | "percent" | "json";
-  unit: string | null;
-  usage_count: number;
-  usage_minutes: number;
-  usage_amount: number;
-  limit_count: number | null;
-  limit_minutes: number | null;
-  limit_amount: number | null;
-  limit_percent: number | null;
-}
-
-interface PublicPlan {
-  id: string;
-  plan_key: string;
-  name: string;
-  description: string | null;
-  audience: "mentor" | "mentee";
-  subscription_plan_features: Array<{
-    id: string;
-    is_included: boolean;
-    limit_count: number | null;
-    limit_minutes: number | null;
-    limit_text: string | null;
-    limit_amount: number | null;
-    limit_percent: number | null;
-    limit_interval: string | null;
-    limit_interval_count: number | null;
-    subscription_features: {
-      feature_key: string;
-      name: string;
-      unit: string | null;
-    };
-  }>;
-  subscription_plan_prices: Array<{
-    id: string;
-    amount: number;
-    currency: string;
-    billing_interval: string;
-    billing_interval_count: number;
-    is_active: boolean;
-  }>;
 }
 
 function formatLimit(feature: SubscriptionFeature) {
@@ -110,64 +63,33 @@ function formatLimit(feature: SubscriptionFeature) {
 }
 
 export function SubscriptionDisplay() {
-  const { isMentor, isMentee } = useAuth();
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [features, setFeatures] = useState<SubscriptionFeature[]>([]);
-  const [usage, setUsage] = useState<UsageEntry[]>([]);
-  const [plans, setPlans] = useState<PublicPlan[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { isMentor, isMentee, isLoading: authLoading } = useAuth();
+  const preferredAudience = isMentor ? "mentor" : isMentee ? "mentee" : null;
   const [selectingPlanId, setSelectingPlanId] = useState<string | null>(null);
+  const {
+    data: subscriptionData,
+    isLoading: subscriptionLoading,
+    error: subscriptionError,
+  } = useSubscriptionDetails(
+    preferredAudience ?? "mentee",
+    !authLoading && Boolean(preferredAudience)
+  );
+  const { data: usage = [] } = useSubscriptionUsage(
+    preferredAudience ?? "mentee",
+    !authLoading && Boolean(preferredAudience)
+  );
+  const audienceForPlans = subscriptionData?.subscription?.audience ?? preferredAudience;
+  const {
+    data: plans = [],
+    isLoading: plansLoading,
+    error: plansError,
+  } = usePublicSubscriptionPlans(audienceForPlans, !authLoading && Boolean(audienceForPlans));
+  const selectPlanMutation = useSelectSubscriptionPlanMutation();
 
-  const loadSubscription = async () => {
-    try {
-      const preferredAudience = isMentor ? "mentor" : isMentee ? "mentee" : null;
-      const audienceQuery = preferredAudience ? `?audience=${preferredAudience}` : "";
+  const subscription = subscriptionData?.subscription ?? null;
+  const features = subscriptionData?.features ?? [];
 
-      const [subRes, usageRes] = await Promise.all([
-        fetch(`/api/subscriptions/me${audienceQuery}`, { credentials: "include" }),
-        fetch(`/api/subscriptions/me/usage${audienceQuery}`, { credentials: "include" }),
-      ]);
-
-      const subData = await subRes.json();
-      const usageData = await usageRes.json();
-
-      if (!subRes.ok || !subData.success) {
-        setError(subData.message || "Failed to load subscription details");
-        return;
-      }
-
-      const subscriptionInfo = subData.data.subscription;
-      setSubscription(subscriptionInfo);
-      setFeatures(subData.data.features || []);
-
-      if (usageRes.ok && usageData.success) {
-        setUsage(usageData.data || []);
-      }
-
-      const fallbackAudience = preferredAudience;
-      const audienceParam = subscriptionInfo?.audience || fallbackAudience;
-      const planUrl = audienceParam
-        ? `/api/subscriptions/plans/public?audience=${audienceParam}`
-        : "/api/subscriptions/plans/public";
-      const planRes = await fetch(planUrl, { credentials: "include" });
-      const planData = await planRes.json();
-      if (planRes.ok && planData.success) {
-        setPlans(planData.data || []);
-      }
-    } catch (err) {
-      console.error("Failed to load subscription details:", err);
-      setError("Failed to load subscription details");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadSubscription();
-  }, []);
-
-  const handleSelectPlan = async (plan: PublicPlan) => {
+  const handleSelectPlan = async (plan: PublicSubscriptionPlan) => {
     if (selectingPlanId) return;
     const monthlyPrice = plan.subscription_plan_prices.find(
       (price) => price.billing_interval === "month" && price.is_active
@@ -175,27 +97,13 @@ export function SubscriptionDisplay() {
 
     setSelectingPlanId(plan.id);
     try {
-      const res = await fetch("/api/subscriptions/select", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          planId: plan.id,
-          priceId: monthlyPrice?.id,
-        }),
+      await selectPlanMutation.mutateAsync({
+        planId: plan.id,
+        priceId: monthlyPrice?.id,
       });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        toast.error(data.message || "Failed to select plan");
-        return;
-      }
-
       toast.success("Plan selected");
-      await loadSubscription();
     } catch (error) {
-      console.error("Failed to select plan:", error);
-      toast.error("Failed to select plan");
+      // mutation hook surfaces the toast
     } finally {
       setSelectingPlanId(null);
     }
@@ -205,6 +113,11 @@ export function SubscriptionDisplay() {
     () => usage.filter((entry) => ["count", "minutes", "amount", "percent"].includes(entry.value_type)),
     [usage]
   );
+
+  const loading = authLoading || subscriptionLoading || (Boolean(audienceForPlans) && plansLoading);
+  const error =
+    (subscriptionError instanceof Error ? subscriptionError.message : null) ||
+    (plansError instanceof Error ? plansError.message : null);
 
   if (loading) {
     return <div>Loading subscription details...</div>;

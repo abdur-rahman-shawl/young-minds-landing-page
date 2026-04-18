@@ -59,7 +59,7 @@ class SSEConnectionManager {
 
     try {
       console.log('[SSE Singleton] Creating new connection');
-      this.eventSource = new EventSource(`/api/messaging/sse?userId=${this.userId}`);
+      this.eventSource = new EventSource('/api/messaging/sse');
 
       this.eventSource.onopen = () => {
         console.log('[SSE Singleton] Connection established');

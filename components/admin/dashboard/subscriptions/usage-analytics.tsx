@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -9,7 +9,6 @@ import {
   Users,
 } from 'lucide-react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -34,6 +33,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAdminSubscriptionAnalyticsQuery } from '@/hooks/queries/use-admin-subscription-queries';
 
 type AudienceFilter = 'all' | 'mentor' | 'mentee';
 
@@ -90,12 +90,6 @@ interface AnalyticsData {
   limitBreaches: LimitBreachItem[];
   planDistribution: PlanDistributionItem[];
   topConsumers: TopConsumerItem[];
-}
-
-interface AnalyticsApiResponse {
-  success: boolean;
-  data?: AnalyticsData;
-  error?: string;
 }
 
 const usageByFeatureChartConfig = {
@@ -254,53 +248,23 @@ function LoadingState() {
 
 export function UsageAnalytics() {
   const defaults = useMemo(() => getDefaultDateRange(), []);
-  const [data, setData] = useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>(defaults.startDate);
   const [endDate, setEndDate] = useState<string>(defaults.endDate);
   const [audience, setAudience] = useState<AudienceFilter>('all');
-
-  const loadAnalytics = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const params = new URLSearchParams({
-        startDate,
-        endDate,
-        audience,
-      });
-
-      const response = await fetch(`/api/admin/subscriptions/analytics?${params.toString()}`, {
-        credentials: 'include',
-      });
-
-      const payload = (await response.json()) as AnalyticsApiResponse;
-      if (!response.ok || !payload.success || !payload.data) {
-        const message = payload.error || 'Failed to load usage analytics';
-        setError(message);
-        toast.error(message);
-        return;
-      }
-
-      setData(payload.data);
-    } catch (requestError) {
-      console.error('Failed to load usage analytics:', requestError);
-      setError('Failed to load usage analytics');
-      toast.error('Failed to load usage analytics');
-    } finally {
-      setLoading(false);
-    }
-  }, [startDate, endDate, audience]);
-
-  useEffect(() => {
-    void loadAnalytics();
-  }, [loadAnalytics]);
+  const {
+    data: analytics,
+    isLoading: loading,
+    error,
+    refetch: refetchAnalytics,
+  } = useAdminSubscriptionAnalyticsQuery({
+    startDate,
+    endDate,
+    audience,
+  });
 
   const usageByFeatureChartData = useMemo(
     () =>
-      [...(data?.usageByFeature || [])]
+      [...(analytics?.usageByFeature || [])]
         .sort((a, b) => b.totalUsage - a.totalUsage)
         .slice(0, 10)
         .map((item) => ({
@@ -309,32 +273,32 @@ export function UsageAnalytics() {
           limit: item.averageLimit,
           unit: item.unit,
         })),
-    [data]
+    [analytics]
   );
 
   const usageOverTimeChartData = useMemo(
     () =>
-      (data?.usageOverTime || []).map((item) => ({
+      (analytics?.usageOverTime || []).map((item) => ({
         ...item,
         label: formatDateAxis(item.date),
       })),
-    [data]
+    [analytics]
   );
 
   const planDistributionChartData = useMemo(
     () =>
-      (data?.planDistribution || []).map((item) => ({
+      (analytics?.planDistribution || []).map((item) => ({
         planName: item.planName,
         activeCount: item.activeCount,
       })),
-    [data]
+    [analytics]
   );
 
-  if (loading && !data) {
+  if (loading && !analytics) {
     return <LoadingState />;
   }
 
-  if (error && !data) {
+  if (error && !analytics) {
     return (
       <Card>
         <CardHeader>
@@ -342,16 +306,17 @@ export function UsageAnalytics() {
             <AlertTriangle className="h-5 w-5" />
             Failed to Load Analytics
           </CardTitle>
-          <CardDescription>{error}</CardDescription>
+          <CardDescription>
+            {error instanceof Error ? error.message : 'Failed to load usage analytics'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={loadAnalytics}>Retry</Button>
+          <Button onClick={() => void refetchAnalytics()}>Retry</Button>
         </CardContent>
       </Card>
     );
   }
 
-  const analytics = data;
   if (!analytics) {
     return null;
   }
@@ -423,7 +388,11 @@ export function UsageAnalytics() {
               </Select>
             </div>
             <div className="lg:col-span-2 lg:flex lg:items-end">
-              <Button className="w-full lg:w-auto" onClick={loadAnalytics} disabled={loading}>
+              <Button
+                className="w-full lg:w-auto"
+                onClick={() => void refetchAnalytics()}
+                disabled={loading}
+              >
                 <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 {loading ? 'Refreshing...' : 'Refresh'}
               </Button>
@@ -436,7 +405,9 @@ export function UsageAnalytics() {
         <Card className="border-destructive/40">
           <CardContent className="flex items-center gap-3 py-4">
             <AlertTriangle className="h-5 w-5 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-sm text-destructive">
+              {error instanceof Error ? error.message : 'Failed to load usage analytics'}
+            </p>
           </CardContent>
         </Card>
       ) : null}

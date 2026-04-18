@@ -349,32 +349,35 @@ interface MentorAnalyticsData {
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/mentors` | Get all verified, available mentors |
-| POST | `/api/mentors` | Create mentor profile (basic) |
-| GET | `/api/mentors/[id]` | Get mentor details by ID |
-| POST | `/api/mentors/apply` | Submit full mentor application |
-| PUT | `/api/mentors/update-profile` | Update mentor profile |
+| POST | `/api/mentors/apply` | Submit full mentor application with multipart uploads |
+| POST | `/api/mentors/update-profile` | Upload-backed mentor profile updates (multipart only) |
+| GET | `/api/mentors/[id]/public-content` | Public mentor content selected for profile display |
 
-### Mentor Dashboard APIs
+### Mentor tRPC Operations
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/mentor/dashboard-stats` | Get dashboard statistics |
-| GET | `/api/mentor/recent-sessions` | Get recent sessions |
-| GET | `/api/mentor/recent-messages` | Get recent messages |
-| GET | `/api/mentor/mentees` | Get mentor's mentees |
-| GET | `/api/mentor/mentees-sessions` | Get sessions with mentees |
-| GET | `/api/mentor/payments` | Get payment history |
+Internal authenticated JSON mentor operations now flow through tRPC instead of bespoke REST handlers:
 
-### Availability APIs
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/mentors/[id]/availability` | Get mentor availability |
-| PUT | `/api/mentors/[id]/availability` | Update availability |
-| GET | `/api/mentors/[id]/availability/exceptions` | Get exceptions |
-| POST | `/api/mentors/[id]/availability/exceptions` | Add exception |
-| DELETE | `/api/mentors/[id]/availability/exceptions/[exceptionId]` | Delete exception |
+- `mentor.list`
+- `mentor.get`
+- `mentor.application`
+- `mentor.updateProfile`
+- `mentor.validateCoupon`
+- `mentor.dashboardStats`
+- `mentor.recentSessions`
+- `mentor.recentMessages`
+- `mentor.pendingReviews`
+- `mentor.mentees`
+- `mentor.menteeSessions`
+- `mentor.reviews`
+- `mentor.courseComments`
+- `mentor.replyToCourseComment`
+- `mentor.availability`
+- `mentor.upsertAvailability`
+- `mentor.availabilityExceptions`
+- `mentor.createAvailabilityException`
+- `mentor.deleteAvailabilityExceptions`
+- `mentor.availableSlots`
+- `mentor.bookingEligibility`
 
 ### Content APIs
 
@@ -392,7 +395,7 @@ interface MentorAnalyticsData {
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/analytics/mentor` | Get mentor analytics (with date range) |
+| tRPC Query | `analytics.mentorDashboard` | Get mentor analytics (with date range) via the shared analytics service |
 
 ---
 

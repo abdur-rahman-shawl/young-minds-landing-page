@@ -13,7 +13,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/contexts/auth-context"
-import { uploadProfilePicture, uploadBannerImage } from "@/lib/storage"
+import {
+  useUpdateMentorProfileMutation,
+  useUploadMentorProfileFormMutation,
+} from "@/hooks/queries/use-mentor-queries"
 import {
   Edit3,
   X,
@@ -40,6 +43,8 @@ import {
 
 export function MentorProfileEdit() {
   const { session, mentorProfile, refreshUserData } = useAuth()
+  const updateMentorProfileMutation = useUpdateMentorProfileMutation()
+  const uploadMentorProfileFormMutation = useUploadMentorProfileFormMutation()
   const [isEditing, setIsEditing] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isUploadingBanner, setIsUploadingBanner] = useState(false)
@@ -48,7 +53,6 @@ export function MentorProfileEdit() {
   const [success, setSuccess] = useState<string | null>(null)
   const [imageRefresh, setImageRefresh] = useState(0)
   const [bannerRefresh, setBannerRefresh] = useState(0)
-  const [showImage, setShowImage] = useState(false)
 
   const [mentorData, setMentorData] = useState({
     fullName: '',
@@ -126,8 +130,6 @@ export function MentorProfileEdit() {
       createdAt: mentorProfile.createdAt || '',
       updatedAt: mentorProfile.updatedAt || ''
     });
-
-    setTimeout(() => setShowImage(true), 100)
   }, [mentorProfile, isEditing, session?.user])
 
   const handleImageUpload = async (file: File) => {
@@ -135,28 +137,23 @@ export function MentorProfileEdit() {
 
     try {
       setIsUploadingImage(true)
-      const uploadResult = await uploadProfilePicture(file, session.user.id)
+      const formData = new FormData()
+      formData.append('userId', session.user.id)
+      formData.append('profilePicture', file)
 
-      setMentorData(prev => ({
-        ...prev,
-        profileImageUrl: uploadResult.url
-      }))
+      const result = await uploadMentorProfileFormMutation.mutateAsync(formData)
 
-      const response = await fetch('/api/mentors/update-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: session.user.id,
-          profileImageUrl: uploadResult.url
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to save profile image')
+      if (result?.profileImageUrl) {
+        setMentorData(prev => ({
+          ...prev,
+          profileImageUrl: result.profileImageUrl,
+        }))
+      }
+      if (typeof result?.updatedAt === 'string') {
+        setMentorMeta(prev => ({
+          ...prev,
+          updatedAt: result.updatedAt,
+        }))
       }
 
       setImageRefresh(Date.now())
@@ -180,30 +177,23 @@ export function MentorProfileEdit() {
 
     try {
       setIsUploadingBanner(true)
-      const uploadResult = await uploadBannerImage(file, session.user.id)
+      const formData = new FormData()
+      formData.append('userId', session.user.id)
+      formData.append('bannerImage', file)
 
-      // Update local state
-      setMentorData(prev => ({
-        ...prev,
-        bannerImageUrl: uploadResult.url
-      }))
+      const result = await uploadMentorProfileFormMutation.mutateAsync(formData)
 
-      // Save to database
-      const response = await fetch('/api/mentors/update-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: session.user.id,
-          bannerImageUrl: uploadResult.url
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to save banner image')
+      if (result?.bannerImageUrl) {
+        setMentorData(prev => ({
+          ...prev,
+          bannerImageUrl: result.bannerImageUrl,
+        }))
+      }
+      if (typeof result?.updatedAt === 'string') {
+        setMentorMeta(prev => ({
+          ...prev,
+          updatedAt: result.updatedAt,
+        }))
       }
 
       // Force image refresh
@@ -249,21 +239,18 @@ export function MentorProfileEdit() {
       formData.append('userId', session.user.id);
       formData.append('resume', file);
 
-      const response = await fetch('/api/mentors/update-profile', {
-        method: 'POST',
-        body: formData,
-      })
+      const result = await uploadMentorProfileFormMutation.mutateAsync(formData)
 
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to save resume')
-      }
-
-      if (result.data?.resumeUrl) {
+      if (result?.resumeUrl) {
         setMentorData(prev => ({
           ...prev,
-          resumeUrl: result.data.resumeUrl
+          resumeUrl: result.resumeUrl
+        }))
+      }
+      if (typeof result?.updatedAt === 'string') {
+        setMentorMeta(prev => ({
+          ...prev,
+          updatedAt: result.updatedAt,
         }))
       }
 
@@ -286,38 +273,50 @@ export function MentorProfileEdit() {
       setIsUploadingImage(true) // Reuse loading state
       setError(null)
 
-      const response = await fetch('/api/mentors/update-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: session.user.id,
-          ...mentorData,
-          experience: parseInt(mentorData.experience) || 0,
-          hourlyRate: parseFloat(mentorData.hourlyRate) || 0,
-          maxMentees: parseInt(mentorData.maxMentees) || 10
-        }),
+      const result = await updateMentorProfileMutation.mutateAsync({
+        fullName: mentorData.fullName,
+        email: mentorData.email,
+        phone: mentorData.phone,
+        title: mentorData.title,
+        company: mentorData.company,
+        city: mentorData.city,
+        state: mentorData.state,
+        country: mentorData.country,
+        industry: mentorData.industry,
+        expertise: mentorData.expertise,
+        experience: mentorData.experience
+          ? Number.parseInt(mentorData.experience, 10)
+          : null,
+        about: mentorData.about,
+        linkedinUrl: mentorData.linkedinUrl,
+        githubUrl: mentorData.githubUrl,
+        websiteUrl: mentorData.websiteUrl,
+        hourlyRate: mentorData.hourlyRate,
+        currency: mentorData.currency,
+        availability: mentorData.availability,
+        headline: mentorData.headline,
+        maxMentees: mentorData.maxMentees
+          ? Number.parseInt(mentorData.maxMentees, 10)
+          : null,
+        profileImageUrl: mentorData.profileImageUrl,
+        bannerImageUrl: mentorData.bannerImageUrl,
+        resumeUrl: mentorData.resumeUrl,
+        isAvailable: mentorData.isAvailable,
+        searchMode: mentorData.searchMode,
       })
 
-      const result = await response.json()
+      setSuccess('Profile updated successfully!')
+      setIsEditing(false)
+      setTimeout(() => setSuccess(null), 3000)
 
-      if (result.success) {
-        setSuccess('Profile updated successfully!')
-        setIsEditing(false)
-        setTimeout(() => setSuccess(null), 3000)
-
-        if (result.data?.updatedAt) {
-          setMentorMeta(prev => ({
-            createdAt: result.data.createdAt || prev.createdAt,
-            updatedAt: result.data.updatedAt || prev.updatedAt,
-          }));
-        }
-
-        refreshUserData()
-      } else {
-        setError(result.error || 'Failed to update profile')
+      if (result?.updatedAt) {
+        setMentorMeta(prev => ({
+          createdAt: result.createdAt || prev.createdAt,
+          updatedAt: result.updatedAt || prev.updatedAt,
+        }));
       }
+
+      refreshUserData()
     } catch (err) {
       setError('Failed to save profile')
       console.error('Save error:', err)
@@ -326,9 +325,30 @@ export function MentorProfileEdit() {
     }
   }
 
-  const currentImage = mentorData.profileImageUrl
-    ? (imageRefresh ? `${mentorData.profileImageUrl}?t=${imageRefresh}` : mentorData.profileImageUrl)
-    : session?.user?.image
+  const appendAssetVersion = (
+    url: string | null | undefined,
+    version: string | number | null
+  ) => {
+    if (!url) {
+      return undefined
+    }
+
+    if (!version) {
+      return url
+    }
+
+    const separator = url.includes('?') ? '&' : '?'
+    return `${url}${separator}v=${encodeURIComponent(String(version))}`
+  }
+
+  const currentImage = appendAssetVersion(
+    mentorData.profileImageUrl || session?.user?.image,
+    imageRefresh || mentorMeta.updatedAt || null
+  )
+  const currentBannerImage = appendAssetVersion(
+    mentorData.bannerImageUrl,
+    bannerRefresh || mentorMeta.updatedAt || null
+  )
 
   const industries = [
     "IT & Software", "Marketing & Advertising", "Finance & Banking", "Education",
@@ -432,9 +452,9 @@ export function MentorProfileEdit() {
       <Card className="overflow-hidden">
         {/* Banner Image */}
         <div className="relative h-32 sm:h-40 md:h-48 bg-gradient-to-r from-blue-500 to-purple-500 overflow-hidden group">
-          {mentorData.bannerImageUrl ? (
+          {currentBannerImage ? (
             <img
-              src={`${mentorData.bannerImageUrl}?t=${bannerRefresh || Date.now()}`}
+              src={currentBannerImage}
               alt="Profile Banner"
               className="w-full h-full object-cover"
             />
@@ -472,10 +492,10 @@ export function MentorProfileEdit() {
           )}
         </div>
 
-        <CardContent className="p-4 sm:p-6 md:p-8 relative -mt-10 sm:-mt-12">
-          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-6">
+        <CardContent className="p-4 pt-5 sm:p-6 sm:pt-6 md:p-8 md:pt-7">
+          <div className="flex flex-col sm:flex-row items-center sm:items-center gap-4 sm:gap-6">
             <div className="relative flex-shrink-0 group">
-              <Avatar className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 border-4 border-background shadow-sm">
+              <Avatar className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 border-4 border-background shadow-sm ring-1 ring-slate-200/70 dark:ring-slate-700/70">
                 <AvatarImage src={currentImage || undefined} className="object-cover" />
                 <AvatarFallback className="text-3xl font-bold bg-primary/10 text-primary">
                   {mentorData.fullName?.charAt(0) || session?.user?.name?.charAt(0) || 'M'}
@@ -504,7 +524,7 @@ export function MentorProfileEdit() {
               )}
             </div>
 
-            <div className="flex-1 text-center sm:text-left space-y-2 min-w-0">
+            <div className="flex-1 min-w-0 text-center sm:text-left space-y-2">
               <div>
                 <h2 className="text-xl sm:text-2xl font-bold truncate">{mentorData.fullName || session?.user?.name || 'Your Name'}</h2>
                 <p className="text-sm sm:text-base text-muted-foreground font-medium truncate">

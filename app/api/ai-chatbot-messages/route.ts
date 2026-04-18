@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+
 import { auth } from '@/lib/auth';
-import { db } from '@/lib/db';
-import { aiChatbotMessages } from '@/lib/db/schema';
-import { and, eq } from 'drizzle-orm';
-import { recordChatInsight } from '@/lib/chatbot/insights';
 import {
-  consumeFeature,
-  enforceFeature,
-  isSubscriptionPolicyError,
-} from '@/lib/subscriptions/policy-runtime';
+  listChatbotMessages,
+  saveChatbotMessage,
+} from '@/lib/chatbot/server/message-service';
+import { AppHttpError } from '@/lib/http/app-error';
+import { nextErrorResponse } from '@/lib/http/next-response-error';
 
 // GET: fetch all messages for a chat session
 export async function GET(request: NextRequest) {
@@ -16,30 +14,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const chatSessionId = searchParams.get('chatSessionId');
     if (!chatSessionId) {
-      return NextResponse.json({ success: false, error: 'chatSessionId is required' }, { status: 400 });
+      throw new AppHttpError(400, 'chatSessionId is required');
     }
 
     const session = await auth.api.getSession({ headers: request.headers });
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+      throw new AppHttpError(401, 'Authentication required');
     }
 
-    const messages = await db
-      .select()
-      .from(aiChatbotMessages)
-      .where(
-        and(
-          eq(aiChatbotMessages.chatSessionId, chatSessionId),
-          eq(aiChatbotMessages.userId, session.user.id)
-        )
-      )
-      .orderBy(aiChatbotMessages.createdAt);
+    const messages = await listChatbotMessages(chatSessionId, session.user.id);
     return NextResponse.json({ success: true, data: messages });
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed to fetch messages' }, { status: 500 });
+    return nextErrorResponse(error, 'Failed to fetch messages');
   }
 }
 
@@ -47,76 +33,30 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: request.headers });
-    const userId = session?.user?.id || null;
+    const userId = session?.user?.id ?? null;
 
     const body = await request.json();
     const { chatSessionId, senderType, content, metadata } = body;
     if (!chatSessionId || !senderType || !content) {
-      return NextResponse.json({ success: false, error: 'chatSessionId, senderType, and content are required' }, { status: 400 });
+      throw new AppHttpError(
+        400,
+        'chatSessionId, senderType, and content are required'
+      );
     }
 
-    // Get client IP address
-    const forwardedFor = request.headers.get('x-forwarded-for');
-    const realIp = request.headers.get('x-real-ip');
-    const cfConnectingIp = request.headers.get('cf-connecting-ip');
-    let ipAddress = cfConnectingIp || forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown';
-
-    // Normalize localhost addresses
-    if (ipAddress === '::1' || ipAddress === '127.0.0.1') {
-      ipAddress = 'localhost';
-    }
-
-    // Subscription Enforcement for Logged-in Users
-    if (userId && senderType === 'user') {
-      try {
-        await enforceFeature({
-          action: 'ai.chat.message',
-          userId,
-          failureMessage: 'Message limit reached',
-        });
-      } catch (error) {
-        if (isSubscriptionPolicyError(error)) {
-          return NextResponse.json(error.payload, { status: error.status });
-        }
-        throw error;
-      }
-    }
-
-    const [newMessage] = await db
-      .insert(aiChatbotMessages)
-      .values({
+    const newMessage = await saveChatbotMessage(
+      request.headers,
+      {
         chatSessionId,
-        userId: userId || null,
         senderType,
-        content: content.trim(),
-        metadata: metadata || null,
-        ipAddress,
-      })
-      .returning();
-
-    if (newMessage && senderType === 'user') {
-      recordChatInsight({
-        messageId: newMessage.id,
-        chatSessionId,
-        userId: userId || null,
-        content: newMessage.content,
-      }).catch((error) => {
-        console.error('[chatbot-insights] recording failed', error);
-      });
-    }
-
-    // Track usage for logged-in users
-    if (userId && senderType === 'user') {
-      await consumeFeature({
-        action: 'ai.chat.message',
-        userId,
-        resourceType: 'chat_message',
-        resourceId: newMessage.id,
-      });
-    }
+        content,
+        metadata,
+      },
+      userId
+    );
 
     return NextResponse.json({ success: true, data: newMessage });
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed to save message' }, { status: 500 });
+    return nextErrorResponse(error, 'Failed to save message');
   }
 }

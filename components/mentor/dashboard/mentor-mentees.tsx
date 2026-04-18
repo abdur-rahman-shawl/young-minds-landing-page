@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { SessionMenteeCard } from "./session-mentee-card"
 import { useMentorMenteeSessions } from "@/hooks/use-mentor-mentees-sessions"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
 import {
   Users,
   Search,
@@ -18,13 +19,36 @@ import {
   AlertCircle,
   Video,
 } from "lucide-react"
+import {
+  getMentorFeatureDecision,
+  MENTOR_FEATURE_KEYS,
+} from "@/lib/mentor/access-policy"
+import { MentorFeaturePageGate } from "@/components/mentor/verification/mentor-verification-state"
 
 export function MentorMentees() {
   const router = useRouter()
+  const { mentorAccess, mentorProfile, session } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState("all")
+  const menteesAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.menteesView
+  )
+  const canViewMentees = Boolean(menteesAccess?.allowed)
 
-  const { mentees, stats, isLoading, error, mutate } = useMentorMenteeSessions()
+  const { mentees, stats, isLoading, error, mutate } = useMentorMenteeSessions(canViewMentees)
+
+  if (!canViewMentees) {
+    return (
+      <MentorFeaturePageGate
+        feature={MENTOR_FEATURE_KEYS.menteesView}
+        access={menteesAccess}
+        mentorProfile={mentorProfile}
+        routeBasePath='/dashboard'
+        userName={session?.user?.name}
+      />
+    )
+  }
 
   const filteredMentees = mentees?.filter((mentee) => {
     if (!searchTerm) return true

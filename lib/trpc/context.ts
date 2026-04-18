@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth';
+import { createAccessPolicyRequestCache } from '@/lib/access-policy/request-cache';
 import { db } from '@/lib/db';
 
 export async function createTRPCContext(opts: {
@@ -14,6 +15,7 @@ export async function createTRPCContext(opts: {
     req: opts.req,
     session,
     userId: session?.user?.id ?? null,
+    accessPolicyCache: createAccessPolicyRequestCache(),
   };
 }
 

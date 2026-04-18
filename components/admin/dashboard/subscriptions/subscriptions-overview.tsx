@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -19,7 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
+import {
+  useAdminSubscriptionsListQuery,
+  type AdminSubscriptionStatus,
+} from "@/hooks/queries/use-admin-subscription-queries";
 
 interface SubscriptionPlanInfo {
   id: string;
@@ -59,21 +62,7 @@ interface SubscriptionRecord {
   user: SubscriptionUserInfo | null;
 }
 
-interface SubscriptionResponse {
-  data: SubscriptionRecord[];
-  meta: {
-    page: number;
-    pageSize: number;
-    total: number;
-  };
-}
-
-interface SubscriptionApiResponse extends SubscriptionResponse {
-  success: boolean;
-  message?: string;
-}
-
-const statusOptions = [
+const statusOptions: Array<"all" | AdminSubscriptionStatus> = [
   "all",
   "trialing",
   "active",
@@ -122,45 +111,26 @@ function getStatusVariant(status: string) {
 }
 
 export function SubscriptionsOverview() {
-  const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | AdminSubscriptionStatus>("all");
   const [audienceFilter, setAudienceFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 25;
-  const [total, setTotal] = useState(0);
-
-  const loadSubscriptions = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        status: statusFilter,
-        audience: audienceFilter,
-        page: page.toString(),
-        pageSize: pageSize.toString(),
-      });
-      const res = await fetch(`/api/admin/subscriptions/subscriptions?${params.toString()}`, {
-        credentials: "include",
-      });
-      const data = (await res.json()) as SubscriptionApiResponse;
-      if (res.ok && data.success) {
-        setSubscriptions(data.data || []);
-        setTotal(data.meta?.total || 0);
-      } else {
-        toast.error(data?.message || "Failed to load subscriptions");
-      }
-    } catch (error) {
-      console.error("Failed to load subscriptions:", error);
-      toast.error("Failed to load subscriptions");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadSubscriptions();
-  }, [statusFilter, audienceFilter, page, pageSize]);
+  const {
+    data,
+    isLoading: loading,
+    refetch: refetchSubscriptions,
+  } = useAdminSubscriptionsListQuery({
+    statuses: statusFilter === "all" ? undefined : [statusFilter],
+    audience:
+      audienceFilter === "mentor" || audienceFilter === "mentee"
+        ? audienceFilter
+        : "all",
+    page,
+    pageSize,
+  });
+  const subscriptions = data?.data ?? [];
+  const total = data?.meta.total ?? 0;
 
   const filteredSubscriptions = useMemo(() => {
     if (!searchTerm) return subscriptions;
@@ -192,7 +162,12 @@ export function SubscriptionsOverview() {
               Monitor current subscriptions, billing windows, and plan assignments
             </CardDescription>
           </div>
-          <Button variant="outline" onClick={loadSubscriptions}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              void refetchSubscriptions();
+            }}
+          >
             Refresh
           </Button>
         </div>
@@ -212,7 +187,7 @@ export function SubscriptionsOverview() {
             <Select
               value={statusFilter}
               onValueChange={(value) => {
-                setStatusFilter(value);
+                setStatusFilter(value as "all" | AdminSubscriptionStatus);
                 setPage(1);
               }}
             >

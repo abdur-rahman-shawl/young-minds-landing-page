@@ -33,6 +33,7 @@ export * from './reschedule-requests';
 export * from './admin-session-audit-trail';
 export * from './admin-session-notes';
 export * from './subscriptions';
+export * from './access-policy-configs';
 
 // Temporary empty export to prevent TypeScript errors
 export { };

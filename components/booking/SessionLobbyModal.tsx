@@ -7,6 +7,7 @@ import { SessionLobby } from "./SessionLobby"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { logConsentEvents } from "@/lib/consent-client"
+import { useTRPCClient } from "@/lib/trpc/react"
 
 interface SessionParticipant {
   id: string
@@ -29,6 +30,7 @@ interface SessionLobbyModalProps {
 }
 
 export function SessionLobbyModal({ sessionId, isOpen, viewerRole, onClose }: SessionLobbyModalProps) {
+  const trpcClient = useTRPCClient()
   const router = useRouter()
   const [sessionDetails, setSessionDetails] = useState<SessionDetails | null>(null)
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null)
@@ -47,12 +49,7 @@ export function SessionLobbyModal({ sessionId, isOpen, viewerRole, onClose }: Se
       try {
         setIsLoading(true)
         setError(null)
-        const response = await fetch(`/api/sessions/${sessionId}`)
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}))
-          throw new Error(data.error || "Failed to load session details")
-        }
-        const data = await response.json()
+        const data = await trpcClient.bookings.sessionView.query({ sessionId })
         if (!isCancelled) {
           setSessionDetails(data as SessionDetails)
         }
@@ -73,7 +70,7 @@ export function SessionLobbyModal({ sessionId, isOpen, viewerRole, onClose }: Se
     return () => {
       isCancelled = true
     }
-  }, [isOpen, sessionId])
+  }, [isOpen, sessionId, trpcClient])
 
   const startCamera = async () => {
     try {

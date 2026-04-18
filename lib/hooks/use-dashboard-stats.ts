@@ -1,5 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useMemo } from 'react';
+
 import { useSession } from '@/lib/auth-client';
+import { useBookingsQuery } from '@/hooks/queries/use-booking-queries';
+import { buildMenteeDashboardSummary } from '@/lib/dashboard/mentee-dashboard';
 
 interface StatItem {
   value: string | number;
@@ -31,56 +34,23 @@ interface UseDashboardStatsReturn {
 }
 
 export function useDashboardStats(): UseDashboardStatsReturn {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { data: session } = useSession();
-  const hasFetched = useRef(false);
+  const query = useBookingsQuery(session?.user?.id, 'mentee', {
+    enabled: !!session?.user?.id,
+  });
 
-  const fetchStats = async () => {
-    if (!session?.user?.id) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await fetch('/api/dashboard/stats');
-      const result = await response.json();
-      
-      if (response.ok) {
-        setStats(result.stats);
-        setSummary(result.summary);
-      } else {
-        setError(result.error || 'Failed to fetch dashboard statistics');
-      }
-    } catch (err) {
-      setError('Network error occurred while fetching statistics');
-      console.error('Dashboard stats error:', err);
-    } finally {
-      setLoading(false);
-      hasFetched.current = true;
-    }
-  };
-
-  useEffect(() => {
-    // Only fetch if we have a session and haven't fetched yet
-    if (session?.user?.id && !hasFetched.current) {
-      fetchStats();
-    } else if (session === null) {
-      // Session loaded but user is not authenticated
-      setLoading(false);
-    }
-  }, [session?.user?.id]); // Re-run when session changes
+  const computed = useMemo(
+    () => buildMenteeDashboardSummary(query.data ?? []),
+    [query.data]
+  );
 
   return {
-    stats,
-    summary,
-    loading,
-    error,
-    refetch: fetchStats
+    stats: computed.stats,
+    summary: computed.summary,
+    loading: query.isLoading,
+    error: query.error instanceof Error ? query.error.message : null,
+    refetch: () => {
+      void query.refetch();
+    },
   };
 }

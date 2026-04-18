@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from "react"
+import { useMemo } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Bookmark, Trash2, ArrowUpRight } from "lucide-react"
@@ -8,35 +8,44 @@ import { motion } from "framer-motion"
 import { formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
+import { useRemoveSavedItemMutation, useSavedItemsQuery } from "@/hooks/queries/use-learning-queries"
+import {
+  getMenteeFeatureDecision,
+  MENTEE_FEATURE_KEYS,
+} from "@/lib/mentee/access-policy"
+import { MenteeFeaturePageGate } from "@/components/mentee/access/mentee-feature-state"
 
 interface SavedItemsProps {
   onMentorSelect: (mentorId: string) => void
 }
 
-export function SavedItems({ onMentorSelect }: SavedItemsProps) {
+export function SavedItems({ onMentorSelect: _onMentorSelect }: SavedItemsProps) {
   const router = useRouter()
-  const [savedItems, setSavedItems] = useState<Array<{
-    id: string
-    title: string
-    description: string
-    url: string
-    savedAt: string
-    tag: string
-    courseId: string
-    itemId: string
-  }>>([])
-  const [loading, setLoading] = useState(true)
+  const { menteeAccess } = useAuth()
+  const learningAccess = getMenteeFeatureDecision(
+    menteeAccess,
+    MENTEE_FEATURE_KEYS.learningWorkspace
+  )
+  const canViewSavedItems = Boolean(learningAccess?.allowed)
+  const { data, isLoading: loading, error } = useSavedItemsQuery(canViewSavedItems)
+  const removeSavedItemMutation = useRemoveSavedItemMutation()
 
-  const loadSavedItems = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch('/api/student/saved-items')
-      const data = await response.json()
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to load saved items')
-      }
+  if (!canViewSavedItems) {
+    return (
+      <div className="p-4 md:p-8">
+        <MenteeFeaturePageGate
+          feature={MENTEE_FEATURE_KEYS.learningWorkspace}
+          access={learningAccess}
+          routeBasePath="/dashboard"
+        />
+      </div>
+    )
+  }
 
-      const mapped = (data.data || []).map((item: any) => ({
+  const savedItems = useMemo(
+    () =>
+      (data ?? []).map((item) => ({
         id: item.contentItemId,
         title: item.contentItemTitle,
         description: `${item.courseTitle} • ${item.moduleTitle} / ${item.sectionTitle}`,
@@ -45,34 +54,16 @@ export function SavedItems({ onMentorSelect }: SavedItemsProps) {
         tag: item.contentItemType || 'Course',
         courseId: item.courseId,
         itemId: item.contentItemId,
-      }))
-
-      setSavedItems(mapped)
-    } catch (error) {
-      console.error('Failed to load saved items:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to load saved items')
-      setSavedItems([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadSavedItems()
-  }, [])
+      })),
+    [data]
+  )
 
   const handleRemove = async (item: { courseId: string; itemId: string }) => {
     try {
-      const response = await fetch(
-        `/api/student/saved-items?courseId=${item.courseId}&itemId=${item.itemId}`,
-        { method: 'DELETE' }
-      )
-      const data = await response.json()
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to remove saved item')
-      }
-      setSavedItems((prev) => prev.filter((entry) => entry.itemId !== item.itemId))
-      toast.success('Removed from saved items')
+      await removeSavedItemMutation.mutateAsync({
+        courseId: item.courseId,
+        itemId: item.itemId,
+      })
     } catch (error) {
       console.error('Failed to remove saved item:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to remove saved item')
@@ -121,6 +112,11 @@ export function SavedItems({ onMentorSelect }: SavedItemsProps) {
             Loading saved items...
           </div>
         )}
+        {!loading && error && (
+          <div className="text-sm text-red-500">
+            {error instanceof Error ? error.message : 'Failed to load saved items'}
+          </div>
+        )}
         {!loading && savedItems.length === 0 && (
           <div className="text-sm text-gray-500 dark:text-gray-400">
             No saved course items yet.
@@ -155,6 +151,7 @@ export function SavedItems({ onMentorSelect }: SavedItemsProps) {
                   size="sm" 
                   variant="ghost" 
                   className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 px-2"
+                  disabled={removeSavedItemMutation.isPending}
                   onClick={() => handleRemove({ courseId: item.courseId, itemId: item.itemId })}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />

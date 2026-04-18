@@ -9,8 +9,6 @@ import { SessionRating } from "./SessionRating"
 import { CheckCircle } from "lucide-react"
 import { Button } from "../ui/button"
 import { logConsentEvents } from "@/lib/consent-client"
-import { useAuth } from "@/contexts/auth-context"
-import { toast } from "sonner"
 import { useUpdateBookingMutation } from "@/hooks/queries/use-booking-queries"
 
 interface Session {
@@ -97,71 +95,6 @@ export function SessionViewModal({ session, isOpen, onClose }: SessionViewModalP
     setStage('rating');
   };
 
-  const { session: authSession } = useAuth();
-
-  const handleSubmitRating = async (rating: number, feedback: string) => {
-    if (!session || !authSession) {
-      toast.error("You must be logged in to submit a review.");
-      return;
-    }
-
-    const payload = {
-      sessionId: session.id,
-      revieweeId: session.mentorId,
-      rating: rating,
-      comment: feedback,
-      reviewerRole: 'mentee',
-    };
-
-    try {
-      const response = await fetch('/api/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to submit review');
-      }
-      
-      toast.success("Review submitted successfully!");
-      setStage('success');
-      setTimeout(() => {
-        handleClose();
-      }, 3000);
-
-    } catch (error) {
-      console.error("Failed to submit review:", error);
-      toast.error("There was an error submitting your review.");
-    }
-  };
-
-  const handleSkipRating = async () => {
-    if (!session || !authSession) {
-      return handleClose();
-    }
-
-    const payload = {
-      sessionId: session.id,
-      revieweeId: session.mentorId,
-      rating: 0, // 0 for skipped
-      comment: 'skipped',
-      reviewerRole: 'mentee',
-    };
-
-    try {
-      await fetch('/api/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-    } catch (error) {
-      console.error("Failed to record skipped review:", error);
-    }
-    
-    handleClose();
-  };
-
   const handleClose = () => {
     stopCamera() // Ensure camera is off when modal closes
     onClose()
@@ -226,10 +159,21 @@ export function SessionViewModal({ session, isOpen, onClose }: SessionViewModalP
         )}
         {stage === 'rating' && (
           <SessionRating
-            mentorName={session.mentorName || 'Mentor'}
-            mentorAvatar={session.mentorAvatar}
-            onSubmit={handleSubmitRating}
-            onSkip={handleSkipRating}
+            sessionId={session.id}
+            reviewee={{
+              id: session.mentorId ?? '',
+              name: session.mentorName || 'Mentor',
+              avatar: session.mentorAvatar,
+              role: 'mentor',
+            }}
+            onComplete={handleClose}
+            onSubmitted={() => {
+              setStage('success');
+              setTimeout(() => {
+                handleClose();
+              }, 3000);
+            }}
+            onSkipped={handleClose}
           />
         )}
         {stage === 'success' && (

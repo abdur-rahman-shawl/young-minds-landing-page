@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,10 +29,18 @@ import { AvailabilitySettings } from './availability-settings';
 import { AvailabilityExceptions } from './availability-exceptions';
 import { AvailabilityTemplates } from './availability-templates';
 import { useAuth } from '@/contexts/auth-context';
+import {
+  useMentorAvailabilityQuery,
+  useUpsertMentorAvailabilityMutation,
+} from '@/hooks/queries/use-mentor-queries';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { readJsonResponse } from '@/lib/http/json-response';
-import { getMentorAvailabilityAccessState } from '@/lib/mentor/availability-access';
+import { MentorFeaturePageGate } from '@/components/mentor/verification/mentor-verification-state';
+import type { DashboardRouteBasePath } from '@/lib/dashboard/sections';
+import {
+  getMentorFeatureDecision,
+  MENTOR_FEATURE_KEYS,
+} from '@/lib/mentor/access-policy';
 
 interface TimeBlock {
   startTime: string;
@@ -84,9 +91,12 @@ interface AvailabilityResponse {
   }>;
 }
 
-export function MentorAvailabilityManager() {
-  const { session, mentorProfile } = useAuth();
-  const [loading, setLoading] = useState(true);
+export function MentorAvailabilityManager({
+  routeBasePath = '/dashboard',
+}: {
+  routeBasePath?: DashboardRouteBasePath;
+}) {
+  const { session, mentorProfile, mentorAccess } = useAuth();
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('schedule');
@@ -106,59 +116,18 @@ export function MentorAvailabilityManager() {
   });
 
   const [originalSchedule, setOriginalSchedule] = useState<AvailabilitySchedule | null>(null);
-  const accessState = getMentorAvailabilityAccessState(mentorProfile);
-
-  // Fetch current availability
-  const fetchAvailability = useCallback(async () => {
-    if (!session?.user?.id || accessState !== 'ready') {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/mentors/${session.user.id}/availability`);
-      const data = await readJsonResponse<AvailabilityResponse>(response);
-
-      if (response.ok && data.schedule) {
-        const loadedSchedule: AvailabilitySchedule = {
-          timezone: data.schedule.timezone,
-          defaultSessionDuration: data.schedule.defaultSessionDuration,
-          bufferTimeBetweenSessions: data.schedule.bufferTimeBetweenSessions,
-          minAdvanceBookingHours: data.schedule.minAdvanceBookingHours,
-          maxAdvanceBookingDays: data.schedule.maxAdvanceBookingDays,
-          defaultStartTime: data.schedule.defaultStartTime,
-          defaultEndTime: data.schedule.defaultEndTime,
-          isActive: data.schedule.isActive,
-          allowInstantBooking: data.schedule.allowInstantBooking,
-          requireConfirmation: data.schedule.requireConfirmation,
-          weeklyPatterns: data.weeklyPatterns.map((pattern: any) => ({
-            dayOfWeek: pattern.dayOfWeek,
-            isEnabled: pattern.isEnabled,
-            timeBlocks: pattern.timeBlocks || []
-          }))
-        };
-
-        setSchedule(loadedSchedule);
-        setOriginalSchedule(loadedSchedule);
-      } else if (data.schedule === null) {
-        // No schedule exists, initialize with defaults
-        initializeDefaultSchedule();
-      } else if (!response.ok) {
-        throw new Error(data.error || 'Failed to load availability settings');
-      }
-    } catch (error) {
-      console.error('Failed to fetch availability:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to load availability settings'
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [accessState, session?.user?.id]);
+  const availabilityAccess = getMentorFeatureDecision(
+    mentorAccess,
+    MENTOR_FEATURE_KEYS.availabilityManage
+  );
+  const canManageAvailability = Boolean(availabilityAccess?.allowed);
+  const availabilityQuery = useMentorAvailabilityQuery(session?.user?.id, {
+    enabled: canManageAvailability && !!session?.user?.id,
+  });
+  const upsertAvailabilityMutation = useUpsertMentorAvailabilityMutation();
 
   // Initialize default schedule
-  const initializeDefaultSchedule = () => {
+  const initializeDefaultSchedule = useCallback(() => {
     const defaultPatterns: WeeklyPattern[] = [];
 
     // Monday to Friday, 9 AM to 5 PM with lunch break
@@ -201,7 +170,7 @@ export function MentorAvailabilityManager() {
       ...prev,
       weeklyPatterns: defaultPatterns
     }));
-  };
+  }, []);
 
   // Save availability
   const saveAvailability = async () => {
@@ -209,24 +178,25 @@ export function MentorAvailabilityManager() {
 
     setSaving(true);
     try {
-      const method = originalSchedule ? 'PUT' : 'POST';
-      const response = await fetch(`/api/mentors/${session.user.id}/availability`, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
+      await upsertAvailabilityMutation.mutateAsync({
+        mentorUserId: session.user.id,
+        schedule: {
+          timezone: schedule.timezone,
+          defaultSessionDuration: schedule.defaultSessionDuration,
+          bufferTimeBetweenSessions: schedule.bufferTimeBetweenSessions,
+          minAdvanceBookingHours: schedule.minAdvanceBookingHours,
+          maxAdvanceBookingDays: schedule.maxAdvanceBookingDays,
+          defaultStartTime: schedule.defaultStartTime,
+          defaultEndTime: schedule.defaultEndTime,
+          isActive: schedule.isActive,
+          allowInstantBooking: schedule.allowInstantBooking,
+          requireConfirmation: schedule.requireConfirmation,
+          weeklyPatterns: schedule.weeklyPatterns,
         },
-        body: JSON.stringify(schedule),
       });
-
-      const data = await readJsonResponse<{ error?: string }>(response);
-
-      if (response.ok) {
-        toast.success('Availability saved successfully');
-        setOriginalSchedule(schedule);
-        setHasChanges(false);
-      } else {
-        toast.error(data.error || 'Failed to save availability');
-      }
+      toast.success('Availability saved successfully');
+      setOriginalSchedule(schedule);
+      setHasChanges(false);
     } catch (error) {
       console.error('Failed to save availability:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to save availability');
@@ -296,60 +266,63 @@ export function MentorAvailabilityManager() {
   };
 
   useEffect(() => {
-    fetchAvailability();
-  }, [fetchAvailability]);
+    if (!canManageAvailability) {
+      return;
+    }
 
-  if (accessState === 'profile-required') {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Availability Management</CardTitle>
-          <CardDescription>
-            Complete your mentor profile before you set up bookable time slots.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Mentor profile required</AlertTitle>
-            <AlertDescription>
-              Availability depends on your mentor profile record. Finish your setup first,
-              then come back here to manage your schedule.
-            </AlertDescription>
-          </Alert>
-          <div className="mt-4">
-            <Button asChild>
-              <Link href="/become-expert">Complete Mentor Profile</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+    const data = availabilityQuery.data as AvailabilityResponse | undefined;
 
-  if (accessState === 'verification-required') {
+    if (data?.schedule) {
+      const loadedSchedule: AvailabilitySchedule = {
+        timezone: data.schedule.timezone,
+        defaultSessionDuration: data.schedule.defaultSessionDuration,
+        bufferTimeBetweenSessions: data.schedule.bufferTimeBetweenSessions,
+        minAdvanceBookingHours: data.schedule.minAdvanceBookingHours,
+        maxAdvanceBookingDays: data.schedule.maxAdvanceBookingDays,
+        defaultStartTime: data.schedule.defaultStartTime,
+        defaultEndTime: data.schedule.defaultEndTime,
+        isActive: data.schedule.isActive,
+        allowInstantBooking: data.schedule.allowInstantBooking,
+        requireConfirmation: data.schedule.requireConfirmation,
+        weeklyPatterns: data.weeklyPatterns.map((pattern: any) => ({
+          dayOfWeek: pattern.dayOfWeek,
+          isEnabled: pattern.isEnabled,
+          timeBlocks: pattern.timeBlocks || [],
+        })),
+      };
+
+      setSchedule(loadedSchedule);
+      setOriginalSchedule(loadedSchedule);
+      return;
+    }
+
+    if (data?.schedule === null) {
+      initializeDefaultSchedule();
+      setOriginalSchedule(null);
+    }
+  }, [canManageAvailability, availabilityQuery.data, initializeDefaultSchedule]);
+
+  useEffect(() => {
+    if (availabilityQuery.error) {
+      toast.error(
+        availabilityQuery.error instanceof Error
+          ? availabilityQuery.error.message
+          : 'Failed to load availability settings'
+      );
+    }
+  }, [availabilityQuery.error]);
+
+  const loading = canManageAvailability && availabilityQuery.isLoading;
+
+  if (!canManageAvailability) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Availability Management</CardTitle>
-          <CardDescription>
-            Verified mentors can publish availability and accept new bookings.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <Shield className="h-4 w-4" />
-            <AlertTitle>Verification required</AlertTitle>
-            <AlertDescription>
-              Your current mentor verification status is{' '}
-              <span className="font-medium">
-                {mentorProfile?.verificationStatus ?? 'unknown'}
-              </span>
-              . Availability becomes available once your mentor profile is verified.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
+      <MentorFeaturePageGate
+        feature={MENTOR_FEATURE_KEYS.availabilityManage}
+        access={availabilityAccess}
+        mentorProfile={mentorProfile}
+        routeBasePath={routeBasePath}
+        userName={session?.user?.name}
+      />
     );
   }
 

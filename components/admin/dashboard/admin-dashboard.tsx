@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -25,35 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-interface MentorItem {
-  id: string;
-  userId: string;
-  name: string;
-  email: string;
-  title: string | null;
-  company: string | null;
-  verificationStatus: string;
-  isAvailable: boolean | null;
-  createdAt: string | null;
-}
-
-interface MenteeItem {
-  id: string;
-  userId: string;
-  name: string;
-  email: string;
-  currentRole: string | null;
-  careerGoals: string | null;
-  createdAt: string | null;
-}
-
-const pendingStatuses = new Set([
-  "YET_TO_APPLY",
-  "IN_PROGRESS",
-  "REVERIFICATION",
-  "UPDATED_PROFILE",
-]);
+import {
+  useAdminMentorsQuery,
+  useAdminOverviewQuery,
+  useAdminUpdateMentorMutation,
+} from "@/hooks/queries/use-admin-queries";
+import { toast } from "sonner";
 
 const formatNumber = (value: number) =>
   new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
@@ -67,121 +43,56 @@ const formatPercentage = (value: number | null) =>
       }).format(value);
 
 export function AdminDashboard() {
-  const [mentors, setMentors] = useState<MentorItem[]>([]);
-  const [mentees, setMentees] = useState<MenteeItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [mentorResponse, menteeResponse] = await Promise.all([
-          fetch("/api/admin/mentors", { credentials: "include" }),
-          fetch("/api/admin/mentees", { credentials: "include" }),
-        ]);
-
-        const [mentorJson, menteeJson] = await Promise.all([
-          mentorResponse.json(),
-          menteeResponse.json(),
-        ]);
-
-        if (mentorResponse.ok && mentorJson?.success) {
-          setMentors(mentorJson.data ?? []);
-        }
-
-        if (menteeResponse.ok && menteeJson?.success) {
-          setMentees(menteeJson.data ?? []);
-        }
-      } catch (error) {
-        console.error("Admin dashboard fetch error", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, []);
-
-  const stats = useMemo(() => {
-    const totalMentors = mentors.length;
-    const totalMentees = mentees.length;
-    const totalUsers = totalMentors + totalMentees;
-
-    const verifiedMentors = mentors.filter(
-      (mentor) => mentor.verificationStatus === "VERIFIED",
-    ).length;
-
-    const availableMentors = mentors.filter(
-      (mentor) =>
-        mentor.verificationStatus === "VERIFIED" && mentor.isAvailable !== false,
-    ).length;
-
-    const pendingMentors = mentors.filter((mentor) =>
-      pendingStatuses.has(mentor.verificationStatus),
-    ).length;
-
-    const needsFollowUpMentors = mentors.filter((mentor) =>
-      mentor.verificationStatus === "REJECTED" ||
-      mentor.verificationStatus === "REVERIFICATION",
-    ).length;
-
-    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const isWithinLastWeek = (isoDate: string | null | undefined) => {
-      if (!isoDate) return false;
-      const parsed = Date.parse(isoDate);
-      if (Number.isNaN(parsed)) return false;
-      return parsed >= weekAgo;
-    };
-
-    const mentorsThisWeek = mentors.filter((mentor) =>
-      isWithinLastWeek(mentor.createdAt),
-    ).length;
-    const menteesThisWeek = mentees.filter((mentee) =>
-      isWithinLastWeek(mentee.createdAt),
-    ).length;
-
-    const verifiedRate = totalMentors
-      ? verifiedMentors / Math.max(totalMentors, 1)
-      : null;
-
-    return {
-      totalMentors,
-      totalMentees,
-      totalUsers,
-      verifiedMentors,
-      availableMentors,
-      pendingMentors,
-      needsFollowUpMentors,
-      mentorsThisWeek,
-      menteesThisWeek,
-      verifiedRate,
-    };
-  }, [mentors, mentees]);
+  const {
+    data: overview,
+    isLoading: overviewLoading,
+    error: overviewError,
+  } = useAdminOverviewQuery();
+  const { data: mentors = [] } = useAdminMentorsQuery();
+  const updateMentorMutation = useAdminUpdateMentorMutation();
 
   const updateStatus = async (mentorId: string, status: string) => {
+    const existingMentor = mentors.find((mentor) => mentor.id === mentorId);
+    if (!existingMentor) {
+      return;
+    }
+
     try {
-      const res = await fetch("/api/admin/mentors", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ mentorId, status }),
+      await updateMentorMutation.mutateAsync({
+        mentorId,
+        status: status as
+          | "YET_TO_APPLY"
+          | "IN_PROGRESS"
+          | "VERIFIED"
+          | "REJECTED"
+          | "REVERIFICATION"
+          | "RESUBMITTED"
+          | "UPDATED_PROFILE",
+        notes: existingMentor.verificationNotes ?? undefined,
       });
-      const json = await res.json();
-      if (json.success) {
-        setMentors((prev) =>
-          prev.map((m) =>
-            m.id === mentorId ? { ...m, verificationStatus: status } : m,
-          ),
-        );
-      }
-    } catch (e) {
-      console.error("Status update error", e);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update mentor status",
+      );
     }
   };
 
-  if (loading) {
+  if (overviewLoading || !overview) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading dashboard metrics�</p>
+        <p className="text-sm text-muted-foreground">Loading dashboard metrics...</p>
+      </div>
+    );
+  }
+
+  if (overviewError) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <p className="text-sm text-destructive">
+          {overviewError instanceof Error
+            ? overviewError.message
+            : "Failed to load dashboard metrics"}
+        </p>
       </div>
     );
   }
@@ -189,26 +100,26 @@ export function AdminDashboard() {
   const primaryCards = [
     {
       title: "Total mentors",
-      value: formatNumber(stats.totalMentors),
-      description: `${formatNumber(stats.verifiedMentors)} verified so far`,
+      value: formatNumber(overview.totals.totalMentors),
+      description: `${formatNumber(overview.mentors.verified)} verified so far`,
       icon: Users,
     },
     {
       title: "Active mentors",
-      value: formatNumber(stats.availableMentors),
+      value: formatNumber(overview.mentors.available),
       description: "Accepting sessions right now",
       icon: UserCheck,
     },
     {
       title: "Pending mentor applications",
-      value: formatNumber(stats.pendingMentors),
-      description: `${formatNumber(stats.needsFollowUpMentors)} need follow-up`,
+      value: formatNumber(overview.mentors.pending),
+      description: `${formatNumber(overview.mentors.needsFollowUp)} need follow-up`,
       icon: AlertTriangle,
     },
     {
       title: "Total mentees",
-      value: formatNumber(stats.totalMentees),
-      description: `${formatNumber(stats.totalUsers)} total people in system`,
+      value: formatNumber(overview.totals.totalMentees),
+      description: `${formatNumber(overview.totals.totalUsers)} total people in system`,
       icon: UserPlus,
     },
   ];
@@ -216,25 +127,25 @@ export function AdminDashboard() {
   const secondaryCards = [
     {
       title: "Mentors onboarded this week",
-      value: formatNumber(stats.mentorsThisWeek),
+      value: formatNumber(overview.mentors.joinedThisWeek),
       description: "Created in the last 7 days",
       icon: CalendarClock,
     },
     {
       title: "Mentees joined this week",
-      value: formatNumber(stats.menteesThisWeek),
+      value: formatNumber(overview.mentees.joinedThisWeek),
       description: "New learners in the last 7 days",
       icon: CalendarClock,
     },
     {
       title: "Mentors needing updates",
-      value: formatNumber(stats.needsFollowUpMentors),
+      value: formatNumber(overview.mentors.needsFollowUp),
       description: "Rejected or flagged for revisions",
       icon: AlertTriangle,
     },
     {
       title: "Verified mentor rate",
-      value: formatPercentage(stats.verifiedRate),
+      value: formatPercentage(overview.mentors.verifiedRate),
       description: "Share of mentors fully approved",
       icon: PieChart,
     },

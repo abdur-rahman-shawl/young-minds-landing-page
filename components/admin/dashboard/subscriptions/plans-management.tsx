@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -39,6 +39,12 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  useAdminCreateSubscriptionPlanMutation,
+  useAdminDeleteSubscriptionPlanMutation,
+  useAdminSubscriptionPlansQuery,
+  useAdminUpdateSubscriptionPlanMutation,
+} from "@/hooks/queries/use-admin-subscription-queries";
 import { PlanFeatureEditor } from "./plan-feature-editor";
 import { PlanPricingEditor } from "./plan-pricing-editor";
 
@@ -57,35 +63,18 @@ interface SubscriptionPlan {
 }
 
 export function PlansManagement() {
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [loading, setLoading] = useState(true);
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [filterAudience, setFilterAudience] = useState<"all" | "mentor" | "mentee">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "draft" | "active" | "archived">("all");
-
-  useEffect(() => {
-    loadPlans();
-  }, []);
-
-  const loadPlans = async () => {
-    try {
-      const res = await fetch("/api/admin/subscriptions/plans", {
-        credentials: "include",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setPlans(data.data);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load plans:", error);
-      toast.error("Failed to load subscription plans");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    data: plans = [],
+    isLoading: loading,
+    refetch: refetchPlans,
+  } = useAdminSubscriptionPlansQuery();
+  const createPlanMutation = useAdminCreateSubscriptionPlanMutation();
+  const updatePlanMutation = useAdminUpdateSubscriptionPlanMutation();
+  const deletePlanMutation = useAdminDeleteSubscriptionPlanMutation();
 
   const createPlan = async (formData: {
     plan_key: string;
@@ -95,26 +84,12 @@ export function PlansManagement() {
     status: "draft" | "active";
   }) => {
     try {
-      const res = await fetch("/api/admin/subscriptions/plans", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(formData),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success("Plan created successfully");
-        loadPlans();
-        setIsCreateDialogOpen(false);
-        return true;
-      } else {
-        toast.error(data.message || "Failed to create plan");
-        return false;
-      }
+      await createPlanMutation.mutateAsync(formData);
+      toast.success("Plan created successfully");
+      await refetchPlans();
+      setIsCreateDialogOpen(false);
+      return true;
     } catch (error) {
-      console.error("Failed to create plan:", error);
-      toast.error("Failed to create plan");
       return false;
     }
   };
@@ -124,25 +99,18 @@ export function PlansManagement() {
     updates: Partial<SubscriptionPlan>
   ) => {
     try {
-      const res = await fetch(`/api/admin/subscriptions/plans/${planId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(updates),
+      await updatePlanMutation.mutateAsync({
+        planId,
+        name: updates.name,
+        description: updates.description,
+        status: updates.status,
+        sort_order: updates.sort_order,
+        metadata: updates.metadata,
       });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success("Plan updated successfully");
-        loadPlans();
-        return true;
-      } else {
-        toast.error(data.message || "Failed to update plan");
-        return false;
-      }
+      toast.success("Plan updated successfully");
+      await refetchPlans();
+      return true;
     } catch (error) {
-      console.error("Failed to update plan:", error);
-      toast.error("Failed to update plan");
       return false;
     }
   };
@@ -157,21 +125,11 @@ export function PlansManagement() {
     }
 
     try {
-      const res = await fetch(`/api/admin/subscriptions/plans/${planId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success("Plan deleted successfully");
-        loadPlans();
-      } else {
-        toast.error(data.message || "Failed to delete plan");
-      }
+      await deletePlanMutation.mutateAsync({ planId });
+      toast.success("Plan deleted successfully");
+      await refetchPlans();
     } catch (error) {
-      console.error("Failed to delete plan:", error);
-      toast.error("Failed to delete plan");
+      // mutation hook surfaces the toast
     }
   };
 

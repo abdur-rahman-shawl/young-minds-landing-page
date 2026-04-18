@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -31,6 +31,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import {
+  useAdminCreateSubscriptionFeatureMutation,
+  useAdminSubscriptionFeatureCategoriesQuery,
+  useAdminSubscriptionFeaturesQuery,
+  useAdminUpdateSubscriptionFeatureMutation,
+} from "@/hooks/queries/use-admin-subscription-queries";
 
 interface Feature {
   id: string;
@@ -72,63 +78,37 @@ const defaultCreateFormState: CreateFeatureFormState = {
 };
 
 export function FeaturesManagement() {
-  const [features, setFeatures] = useState<Feature[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [editingFeature, setEditingFeature] = useState<Feature | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [categories, setCategories] = useState<FeatureCategory[]>([]);
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState<CreateFeatureFormState>(defaultCreateFormState);
-
-  useEffect(() => {
-    loadFeatures();
-  }, []);
-
-  const loadFeatures = async () => {
-    try {
-      const res = await fetch("/api/admin/subscriptions/features", {
-        credentials: "include",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setFeatures(data.data);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load features:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadCategories = async () => {
-    try {
-      const res = await fetch("/api/admin/subscriptions/feature-categories", {
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setCategories(data.data);
-      }
-    } catch (error) {
-      console.error("Failed to load feature categories:", error);
-    }
-  };
+  const {
+    data: features = [],
+    isLoading: loading,
+    refetch: refetchFeatures,
+  } = useAdminSubscriptionFeaturesQuery();
+  const {
+    data: categories = [],
+    refetch: refetchCategories,
+  } = useAdminSubscriptionFeatureCategoriesQuery(
+    isCreateDialogOpen || !!editingFeature
+  );
+  const createFeatureMutation = useAdminCreateSubscriptionFeatureMutation();
+  const updateFeatureMutation = useAdminUpdateSubscriptionFeatureMutation();
 
   const handleEditOpen = (feature: Feature) => {
     setEditingFeature(feature);
     if (categories.length === 0) {
-      void loadCategories();
+      void refetchCategories();
     }
   };
 
   const handleCreateOpen = () => {
     setIsCreateDialogOpen(true);
     if (categories.length === 0) {
-      void loadCategories();
+      void refetchCategories();
     }
   };
 
@@ -149,33 +129,21 @@ export function FeaturesManagement() {
 
     setCreating(true);
     try {
-      const res = await fetch("/api/admin/subscriptions/features", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          feature_key: normalizedFeatureKey,
-          name: normalizedName,
-          description: draft.description.trim() || null,
-          category_id: draft.category_id || null,
-          value_type: draft.value_type,
-          unit: draft.unit.trim() || null,
-          is_metered: draft.is_metered,
-        }),
+      await createFeatureMutation.mutateAsync({
+        feature_key: normalizedFeatureKey,
+        name: normalizedName,
+        description: draft.description.trim() || null,
+        category_id: draft.category_id || null,
+        value_type: draft.value_type,
+        unit: draft.unit.trim() || null,
+        is_metered: draft.is_metered,
       });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success("Feature created");
-        setIsCreateDialogOpen(false);
-        setCreateForm(defaultCreateFormState);
-        await loadFeatures();
-      } else {
-        toast.error(data.message || "Failed to create feature");
-      }
+      toast.success("Feature created");
+      setIsCreateDialogOpen(false);
+      setCreateForm(defaultCreateFormState);
+      await refetchFeatures();
     } catch (error) {
-      console.error("Failed to create feature:", error);
-      toast.error("Failed to create feature");
+      // mutation hook surfaces the toast
     } finally {
       setCreating(false);
     }
@@ -184,32 +152,21 @@ export function FeaturesManagement() {
   const handleSave = async (updated: Feature) => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/subscriptions/features/${updated.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          name: updated.name,
-          feature_key: updated.feature_key,
-          description: updated.description,
-          category_id: updated.category_id,
-          value_type: updated.value_type,
-          unit: updated.unit,
-          is_metered: updated.is_metered,
-        }),
+      await updateFeatureMutation.mutateAsync({
+        featureId: updated.id,
+        name: updated.name,
+        feature_key: updated.feature_key,
+        description: updated.description,
+        category_id: updated.category_id,
+        value_type: updated.value_type,
+        unit: updated.unit,
+        is_metered: updated.is_metered,
       });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success("Feature updated");
-        setEditingFeature(null);
-        loadFeatures();
-      } else {
-        toast.error(data.message || "Failed to update feature");
-      }
+      toast.success("Feature updated");
+      setEditingFeature(null);
+      await refetchFeatures();
     } catch (error) {
-      console.error("Failed to update feature:", error);
-      toast.error("Failed to update feature");
+      // mutation hook surfaces the toast
     } finally {
       setSaving(false);
     }

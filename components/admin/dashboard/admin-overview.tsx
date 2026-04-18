@@ -1,6 +1,5 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -18,24 +17,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-
-interface MentorItem {
-  id: string;
-  verificationStatus: string;
-  isAvailable: boolean | null;
-  createdAt: string | null;
-}
-
-interface MenteeItem {
-  id: string;
-  createdAt: string | null;
-}
-
-const pendingStatuses = new Set([
-  "YET_TO_APPLY",
-  "IN_PROGRESS",
-  "REVERIFICATION",
-]);
+import { useAdminOverviewQuery } from "@/hooks/queries/use-admin-queries";
 
 const formatNumber = (value: number) =>
   new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
@@ -48,139 +30,52 @@ const formatPercentage = (value: number | null) =>
         maximumFractionDigits: 1,
       }).format(value);
 
-const toRecentCount = (items: { createdAt: string | null }[]) => {
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  return items.filter((item) => {
-    if (!item.createdAt) return false;
-    const parsed = Date.parse(item.createdAt);
-    return !Number.isNaN(parsed) && parsed >= weekAgo;
-  }).length;
-};
-
 export function AdminOverview() {
-  const [mentors, setMentors] = useState<MentorItem[]>([]);
-  const [mentees, setMentees] = useState<MenteeItem[]>([]);
-  const [enquiryCount, setEnquiryCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [lastRefreshed, setLastRefreshed] = useState<string>("");
+  const { data: overview, isLoading, error } = useAdminOverviewQuery();
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [mentorResponse, menteeResponse, enquiryResponse] = await Promise.all([
-          fetch("/api/admin/mentors", { credentials: "include" }),
-          fetch("/api/admin/mentees", { credentials: "include" }),
-          fetch("/api/admin/enquiries", { credentials: "include" }),
-        ]);
+  if (isLoading || !overview) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading admin overview...</p>
+      </div>
+    );
+  }
 
-        const [mentorJson, menteeJson, enquiryJson] = await Promise.all([
-          mentorResponse.json().catch(() => ({ success: false })),
-          menteeResponse.json().catch(() => ({ success: false })),
-          enquiryResponse.json().catch(() => ({ success: false })),
-        ]);
+  if (error) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <p className="text-sm text-destructive">
+          {error instanceof Error ? error.message : "Failed to load admin overview"}
+        </p>
+      </div>
+    );
+  }
 
-        if (mentorResponse.ok && mentorJson?.success) {
-          setMentors(
-            (mentorJson.data ?? []).map((mentor: any) => ({
-              id: mentor.id,
-              verificationStatus: mentor.verificationStatus,
-              isAvailable: mentor.isAvailable ?? null,
-              createdAt: mentor.createdAt ?? null,
-            })),
-          );
-        }
-
-        if (menteeResponse.ok && menteeJson?.success) {
-          setMentees(
-            (menteeJson.data ?? []).map((mentee: any) => ({
-              id: mentee.id,
-              createdAt: mentee.createdAt ?? null,
-            })),
-          );
-        }
-
-        if (enquiryResponse.ok && enquiryJson?.success && Array.isArray(enquiryJson.data)) {
-          setEnquiryCount(enquiryJson.data.length);
-        }
-
-        setLastRefreshed(new Date().toLocaleTimeString());
-      } catch (error) {
-        console.error("Admin overview fetch error", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, []);
-
-  const stats = useMemo(() => {
-    const totalMentors = mentors.length;
-    const totalMentees = mentees.length;
-    const totalUsers = totalMentors + totalMentees;
-
-    const verifiedMentors = mentors.filter(
-      (mentor) => mentor.verificationStatus === "VERIFIED",
-    ).length;
-
-    const availableMentors = mentors.filter(
-      (mentor) =>
-        mentor.verificationStatus === "VERIFIED" && mentor.isAvailable !== false,
-    ).length;
-
-    const pendingMentors = mentors.filter((mentor) =>
-      pendingStatuses.has(mentor.verificationStatus),
-    ).length;
-
-    const needsFollowUpMentors = mentors.filter((mentor) =>
-      mentor.verificationStatus === "REJECTED" ||
-      mentor.verificationStatus === "REVERIFICATION",
-    ).length;
-
-    const mentorsThisWeek = toRecentCount(mentors);
-    const menteesThisWeek = toRecentCount(mentees);
-
-    const verifiedRate = totalMentors
-      ? verifiedMentors / Math.max(totalMentors, 1)
-      : null;
-
-    return {
-      totalMentors,
-      totalMentees,
-      totalUsers,
-      verifiedMentors,
-      availableMentors,
-      pendingMentors,
-      needsFollowUpMentors,
-      mentorsThisWeek,
-      menteesThisWeek,
-      verifiedRate,
-    };
-  }, [mentors, mentees]);
+  const lastRefreshed = new Date(overview.lastRefreshedAt).toLocaleTimeString();
 
   const overallCards = [
     {
       title: "Total people",
-      value: formatNumber(stats.totalUsers),
-      description: `${formatNumber(stats.totalMentors)} mentors � ${formatNumber(stats.totalMentees)} mentees`,
+      value: formatNumber(overview.totals.totalUsers),
+      description: `${formatNumber(overview.totals.totalMentors)} mentors | ${formatNumber(overview.totals.totalMentees)} mentees`,
       icon: Users,
     },
     {
       title: "Total mentors",
-      value: formatNumber(stats.totalMentors),
-      description: `${formatNumber(stats.verifiedMentors)} verified to date`,
+      value: formatNumber(overview.mentors.total),
+      description: `${formatNumber(overview.mentors.verified)} verified to date`,
       icon: UserCheck,
     },
     {
       title: "Total mentees",
-      value: formatNumber(stats.totalMentees),
-      description: `${formatNumber(stats.menteesThisWeek)} joined this week`,
+      value: formatNumber(overview.mentees.total),
+      description: `${formatNumber(overview.mentees.joinedThisWeek)} joined this week`,
       icon: UserPlus,
     },
     {
       title: "Total enquiries",
-      value: formatNumber(enquiryCount),
-      description: "Contact form submissions",
+      value: formatNumber(overview.enquiries.total),
+      description: `${formatNumber(overview.enquiries.open)} open enquiries`,
       icon: Inbox,
     },
   ];
@@ -188,25 +83,25 @@ export function AdminOverview() {
   const mentorCards = [
     {
       title: "Active mentors",
-      value: formatNumber(stats.availableMentors),
+      value: formatNumber(overview.mentors.available),
       description: "Accepting sessions right now",
       icon: UserCheck,
     },
     {
       title: "Pending applications",
-      value: formatNumber(stats.pendingMentors),
-      description: `${formatNumber(stats.needsFollowUpMentors)} require follow-up`,
+      value: formatNumber(overview.mentors.pending),
+      description: `${formatNumber(overview.mentors.needsFollowUp)} require follow-up`,
       icon: AlertTriangle,
     },
     {
       title: "Mentors onboarded this week",
-      value: formatNumber(stats.mentorsThisWeek),
+      value: formatNumber(overview.mentors.joinedThisWeek),
       description: "Created in the last 7 days",
       icon: CalendarClock,
     },
     {
       title: "Verified mentor rate",
-      value: formatPercentage(stats.verifiedRate),
+      value: formatPercentage(overview.mentors.verifiedRate),
       description: "Share of mentors fully approved",
       icon: PieChart,
     },
@@ -215,13 +110,13 @@ export function AdminOverview() {
   const menteeCards = [
     {
       title: "Mentees joined this week",
-      value: formatNumber(stats.menteesThisWeek),
+      value: formatNumber(overview.mentees.joinedThisWeek),
       description: "New learners in the last 7 days",
       icon: CalendarClock,
     },
     {
       title: "Total mentees",
-      value: formatNumber(stats.totalMentees),
+      value: formatNumber(overview.mentees.total),
       description: "Lifetime enrolled mentees",
       icon: UserPlus,
     },
@@ -266,7 +161,7 @@ export function AdminOverview() {
             A snapshot of how mentors and mentees are progressing across the platform.
           </p>
         </div>
-        {!loading && lastRefreshed && (
+        {lastRefreshed && (
           <span className="text-xs text-muted-foreground">Last refreshed {lastRefreshed}</span>
         )}
       </div>

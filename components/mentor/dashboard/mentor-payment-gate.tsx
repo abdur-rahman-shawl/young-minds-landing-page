@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { useValidateMentorCouponMutation } from "@/hooks/queries/use-mentor-queries"
 import {
     CheckCircle,
     ArrowRight,
@@ -29,10 +30,10 @@ export function MentorPaymentGate({ user, mentorProfile, onPaymentComplete }: Me
     const email = mentorProfile?.email || user?.email
     const [couponCode, setCouponCode] = useState('')
     const [couponApplied, setCouponApplied] = useState(false)
-    const [isApplying, setIsApplying] = useState(false)
     const [applyError, setApplyError] = useState<string | null>(null)
     const [validationMessage, setValidationMessage] = useState<string | null>(null)
     const [isCompleting, setIsCompleting] = useState(false)
+    const validateCouponMutation = useValidateMentorCouponMutation()
 
     const handleApplyCoupon = async () => {
         const normalizedCode = couponCode.trim().toUpperCase()
@@ -41,25 +42,13 @@ export function MentorPaymentGate({ user, mentorProfile, onPaymentComplete }: Me
             return
         }
 
-        setIsApplying(true)
         setApplyError(null)
         setValidationMessage(null)
 
         try {
-            const response = await fetch('/api/mentor/payments/validate-coupon', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ couponCode: normalizedCode }),
+            const data = await validateCouponMutation.mutateAsync({
+                couponCode: normalizedCode,
             })
-
-            const data = await response.json().catch(() => ({ success: false, error: 'Invalid response from server' }))
-
-            if (!response.ok || !data?.success) {
-                const message = data?.error || 'Invalid coupon code. Please try again.'
-                throw new Error(message)
-            }
 
             setCouponApplied(true)
             setValidationMessage(data?.message || 'Coupon accepted — you can now continue without payment.')
@@ -67,8 +56,6 @@ export function MentorPaymentGate({ user, mentorProfile, onPaymentComplete }: Me
             const message = error instanceof Error ? error.message : 'Failed to validate coupon code'
             setCouponApplied(false)
             setApplyError(message)
-        } finally {
-            setIsApplying(false)
         }
     }
 
@@ -172,9 +159,9 @@ export function MentorPaymentGate({ user, mentorProfile, onPaymentComplete }: Me
                                 variant="outline"
                                 onClick={handleApplyCoupon}
                                 className="sm:w-auto"
-                                disabled={isApplying}
+                                disabled={validateCouponMutation.isPending}
                             >
-                                {isApplying ? 'Applying...' : 'Apply coupon'}
+                                {validateCouponMutation.isPending ? 'Applying...' : 'Apply coupon'}
                             </Button>
                         </div>
                         {applyError && (

@@ -1,39 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys, invalidateQueries } from '@/lib/react-query';
+import { useTRPCClient } from '@/lib/trpc/react';
+import type { RouterOutputs } from '@/lib/trpc/types';
 
-interface SessionWithRolesData {
-  session: any;
-  user: any;
-  roles: any[];
-  mentorProfile: any;
-  isAdmin: boolean;
-  isMentor: boolean;
-  isMentee: boolean;
-  isMentorWithIncompleteProfile: boolean;
-}
+type SessionWithRolesData = RouterOutputs['auth']['sessionWithRoles'];
 
 // Optimized session query with built-in caching and deduplication
 export function useSessionWithRolesQuery() {
+  const trpcClient = useTRPCClient();
+
   return useQuery({
     queryKey: queryKeys.sessionWithRoles,
-    queryFn: async (): Promise<SessionWithRolesData | null> => {
-      const response = await fetch('/api/auth/session-with-roles', {
-        credentials: 'include',
-        cache: 'no-cache',
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success) {
-        return result.data;
-      } else {
-        throw new Error(result.error || 'Failed to fetch session');
-      }
-    },
+    queryFn: (): Promise<SessionWithRolesData> =>
+      trpcClient.auth.sessionWithRoles.query(),
     // Session data is critical - keep it fresh
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes

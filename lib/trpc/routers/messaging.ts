@@ -1,9 +1,8 @@
-import { TRPCError } from '@trpc/server';
-import { z } from 'zod';
-
+import { assertMessagingAccess } from '@/lib/access-policy/server';
+import { MESSAGING_ACCESS_INTENTS } from '@/lib/messaging/access-policy';
 import type { TRPCContext } from '../context';
-import { createTRPCRouter, protectedProcedure } from '../init';
-import { MessagingServiceError } from '@/lib/messaging/server/errors';
+import { createTRPCRouter, messagingMailboxProcedure, userProcedure } from '../init';
+import { throwAsTRPCError } from '@/lib/trpc/router-error';
 import {
   createRequestSchema,
   deleteMessageSchema,
@@ -38,55 +37,14 @@ type AuthenticatedContext = TRPCContext & {
   userId: string;
 };
 
-function mapStatusToTRPCCode(status: number): TRPCError['code'] {
-  switch (status) {
-    case 400:
-      return 'BAD_REQUEST';
-    case 401:
-      return 'UNAUTHORIZED';
-    case 403:
-      return 'FORBIDDEN';
-    case 404:
-      return 'NOT_FOUND';
-    case 409:
-      return 'CONFLICT';
-    case 429:
-      return 'TOO_MANY_REQUESTS';
-    default:
-      return 'INTERNAL_SERVER_ERROR';
-  }
-}
-
-function throwAsTRPCError(error: unknown, fallbackMessage: string): never {
-  if (error instanceof TRPCError) {
-    throw error;
-  }
-
-  if (error instanceof MessagingServiceError) {
-    throw new TRPCError({
-      code: mapStatusToTRPCCode(error.status),
-      message: error.message,
-      cause: error,
-    });
-  }
-
-  if (error instanceof z.ZodError) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: error.errors[0]?.message ?? 'Invalid input',
-      cause: error,
-    });
-  }
-
-  throw new TRPCError({
-    code: 'INTERNAL_SERVER_ERROR',
-    message: fallbackMessage,
-    cause: error instanceof Error ? error : undefined,
-  });
+function getRequestAudience(
+  requestType: 'mentor_to_mentee' | 'mentee_to_mentor'
+) {
+  return requestType === 'mentor_to_mentee' ? 'mentor' : 'mentee';
 }
 
 export const messagingRouter = createTRPCRouter({
-  listThreads: protectedProcedure
+  listThreads: messagingMailboxProcedure
     .input(listThreadsInputSchema)
     .query(async ({ ctx, input }) => {
       try {
@@ -95,7 +53,7 @@ export const messagingRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch message threads');
       }
     }),
-  getThread: protectedProcedure
+  getThread: messagingMailboxProcedure
     .input(getThreadInputSchema)
     .query(async ({ ctx, input }) => {
       try {
@@ -104,7 +62,7 @@ export const messagingRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch thread');
       }
     }),
-  updateThread: protectedProcedure
+  updateThread: messagingMailboxProcedure
     .input(updateThreadSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -113,7 +71,7 @@ export const messagingRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to update thread');
       }
     }),
-  sendMessage: protectedProcedure
+  sendMessage: messagingMailboxProcedure
     .input(sendMessageSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -122,7 +80,7 @@ export const messagingRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to send message');
       }
     }),
-  startAdminConversation: protectedProcedure
+  startAdminConversation: messagingMailboxProcedure
     .input(startAdminConversationSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -131,7 +89,7 @@ export const messagingRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to start admin conversation');
       }
     }),
-  listRequests: protectedProcedure
+  listRequests: messagingMailboxProcedure
     .input(listRequestsInputSchema)
     .query(async ({ ctx, input }) => {
       try {
@@ -140,16 +98,25 @@ export const messagingRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch message requests');
       }
     }),
-  sendRequest: protectedProcedure
+  sendRequest: userProcedure
     .input(createRequestSchema)
     .mutation(async ({ ctx, input }) => {
       try {
+        await assertMessagingAccess({
+          userId: ctx.userId,
+          intent: MESSAGING_ACCESS_INTENTS.messageRequests,
+          audience: getRequestAudience(input.requestType),
+          currentUser: ctx.currentUser,
+          cache: ctx.accessPolicyCache,
+          source: 'trpc.messaging.messageRequests',
+        });
+
         return await sendRequest(ctx as AuthenticatedContext, input);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to create message request');
       }
     }),
-  handleRequest: protectedProcedure
+  handleRequest: messagingMailboxProcedure
     .input(handleRequestSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -158,7 +125,7 @@ export const messagingRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to update message request');
       }
     }),
-  editMessage: protectedProcedure
+  editMessage: messagingMailboxProcedure
     .input(editMessageSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -167,7 +134,7 @@ export const messagingRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to edit message');
       }
     }),
-  deleteMessage: protectedProcedure
+  deleteMessage: messagingMailboxProcedure
     .input(deleteMessageSchema)
     .mutation(async ({ ctx, input }) => {
       try {
@@ -176,7 +143,7 @@ export const messagingRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to delete message');
       }
     }),
-  listMessageReactions: protectedProcedure
+  listMessageReactions: messagingMailboxProcedure
     .input(listReactionsSchema)
     .query(async ({ ctx, input }) => {
       try {
@@ -185,7 +152,7 @@ export const messagingRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch reactions');
       }
     }),
-  toggleMessageReaction: protectedProcedure
+  toggleMessageReaction: messagingMailboxProcedure
     .input(toggleReactionSchema)
     .mutation(async ({ ctx, input }) => {
       try {

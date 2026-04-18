@@ -17,6 +17,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  useAdminPlanFeaturesQuery,
+  useAdminUpsertPlanFeatureMutation,
+} from "@/hooks/queries/use-admin-subscription-queries";
 
 type ValueType = "boolean" | "count" | "minutes" | "text" | "amount" | "percent" | "json";
 
@@ -78,38 +82,25 @@ const emptyFormState: FeatureFormState = {
 };
 
 export function PlanFeatureEditor({ planId }: PlanFeatureEditorProps) {
-  const [features, setFeatures] = useState<FeatureItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const [formState, setFormState] = useState<FeatureFormState>(emptyFormState);
+  const {
+    data: features = [],
+    isLoading: loading,
+    refetch: refetchPlanFeatures,
+  } = useAdminPlanFeaturesQuery(planId);
+  const upsertPlanFeatureMutation = useAdminUpsertPlanFeatureMutation();
 
   useEffect(() => {
-    const loadFeatures = async () => {
-      try {
-        const res = await fetch(`/api/admin/subscriptions/plans/${planId}/features`, {
-          credentials: "include",
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          setFeatures(data.data);
-          if (data.data.length > 0) {
-            setSelectedFeatureId(data.data[0].id);
-          }
-        } else {
-          toast.error(data.message || "Failed to load plan features");
-        }
-      } catch (error) {
-        console.error("Failed to load plan features:", error);
-        toast.error("Failed to load plan features");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadFeatures();
-  }, [planId]);
+    if (features.length > 0 && !selectedFeatureId) {
+      setSelectedFeatureId(features[0].id);
+    }
+    if (features.length === 0 && selectedFeatureId) {
+      setSelectedFeatureId(null);
+    }
+  }, [features, selectedFeatureId]);
 
   const filteredFeatures = useMemo(() => {
     return features.filter(
@@ -169,43 +160,24 @@ export function PlanFeatureEditor({ planId }: PlanFeatureEditorProps) {
 
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/subscriptions/plans/${planId}/features`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          feature_id: selectedFeature.id,
-          is_included: formState.is_included,
-          limit_count: formState.limit_count,
-          limit_minutes: formState.limit_minutes,
-          limit_text: formState.limit_text || null,
-          limit_amount: formState.limit_amount,
-          limit_currency: formState.limit_currency || null,
-          limit_percent: formState.limit_percent,
-          limit_json: parsedJson,
-          limit_interval: formState.limit_interval || null,
-          limit_interval_count: formState.limit_interval_count,
-        }),
+      await upsertPlanFeatureMutation.mutateAsync({
+        planId,
+        feature_id: selectedFeature.id,
+        is_included: formState.is_included,
+        limit_count: formState.limit_count,
+        limit_minutes: formState.limit_minutes,
+        limit_text: formState.limit_text || null,
+        limit_amount: formState.limit_amount,
+        limit_currency: formState.limit_currency || null,
+        limit_percent: formState.limit_percent,
+        limit_json: parsedJson,
+        limit_interval: formState.limit_interval || null,
+        limit_interval_count: formState.limit_interval_count,
       });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success("Feature updated");
-        setFeatures((prev) =>
-          prev.map((feature) => {
-            if (feature.id !== selectedFeature.id) return feature;
-            return {
-              ...feature,
-              subscription_plan_features: [data.data],
-            };
-          })
-        );
-      } else {
-        toast.error(data.message || "Failed to save feature");
-      }
+      toast.success("Feature updated");
+      await refetchPlanFeatures();
     } catch (error) {
-      console.error("Failed to save feature:", error);
-      toast.error("Failed to save feature");
+      // mutation hook surfaces the toast
     } finally {
       setSaving(false);
     }

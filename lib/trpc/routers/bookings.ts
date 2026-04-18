@@ -1,7 +1,11 @@
-import { TRPCError } from '@trpc/server';
-import { z } from 'zod';
-
-import { adminProcedure, createTRPCRouter, protectedProcedure } from '../init';
+import {
+  adminProcedure,
+  createTRPCRouter,
+  menteeFeatureProcedure,
+  mentorFeatureProcedure,
+  protectedProcedure,
+  userProcedure,
+} from '../init';
 import {
   acceptReassignment,
   cancelBooking,
@@ -19,6 +23,11 @@ import {
   withdrawRescheduleRequest,
 } from '@/lib/bookings/server/service';
 import {
+  getSessionView as getSessionViewFromRuntimeService,
+  listMenteePendingReviews as listMenteePendingReviewsFromRuntimeService,
+  listMentorPendingReviews as listMentorPendingReviewsFromRuntimeService,
+} from '@/lib/bookings/server/runtime-service';
+import {
   addAdminBookingNote as addAdminBookingNoteFromAdminService,
   adminCancelBooking as adminCancelBookingFromAdminService,
   adminClearNoShow as adminClearNoShowFromAdminService,
@@ -30,7 +39,8 @@ import {
   listAdminBookingNotes as listAdminBookingNotesFromAdminService,
   listAdminBookings as listAdminBookingsFromAdminService,
 } from '@/lib/bookings/server/admin-service';
-import { BookingServiceError } from '@/lib/bookings/server/errors';
+import { MENTEE_FEATURE_KEYS } from '@/lib/mentee/access-policy';
+import { MENTOR_FEATURE_KEYS } from '@/lib/mentor/access-policy';
 import {
   adminAddBookingNoteInputSchema,
   adminCancelBookingInputSchema,
@@ -53,66 +63,12 @@ import {
   markBookingNoShowInputSchema,
   rejectReassignmentInputSchema,
   respondRescheduleInputSchema,
+  sessionViewInputSchema,
   selectAlternativeMentorInputSchema,
   updateBookingInputSchema,
   withdrawRescheduleRequestInputSchema,
 } from '@/lib/bookings/server/schemas';
-import { RateLimitError } from '@/lib/rate-limit';
-
-function mapStatusToTRPCCode(status: number): TRPCError['code'] {
-  switch (status) {
-    case 400:
-      return 'BAD_REQUEST';
-    case 401:
-      return 'UNAUTHORIZED';
-    case 403:
-      return 'FORBIDDEN';
-    case 404:
-      return 'NOT_FOUND';
-    case 409:
-      return 'CONFLICT';
-    case 429:
-      return 'TOO_MANY_REQUESTS';
-    default:
-      return 'INTERNAL_SERVER_ERROR';
-  }
-}
-
-function throwAsTRPCError(error: unknown, fallbackMessage: string): never {
-  if (error instanceof TRPCError) {
-    throw error;
-  }
-
-  if (error instanceof BookingServiceError) {
-    throw new TRPCError({
-      code: mapStatusToTRPCCode(error.status),
-      message: error.message,
-      cause: error,
-    });
-  }
-
-  if (error instanceof RateLimitError) {
-    throw new TRPCError({
-      code: 'TOO_MANY_REQUESTS',
-      message: error.message,
-      cause: error,
-    });
-  }
-
-  if (error instanceof z.ZodError) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: error.errors[0]?.message ?? 'Invalid input',
-      cause: error,
-    });
-  }
-
-  throw new TRPCError({
-    code: 'INTERNAL_SERVER_ERROR',
-    message: fallbackMessage,
-    cause: error instanceof Error ? error : undefined,
-  });
-}
+import { throwAsTRPCError } from '@/lib/trpc/router-error';
 
 export const bookingsRouter = createTRPCRouter({
   list: protectedProcedure
@@ -133,6 +89,39 @@ export const bookingsRouter = createTRPCRouter({
         throwAsTRPCError(error, 'Failed to fetch booking');
       }
     }),
+  sessionView: userProcedure
+    .input(sessionViewInputSchema)
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getSessionViewFromRuntimeService(
+          ctx.userId,
+          input.sessionId,
+          ctx.currentUser
+        );
+      } catch (error) {
+        throwAsTRPCError(error, 'Failed to fetch session details');
+      }
+    }),
+  mentorPendingReviews: mentorFeatureProcedure(MENTOR_FEATURE_KEYS.reviewsManage).query(async ({ ctx }) => {
+    try {
+      return await listMentorPendingReviewsFromRuntimeService(
+        ctx.userId,
+        ctx.currentUser
+      );
+    } catch (error) {
+      throwAsTRPCError(error, 'Failed to fetch mentor review queue');
+    }
+  }),
+  menteePendingReviews: menteeFeatureProcedure(MENTEE_FEATURE_KEYS.sessionsView).query(async ({ ctx }) => {
+    try {
+      return await listMenteePendingReviewsFromRuntimeService(
+        ctx.userId,
+        ctx.currentUser
+      );
+    } catch (error) {
+      throwAsTRPCError(error, 'Failed to fetch mentee review queue');
+    }
+  }),
   create: protectedProcedure
     .input(createBookingInputSchema)
     .mutation(async ({ ctx, input }) => {

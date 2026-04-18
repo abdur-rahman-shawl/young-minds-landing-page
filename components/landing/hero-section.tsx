@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { MentorDetailView } from "@/components/mentee/mentor-detail-view"
 import { useAuth } from "@/contexts/auth-context"
 import { SignInPopup } from "@/components/auth/sign-in-popup"
+import { useTRPCClient } from "@/lib/trpc/react"
 
 interface Message {
   id: string
@@ -68,9 +69,9 @@ export function HeroSection() {
   const router = useRouter()
   const heroRef = useRef<HTMLDivElement>(null)
   const mentorsSectionRef = useRef<HTMLDivElement>(null)
+  const trpcClient = useTRPCClient()
 
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
 
   const { isAuthenticated } = useAuth()
   const [showSignInPopup, setShowSignInPopup] = useState(false)
@@ -91,18 +92,6 @@ export function HeroSection() {
       localStorage.setItem('ai_chatbot_session_id', sessionId);
     }
     setChatSessionId(sessionId);
-    const storedUserId = localStorage.getItem('userId');
-    setUserId(storedUserId || null);
-  }, []);
-
-  useEffect(() => {
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === 'userId') {
-        setUserId(event.newValue || null);
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   const saveMessageToDB = async (
@@ -112,18 +101,12 @@ export function HeroSection() {
     metadata: Record<string, any> = {}
   ) => {
     if (!chatSessionId) return;
-    const latestUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
-    await fetch('/api/ai-chatbot-messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    await trpcClient.chatbot.saveMessage.mutate({
         chatSessionId,
-        userId: latestUserId || null,
         senderType,
         content,
         responseToMessageId,
         metadata,
-      }),
     });
   };
 
@@ -290,32 +273,17 @@ export function HeroSection() {
   const fetchMentorsFromApi = async (useAiSearch = false): Promise<DbMentor[] | null> => {
     try {
       setIsSearchingMentors(true)
-      const buildParams = (aiEnabled: boolean) => {
-        const params = new URLSearchParams({
-          page: '1',
-          pageSize: '12',
-          availableOnly: 'true',
-        });
-        if (aiEnabled) {
-          params.set('aiFilterOnly', 'true');
-        }
-        return params;
-      };
-
       const requestMentors = async (aiEnabled: boolean) => {
-        const response = await fetch(`/api/public-mentors?${buildParams(aiEnabled).toString()}`, { method: 'GET' });
-        const payload = await response.json().catch(() => null);
-        return { response, payload };
+        return trpcClient.public.listMentors.query({
+          page: 1,
+          pageSize: 12,
+          availableOnly: true,
+          aiFilterOnly: aiEnabled || undefined,
+        });
       };
 
-      const { response, payload } = await requestMentors(useAiSearch);
-
-      if (!response.ok) {
-        const apiError = payload?.error || payload?.message;
-        throw new Error(apiError ? `Failed to fetch mentors: ${response.status} ${apiError}` : `Failed to fetch mentors: ${response.status}`);
-      }
-
-      const list: DbMentor[] = payload?.data ?? []
+      const payload = await requestMentors(useAiSearch);
+      const list: DbMentor[] = payload.mentors ?? []
       setDbMentors(list)
       setShowMentors(true)
       setCurrentMentorIndex(0)

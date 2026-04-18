@@ -1,6 +1,10 @@
 import { and, desc, eq, gte, inArray, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
+import {
+  AccessPolicyError,
+  assertMessagingAccess as assertSharedMessagingAccess,
+} from '@/lib/access-policy/server';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
 import {
   messageReactions,
@@ -13,6 +17,11 @@ import {
   userRoles,
   users,
 } from '@/lib/db/schema';
+import {
+  MESSAGING_ACCESS_INTENTS,
+  type MessagingAccessIntent,
+  type MessagingAudience,
+} from '@/lib/messaging/access-policy';
 import { resolveMessagingPolicy } from '@/lib/messaging/policy';
 import {
   buildMessagingRequestsUrl,
@@ -51,6 +60,7 @@ import {
 } from './schemas';
 
 type DbClient = typeof import('@/lib/db').db;
+type CurrentUser = NonNullable<Awaited<ReturnType<typeof getUserWithRoles>>>;
 
 export interface MessagingActorContext {
   db: DbClient;
@@ -86,6 +96,49 @@ function toSubscriptionError(error: unknown): never {
   }
 
   throw error;
+}
+
+function getMessagingAudienceFromRequestType(
+  requestType: z.infer<typeof createRequestSchema>['requestType']
+): Exclude<MessagingAudience, 'admin'> {
+  return requestType === 'mentor_to_mentee' ? 'mentor' : 'mentee';
+}
+
+function getMessagingAudienceFromDirectAction(
+  action:
+    | 'messaging.direct_message.mentor'
+    | 'messaging.direct_message.mentee'
+): Exclude<MessagingAudience, 'admin'> {
+  return action.endsWith('.mentor') ? 'mentor' : 'mentee';
+}
+
+async function assertMessagingAccess(
+  userId: string,
+  intent: MessagingAccessIntent,
+  options?: {
+    audience?: MessagingAudience | null;
+    preferredAudience?: Exclude<MessagingAudience, 'admin'> | null;
+    currentUser?: CurrentUser;
+  }
+) {
+  try {
+    const result = await assertSharedMessagingAccess({
+      userId,
+      intent,
+      audience: options?.audience,
+      preferredAudience: options?.preferredAudience,
+      currentUser: options?.currentUser,
+      source: `messaging.${intent}`,
+    });
+
+    return result.access;
+  } catch (error) {
+    if (error instanceof AccessPolicyError) {
+      throw new MessagingServiceError(error.status, error.message, error.data);
+    }
+
+    throw error;
+  }
 }
 
 async function ensureDirectPermission(
@@ -188,6 +241,8 @@ export async function listThreads(
   ctx: MessagingActorContext,
   input: z.infer<typeof listThreadsInputSchema>
 ) {
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox);
+
   const permissions = await ctx.db
     .select()
     .from(messagingPermissions)
@@ -313,6 +368,8 @@ export async function getThread(
   ctx: MessagingActorContext,
   input: z.infer<typeof getThreadInputSchema>
 ) {
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox);
+
   const [thread] = await ctx.db
     .select()
     .from(messageThreads)
@@ -485,6 +542,8 @@ export async function updateThread(
   ctx: MessagingActorContext,
   input: z.infer<typeof updateThreadSchema>
 ) {
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox);
+
   const [thread] = await ctx.db
     .select()
     .from(messageThreads)
@@ -539,6 +598,7 @@ export async function sendMessage(
   ctx: MessagingRequestContext,
   input: z.infer<typeof sendMessageSchema>
 ) {
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox);
   messageRateLimit.check(ctx.req as any);
 
   const [thread] = await ctx.db
@@ -621,6 +681,14 @@ export async function sendMessage(
 
     directMessageAction = policy.action;
 
+    await assertMessagingAccess(
+      ctx.userId,
+      MESSAGING_ACCESS_INTENTS.directMessages,
+      {
+        audience: getMessagingAudienceFromDirectAction(directMessageAction),
+      }
+    );
+
     try {
       await enforceFeature({
         action: directMessageAction,
@@ -644,8 +712,8 @@ export async function sendMessage(
     assertMessaging(receiver, 404, 'Unable to resolve conversation participants');
 
     resolveDirectConversationPolicy(
-      sender.roles.map((role) => role.name),
-      receiver.roles.map((role) => role.name)
+      sender.roles.map((role: { name: string }) => role.name),
+      receiver.roles.map((role: { name: string }) => role.name)
     );
   }
 
@@ -757,6 +825,8 @@ export async function listRequests(
   ctx: MessagingActorContext,
   input: z.infer<typeof listRequestsInputSchema>
 ) {
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox);
+
   const filters = [];
 
   if (input.type === 'sent') {
@@ -827,6 +897,14 @@ export async function sendRequest(
   ctx: MessagingActorContext,
   input: z.infer<typeof createRequestSchema>
 ) {
+  await assertMessagingAccess(
+    ctx.userId,
+    MESSAGING_ACCESS_INTENTS.messageRequests,
+    {
+      audience: getMessagingAudienceFromRequestType(input.requestType),
+    }
+  );
+
   assertMessaging(
     input.recipientId !== ctx.userId,
     400,
@@ -1034,10 +1112,17 @@ export async function startAdminConversation(
   assertMessaging(sender, 404, 'Sender not found');
   assertMessaging(recipient, 404, 'Recipient not found');
 
-  const senderRoles = new Set(sender.roles.map((role) => role.name));
+  const senderRoles = new Set(
+    sender.roles.map((role: { name: string }) => role.name)
+  );
   assertMessaging(senderRoles.has('admin'), 403, 'Only admins can initiate direct conversations');
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox, {
+    currentUser: sender,
+  });
 
-  const recipientRoles = new Set(recipient.roles.map((role) => role.name));
+  const recipientRoles = new Set(
+    recipient.roles.map((role: { name: string }) => role.name)
+  );
   assertMessaging(
     recipientRoles.has('mentor') || recipientRoles.has('mentee'),
     400,
@@ -1097,6 +1182,8 @@ export async function getMessageRequest(
   ctx: MessagingActorContext,
   requestId: string
 ) {
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox);
+
   const [messageRequest] = await ctx.db
     .select({
       request: messageRequests,
@@ -1126,6 +1213,8 @@ export async function handleRequest(
   ctx: MessagingActorContext,
   input: z.infer<typeof handleRequestSchema>
 ) {
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox);
+
   const [messageRequest] = await ctx.db
     .select()
     .from(messageRequests)
@@ -1217,6 +1306,8 @@ export async function editMessage(
   ctx: MessagingActorContext,
   input: z.infer<typeof editMessageSchema>
 ) {
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox);
+
   const [message] = await ctx.db
     .select()
     .from(messages)
@@ -1303,6 +1394,8 @@ export async function deleteMessage(
   ctx: MessagingActorContext,
   input: z.infer<typeof deleteMessageSchema>
 ) {
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox);
+
   const [message] = await ctx.db
     .select()
     .from(messages)
@@ -1389,6 +1482,7 @@ export async function listMessageReactions(
   ctx: MessagingActorContext,
   input: z.infer<typeof listReactionsSchema>
 ) {
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox);
   await checkReactionPermission(ctx, input.messageId);
 
   const reactions = await ctx.db
@@ -1432,6 +1526,7 @@ export async function toggleMessageReaction(
   ctx: MessagingRequestContext,
   input: z.infer<typeof toggleReactionSchema>
 ) {
+  await assertMessagingAccess(ctx.userId, MESSAGING_ACCESS_INTENTS.mailbox);
   reactionRateLimit.check(ctx.req as any);
   await checkReactionPermission(ctx, input.messageId);
 

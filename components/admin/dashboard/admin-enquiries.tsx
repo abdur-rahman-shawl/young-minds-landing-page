@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   Card,
@@ -40,47 +40,26 @@ import {
   CheckCircle2,
   RotateCcw,
 } from "lucide-react";
-
-interface Enquiry {
-  id: string;
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-  consent: boolean;
-  userAgent: string | null;
-  ipAddress: string | null;
-  isResolved: boolean;
-  createdAt: string | null;
-}
+import {
+  type AdminEnquiryItem,
+  useAdminEnquiriesQuery,
+  useAdminUpdateEnquiryMutation,
+} from "@/hooks/queries/use-admin-queries";
 
 type StatusFilter = "all" | "open" | "resolved";
 
 export function AdminEnquiries() {
-  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
-  const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [selectedEnquiry, setSelectedEnquiry] = useState<Enquiry | null>(null);
+  const [selectedEnquiryId, setSelectedEnquiryId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-
-  const fetchEnquiries = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin/enquiries");
-      const json = await res.json().catch(() => ({ success: false }));
-      setEnquiries(json.data ?? []); 
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to load enquiries");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchEnquiries();
-  }, []);
+  const {
+    data: enquiries = [],
+    isLoading,
+    error,
+    refetch,
+  } = useAdminEnquiriesQuery();
+  const updateEnquiryMutation = useAdminUpdateEnquiryMutation();
 
   // --- DB DRIVEN STATUS TOGGLE ---
   const toggleStatus = async (id: string, currentStatus: boolean) => {
@@ -88,29 +67,10 @@ export function AdminEnquiries() {
     const newStatus = !currentStatus;
 
     try {
-      // API call to update the DB
-      const res = await fetch(`/api/admin/enquiries/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ isResolved: newStatus }),
+      await updateEnquiryMutation.mutateAsync({
+        enquiryId: id,
+        isResolved: newStatus,
       });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to update status");
-      }
-
-      // If DB update succeeds, update local state
-      setEnquiries((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, isResolved: newStatus } : e))
-      );
-
-      // Also update the open sheet view if needed
-      if (selectedEnquiry && selectedEnquiry.id === id) {
-        setSelectedEnquiry({ ...selectedEnquiry, isResolved: newStatus });
-      }
 
       toast.success(newStatus ? "Marked as resolved" : "Issue reopened");
     } catch (error) {
@@ -120,6 +80,9 @@ export function AdminEnquiries() {
       setUpdatingId(null);
     }
   };
+
+  const selectedEnquiry =
+    enquiries.find((enquiry) => enquiry.id === selectedEnquiryId) ?? null;
 
   const filteredEnquiries = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -142,11 +105,26 @@ export function AdminEnquiries() {
       .toUpperCase();
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex h-[50vh] flex-col items-center justify-center gap-2 text-muted-foreground">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p>Loading inbox...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to load enquiries";
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center gap-3 text-center text-sm text-red-600">
+        <Mail className="h-6 w-6" />
+        <p>We ran into a problem loading enquiries.</p>
+        <p className="text-xs text-muted-foreground">{message}</p>
+        <Button size="sm" onClick={() => void refetch()} className="mt-2">
+          Retry
+        </Button>
       </div>
     );
   }
@@ -220,7 +198,7 @@ export function AdminEnquiries() {
                 <TableRow
                   key={item.id}
                   className="cursor-pointer hover:bg-muted/30 group transition-colors"
-                  onClick={() => setSelectedEnquiry(item)}
+                  onClick={() => setSelectedEnquiryId(item.id)}
                 >
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -286,7 +264,7 @@ export function AdminEnquiries() {
 
       <Sheet
         open={!!selectedEnquiry}
-        onOpenChange={(open) => !open && setSelectedEnquiry(null)}
+        onOpenChange={(open) => !open && setSelectedEnquiryId(null)}
       >
         <SheetContent className="sm:max-w-xl w-full flex flex-col gap-0 p-0">
           {selectedEnquiry && (
@@ -392,7 +370,7 @@ export function AdminEnquiries() {
               </ScrollArea>
 
               <div className="p-6 border-t bg-background mt-auto flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setSelectedEnquiry(null)}>
+                <Button variant="outline" onClick={() => setSelectedEnquiryId(null)}>
                   Close
                 </Button>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import {
+  useAdminCreatePlanPriceMutation,
+  useAdminPlanPricesQuery,
+  useAdminUpdatePlanPriceMutation,
+} from "@/hooks/queries/use-admin-subscription-queries";
 
 interface PlanPrice {
   id: string;
@@ -48,56 +53,30 @@ const defaultForm = {
 };
 
 export function PlanPricingEditor({ planId }: PlanPricingEditorProps) {
-  const [prices, setPrices] = useState<PlanPrice[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(defaultForm);
   const [editingPrice, setEditingPrice] = useState<PlanPrice | null>(null);
   const [editForm, setEditForm] = useState(defaultForm);
-
-  const loadPrices = async () => {
-    try {
-      const res = await fetch(`/api/admin/subscriptions/plans/${planId}/prices`, {
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setPrices(data.data || []);
-      } else {
-        toast.error(data.message || "Failed to load plan prices");
-      }
-    } catch (error) {
-      console.error("Failed to load plan prices:", error);
-      toast.error("Failed to load plan prices");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadPrices();
-  }, [planId]);
+  const {
+    data: prices = [],
+    isLoading: loading,
+    refetch: refetchPrices,
+  } = useAdminPlanPricesQuery(planId);
+  const createPriceMutation = useAdminCreatePlanPriceMutation();
+  const updatePriceMutation = useAdminUpdatePlanPriceMutation();
 
   const createPrice = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/subscriptions/plans/${planId}/prices`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(form),
+      await createPriceMutation.mutateAsync({
+        planId,
+        ...form,
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success("Price added");
-        setForm(defaultForm);
-        loadPrices();
-      } else {
-        toast.error(data.message || "Failed to add price");
-      }
+      toast.success("Price added");
+      setForm(defaultForm);
+      await refetchPrices();
     } catch (error) {
-      console.error("Failed to add price:", error);
-      toast.error("Failed to add price");
+      // mutation hook surfaces the toast
     } finally {
       setSaving(false);
     }
@@ -105,26 +84,14 @@ export function PlanPricingEditor({ planId }: PlanPricingEditorProps) {
 
   const toggleActive = async (price: PlanPrice, nextValue: boolean) => {
     try {
-      const res = await fetch(
-        `/api/admin/subscriptions/plans/${planId}/prices/${price.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ is_active: nextValue }),
-        }
-      );
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setPrices((prev) =>
-          prev.map((item) => (item.id === price.id ? { ...item, is_active: nextValue } : item))
-        );
-      } else {
-        toast.error(data.message || "Failed to update price");
-      }
+      await updatePriceMutation.mutateAsync({
+        planId,
+        priceId: price.id,
+        is_active: nextValue,
+      });
+      await refetchPrices();
     } catch (error) {
-      console.error("Failed to update price:", error);
-      toast.error("Failed to update price");
+      // mutation hook surfaces the toast
     }
   };
 
@@ -144,35 +111,16 @@ export function PlanPricingEditor({ planId }: PlanPricingEditorProps) {
     if (!editingPrice) return;
     setSaving(true);
     try {
-      const res = await fetch(
-        `/api/admin/subscriptions/plans/${planId}/prices/${editingPrice.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(editForm),
-        }
-      );
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success("Price updated");
-        setPrices((prev) =>
-          prev.map((item) =>
-            item.id === editingPrice.id
-              ? {
-                  ...item,
-                  ...editForm,
-                }
-              : item
-          )
-        );
-        setEditingPrice(null);
-      } else {
-        toast.error(data.message || "Failed to update price");
-      }
+      await updatePriceMutation.mutateAsync({
+        planId,
+        priceId: editingPrice.id,
+        ...editForm,
+      });
+      toast.success("Price updated");
+      setEditingPrice(null);
+      await refetchPrices();
     } catch (error) {
-      console.error("Failed to update price:", error);
-      toast.error("Failed to update price");
+      // mutation hook surfaces the toast
     } finally {
       setSaving(false);
     }

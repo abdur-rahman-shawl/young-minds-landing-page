@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { SessionRating } from "@/components/booking/SessionRating";
 import { useSession } from "@/lib/auth-client"; // Assuming this hook provides the current user's session
 import { use } from "react"; // Import React's `use` function
+import { useTRPCClient } from "@/lib/trpc/react";
 
 interface ReviewSessionPageProps {
   params: Promise<{ sessionId: string }>; // `params` is now a Promise
@@ -12,6 +13,7 @@ interface ReviewSessionPageProps {
 
 export default function ReviewSessionPage({ params }: ReviewSessionPageProps) {
   const router = useRouter();
+  const trpcClient = useTRPCClient();
   const unwrappedParams = use(params); // Unwrap the `params` Promise
   const sessionId = unwrappedParams.sessionId; // Access the `sessionId` property
 
@@ -39,13 +41,7 @@ export default function ReviewSessionPage({ params }: ReviewSessionPageProps) {
         setError(null);
 
         // Fetch session details from the API
-        const response = await fetch(`/api/sessions/${sessionId}`);
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to fetch session details.");
-        }
-
-        const data = await response.json();
+        const data = await trpcClient.bookings.sessionView.query({ sessionId });
 
         // Determine the role of the reviewee dynamically
         const isMenteeReviewing = currentUserId === data.menteeId;
@@ -65,7 +61,7 @@ export default function ReviewSessionPage({ params }: ReviewSessionPageProps) {
     };
 
     fetchSessionDetails();
-  }, [sessionId, currentUserId, isPending]);
+  }, [currentUserId, isPending, sessionId, trpcClient]);
 
   if (isLoading || isPending) {
     return (

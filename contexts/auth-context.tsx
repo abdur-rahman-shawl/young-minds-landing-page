@@ -4,48 +4,14 @@ import React, { createContext, useContext, useCallback, useEffect } from 'react'
 import { useSessionWithRolesQuery, useSignOutMutation, useRefreshSessionMutation } from '@/hooks/queries/use-session-query';
 import { AuthErrorBoundary, useErrorHandler } from '@/components/common/error-boundary';
 import { signIn as betterAuthSignIn } from '@/lib/auth-client';
+import type { RouterOutputs } from '@/lib/trpc/types';
 
-interface UserRole {
-  name: string;
-  displayName: string;
-}
-
-interface MentorProfile {
-  verificationStatus: string;
-  id: string;
-  // Added fields
-  profileImageUrl?: string;
-  bannerImageUrl?: string;
-  resumeUrl?: string;
-  fullName?: string;
-  title?: string;
-  company?: string;
-  email?: string;
-  phone?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  industry?: string;
-  expertise?: string;
-  experience?: number;
-  about?: string;
-  linkedinUrl?: string;
-  githubUrl?: string;
-  websiteUrl?: string;
-  hourlyRate?: string;
-  currency?: string;
-  availability?: string;
-  headline?: string;
-  maxMentees?: number;
-  paymentStatus?: 'PENDING' | 'COMPLETED' | 'FAILED';
-  couponCode?: string | null;
-  isCouponCodeEnabled?: boolean;
-  searchMode?: 'AI_SEARCH' | 'EXCLUSIVE_SEARCH';
-  isAvailable?: boolean;
-  verificationNotes?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
+type SessionWithRolesData = RouterOutputs['auth']['sessionWithRoles'];
+type UserRole = SessionWithRolesData['roles'][number];
+type MentorProfile = NonNullable<SessionWithRolesData['mentorProfile']>;
+type AccountAccess = SessionWithRolesData['accountAccess'];
+type MentorAccess = SessionWithRolesData['mentorAccess'];
+type MenteeAccess = SessionWithRolesData['menteeAccess'];
 
 interface AuthState {
   // Session data
@@ -56,6 +22,9 @@ interface AuthState {
   roles: UserRole[];
   primaryRole: UserRole | null;
   mentorProfile: MentorProfile | null;
+  accountAccess: AccountAccess;
+  mentorAccess: MentorAccess;
+  menteeAccess: MenteeAccess;
   isRolesLoading: boolean;
 
   // Computed states
@@ -99,6 +68,9 @@ function AuthProviderInner({ children }: AuthProviderProps) {
   const session = sessionData?.session || null;
   const roles = sessionData?.roles || [];
   const mentorProfile = sessionData?.mentorProfile || null;
+  const accountAccess = sessionData?.accountAccess || null;
+  const mentorAccess = sessionData?.mentorAccess || null;
+  const menteeAccess = sessionData?.menteeAccess || null;
   const error = sessionError?.message || null;
 
   // Computed states from optimized response
@@ -178,6 +150,9 @@ function AuthProviderInner({ children }: AuthProviderProps) {
     roles,
     primaryRole,
     mentorProfile,
+    accountAccess,
+    mentorAccess,
+    menteeAccess,
     isRolesLoading: isLoading,
     isAuthenticated,
     isLoading: isLoading || signOutMutation.isPending || refreshSessionMutation.isPending,
@@ -223,6 +198,9 @@ export function useUserRoles() {
     roles: auth.roles,
     primaryRole: auth.primaryRole,
     mentorProfile: auth.mentorProfile,
+    accountAccess: auth.accountAccess,
+    mentorAccess: auth.mentorAccess,
+    menteeAccess: auth.menteeAccess,
     isMentorWithIncompleteProfile: auth.isMentorWithIncompleteProfile,
     isLoading: auth.isRolesLoading,
     error: auth.error,

@@ -1,12 +1,13 @@
 ﻿"use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Star, AlertCircle } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useReviewQuestionsQuery, useSubmitSessionReviewMutation } from "@/hooks/queries/use-learning-queries"
 
 interface SessionRatingProps {
   sessionId: string
@@ -17,6 +18,8 @@ interface SessionRatingProps {
     role: 'mentor' | 'mentee'
   }
   onComplete: () => void
+  onSubmitted?: () => void
+  onSkipped?: () => void
 }
 
 interface ReviewQuestion {
@@ -25,42 +28,56 @@ interface ReviewQuestion {
   displayOrder: number
 }
 
-export function SessionRating({ sessionId, reviewee, onComplete }: SessionRatingProps) {
-  const [questions, setQuestions] = useState<ReviewQuestion[]>([])
+export function SessionRating({
+  sessionId,
+  reviewee,
+  onComplete,
+  onSubmitted,
+  onSkipped,
+}: SessionRatingProps) {
   const [ratings, setRatings] = useState<Record<string, number>>({})
   const [hoverRatings, setHoverRatings] = useState<Record<string, number>>({})
   const [feedback, setFeedback] = useState("")
-
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    data: questions = [],
+    isLoading,
+    error: questionsError,
+  } = useReviewQuestionsQuery(
+    {
+      sessionId,
+      role: reviewee.role,
+    },
+    Boolean(sessionId && reviewee.role)
+  )
+  const submitSessionReviewMutation = useSubmitSessionReviewMutation()
 
   useEffect(() => {
-    const fetchQuestions = async () => {
-      if (!sessionId || !reviewee.role) return
-      try {
-        setIsLoading(true)
-        setError(null)
-        const response = await fetch(`/api/reviews/questions?role=${reviewee.role}&sessionId=${sessionId}`)
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to fetch review questions.')
-        }
-
-        const data: ReviewQuestion[] = await response.json()
-        setQuestions(data)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to fetch review questions.'
-        setError(message)
-        toast.error('Could not load questions', { description: message })
-      } finally {
-        setIsLoading(false)
-      }
+    if (!questionsError) {
+      return
     }
 
-    fetchQuestions()
-  }, [sessionId, reviewee.role])
+    const message =
+      questionsError instanceof Error
+        ? questionsError.message
+        : 'Failed to fetch review questions.'
+    toast.error('Could not load questions', { description: message })
+  }, [questionsError])
+
+  const displayError = useMemo(() => {
+    if (questionsError) {
+      return questionsError instanceof Error
+        ? questionsError.message
+        : 'Failed to fetch review questions.'
+    }
+
+    if (submitSessionReviewMutation.error) {
+      return submitSessionReviewMutation.error instanceof Error
+        ? submitSessionReviewMutation.error.message
+        : 'Failed to submit feedback.'
+    }
+
+    return null
+  }, [questionsError, submitSessionReviewMutation.error])
 
   const allQuestionsRated = questions.length > 0 && questions.every(q => ratings[q.id] > 0)
 
@@ -70,34 +87,26 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
       return
     }
 
-    setIsSubmitting(true)
     const ratingsPayload = Object.entries(ratings).map(([questionId, rating]) => ({ questionId, rating }))
+    const completeAfterSubmit = onSubmitted ?? onComplete
 
     try {
-      const response = await fetch('/api/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, feedback, ratings: ratingsPayload }),
+      await submitSessionReviewMutation.mutateAsync({
+        sessionId,
+        feedback,
+        ratings: ratingsPayload,
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        if (response.status === 409) {
-          toast.success('Feedback already submitted', { description: 'Thanks for sharing your thoughts earlier.' })
-          onComplete()
-          return
-        }
-        throw new Error(errorData.error || 'Failed to submit feedback.')
-      }
-
       toast.success('Feedback submitted!', { description: 'Thank you for helping us improve.' })
-      onComplete()
+      completeAfterSubmit()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to submit feedback.'
-      setError(message)
+      if (message.includes('already submitted')) {
+        toast.success('Feedback already submitted', { description: 'Thanks for sharing your thoughts earlier.' })
+        completeAfterSubmit()
+        return
+      }
       toast.error('Submission Failed', { description: message })
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
@@ -109,13 +118,13 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
     )
   }
 
-  if (error) {
+  if (displayError) {
     return (
       <div className="flex w-full max-w-2xl flex-col items-center justify-center rounded-2xl bg-white p-12 shadow-2xl dark:bg-gray-800">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{displayError}</AlertDescription>
         </Alert>
       </div>
     )
@@ -171,9 +180,9 @@ export function SessionRating({ sessionId, reviewee, onComplete }: SessionRating
       />
 
       <div className="flex space-x-4">
-        <Button variant="ghost" onClick={onComplete}>Skip</Button>
-        <Button size="lg" onClick={handleSubmit} disabled={!allQuestionsRated || isSubmitting}>
-          {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
+        <Button variant="ghost" onClick={onSkipped ?? onComplete}>Skip</Button>
+        <Button size="lg" onClick={handleSubmit} disabled={!allQuestionsRated || submitSessionReviewMutation.isPending}>
+          {submitSessionReviewMutation.isPending ? 'Submitting...' : 'Submit Feedback'}
         </Button>
       </div>
     </div>

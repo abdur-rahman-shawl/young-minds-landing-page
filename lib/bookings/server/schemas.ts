@@ -37,6 +37,10 @@ export const getBookingInputSchema = z.object({
   bookingId: z.string().uuid('Invalid booking identifier'),
 });
 
+export const sessionViewInputSchema = z.object({
+  sessionId: z.string().uuid('Invalid session identifier'),
+});
+
 export const createBookingInputSchema = baseCreateBookingSchema.extend({
   bookingSource: z.enum(['default', 'ai', 'explore']).optional(),
 });
@@ -207,6 +211,7 @@ export const adminAddBookingNoteInputSchema = z.object({
 
 export type ListBookingsInput = z.infer<typeof listBookingsInputSchema>;
 export type GetBookingInput = z.infer<typeof getBookingInputSchema>;
+export type SessionViewInput = z.infer<typeof sessionViewInputSchema>;
 export type CreateBookingInput = z.infer<typeof createBookingInputSchema>;
 export type UpdateBookingInput = z.infer<typeof updateBookingInputSchema>;
 export type GetSessionPoliciesInput = z.infer<

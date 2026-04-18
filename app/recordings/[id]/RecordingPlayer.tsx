@@ -15,6 +15,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTRPCClient } from '@/lib/trpc/react';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -39,6 +40,7 @@ export default function RecordingPlayer({
   fileSizeBytes,
   recordedAt,
 }: Props) {
+  const trpcClient = useTRPCClient();
   // State management
   const [playbackUrl, setPlaybackUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
@@ -55,33 +57,18 @@ export default function RecordingPlayer({
       try {
         console.log(`🎥 Fetching playback URL for recording ${recordingId}`);
 
-        const response = await fetch(`/api/recordings/${recordingId}/playback-url`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // Include auth cookies
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message || `HTTP ${response.status}: ${response.statusText}`
-          );
-        }
-
-        const data = await response.json();
+        const data = await trpcClient.recordings.playbackUrl.query({ recordingId });
 
         if (!isMounted) return;
 
-        if (!data.success || !data.data || !data.data.playbackUrl) {
+        if (!data.playbackUrl) {
           throw new Error('Invalid response from server - no playback URL');
         }
 
-        setPlaybackUrl(data.data.playbackUrl);
+        setPlaybackUrl(data.playbackUrl);
         setIsLoading(false);
 
-        console.log(`✅ Playback URL obtained (expires at ${data.data.expiresAt})`);
+        console.log(`✅ Playback URL obtained (expires at ${data.expiresAt})`);
       } catch (err) {
         console.error('❌ Error fetching playback URL:', err);
 
@@ -100,7 +87,7 @@ export default function RecordingPlayer({
     return () => {
       isMounted = false;
     };
-  }, [recordingId, retryCount]);
+  }, [recordingId, retryCount, trpcClient]);
 
   // ==========================================================================
   // EVENT HANDLERS

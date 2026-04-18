@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
+import {
   Play, 
   Clock, 
   BookOpen, 
@@ -26,6 +26,12 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { cn } from "@/lib/utils"; // Assuming you have this util, if not just use classNames
+import {
+  getMenteeFeatureDecision,
+  MENTEE_FEATURE_KEYS,
+} from '@/lib/mentee/access-policy';
+import { useMenteeLearningAnalyticsQuery } from '@/hooks/queries/use-analytics-queries';
+import { useEnrolledCoursesQuery } from '@/hooks/queries/use-learning-queries';
 
 // ... [Keep Interfaces exactly the same as original file] ...
 interface EnrolledCourse {
@@ -130,65 +136,49 @@ interface LearningAnalytics {
 
 export function MyLearning() {
   const router = useRouter();
-  const { session } = useAuth();
-  
-  const [courses, setCourses] = useState<EnrolledCourse[]>([]);
-  const [statistics, setStatistics] = useState<LearningStatistics>({
+  const { session, isLoading: isAuthLoading, menteeAccess } = useAuth();
+  const [activeTab, setActiveTab] = useState('overview');
+  const learningWorkspaceAccess = getMenteeFeatureDecision(
+    menteeAccess,
+    MENTEE_FEATURE_KEYS.learningWorkspace
+  );
+  const learningAnalyticsAccess = getMenteeFeatureDecision(
+    menteeAccess,
+    MENTEE_FEATURE_KEYS.analyticsView
+  );
+  const hasCourseAccess = Boolean(learningWorkspaceAccess?.allowed);
+  const hasLearningAnalyticsAccess = Boolean(learningAnalyticsAccess?.allowed);
+  const {
+    data: learningData,
+    isLoading: learningLoading,
+    error: learningError,
+  } = useEnrolledCoursesQuery(
+    undefined,
+    Boolean(session?.user?.id) && hasCourseAccess
+  );
+  const {
+    data: analytics = null,
+    isLoading: analyticsLoading,
+    error: analyticsError,
+  } = useMenteeLearningAnalyticsQuery(
+    { timeRange: 30 },
+    Boolean(session?.user?.id) && hasLearningAnalyticsAccess
+  );
+  const courses = (learningData?.courses ?? []) as EnrolledCourse[];
+  const statistics = (learningData?.statistics ?? {
     totalCourses: 0,
     activeCourses: 0,
     completedCourses: 0,
     totalTimeSpent: 0,
     averageProgress: 0,
     totalCertificates: 0,
-  });
-  const [analytics, setAnalytics] = useState<LearningAnalytics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [analyticsLoading, setAnalyticsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
-
-  useEffect(() => {
-    if (session) {
-      fetchEnrolledCourses();
-      fetchLearningAnalytics();
-    }
-  }, [session]);
-
-  const fetchEnrolledCourses = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/student/courses');
-      const data = await response.json();
-
-      if (data.success) {
-        setCourses(data.data.courses);
-        setStatistics(data.data.statistics);
-      }
-    } catch (error) {
-      console.error('Error fetching enrolled courses:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchLearningAnalytics = async () => {
-    try {
-      setAnalyticsLoading(true);
-      const response = await fetch('/api/student/learning-analytics');
-      const data = await response.json();
-
-      if (data.success) {
-        setAnalytics(data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching learning analytics:', error);
-    } finally {
-      setAnalyticsLoading(false);
-    }
-  };
+  }) as LearningStatistics;
 
   const learningStreak = analytics?.currentStreak || 0;
   const weeklyGoal = analytics?.weeklyGoal?.goalHours || 5;
   const weeklyProgress = analytics?.weeklyGoal?.actualHours || 0;
+  const shouldBlockForAnalytics =
+    hasLearningAnalyticsAccess && analyticsLoading;
 
   const recentCourses = courses
     .filter(course => course.enrollment.lastAccessedAt)
@@ -410,7 +400,7 @@ export function MyLearning() {
   );
 
   // Loading State
-  if (loading || analyticsLoading) {
+  if (isAuthLoading || learningLoading || shouldBlockForAnalytics) {
     return (
       <div className="space-y-8 p-4">
         <div className="space-y-2">
@@ -423,6 +413,38 @@ export function MyLearning() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-80 w-full rounded-xl" />)}
         </div>
+      </div>
+    );
+  }
+
+  if (learningError) {
+    return (
+      <Card className="border-destructive/30 bg-destructive/5">
+        <CardContent className="py-8 text-center">
+          <p className="font-medium text-destructive">Could not load your courses</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {learningError instanceof Error
+              ? learningError.message
+              : 'Failed to load enrolled courses'}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!hasCourseAccess && courses.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+        <div className="bg-amber-100 dark:bg-amber-900/20 p-6 rounded-full mb-6">
+          <BookOpen className="w-12 h-12 text-amber-500" />
+        </div>
+        <h1 className="text-3xl font-bold mb-2">Course access is not included in your plan</h1>
+        <p className="text-muted-foreground mb-8 max-w-md">
+          This account cannot access courses right now. Upgrade the subscription to unlock the course catalog and learning workspace.
+        </p>
+        <Button onClick={() => router.push('/dashboard?section=subscription')} size="lg" className="rounded-full px-8 shadow-lg shadow-primary/20">
+          View Subscription
+        </Button>
       </div>
     );
   }
@@ -473,17 +495,34 @@ export function MyLearning() {
         <StatCard
           icon={Flame}
           title="Streak"
-          value={`${learningStreak} Days`}
-          subtitle="Keep it up!"
-          trend={analytics?.currentStreak > (analytics?.longestStreak || 0) ? `Personal Best!` : undefined}
+          value={
+            hasLearningAnalyticsAccess ? `${learningStreak} Days` : 'Upgrade'
+          }
+          subtitle={
+            hasLearningAnalyticsAccess ? 'Keep it up!' : 'Analytics required'
+          }
+          trend={
+            hasLearningAnalyticsAccess &&
+            analytics?.currentStreak > (analytics?.longestStreak || 0)
+              ? `Personal Best!`
+              : undefined
+          }
           color="text-orange-500"
           bgClass="bg-orange-500"
         />
         <StatCard
           icon={Target}
           title="Weekly Goal"
-          value={`${Math.round(weeklyProgress)}/${weeklyGoal}h`}
-          subtitle={`${Math.round((weeklyProgress/weeklyGoal) * 100)}% complete`}
+          value={
+            hasLearningAnalyticsAccess
+              ? `${Math.round(weeklyProgress)}/${weeklyGoal}h`
+              : 'Upgrade'
+          }
+          subtitle={
+            hasLearningAnalyticsAccess
+              ? `${Math.round((weeklyProgress / weeklyGoal) * 100)}% complete`
+              : 'Analytics required'
+          }
           color={analytics?.weeklyGoal?.onTrack ? "text-emerald-500" : "text-amber-500"}
           bgClass={analytics?.weeklyGoal?.onTrack ? "bg-emerald-500" : "bg-amber-500"}
         />
@@ -636,6 +675,32 @@ export function MyLearning() {
         <TabsContent value="analytics" className="space-y-6 animate-in fade-in-50">
            {/* Reusing existing analytics logic but with better cards */}
            <h3 className="text-lg font-bold">Learning Analytics</h3>
+
+           {!hasLearningAnalyticsAccess ? (
+             <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900/30 dark:bg-amber-950/10">
+               <CardContent className="py-8 text-center">
+                 <p className="font-medium">Learning analytics are not included in your plan</p>
+                 <p className="text-sm text-muted-foreground mt-1">
+                   Upgrade your subscription to unlock streaks, recommendations, and deeper learning insights.
+                 </p>
+                 <Button className="mt-4" onClick={() => router.push('/dashboard?section=subscription')}>
+                   View Subscription
+                 </Button>
+               </CardContent>
+             </Card>
+           ) : analyticsError ? (
+             <Card className="border-destructive/30 bg-destructive/5">
+               <CardContent className="py-8 text-center">
+                 <p className="font-medium text-destructive">Could not load learning analytics</p>
+                 <p className="text-sm text-muted-foreground mt-1">
+                   {analyticsError instanceof Error
+                     ? analyticsError.message
+                     : 'Failed to load learning analytics'}
+                 </p>
+               </CardContent>
+             </Card>
+           ) : (
+             <>
           
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              {/* Cards for Velocity, Completion, Consistency */}
@@ -698,6 +763,8 @@ export function MyLearning() {
                 </Card>
               )}
            </div>
+             </>
+           )}
         </TabsContent>
       </Tabs>
     </motion.div>

@@ -50,7 +50,8 @@ export const messagingKeys = {
 
 export function useThreadsQuery(
   userId: string | undefined,
-  includeArchived = false
+  includeArchived = false,
+  enabled = true
 ) {
   const trpcClient = useTRPCClient();
 
@@ -60,7 +61,7 @@ export function useThreadsQuery(
       trpcClient.messaging.listThreads.query({
         includeArchived,
       }),
-    enabled: !!userId,
+    enabled: !!userId && enabled,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     refetchInterval: 30 * 1000,
@@ -71,7 +72,8 @@ export function useThreadQuery(
   threadId: string | null,
   userId: string | undefined,
   limit = DEFAULT_THREAD_LIMIT,
-  offset = DEFAULT_THREAD_OFFSET
+  offset = DEFAULT_THREAD_OFFSET,
+  enabled = true
 ) {
   const trpcClient = useTRPCClient();
 
@@ -83,7 +85,7 @@ export function useThreadQuery(
         limit,
         offset,
       }),
-    enabled: !!threadId && !!userId,
+    enabled: !!threadId && !!userId && enabled,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchInterval: 10 * 1000,
@@ -93,7 +95,8 @@ export function useThreadQuery(
 export function useInfiniteThreadQuery(
   threadId: string | null,
   userId: string | undefined,
-  limit = DEFAULT_THREAD_LIMIT
+  limit = DEFAULT_THREAD_LIMIT,
+  enabled = true
 ) {
   const trpcClient = useTRPCClient();
 
@@ -108,7 +111,7 @@ export function useInfiniteThreadQuery(
     initialPageParam: DEFAULT_THREAD_OFFSET,
     getNextPageParam: (lastPage: ThreadPage, allPages: ThreadPage[]) =>
       lastPage.hasMore ? getNextThreadHistoryOffset(allPages) : undefined,
-    enabled: !!threadId && !!userId,
+    enabled: !!threadId && !!userId && enabled,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchInterval: 10 * 1000,
@@ -118,7 +121,8 @@ export function useInfiniteThreadQuery(
 export function useMessageRequestsQuery(
   userId: string | undefined,
   type: 'all' | 'sent' | 'received' = 'received',
-  status = 'pending'
+  status = 'pending',
+  enabled = true
 ) {
   const trpcClient = useTRPCClient();
 
@@ -129,7 +133,7 @@ export function useMessageRequestsQuery(
         type,
         status,
       }),
-    enabled: !!userId,
+    enabled: !!userId && enabled,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
@@ -137,7 +141,8 @@ export function useMessageRequestsQuery(
 
 export function useMessageReactionsQuery(
   messageId: string | undefined,
-  userId: string | undefined
+  userId: string | undefined,
+  enabled = true
 ) {
   const trpcClient = useTRPCClient();
 
@@ -147,16 +152,24 @@ export function useMessageReactionsQuery(
       trpcClient.messaging.listMessageReactions.query({
         messageId: messageId!,
       }),
-    enabled: !!messageId && !!userId,
+    enabled: !!messageId && !!userId && enabled,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchInterval: 30 * 1000,
   });
 }
 
-export function useUnreadCountQuery(userId: string | undefined) {
-  const { data: threads } = useThreadsQuery(userId);
-  const { data: requests } = useMessageRequestsQuery(userId, 'received', 'pending');
+export function useUnreadCountQuery(
+  userId: string | undefined,
+  enabled = true
+) {
+  const { data: threads } = useThreadsQuery(userId, false, enabled);
+  const { data: requests } = useMessageRequestsQuery(
+    userId,
+    'received',
+    'pending',
+    enabled
+  );
 
   const unreadThreadsCount =
     threads?.reduce((accumulator, thread) => accumulator + thread.unreadCount, 0) ?? 0;

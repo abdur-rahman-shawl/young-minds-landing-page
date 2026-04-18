@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -19,68 +19,23 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { Loader2, MessageSquare, Search, Users } from "lucide-react";
 import { AdminDirectMessageDialog } from "./admin-direct-message-dialog";
-
-interface Mentee {
-  id: string;
-  userId: string;
-  name: string | null;
-  email: string | null;
-  currentRole: string | null;
-  currentCompany: string | null;
-  careerGoals: string | null;
-  interests: string[];
-  skillsToLearn: string[];
-  currentSkills: string[];
-  education: string[];
-  learningStyle: string | null;
-  preferredMeetingFrequency: string | null;
-  createdAt: string | null;
-  updatedAt: string | null;
-}
+import {
+  type AdminMenteeItem,
+  useAdminMenteesQuery,
+} from "@/hooks/queries/use-admin-queries";
 
 export function AdminMentees() {
-  const [mentees, setMentees] = useState<Mentee[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [messageRecipient, setMessageRecipient] = useState<Mentee | null>(null);
-
-  const fetchMentees = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/mentees', { credentials: 'include' });
-      const json = await res.json().catch(() => ({ success: false, error: 'Unable to parse response' }));
-
-      if (!res.ok || !json?.success) {
-        const message = json?.error || 'Unable to load mentees';
-        if (res.status === 401 || res.status === 403) {
-          setError(message);
-          toast.error('Authentication required', { description: message });
-          return;
-        }
-        setError(message);
-        toast.error('Failed to fetch mentees', { description: message });
-        return;
-      }
-
-      setMentees(json.data ?? []);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Something went wrong';
-      setError(message);
-      toast.error('Failed to fetch mentees', { description: message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMentees();
-  }, []);
+  const [messageRecipient, setMessageRecipient] = useState<AdminMenteeItem | null>(null);
+  const {
+    data: mentees = [],
+    isLoading,
+    error,
+    refetch,
+  } = useAdminMenteesQuery();
 
   const filteredMentees = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -125,7 +80,7 @@ export function AdminMentees() {
   const formatRelativeDate = (value: string | null) =>
     value ? formatDistanceToNow(new Date(value), { addSuffix: true }) : '—';
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex h-[70vh] flex-col items-center justify-center gap-3 text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -135,12 +90,13 @@ export function AdminMentees() {
   }
 
   if (error) {
+    const message = error instanceof Error ? error.message : "Unable to load mentees";
     return (
       <div className="flex h-[70vh] flex-col items-center justify-center gap-3 text-center text-sm text-red-600">
         <Users className="h-6 w-6" />
         <p>We ran into a problem loading mentees.</p>
-        <p className="text-xs text-muted-foreground">{error}</p>
-        <Button size="sm" onClick={fetchMentees} className="mt-2">
+        <p className="text-xs text-muted-foreground">{message}</p>
+        <Button size="sm" onClick={() => void refetch()} className="mt-2">
           Retry
         </Button>
       </div>
@@ -262,8 +218,6 @@ export function AdminMentees() {
     </div>
   );
 }
-
-
 
 
 

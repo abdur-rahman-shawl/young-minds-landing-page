@@ -38,6 +38,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { useDebounce } from '@/hooks/use-performance';
+import { useTRPCClient } from '@/lib/trpc/react';
 
 interface Course {
   id: string;
@@ -75,6 +76,7 @@ function CoursesContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const trpcClient = useTRPCClient();
 
   // State
   const [courses, setCourses] = useState<Course[]>([]);
@@ -124,33 +126,29 @@ function CoursesContent() {
   const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
-      
-      const queryParams = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: '12',
-        ...(debouncedSearch && { search: debouncedSearch }),
-        ...(selectedCategory && { category: selectedCategory }),
-        ...(selectedDifficulty && { difficulty: selectedDifficulty }),
-        ...(minPrice && { minPrice }),
-        ...(maxPrice && { maxPrice }),
-        sortBy,
-        sortOrder,
+      const data = await trpcClient.public.listCourses.query({
+        page: currentPage,
+        limit: 12,
+        search: debouncedSearch || undefined,
+        category: selectedCategory || undefined,
+        difficulty: selectedDifficulty
+          ? (selectedDifficulty as Course['difficulty'])
+          : undefined,
+        minPrice: minPrice ? Number(minPrice) : undefined,
+        maxPrice: maxPrice ? Number(maxPrice) : undefined,
+        sortBy: sortBy as 'created_at' | 'price' | 'rating' | 'enrollment_count',
+        sortOrder: sortOrder as 'asc' | 'desc',
       });
 
-      const response = await fetch(`/api/courses?${queryParams}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setCourses(data.data.courses);
-        setCategories(data.data.filters.categories);
-                setPagination(data.data.pagination);
-      }
+      setCourses(data.courses);
+      setCategories(data.filters.categories);
+      setPagination(data.pagination);
     } catch (error) {
       console.error('Error fetching courses:', error);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, debouncedSearch, maxPrice, minPrice, selectedCategory, selectedDifficulty, sortBy, sortOrder]);
+  }, [currentPage, debouncedSearch, maxPrice, minPrice, selectedCategory, selectedDifficulty, sortBy, sortOrder, trpcClient]);
 
   // Effects
   useEffect(() => {

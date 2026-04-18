@@ -2,6 +2,8 @@
 
 ## FOR THE DEVELOPER CONTINUING THIS WORK
 
+> Update note (2026-04-03): the live app no longer uses the internal REST handlers shown in some older examples below for admin subscription management, authenticated self-subscription reads, or mentor/mentee/admin analytics. Those flows now run through `lib/subscriptions/server/service.ts`, `lib/analytics/server/service.ts`, and the tRPC routers in `lib/trpc/routers/subscriptions.ts` and `lib/trpc/routers/analytics.ts`. Public plan discovery remains on `app/api/subscriptions/plans/public/route.ts`.
+
 **Last Updated:** 2026-02-06
 **Status:** Phase 1 Complete (Core Enforcement), Production Hardening In Progress, Phase 2+ Pending
 **Read Time:** 30 minutes
@@ -701,7 +703,7 @@ trackFeatureUsage(
    - **Feature Key:** `'message_requests_daily'`
    - **Tracks:** count: 1
 
-7. **`app/api/courses/[id]/enroll/route.ts`** ✅
+7. **`lib/learning/server/service.ts` (`enrollInCourse`)** ✅
    - Added subscription check for course enrollments
    - Added usage tracking after enrollment
    - **Feature Key:** `'free_courses_limit'`
@@ -990,8 +992,8 @@ However, with service role key, RLS policies may not apply. The helper functions
 - Direct messages: `direct_messages_daily` in `lib/messaging/server/service.ts` (`sendMessage`)
 - Message requests: `message_requests_daily` in `lib/messaging/server/service.ts` (`sendRequest`)
 - AI chat access + messages: `ai_helper_chat_access` and `ai_helper_messages_limit` in `app/api/chat/route.ts` and `app/api/ai-chatbot-messages/route.ts`
-- Course enrollments: `free_courses_limit` in `app/api/courses/[id]/enroll/route.ts`
-- Course access/discount at enroll: `courses_access`, `course_discount_percent` in `app/api/courses/[id]/enroll/route.ts`
+- Course enrollments: `free_courses_limit` in `lib/learning/server/service.ts` (`enrollInCourse`)
+- Course access/discount at enroll: `courses_access`, `course_discount_percent` in `lib/learning/server/service.ts` (`enrollInCourse`)
 - Recordings access: `session_recordings_access` in `app/api/sessions/[sessionId]/recordings/route.ts` and `app/api/recordings/[id]/playback-url/route.ts`
 - Mentor AI appearance + mentee AI search (only when `?ai=true`): `ai_profile_appearances_monthly`, `ai_search_sessions_monthly` in `app/api/public-mentors/route.ts`
 
@@ -3042,32 +3044,18 @@ export async function POST(request: NextRequest, { params }) {
 
 ```typescript
 // components/mentor/dashboard/mentor-analytics-section.tsx
-
-useEffect(() => {
-  const checkAccess = async () => {
-    const response = await fetch('/api/subscriptions/features/check', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ feature: 'deep_analytics' })
-    });
-
-    const data = await response.json();
-
-    if (!data.has_access) {
-      setShowUpgradePrompt(true);
-      return;
-    }
-
-    // Load analytics data
-    loadAnalytics();
-  };
-
-  checkAccess();
-}, []);
+const {
+  hasAccess: hasAnalyticsAccess,
+  isLoading: analyticsAccessLoading,
+} = useSubscriptionFeatureAccess(
+  'mentor',
+  FEATURE_KEYS.ANALYTICS_ACCESS_LEVEL,
+  Boolean(session?.user?.id)
+);
 
 return (
   <div>
-    {showUpgradePrompt ? (
+    {!hasAnalyticsAccess ? (
       <UpgradePrompt feature="Deep Analytics" />
     ) : (
       <AnalyticsCharts data={analyticsData} />
@@ -3076,19 +3064,7 @@ return (
 );
 ```
 
-**API endpoint:**
-```typescript
-// app/api/subscriptions/features/check/route.ts
-
-export async function POST(request: NextRequest) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  const { feature } = await request.json();
-
-  const access = await checkFeatureAccess(session.user.id, feature);
-
-  return NextResponse.json(access);
-}
-```
+Use the shared subscription query hooks instead of creating one-off access-check endpoints. The live app now resolves authenticated feature access through the subscriptions tRPC router and `useSubscriptionFeatureAccess(...)`.
 
 ---
 

@@ -1,90 +1,112 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 import type { FeatureKey } from '@/lib/subscriptions/feature-keys';
 import {
+  getNumericFeatureLimitAmount,
   hasIncludedFeature,
   type SubscriptionFeatureRecord,
 } from '@/lib/subscriptions/client-access';
+import { useTRPCClient } from '@/lib/trpc/react';
+import type { RouterOutputs } from '@/lib/trpc/types';
 
 export type SubscriptionAudience = 'mentor' | 'mentee';
 
-export interface SubscriptionInfo {
-  subscription_id?: string;
-  plan_id: string;
-  plan_name: string;
-  status: string;
-  audience: SubscriptionAudience;
-  current_period_end: string | null;
-}
+type SelfSubscriptionResponse = RouterOutputs['subscriptions']['me'];
+type SelfSubscriptionUsage = RouterOutputs['subscriptions']['usage'];
+type PublicPlansResponse = RouterOutputs['subscriptions']['publicPlans'];
 
-export interface SubscriptionFeature extends SubscriptionFeatureRecord {
-  feature_name: string;
-  value_type:
-    | 'boolean'
-    | 'count'
-    | 'minutes'
-    | 'text'
-    | 'amount'
-    | 'percent'
-    | 'json';
-  limit_count: number | null;
-  limit_minutes: number | null;
-  limit_text: string | null;
-  limit_amount: number | string | null;
-  limit_percent: number | null;
-  limit_json: Record<string, unknown> | null;
-  limit_interval: 'day' | 'week' | 'month' | 'year' | null;
-  limit_interval_count: number | null;
-  is_metered: boolean;
-  unit?: string | null;
-}
-
-interface SubscriptionResponse {
-  success: boolean;
-  data?: {
-    subscription: SubscriptionInfo | null;
-    features: SubscriptionFeature[];
-  };
-  message?: string;
-  error?: string;
-}
+export type SubscriptionInfo = SelfSubscriptionResponse['subscription'];
+export type SubscriptionFeature = SelfSubscriptionResponse['features'][number];
+export type SubscriptionUsageEntry = SelfSubscriptionUsage[number];
+export type PublicSubscriptionPlan = PublicPlansResponse[number];
 
 export const subscriptionKeys = {
   all: ['subscription'] as const,
   me: (audience: SubscriptionAudience) =>
     [...subscriptionKeys.all, 'me', audience] as const,
+  usage: (audience: SubscriptionAudience) =>
+    [...subscriptionKeys.all, 'usage', audience] as const,
+  publicPlans: (audience: SubscriptionAudience | null) =>
+    [...subscriptionKeys.all, 'public-plans', audience ?? 'all'] as const,
 };
 
-async function fetchSubscriptionDetails(audience: SubscriptionAudience) {
-  const response = await fetch(`/api/subscriptions/me?audience=${audience}`, {
-    credentials: 'include',
+async function invalidateSubscriptionQueries(
+  queryClient: ReturnType<typeof useQueryClient>
+) {
+  await queryClient.invalidateQueries({
+    queryKey: subscriptionKeys.all,
   });
-
-  const payload = (await response.json()) as SubscriptionResponse;
-
-  if (!response.ok || !payload.success) {
-    throw new Error(
-      payload.message || payload.error || 'Failed to load subscription details'
-    );
-  }
-
-  return {
-    subscription: payload.data?.subscription ?? null,
-    features: payload.data?.features ?? [],
-  };
 }
 
 export function useSubscriptionDetails(
   audience: SubscriptionAudience,
   enabled = true
 ) {
+  const trpcClient = useTRPCClient();
+
   return useQuery({
     queryKey: subscriptionKeys.me(audience),
-    queryFn: () => fetchSubscriptionDetails(audience),
+    queryFn: () => trpcClient.subscriptions.me.query({ audience }),
     enabled,
     staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+}
+
+export function useSubscriptionUsage(
+  audience: SubscriptionAudience,
+  enabled = true
+) {
+  const trpcClient = useTRPCClient();
+
+  return useQuery({
+    queryKey: subscriptionKeys.usage(audience),
+    queryFn: () => trpcClient.subscriptions.usage.query({ audience }),
+    enabled,
+    staleTime: 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+}
+
+export function useSelectSubscriptionPlanMutation() {
+  const trpcClient = useTRPCClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      planId: string;
+      priceId?: string;
+      status?: 'active' | 'trialing';
+    }) => trpcClient.subscriptions.selectPlan.mutate(input),
+    onSuccess: async () => {
+      await invalidateSubscriptionQueries(queryClient);
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to select plan'
+      );
+    },
+  });
+}
+
+export function usePublicSubscriptionPlans(
+  audience?: SubscriptionAudience | null,
+  enabled = true
+) {
+  const trpcClient = useTRPCClient();
+
+  return useQuery({
+    queryKey: subscriptionKeys.publicPlans(audience ?? null),
+    queryFn: () =>
+      trpcClient.subscriptions.publicPlans.query(
+        audience ? { audience } : undefined
+      ),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 
@@ -100,3 +122,18 @@ export function useSubscriptionFeatureAccess(
     hasAccess: hasIncludedFeature(query.data?.features, featureKey),
   };
 }
+
+export function useSubscriptionFeatureLimitAmount(
+  audience: SubscriptionAudience,
+  featureKey: FeatureKey,
+  enabled = true
+) {
+  const query = useSubscriptionDetails(audience, enabled);
+
+  return {
+    ...query,
+    limitAmount: getNumericFeatureLimitAmount(query.data?.features, featureKey),
+  };
+}
+
+export type { SubscriptionFeatureRecord };

@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/lib/auth-client';
+import { useSubmitMentorApplicationMutation } from '@/hooks/queries/use-mentor-queries';
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/providers/theme-toggle";
 import { ArrowLeft } from "lucide-react";
@@ -59,6 +60,7 @@ export default function MentorSignup() {
   const [resumeError, setResumeError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const submitMentorApplicationMutation = useSubmitMentorApplicationMutation();
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -124,30 +126,19 @@ export default function MentorSignup() {
       console.log('🚀 Submitting mentor application with files');
 
       // Submit mentor application
-      const response = await fetch('/api/mentors/apply', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      });
-
-      console.log('📡 API Response status:', response.status);
-      
-      const result = await response.json();
-      console.log('📋 API Response data:', result);
-
-      if (!result.success) {
-        console.error('❌ API Error:', result.error);
-        alert('Failed to submit application: ' + result.error);
-        setSubmitted(false);
-        return;
-      }
+      const result = await submitMentorApplicationMutation.mutateAsync(formData);
+      console.log('📋 Mentor application result:', result);
 
       console.log('✅ Mentor application submitted successfully!');
       // Success - profile created and mentor role assigned
       
     } catch (error) {
       console.error('❌ Network/JS Error submitting mentor application:', error);
-      alert('Failed to submit application. Please check console for details.');
+      alert(
+        error instanceof Error
+          ? error.message
+          : 'Failed to submit application. Please check console for details.'
+      );
       setSubmitted(false);
     }
   };

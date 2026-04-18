@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,14 @@ import {
 } from 'lucide-react';
 import { VideoPlayer } from '@/components/ui/kibo-video-player';
 import { useAuth } from '@/contexts/auth-context';
+import {
+  useCourseEnrollmentStatusQuery,
+  useEnrollCourseMutation,
+  useSubmitCourseReviewMutation,
+  useToggleCourseReviewHelpfulMutation,
+} from '@/hooks/queries/use-learning-queries';
 import { toast } from 'sonner';
+import { useTRPCClient } from '@/lib/trpc/react';
 
 interface CourseDetailViewProps {
   courseId: string;
@@ -150,12 +157,11 @@ interface CourseReview {
 export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
   const router = useRouter();
   const { session } = useAuth();
+  const trpcClient = useTRPCClient();
 
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [enrollmentLoading, setEnrollmentLoading] = useState(false);
-  const [isEnrolled, setIsEnrolled] = useState(false);
-  const [enrollmentData, setEnrollmentData] = useState<any>(null);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [previewVideo, setPreviewVideo] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -170,84 +176,55 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
     title: '',
     review: '',
   });
+  const enrollmentQuery = useCourseEnrollmentStatusQuery(
+    { courseId },
+    Boolean(session && courseId)
+  );
+  const enrollCourse = useEnrollCourseMutation();
+  const submitCourseReview = useSubmitCourseReviewMutation();
+  const toggleCourseReviewHelpful = useToggleCourseReviewHelpfulMutation();
+  const isEnrolled = enrollmentQuery.data?.isEnrolled ?? false;
+  const enrollmentData = enrollmentQuery.data?.enrollment ?? null;
 
-  useEffect(() => {
-    if (courseId) {
-      fetchCourseDetails();
-      if (session) {
-        checkEnrollmentStatus();
-      }
-    }
-  }, [courseId, session]);
-
-  useEffect(() => {
-    if (courseId) {
-      setReviewsOffset(0);
-      setReviewsHasMore(false);
-      setMyReview(null);
-      setReviewForm({ rating: 0, title: '', review: '' });
-      fetchCourseReviews(0, false);
-    }
-  }, [courseId]);
-
-  const fetchCourseDetails = async () => {
+  const fetchCourseDetails = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/courses/${courseId}`);
-      const data = await response.json();
+      const data = await trpcClient.public.getCourse.query({ courseId });
 
-      if (data.success) {
-        setCourse(data.data);
-        if (data.data.curriculum.length > 0) {
-          setExpandedModules(new Set([data.data.curriculum[0].id]));
-        }
+      setCourse(data);
+      if (data.curriculum.length > 0) {
+        setExpandedModules(new Set([data.curriculum[0].id]));
       }
     } catch (error) {
       console.error('Error fetching course details:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [courseId, trpcClient]);
 
-  const checkEnrollmentStatus = async () => {
-    try {
-      const response = await fetch(`/api/courses/${courseId}/enroll`);
-      const data = await response.json();
-
-      if (data.success) {
-        setIsEnrolled(data.data.isEnrolled);
-        setEnrollmentData(data.data.enrollment);
-      }
-    } catch (error) {
-      console.error('Error checking enrollment status:', error);
-    }
-  };
-
-  const fetchCourseReviews = async (nextOffset = 0, append = false) => {
+  const fetchCourseReviews = useCallback(async (nextOffset = 0, append = false) => {
     try {
       setReviewsLoading(true);
-      const response = await fetch(
-        `/api/courses/${courseId}/reviews?limit=10&offset=${nextOffset}&includeMine=true`
-      );
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setCourseReviews((prev) => (append ? [...prev, ...data.data] : data.data));
-        setReviewsOffset(nextOffset);
-        setReviewsHasMore(Boolean(data.pagination?.hasMore));
-        if (data.myReview) {
-          setMyReview(data.myReview);
-          setReviewForm({
-            rating: data.myReview.rating || 0,
-            title: data.myReview.title || '',
-            review: data.myReview.review || '',
-          });
-        } else {
-          setMyReview(null);
-          setReviewForm({ rating: 0, title: '', review: '' });
-        }
+      const data = await trpcClient.public.listCourseReviews.query({
+        courseId,
+        limit: 10,
+        offset: nextOffset,
+        includeMine: true,
+      });
+
+      setCourseReviews((prev) => (append ? [...prev, ...data.reviews] : data.reviews));
+      setReviewsOffset(nextOffset);
+      setReviewsHasMore(Boolean(data.pagination?.hasMore));
+      if (data.myReview) {
+        setMyReview(data.myReview);
+        setReviewForm({
+          rating: data.myReview.rating || 0,
+          title: data.myReview.title || '',
+          review: data.myReview.review || '',
+        });
       } else {
-        setCourseReviews([]);
-        setReviewsHasMore(false);
+        setMyReview(null);
+        setReviewForm({ rating: 0, title: '', review: '' });
       }
     } catch (error) {
       console.error('Error fetching course reviews:', error);
@@ -256,7 +233,23 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
     } finally {
       setReviewsLoading(false);
     }
-  };
+  }, [courseId, trpcClient]);
+
+  useEffect(() => {
+    if (courseId) {
+      void fetchCourseDetails();
+    }
+  }, [courseId, fetchCourseDetails]);
+
+  useEffect(() => {
+    if (courseId) {
+      setReviewsOffset(0);
+      setReviewsHasMore(false);
+      setMyReview(null);
+      setReviewForm({ rating: 0, title: '', review: '' });
+      void fetchCourseReviews(0, false);
+    }
+  }, [courseId, fetchCourseReviews]);
 
   const handleEnroll = async () => {
     if (!session) {
@@ -266,32 +259,11 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
 
     try {
       setEnrollmentLoading(true);
-      const response = await fetch(`/api/courses/${courseId}/enroll`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setIsEnrolled(true);
-        setEnrollmentData({
-          id: data.data.enrollmentId,
-          status: data.data.status,
-          enrolledAt: data.data.enrolledAt,
-          overallProgress: 0,
-        });
-
-        router.push(`/learn/${courseId}`);
-      } else {
-        alert(data.error || 'Failed to enroll in course');
-      }
+      await enrollCourse.mutateAsync({ courseId });
+      await enrollmentQuery.refetch();
+      router.push(`/learn/${courseId}`);
     } catch (error) {
       console.error('Error enrolling in course:', error);
-      alert('Failed to enroll in course');
     } finally {
       setEnrollmentLoading(false);
     }
@@ -317,24 +289,16 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
 
     try {
       setReviewSubmitting(true);
-      const response = await fetch(`/api/courses/${courseId}/reviews`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rating: reviewForm.rating,
-          title: reviewForm.title.trim() || undefined,
-          review: reviewForm.review.trim() || undefined,
-        }),
+      await submitCourseReview.mutateAsync({
+        courseId,
+        rating: reviewForm.rating,
+        title: reviewForm.title.trim() || undefined,
+        review: reviewForm.review.trim() || undefined,
       });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to submit review');
-      }
       toast.success('Review submitted');
       await fetchCourseReviews(0, false);
     } catch (error) {
       console.error('Error submitting course review:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to submit review');
     } finally {
       setReviewSubmitting(false);
     }
@@ -351,28 +315,21 @@ export function CourseDetailView({ courseId, onBack }: CourseDetailViewProps) {
       return;
     }
     try {
-      const response = await fetch(`/api/courses/${courseId}/reviews/${reviewId}/helpful`, {
-        method: 'POST',
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to update helpful vote');
-      }
+      const data = await toggleCourseReviewHelpful.mutateAsync({ reviewId });
 
       setCourseReviews((prev) =>
         prev.map((review) =>
           review.id === reviewId
             ? {
                 ...review,
-                helpfulVotes: data.data.helpfulVotes,
-                viewerHasHelpful: data.data.viewerHasHelpful,
+                helpfulVotes: data.helpfulVotes,
+                viewerHasHelpful: data.viewerHasHelpful,
               }
             : review
         )
       );
     } catch (error) {
       console.error('Error updating helpful vote:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update helpful vote');
     }
   };
 
