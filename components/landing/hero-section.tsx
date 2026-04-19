@@ -170,6 +170,7 @@ export function HeroSection() {
     setCurrentAiMessage("")
     let fullResponseText = "";
     let toolCallDetected = false;
+    let toolCallQuery = "";
 
     try {
       const body = JSON.stringify({
@@ -215,6 +216,7 @@ export function HeroSection() {
         fullResponseText = deflectionResponse.text || "";
         if (deflectionResponse.tool_call?.name === 'find_mentors') {
           toolCallDetected = true;
+          toolCallQuery = deflectionResponse.tool_call.arguments?.query ?? "";
         }
         setIsChatLimitReached(true);
       } else {
@@ -237,6 +239,7 @@ export function HeroSection() {
             const finalJson = JSON.parse(partialJson);
             if (finalJson.tool_call && finalJson.tool_call.name === 'find_mentors') {
               toolCallDetected = true;
+              toolCallQuery = finalJson.tool_call.arguments?.query ?? "";
             }
           } catch (e) {
             // JSON parsing in progress
@@ -261,7 +264,7 @@ export function HeroSection() {
       await saveMessageToDB('ai', aiMessage.content, userMessageId);
 
       if (toolCallDetected) {
-        const mentors = await fetchMentorsFromApi(true);
+        const mentors = await fetchMentorsFromApi(true, toolCallQuery);
         if (mentors && mentors.length) {
           await logMentorExposure(mentors.map((mentor) => mentor.id));
         }
@@ -283,7 +286,7 @@ export function HeroSection() {
   };
 
   // Fetch real mentors from your public route
-  const fetchMentorsFromApi = async (useAiSearch = false): Promise<DbMentor[] | null> => {
+  const fetchMentorsFromApi = async (useAiSearch = false, query?: string): Promise<DbMentor[] | null> => {
     try {
       setIsSearchingMentors(true)
       const requestMentors = async (aiEnabled: boolean) => {
@@ -292,6 +295,7 @@ export function HeroSection() {
           pageSize: 12,
           availableOnly: true,
           aiFilterOnly: aiEnabled || undefined,
+          q: query || undefined,
         });
       };
 
