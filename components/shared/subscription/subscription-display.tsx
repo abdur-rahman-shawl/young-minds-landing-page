@@ -184,20 +184,20 @@ export function SubscriptionDisplay() {
                 <div
                   key={plan.id}
                   className={`relative overflow-hidden rounded-2xl border ${isCurrent
-                      ? "border-emerald-300 bg-emerald-50"
-                      : "border-slate-200 bg-white"
+                      ? "border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/30"
+                      : "border-border bg-card"
                     } shadow-sm`}
                 >
                   <div
                     className={`absolute inset-x-0 top-0 h-24 ${isCurrent
-                        ? "bg-gradient-to-r from-emerald-200 via-emerald-100 to-transparent"
-                        : "bg-gradient-to-r from-amber-100 via-amber-50 to-transparent"
+                        ? "bg-gradient-to-r from-emerald-200 via-emerald-100 to-transparent dark:from-emerald-900/40 dark:via-emerald-950/20 dark:to-transparent"
+                        : "bg-gradient-to-r from-amber-100 via-amber-50 to-transparent dark:from-amber-900/30 dark:via-amber-950/10 dark:to-transparent"
                       }`}
                   />
                   <div className="relative flex h-full flex-col p-6">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                           {plan.audience === "mentor" ? "Mentor Plan" : "Mentee Plan"}
                         </p>
                         <CardTitle className="text-2xl">{plan.name}</CardTitle>
@@ -217,7 +217,7 @@ export function SubscriptionDisplay() {
                       <span className="text-sm text-muted-foreground">/ month</span>
                     </div>
 
-                    <div className="mt-6 space-y-2 text-sm text-slate-600">
+                    <div className="mt-6 space-y-2 text-sm text-muted-foreground">
                       {(plan.subscription_plan_features || [])
                         .filter((feature) => feature.is_included)
                         .map((feature) => {
@@ -234,12 +234,12 @@ export function SubscriptionDisplay() {
                                     : "Included";
                           return (
                             <div key={feature.id} className="flex items-start gap-2">
-                              <Check className="mt-0.5 h-4 w-4 text-emerald-600" />
+                              <Check className="mt-0.5 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                               <div>
-                                <p className="font-medium text-slate-800">
+                                <p className="font-medium text-foreground">
                                   {feature.subscription_features.name}
                                 </p>
-                                <p className="text-xs text-slate-500">{limitLabel}</p>
+                                <p className="text-xs text-muted-foreground">{limitLabel}</p>
                               </div>
                             </div>
                           );
@@ -250,7 +250,7 @@ export function SubscriptionDisplay() {
                       <Button
                         disabled={isCurrent}
                         onClick={() => handleSelectPlan(plan)}
-                        className={`w-full ${isCurrent ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"
+                        className={`w-full ${isCurrent ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-primary text-primary-foreground"
                           }`}
                       >
                         {isCurrent

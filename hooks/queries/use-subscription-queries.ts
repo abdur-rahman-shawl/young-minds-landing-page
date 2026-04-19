@@ -11,6 +11,7 @@ import {
 } from '@/lib/subscriptions/client-access';
 import { useTRPCClient } from '@/lib/trpc/react';
 import type { RouterOutputs } from '@/lib/trpc/types';
+import { queryKeys } from '@/lib/react-query';
 
 export type SubscriptionAudience = 'mentor' | 'mentee';
 
@@ -83,6 +84,8 @@ export function useSelectSubscriptionPlanMutation() {
     }) => trpcClient.subscriptions.selectPlan.mutate(input),
     onSuccess: async () => {
       await invalidateSubscriptionQueries(queryClient);
+      // Refresh session so mentorAccess/menteeAccess updates in auth context (sidebar locks)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.sessionWithRoles });
     },
     onError: (error) => {
       toast.error(
