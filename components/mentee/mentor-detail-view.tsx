@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -63,6 +63,7 @@ type TabType = "overview" | "content" | "reviews" | "achievements" | "mentoring_
 
 export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }: MentorDetailViewProps) {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const urlSource = searchParams.get('from')
   const resolvedSource = bookingSource === 'default' && urlSource === 'explore' ? 'explore' : bookingSource
   const { mentor, loading, error } = useMentorDetail(mentorId)
@@ -349,7 +350,17 @@ export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }
 
             return (
               <motion.div key={item.id} variants={fadeIn}>
-                <Card className="border-border shadow-sm rounded-xl overflow-hidden hover:shadow-md transition-shadow group">
+                <Card
+                  className={cn(
+                    "border-border shadow-sm rounded-xl overflow-hidden hover:shadow-md transition-shadow group",
+                    item.type === 'COURSE' && item.course?.courseId && 'cursor-pointer'
+                  )}
+                  onClick={() => {
+                    if (item.type === 'COURSE' && item.course?.courseId) {
+                      router.push(`/dashboard?section=courses&courseId=${item.course.courseId}`)
+                    }
+                  }}
+                >
                   <CardContent className="p-0">
                     <div className="flex gap-4 p-5">
                       {/* Type Icon */}

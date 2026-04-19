@@ -327,6 +327,7 @@ export async function getMentorPublicContent(mentorId: string) {
 
         if (courseData) {
           baseContent.course = {
+            courseId: courseData.id,
             difficulty: courseData.difficulty,
             duration: courseData.duration,
             price: courseData.price,
