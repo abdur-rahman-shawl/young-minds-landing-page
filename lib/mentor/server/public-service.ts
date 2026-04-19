@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, exists, ilike, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { listActiveSubscriptionUserIds } from '@/lib/db/queries/subscriptions';
@@ -129,10 +129,7 @@ export async function listPublicMentors(
         ilike(mentors.expertise, `%${q}%`),
         ilike(mentors.headline, `%${q}%`),
         ilike(mentors.about, `%${q}%`),
-        exists(
-          db.select({ _: mentors.id }).from(courses)
-            .where(and(eq(courses.ownerId, mentors.id), ilike(courses.tags, `%${q}%`)))
-        ),
+        sql`EXISTS (SELECT 1 FROM ${courses} WHERE ${courses.ownerId} = ${mentors.id} AND ${courses.tags} ILIKE ${'%' + q + '%'})`,
       )
     );
   }

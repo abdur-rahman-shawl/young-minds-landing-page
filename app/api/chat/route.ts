@@ -37,18 +37,27 @@ Here is how you handle different user intents, following the Primary Directive. 
 
 5. Tool Usage
 
-You have access to a powerful tool to help users. When you have gathered enough information and the user has shown clear intent to connect with a mentor, you MUST use the 'find_mentors' tool. This is the primary way you fulfill the user's request to see mentor profiles.
+You have access to two tools. Use them proactively — never mention them by name to the user and never ask permission.
 
-- **DO NOT** mention the tool by name to the user.
-- **DO NOT** ask the user for permission to use the tool.
-- **USE** the tool proactively when the conversation naturally leads to finding a mentor. For example, after you provide your "mini-solution" and the user agrees to your "Soft CTA".
+**find_mentors** — Call this when the user wants to connect with a human mentor or has agreed to your Soft CTA. Pass the user's primary goal as the 'query' argument.
 
-Example flow:
+**suggest_content** — Call this when the user wants to learn a specific skill or topic and a course or roadmap would provide immediate value (during the Mini-Solution step). Pass their goal as 'query' and infer 'difficulty' (BEGINNER / INTERMEDIATE / ADVANCED) from their experience level. You may call suggest_content before find_mentors — surfacing a relevant course builds trust before the mentor pitch.
+
+Both tools can fire in the same response when the user both wants to learn AND connect with a mentor.
+
+Example flow (learning intent):
+User: "I want to learn data science from scratch."
+You: (Provide mini-solution + call suggest_content with query="data science", difficulty="BEGINNER")
+You: "Here's a quick roadmap — and I've pulled up some relevant courses for you. Would you also like to chat with a data science mentor?"
+User: "Yes!"
+You: (Call find_mentors with query="data science")
+
+Example flow (mentor intent):
 User: "I want to switch from marketing to product management."
 You: (Provide mini-solution) "...Here is a 3-step plan..."
 You: "...Would you like to speak to someone who's been in your shoes?"
 User: "Yes, that would be great!"
-You: "Perfect! Based on your goal, I'm finding a few mentors who would be a great fit." (Internally, you call the find_mentors tool now).
+You: "Perfect! Based on your goal, I'm finding a few mentors who would be a great fit." (Call find_mentors with query="product management").
 `.trim();
 
 export async function POST(req: NextRequest) {
@@ -85,6 +94,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       text: deflection,
       tool_call: { name: 'find_mentors', arguments: { query: userMessage } },
+      content_tool_call: { name: 'suggest_content', arguments: { query: userMessage } },
     });
   }
 
@@ -102,20 +112,29 @@ export async function POST(req: NextRequest) {
     messages: prior,
     temperature: 0.7,
     schema: z.object({
-      // The text content that the AI generates.
       text: z.string().describe('The response text to the user.'),
-      // An optional tool call. The AI will only fill this when it decides to show mentors.
       tool_call: z
         .object({
           name: z.literal('find_mentors'),
           arguments: z.object({
-            // We can add arguments like query, industry, etc. later.
-            // For now, an empty object is fine.
-            query: z.string().optional().describe('The user\'s primary goal or query.'),
+            query: z.string().optional().describe("The user's primary goal or query."),
           }),
         })
         .optional()
-        .describe('The tool to call to find and display mentors to the user.'),
+        .describe('Call this to find and display mentor profiles.'),
+      content_tool_call: z
+        .object({
+          name: z.literal('suggest_content'),
+          arguments: z.object({
+            query: z.string().optional().describe("The user's learning goal or topic."),
+            difficulty: z
+              .enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED'])
+              .optional()
+              .describe('Inferred difficulty level from the conversation.'),
+          }),
+        })
+        .optional()
+        .describe('Call this to surface relevant courses or learning content.'),
     }),
   });
 

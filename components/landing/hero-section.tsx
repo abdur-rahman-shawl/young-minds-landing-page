@@ -21,6 +21,28 @@ interface Message {
   timestamp: Date
 }
 
+interface SuggestedCourse {
+  id: string
+  title: string | null
+  description: string | null
+  difficulty: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED' | null
+  duration: number | null
+  price: string | null
+  currency: string | null
+  thumbnailUrl: string | null
+  category: string | null
+  enrollmentCount: number | null
+  avgRating: number
+  reviewCount: number
+  mentor: {
+    id: string | null
+    name: string | null
+    image: string | null
+    title: string | null
+    company: string | null
+  } | null
+}
+
 interface DbMentor {
   id: string
   userId: string
@@ -59,6 +81,8 @@ export function HeroSection() {
   const [currentAiMessage, setCurrentAiMessage] = useState("")
   const [isSearchingMentors, setIsSearchingMentors] = useState(false)
   const [isChatLimitReached, setIsChatLimitReached] = useState(false)
+  const [suggestedContent, setSuggestedContent] = useState<SuggestedCourse[]>([])
+  const [showContent, setShowContent] = useState(false)
 
   const [dbMentors, setDbMentors] = useState<DbMentor[]>([])
   const [showMentors, setShowMentors] = useState(false)
@@ -171,6 +195,9 @@ export function HeroSection() {
     let fullResponseText = "";
     let toolCallDetected = false;
     let toolCallQuery = "";
+    let contentToolCallDetected = false;
+    let contentToolCallQuery = "";
+    let contentToolCallDifficulty: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED' | undefined;
 
     try {
       const body = JSON.stringify({
@@ -218,6 +245,11 @@ export function HeroSection() {
           toolCallDetected = true;
           toolCallQuery = deflectionResponse.tool_call.arguments?.query ?? "";
         }
+        if (deflectionResponse.content_tool_call?.name === 'suggest_content') {
+          contentToolCallDetected = true;
+          contentToolCallQuery = deflectionResponse.content_tool_call.arguments?.query ?? "";
+          contentToolCallDifficulty = deflectionResponse.content_tool_call.arguments?.difficulty;
+        }
         setIsChatLimitReached(true);
       } else {
         const reader = res.body.getReader();
@@ -237,9 +269,14 @@ export function HeroSection() {
             }
 
             const finalJson = JSON.parse(partialJson);
-            if (finalJson.tool_call && finalJson.tool_call.name === 'find_mentors') {
+            if (finalJson.tool_call?.name === 'find_mentors') {
               toolCallDetected = true;
               toolCallQuery = finalJson.tool_call.arguments?.query ?? "";
+            }
+            if (finalJson.content_tool_call?.name === 'suggest_content') {
+              contentToolCallDetected = true;
+              contentToolCallQuery = finalJson.content_tool_call.arguments?.query ?? "";
+              contentToolCallDifficulty = finalJson.content_tool_call.arguments?.difficulty;
             }
           } catch (e) {
             // JSON parsing in progress
@@ -268,6 +305,10 @@ export function HeroSection() {
         if (mentors && mentors.length) {
           await logMentorExposure(mentors.map((mentor) => mentor.id));
         }
+      }
+
+      if (contentToolCallDetected) {
+        await fetchContentFromApi(contentToolCallQuery || toolCallQuery, contentToolCallDifficulty);
       }
 
     } catch (err) {
@@ -322,6 +363,25 @@ export function HeroSection() {
     }
   }
 
+  const fetchContentFromApi = async (query?: string, difficulty?: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED') => {
+    try {
+      const payload = await trpcClient.public.listCourses.query({
+        search: query || undefined,
+        difficulty: difficulty || undefined,
+        limit: 3,
+        sortBy: 'enrollment_count',
+        sortOrder: 'desc',
+      })
+      const list = (payload?.courses ?? []) as SuggestedCourse[]
+      setSuggestedContent(list)
+      setShowContent(true)
+      return list
+    } catch (e) {
+      console.error('Error fetching content:', e)
+      return null
+    }
+  }
+
   const handleSubmit = async () => {
     if (inputValue.trim() && !isAiTyping && !isSearchingMentors) {
       if (!isChatExpanded) {
@@ -352,8 +412,9 @@ export function HeroSection() {
 
         if (isLimitError) {
           setIsChatLimitReached(true);
-          const mentors = await fetchMentorsFromApi(true);
+          const mentors = await fetchMentorsFromApi(true, currentInput);
           if (mentors?.length) await logMentorExposure(mentors.map(m => m.id));
+          await fetchContentFromApi(currentInput);
         }
         return;
       }
@@ -794,6 +855,90 @@ export function HeroSection() {
                   })}
                 </div>
               )}
+            </Card>
+          </div>
+        </section>
+      )}
+
+      {showContent && suggestedContent.length > 0 && (
+        <section className="w-full px-4 sm:px-6 lg:px-8 py-12 bg-slate-900/50 border-t border-white/5">
+          <div className="max-w-7xl mx-auto">
+            <Card className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10">
+              <div className="flex items-center gap-3 mb-6">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Recommended Resources</h2>
+                  <p className="text-sm text-slate-400">Courses and content matched to your goal</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {suggestedContent.map((course) => {
+                  const difficultyColors: Record<string, string> = {
+                    BEGINNER: 'text-green-400 border-green-500/20 bg-green-500/10',
+                    INTERMEDIATE: 'text-yellow-400 border-yellow-500/20 bg-yellow-500/10',
+                    ADVANCED: 'text-red-400 border-red-500/20 bg-red-500/10',
+                  }
+                  const difficultyClass = course.difficulty ? difficultyColors[course.difficulty] : 'text-slate-400 border-white/10 bg-white/5'
+                  const price = course.price && parseFloat(course.price) > 0
+                    ? `${course.currency ?? 'USD'} ${parseFloat(course.price).toFixed(0)}`
+                    : 'Free'
+
+                  return (
+                    <div
+                      key={course.id}
+                      className="group rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 overflow-hidden transition-all duration-300 hover:border-purple-500/30 flex flex-col"
+                    >
+                      {course.thumbnailUrl ? (
+                        <img
+                          src={course.thumbnailUrl}
+                          alt={course.title ?? ''}
+                          className="w-full h-36 object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-36 bg-gradient-to-br from-purple-600/30 to-blue-600/30 flex items-center justify-center">
+                          <Sparkles className="w-8 h-8 text-purple-400 opacity-50" />
+                        </div>
+                      )}
+
+                      <div className="p-4 flex flex-col gap-3 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-semibold text-white text-sm leading-snug line-clamp-2">
+                            {course.title ?? 'Untitled Course'}
+                          </h3>
+                          {course.difficulty && (
+                            <span className={`shrink-0 px-2 py-0.5 rounded-md text-xs border ${difficultyClass}`}>
+                              {course.difficulty}
+                            </span>
+                          )}
+                        </div>
+
+                        {course.description && (
+                          <p className="text-xs text-slate-400 line-clamp-2">{course.description}</p>
+                        )}
+
+                        {course.mentor?.name && (
+                          <p className="text-xs text-slate-500">By {course.mentor.name}</p>
+                        )}
+
+                        <div className="flex items-center justify-between pt-3 border-t border-white/10 mt-auto">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                            <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
+                            <span>{Number(course.avgRating).toFixed(1)}</span>
+                            {course.enrollmentCount ? (
+                              <>
+                                <span className="text-slate-600">•</span>
+                                <span>{course.enrollmentCount} enrolled</span>
+                              </>
+                            ) : null}
+                          </div>
+                          <span className="text-sm font-semibold text-white">{price}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </Card>
           </div>
         </section>
