@@ -154,6 +154,8 @@ export default function MeetingRoom({
     username: '',
     videoEnabled: true,
     audioEnabled: true,
+    videoDeviceId: '',
+    audioDeviceId: '',
   });
 
   // ==========================================================================
@@ -191,6 +193,8 @@ export default function MeetingRoom({
           username: tokenData.participantName,
           videoEnabled: true,
           audioEnabled: true,
+          videoDeviceId: '',
+          audioDeviceId: '',
         });
 
         setIsLoading(false);
@@ -464,16 +468,13 @@ export default function MeetingRoom({
 
           // Disconnect on page leave
           disconnectOnPageLeave: true,
-
-          // Reconnection settings
-          reconnectAttempts: 5,
-          reconnectDelay: 1000,
         }}
         data-lk-theme="default"
         className="h-full w-full"
       >
         {/* Meeting Room Content with Custom Header */}
         <MeetingRoomContent
+          sessionId={sessionId}
           sessionTitle={sessionTitle}
           otherParticipantName={otherParticipantName}
           userRole={userRole}
@@ -492,11 +493,13 @@ export default function MeetingRoom({
 // ============================================================================
 
 function MeetingRoomContent({
+  sessionId,
   sessionTitle,
   otherParticipantName,
-  userRole: _userRole,
+  userRole,
   onLeave,
 }: {
+  sessionId: string;
   sessionTitle: string;
   otherParticipantName: string;
   userRole: 'mentor' | 'mentee';
@@ -509,15 +512,8 @@ function MeetingRoomContent({
   // Recording indicator state
   const [isRecording, setIsRecording] = useState(false);
 
-  // Extract session ID from URL (for recording status check)
-  const sessionId = typeof window !== 'undefined'
-    ? window.location.pathname.split('/').pop()
-    : null;
-
   // Check recording status
   useEffect(() => {
-    if (!sessionId) return;
-
     async function checkRecordingStatus() {
       try {
         // Check if any recording is in_progress

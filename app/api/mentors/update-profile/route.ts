@@ -64,7 +64,14 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const userId = formData.get('userId');
-    const sessionUserId = guard.session.user.id;
+    const sessionUserId = guard.session?.user.id;
+
+    if (!sessionUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
     if (typeof userId !== 'string' || !userId) {
       return NextResponse.json(

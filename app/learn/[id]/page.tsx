@@ -120,6 +120,12 @@ interface LearningContentItem {
   };
 }
 
+type LearningProgressStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'SKIPPED';
+
 interface ContentItemReview {
   id: string;
   rating: number;
@@ -170,10 +176,11 @@ export default function LearnCoursePage() {
 
   useEffect(() => {
     if (courseProgressQuery.data) {
-      setCourseData(courseProgressQuery.data);
+      const courseProgressData = courseProgressQuery.data as LearningProgress;
+      setCourseData(courseProgressData);
       if (currentItem?.id) {
         const refreshedCurrentItem = findContentItemById(
-          courseProgressQuery.data,
+          courseProgressData,
           currentItem.id
         );
         if (refreshedCurrentItem) {
@@ -183,7 +190,7 @@ export default function LearnCoursePage() {
         }
       }
 
-      const firstIncompleteItem = findFirstIncompleteItem(courseProgressQuery.data);
+      const firstIncompleteItem = findFirstIncompleteItem(courseProgressData);
       if (firstIncompleteItem) {
         setCurrentItem(firstIncompleteItem);
         setStudentNotes(firstIncompleteItem.progress.studentNotes || '');
@@ -234,7 +241,7 @@ export default function LearnCoursePage() {
   const updateProgress = async (
     contentItemId: string,
     updates: {
-      status?: string;
+      status?: LearningProgressStatus;
       progressPercentage?: number;
       timeSpentSeconds?: number;
       lastWatchedPosition?: number;

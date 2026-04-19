@@ -21,6 +21,36 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
+interface CurriculumContentItem {
+  id: string;
+  title: string | null;
+  description: string | null;
+  type: string | null;
+  orderIndex: number | null;
+  duration: number | null;
+  isPreview: boolean | null;
+  fileUrl: string | null;
+  content: string | null;
+}
+
+interface CurriculumSection {
+  id: string;
+  title: string | null;
+  description: string | null;
+  orderIndex: number | null;
+  contentItems: CurriculumContentItem[];
+}
+
+interface CurriculumModule {
+  id: string;
+  title: string | null;
+  description: string | null;
+  orderIndex: number | null;
+  learningObjectives: unknown[];
+  estimatedDurationMinutes: number | null;
+  sections: Map<string, CurriculumSection>;
+}
+
 // Helper function to safely parse JSON
 function safeJsonParse<T>(jsonString: string | null | undefined, defaultValue: T): T {
   if (!jsonString) return defaultValue;
@@ -30,6 +60,13 @@ function safeJsonParse<T>(jsonString: string | null | undefined, defaultValue: T
     console.warn('Failed to parse JSON:', jsonString, error);
     return defaultValue;
   }
+}
+
+function compareOrderIndex(
+  a: { orderIndex: number | null },
+  b: { orderIndex: number | null }
+) {
+  return (a.orderIndex ?? 0) - (b.orderIndex ?? 0);
 }
 
 // GET /api/courses/[id] - Get detailed course information
@@ -167,7 +204,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
 
     // Structure the curriculum data
-    const modulesMap = new Map();
+    const modulesMap = new Map<string, CurriculumModule>();
     
     for (const item of curriculum) {
       if (!modulesMap.has(item.moduleId)) {
@@ -176,13 +213,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           title: item.moduleTitle,
           description: item.moduleDescription,
           orderIndex: item.moduleOrderIndex,
-          learningObjectives: safeJsonParse(item.moduleLearningObjectives, []),
+          learningObjectives: safeJsonParse<unknown[]>(item.moduleLearningObjectives, []),
           estimatedDurationMinutes: item.moduleEstimatedDuration,
-          sections: new Map(),
+          sections: new Map<string, CurriculumSection>(),
         });
       }
 
       const moduleData = modulesMap.get(item.moduleId);
+      if (!moduleData) {
+        continue;
+      }
 
       if (item.sectionId && !moduleData.sections.has(item.sectionId)) {
         moduleData.sections.set(item.sectionId, {
@@ -199,6 +239,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           continue;
         }
         const section = moduleData.sections.get(item.sectionId);
+        if (!section) {
+          continue;
+        }
         section.contentItems.push({
           id: item.contentItemId,
           title: item.contentItemTitle,
@@ -216,8 +259,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Convert maps to arrays and sort
     const structuredCurriculum = Array.from(modulesMap.values()).map(module => ({
       ...module,
-      sections: Array.from(module.sections.values()).sort((a, b) => a.orderIndex - b.orderIndex),
-    })).sort((a, b) => a.orderIndex - b.orderIndex);
+      sections: Array.from(module.sections.values()).sort(compareOrderIndex),
+    })).sort(compareOrderIndex);
 
     // Get course statistics
     const stats = await db

@@ -378,7 +378,7 @@ export function AdminContent() {
           <CardContent>
             <div className="text-2xl font-bold text-amber-900">
               {/* Note: This would ideally come from a summary API, using current data for now if on ALL tab */}
-              {activeTab === 'ALL' ? contentList.filter(c => c.content.status === 'PENDING_REVIEW').length : '-'}
+              {activeTab === 'ALL' ? contentList.filter((c: AdminContentItem) => c.content.status === 'PENDING_REVIEW').length : '-'}
             </div>
           </CardContent>
         </Card>
@@ -391,7 +391,7 @@ export function AdminContent() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-rose-900">
-              {activeTab === 'ALL' ? contentList.filter(c => c.content.status === 'FLAGGED').length : '-'}
+              {activeTab === 'ALL' ? contentList.filter((c: AdminContentItem) => c.content.status === 'FLAGGED').length : '-'}
             </div>
           </CardContent>
         </Card>
@@ -404,7 +404,7 @@ export function AdminContent() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-900">
-              {activeTab === 'ALL' ? contentList.filter(c => c.content.status === 'APPROVED').length : '-'}
+              {activeTab === 'ALL' ? contentList.filter((c: AdminContentItem) => c.content.status === 'APPROVED').length : '-'}
             </div>
           </CardContent>
         </Card>
