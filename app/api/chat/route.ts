@@ -5,6 +5,15 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 
+const MAX_USER_MESSAGES = 10;
+const MAX_HISTORY_TOKENS_APPROX = 2500; // chars / 4 ≈ tokens
+
+const DEFLECTION_MESSAGES = [
+  "You've shared so much with me — I think I have everything I need to find your perfect mentor match! Let me pull up some great profiles for you. 🚀",
+  "Wonderful, I've got a clear picture of where you're headed! Instead of us chatting more, let me introduce you to someone who's actually walked this path. Here are your top mentor matches! 🌟",
+  "I love how much detail you've shared! I think the best next step is connecting you with a real mentor who can guide you hands-on. Let me find the right fit! 🎯",
+];
+
 // Read from server env (NOT exposed to the browser)
 const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
@@ -66,6 +75,18 @@ export async function POST(req: NextRequest) {
   }
 
   const { history = [], userMessage = "" } = await req.json();
+
+  const userMessageCount = history.filter((m: any) => m.type === 'user').length;
+  const totalChars = history.reduce((sum: number, m: any) => sum + (m.content?.length ?? 0), 0) + (userMessage?.length ?? 0);
+  const approxTokens = Math.ceil(totalChars / 4);
+
+  if (userMessageCount >= MAX_USER_MESSAGES || approxTokens >= MAX_HISTORY_TOKENS_APPROX) {
+    const deflection = DEFLECTION_MESSAGES[Math.floor(Math.random() * DEFLECTION_MESSAGES.length)];
+    return NextResponse.json({
+      text: deflection,
+      tool_call: { name: 'find_mentors', arguments: { query: userMessage } },
+    });
+  }
 
   const prior: CoreMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },

@@ -58,6 +58,7 @@ export function HeroSection() {
   const [isAiTyping, setIsAiTyping] = useState(false)
   const [currentAiMessage, setCurrentAiMessage] = useState("")
   const [isSearchingMentors, setIsSearchingMentors] = useState(false)
+  const [isChatLimitReached, setIsChatLimitReached] = useState(false)
 
   const [dbMentors, setDbMentors] = useState<DbMentor[]>([])
   const [showMentors, setShowMentors] = useState(false)
@@ -112,7 +113,7 @@ export function HeroSection() {
 
   const logMentorExposure = async (mentorIds: string[]) => {
     try {
-      await saveMessageToDB('system', 'Mentor recommendations shown', null, {
+      await saveMessageToDB('ai', 'Mentor recommendations shown', null, {
         eventType: 'mentors_shown',
         mentorIds,
       });
@@ -187,7 +188,8 @@ export function HeroSection() {
         if (res.status === 401) {
           errorMessage = "Please log in to use the AI assistant.";
         } else if (res.status === 403) {
-          errorMessage = "AI assistant access is not included in your plan.";
+          const backendText = await res.text().catch(() => "");
+          errorMessage = backendText || "AI assistant access is not included in your plan.";
         } else if (res.status >= 500) {
           errorMessage = "AI service is unavailable. Please try again shortly.";
         }
@@ -205,37 +207,48 @@ export function HeroSection() {
         return;
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
+      const contentType = res.headers.get('content-type') ?? '';
       let partialJson = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      if (contentType.includes('application/json')) {
+        const deflectionResponse = await res.json();
+        fullResponseText = deflectionResponse.text || "";
+        if (deflectionResponse.tool_call?.name === 'find_mentors') {
+          toolCallDetected = true;
+        }
+        setIsChatLimitReached(true);
+      } else {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
 
-        partialJson += decoder.decode(value, { stream: true });
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          partialJson += decoder.decode(value, { stream: true });
+
+          try {
+            const textMatch = partialJson.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+            if (textMatch && textMatch[1]) {
+              const streamingText = textMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');
+              setCurrentAiMessage(streamingText);
+            }
+
+            const finalJson = JSON.parse(partialJson);
+            if (finalJson.tool_call && finalJson.tool_call.name === 'find_mentors') {
+              toolCallDetected = true;
+            }
+          } catch (e) {
+            // JSON parsing in progress
+          }
+        }
 
         try {
-          const textMatch = partialJson.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-          if (textMatch && textMatch[1]) {
-            const streamingText = textMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');
-            setCurrentAiMessage(streamingText);
-          }
-
-          const finalJson = JSON.parse(partialJson);
-          if (finalJson.tool_call && finalJson.tool_call.name === 'find_mentors') {
-            toolCallDetected = true;
-          }
+          const finalResponse = JSON.parse(partialJson);
+          fullResponseText = finalResponse.text || "";
         } catch (e) {
-          // JSON parsing in progress
+          fullResponseText = currentAiMessage;
         }
-      }
-
-      try {
-        const finalResponse = JSON.parse(partialJson);
-        fullResponseText = finalResponse.text || "";
-      } catch (e) {
-        fullResponseText = currentAiMessage;
       }
 
       const aiMessage: Message = {
@@ -322,7 +335,25 @@ export function HeroSection() {
 
       setMessages(prev => [...prev, userMessage])
       setInputValue("")
-      await saveMessageToDB('user', currentInput)
+
+      try {
+        await saveMessageToDB('user', currentInput)
+      } catch (err: any) {
+        const isLimitError = err?.message?.toLowerCase().includes('limit') || err?.data?.httpStatus === 403;
+        const errorContent = isLimitError
+          ? "You've reached your chat limit! Let me find the best mentor matches for you instead. 🚀"
+          : "Unable to send your message right now. Please try again.";
+
+        setMessages(prev => [...prev, { id: uuidv4(), type: 'ai', content: errorContent, timestamp: new Date() }]);
+
+        if (isLimitError) {
+          setIsChatLimitReached(true);
+          const mentors = await fetchMentorsFromApi(true);
+          if (mentors?.length) await logMentorExposure(mentors.map(m => m.id));
+        }
+        return;
+      }
+
       await simulateAiResponse(currentInput, userMessage.id)
     }
   }
@@ -606,13 +637,13 @@ export function HeroSection() {
                         onBlur={() => setIsFocused(false)}
                         onKeyDown={handleKeyPress}
                         rows={1}
-                        disabled={isAiTyping || isSearchingMentors}
+                        disabled={isAiTyping || isSearchingMentors || isChatLimitReached}
                         className={`w-full bg-white/5 border border-white/10 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 rounded-xl px-4 py-3.5 text-base resize-none transition-all ${isChatExpanded ? 'min-h-[44px]' : 'min-h-[56px] text-lg'
                           } disabled:opacity-50`}
                         style={{ scrollbarWidth: 'none' }}
                       />
                       {/* Animated placeholder */}
-                      {!inputValue && !isFocused && (
+                      {!inputValue && !isFocused && !isChatLimitReached && (
                         <div className="absolute inset-0 flex items-center px-4 pointer-events-none">
                           <span className={`text-slate-500 ${isChatExpanded ? 'text-base' : 'text-lg'}`}>
                             {currentPlaceholder}
@@ -620,10 +651,15 @@ export function HeroSection() {
                           </span>
                         </div>
                       )}
+                      {isChatLimitReached && (
+                        <div className="absolute inset-0 flex items-center px-4 pointer-events-none">
+                          <span className="text-slate-500 text-sm">Connect with a mentor to continue your journey</span>
+                        </div>
+                      )}
                     </div>
                     <Button
                       onClick={handleSubmit}
-                      disabled={!inputValue.trim() || isAiTyping || isSearchingMentors}
+                      disabled={!inputValue.trim() || isAiTyping || isSearchingMentors || isChatLimitReached}
                       className={`h-12 w-12 rounded-xl transition-all duration-300 ${inputValue.trim() && !isAiTyping && !isSearchingMentors
                           ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-500/25'
                           : 'bg-white/10 text-slate-500'
