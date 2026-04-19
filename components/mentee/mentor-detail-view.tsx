@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useSearchParams } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,7 +31,14 @@ import {
   Zap,
   ExternalLink,
   Mail,
-  ChevronRight
+  ChevronRight,
+  FileText,
+  Link2,
+  BookOpen,
+  Download,
+  GraduationCap,
+  Users,
+  PlayCircle
 } from "lucide-react"
 import { useMentorDetail } from "@/hooks/use-mentor-detail"
 import { BookingModal } from "@/components/booking/booking-modal"
@@ -39,6 +47,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { useTRPCClient } from "@/lib/trpc/react"
 import {
   getMessagingAccessDecision,
   MESSAGING_ACCESS_INTENTS,
@@ -50,7 +59,7 @@ interface MentorDetailViewProps {
   bookingSource?: 'explore' | 'ai' | 'default'
 }
 
-type TabType = "overview" | "reviews" | "achievements" | "mentoring_style"
+type TabType = "overview" | "content" | "reviews" | "achievements" | "mentoring_style"
 
 export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }: MentorDetailViewProps) {
   const searchParams = useSearchParams()
@@ -58,9 +67,17 @@ export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }
   const resolvedSource = bookingSource === 'default' && urlSource === 'explore' ? 'explore' : bookingSource
   const { mentor, loading, error } = useMentorDetail(mentorId)
   const { session, isAdmin, mentorAccess, menteeAccess, primaryRole } = useAuth()
+  const trpcClient = useTRPCClient()
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>("overview")
+
+  const { data: mentorContentItems, isLoading: isContentLoading } = useQuery({
+    queryKey: ['public', 'mentor-content', mentor?.id],
+    queryFn: () => trpcClient.public.getMentorPublicContent.query({ mentorId: mentor!.id }),
+    enabled: !!mentor?.id,
+    staleTime: 5 * 60 * 1000,
+  })
   const preferredAudience =
     primaryRole?.name === 'mentor' || primaryRole?.name === 'mentee'
       ? primaryRole.name
@@ -261,6 +278,200 @@ export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }
       </motion.section>
     </motion.div>
   )
+
+  const formatFileSize = (bytes: number | null | undefined) => {
+    if (!bytes) return ''
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const getContentTypeIcon = (type: string) => {
+    switch (type) {
+      case 'COURSE': return <BookOpen className="w-5 h-5" />
+      case 'FILE': return <FileText className="w-5 h-5" />
+      case 'URL': return <Link2 className="w-5 h-5" />
+      default: return <FileText className="w-5 h-5" />
+    }
+  }
+
+  const getContentTypeBadge = (type: string) => {
+    switch (type) {
+      case 'COURSE': return { label: 'Course', className: 'bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-900/30' }
+      case 'FILE': return { label: 'File', className: 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-900/30' }
+      case 'URL': return { label: 'Link', className: 'bg-sky-50 text-sky-700 border-sky-100 dark:bg-sky-900/20 dark:text-sky-300 dark:border-sky-900/30' }
+      default: return { label: type, className: 'bg-slate-50 text-slate-700 border-slate-100' }
+    }
+  }
+
+  const renderContent = () => {
+    if (isContentLoading) {
+      return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="w-full h-32 rounded-xl" />
+          ))}
+        </motion.div>
+      )
+    }
+
+    if (!mentorContentItems || mentorContentItems.length === 0) {
+      return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-foreground">Shared Content</h3>
+          </div>
+          <div className="bg-muted/50 border-2 border-dashed border-border rounded-2xl p-12 text-center">
+            <div className="bg-card w-16 h-16 rounded-full shadow-sm flex items-center justify-center mx-auto mb-4">
+              <BookOpen className="w-8 h-8 text-muted-foreground/50" />
+            </div>
+            <h4 className="text-lg font-semibold text-foreground mb-2">No content shared yet</h4>
+            <p className="text-muted-foreground max-w-sm mx-auto">
+              This mentor hasn&apos;t shared any courses, files, or resources on their profile yet.
+            </p>
+          </div>
+        </motion.div>
+      )
+    }
+
+    return (
+      <motion.div variants={staggerContainer} initial="initial" animate="animate" className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-foreground">Shared Content</h3>
+          <Badge variant="outline" className="text-muted-foreground">
+            {mentorContentItems.length} item{mentorContentItems.length !== 1 ? 's' : ''}
+          </Badge>
+        </div>
+
+        <div className="space-y-4">
+          {mentorContentItems.map((item: any, index: number) => {
+            const typeBadge = getContentTypeBadge(item.type)
+
+            return (
+              <motion.div key={item.id} variants={fadeIn}>
+                <Card className="border-border shadow-sm rounded-xl overflow-hidden hover:shadow-md transition-shadow group">
+                  <CardContent className="p-0">
+                    <div className="flex gap-4 p-5">
+                      {/* Type Icon */}
+                      <div className={cn(
+                        "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105",
+                        item.type === 'COURSE' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
+                        item.type === 'FILE' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                        'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400'
+                      )}>
+                        {getContentTypeIcon(item.type)}
+                      </div>
+
+                      {/* Content Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h4 className="font-semibold text-foreground truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                              {item.title}
+                            </h4>
+                            {item.description && (
+                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                          <Badge variant="outline" className={cn('shrink-0 text-xs border', typeBadge.className)}>
+                            {typeBadge.label}
+                          </Badge>
+                        </div>
+
+                        {/* Course-specific metadata */}
+                        {item.type === 'COURSE' && item.course && (
+                          <div className="flex flex-wrap items-center gap-3 mt-3 text-xs text-muted-foreground">
+                            {item.course.difficulty && (
+                              <span className="flex items-center gap-1">
+                                <GraduationCap className="w-3.5 h-3.5" />
+                                {item.course.difficulty.charAt(0) + item.course.difficulty.slice(1).toLowerCase()}
+                              </span>
+                            )}
+                            {item.course.duration && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5" />
+                                {item.course.duration} min
+                              </span>
+                            )}
+                            {(item.course.enrollmentCount ?? 0) > 0 && (
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3.5 h-3.5" />
+                                {item.course.enrollmentCount} enrolled
+                              </span>
+                            )}
+                            {item.course.price && Number(item.course.price) > 0 && (
+                              <span className="font-semibold text-foreground">
+                                {item.course.currency === 'INR' ? '₹' : '$'}{item.course.price}
+                              </span>
+                            )}
+                            {item.course.tags && item.course.tags.length > 0 && (
+                              <div className="flex gap-1.5">
+                                {item.course.tags.slice(0, 3).map((tag: string, i: number) => (
+                                  <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* File-specific metadata */}
+                        {item.type === 'FILE' && (
+                          <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
+                            {item.fileName && (
+                              <span className="truncate max-w-[200px]">{item.fileName}</span>
+                            )}
+                            {item.fileSize && (
+                              <span>{formatFileSize(item.fileSize)}</span>
+                            )}
+                            {item.fileUrl && (
+                              <a
+                                href={item.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                View
+                              </a>
+                            )}
+                          </div>
+                        )}
+
+                        {/* URL-specific metadata */}
+                        {item.type === 'URL' && (
+                          <div className="mt-3">
+                            {item.urlTitle && (
+                              <p className="text-sm font-medium text-foreground">{item.urlTitle}</p>
+                            )}
+                            {item.urlDescription && (
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.urlDescription}</p>
+                            )}
+                            {item.url && (
+                              <a
+                                href={item.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium mt-2"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                Open link
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )
+          })}
+        </div>
+      </motion.div>
+    )
+  }
 
   const renderAchievements = () => {
     // Mock Data for Achievements
@@ -517,7 +728,7 @@ export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }
             {/* Smooth Tab Bar */}
             <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border -mx-4 px-4 sm:mx-0 sm:px-0 mb-8">
               <nav className="flex space-x-8 overflow-x-auto scrollbar-hide" aria-label="Tabs">
-                {['overview', 'reviews', 'achievements', 'mentoring_style'].map((tab) => (
+                {['overview', 'content', 'reviews', 'achievements', 'mentoring_style'].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab as TabType)}
@@ -530,6 +741,7 @@ export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }
                   >
                     <span className="capitalize relative z-10 flex items-center gap-2">
                       {tab.replace('_', ' ')}
+                      {tab === 'content' && mentorContentItems && mentorContentItems.length > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">{mentorContentItems.length}</Badge>}
                       {tab === 'achievements' && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-slate-100 text-slate-600">3</Badge>}
                     </span>
                     {activeTab === tab && (
@@ -554,6 +766,7 @@ export function MentorDetailView({ mentorId, onBack, bookingSource = 'default' }
                 className="min-h-[400px]"
               >
                 {activeTab === 'overview' && renderOverview()}
+                {activeTab === 'content' && renderContent()}
                 {activeTab === 'reviews' && renderReviews()}
                 {activeTab === 'achievements' && renderAchievements()}
                 {activeTab === 'mentoring_style' && renderMentoringStyle()}
