@@ -120,7 +120,7 @@ export async function listPublicMentors(
     whereClauses.push(ilike(mentors.industry, `%${industry}%`));
   }
 
-  if (q) {
+  if (q && !requiresAiEligibilityFilters) {
     whereClauses.push(
       or(
         ilike(users.name, `%${q}%`),

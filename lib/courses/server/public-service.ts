@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, like, or, sql, avg } from 'drizzle-orm';
+import { and, asc, avg, count, desc, eq, ilike, or, sql } from 'drizzle-orm';
 
 import { PUBLIC_COURSE_STATUS, canViewCourseDetail } from '@/lib/courses/status';
 import { db } from '@/lib/db';
@@ -107,11 +107,11 @@ export async function listPublicCourses(input: ListPublicCoursesInput) {
   if (search) {
     conditions.push(
       or(
-        like(mentorContent.title, `%${search}%`),
-        like(mentorContent.description, `%${search}%`),
-        like(courses.tags, `%${search}%`),
-        like(courses.platformTags, `%${search}%`)
-      )
+        ilike(mentorContent.title, `%${search}%`),
+        ilike(mentorContent.description, `%${search}%`),
+        ilike(courses.tags, `%${search}%`),
+        ilike(courses.platformTags, `%${search}%`)
+      )!
     );
   }
 
@@ -133,7 +133,7 @@ export async function listPublicCourses(input: ListPublicCoursesInput) {
 
   if (mentorId) {
     conditions.push(
-      and(eq(courses.ownerType, 'MENTOR'), eq(mentorContent.mentorId, mentorId))
+      and(eq(courses.ownerType, 'MENTOR'), eq(mentorContent.mentorId, mentorId))!
     );
   }
 

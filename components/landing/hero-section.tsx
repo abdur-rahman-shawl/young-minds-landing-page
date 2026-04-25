@@ -286,6 +286,16 @@ export function HeroSection() {
         try {
           const finalResponse = JSON.parse(partialJson);
           fullResponseText = finalResponse.text || "";
+          // Re-check tool calls in final parse in case stream loop missed them
+          if (!toolCallDetected && finalResponse.tool_call?.name === 'find_mentors') {
+            toolCallDetected = true;
+            toolCallQuery = finalResponse.tool_call.arguments?.query ?? "";
+          }
+          if (!contentToolCallDetected && finalResponse.content_tool_call?.name === 'suggest_content') {
+            contentToolCallDetected = true;
+            contentToolCallQuery = finalResponse.content_tool_call.arguments?.query ?? "";
+            contentToolCallDifficulty = finalResponse.content_tool_call.arguments?.difficulty;
+          }
         } catch (e) {
           fullResponseText = currentAiMessage;
         }
@@ -304,6 +314,10 @@ export function HeroSection() {
         const mentors = await fetchMentorsFromApi(true, toolCallQuery);
         if (mentors && mentors.length) {
           await logMentorExposure(mentors.map((mentor) => mentor.id));
+        }
+        // Always fetch content alongside mentors — fallback when AI skips suggest_content
+        if (!contentToolCallDetected) {
+          await fetchContentFromApi(toolCallQuery);
         }
       }
 
@@ -363,22 +377,39 @@ export function HeroSection() {
     }
   }
 
+  const resetChat = () => {
+    const newSessionId = uuidv4();
+    localStorage.setItem('ai_chatbot_session_id', newSessionId);
+    setChatSessionId(newSessionId);
+    setMessages([]);
+    setInputValue('');
+    setIsChatLimitReached(false);
+    setDbMentors([]);
+    setShowMentors(false);
+    setSuggestedContent([]);
+    setShowContent(false);
+    setCurrentMentorIndex(0);
+  };
+
   const fetchContentFromApi = async (query?: string, difficulty?: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED') => {
     try {
-      const payload = await trpcClient.public.listCourses.query({
+      const baseParams = { limit: 3, sortBy: 'enrollment_count' as const, sortOrder: 'desc' as const };
+      let payload = await trpcClient.public.listCourses.query({
+        ...baseParams,
         search: query || undefined,
         difficulty: difficulty || undefined,
-        limit: 3,
-        sortBy: 'enrollment_count',
-        sortOrder: 'desc',
-      })
-      const list = (payload?.courses ?? []) as SuggestedCourse[]
-      setSuggestedContent(list)
-      setShowContent(true)
-      return list
+      });
+      // Fallback: if search returned nothing, retry without filter to always show something
+      if (query && (!payload?.courses?.length)) {
+        payload = await trpcClient.public.listCourses.query(baseParams);
+      }
+      const list = (payload?.courses ?? []) as SuggestedCourse[];
+      setSuggestedContent(list);
+      setShowContent(true);
+      return list;
     } catch (e) {
-      console.error('Error fetching content:', e)
-      return null
+      console.error('Error fetching content:', e);
+      return null;
     }
   }
 
@@ -403,7 +434,7 @@ export function HeroSection() {
       try {
         await saveMessageToDB('user', currentInput)
       } catch (err: any) {
-        const isLimitError = err?.message?.toLowerCase().includes('limit') || err?.data?.httpStatus === 403;
+        const isLimitError = err?.data?.httpStatus === 403;
         const errorContent = isLimitError
           ? "You've reached your chat limit! Let me find the best mentor matches for you instead. 🚀"
           : "Unable to send your message right now. Please try again.";
@@ -722,16 +753,25 @@ export function HeroSection() {
                         </div>
                       )}
                     </div>
-                    <Button
-                      onClick={handleSubmit}
-                      disabled={!inputValue.trim() || isAiTyping || isSearchingMentors || isChatLimitReached}
-                      className={`h-12 w-12 rounded-xl transition-all duration-300 ${inputValue.trim() && !isAiTyping && !isSearchingMentors
-                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-500/25'
-                          : 'bg-white/10 text-slate-500'
-                        }`}
-                    >
-                      <Send className="w-5 h-5" />
-                    </Button>
+                    {isChatLimitReached ? (
+                      <Button
+                        onClick={resetChat}
+                        className="h-12 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-sm shadow-lg shadow-blue-500/25 whitespace-nowrap"
+                      >
+                        New Chat
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleSubmit}
+                        disabled={!inputValue.trim() || isAiTyping || isSearchingMentors}
+                        className={`h-12 w-12 rounded-xl transition-all duration-300 ${inputValue.trim() && !isAiTyping && !isSearchingMentors
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-500/25'
+                            : 'bg-white/10 text-slate-500'
+                          }`}
+                      >
+                        <Send className="w-5 h-5" />
+                      </Button>
+                    )}
                   </div>
 
                   {/* Hints */}
