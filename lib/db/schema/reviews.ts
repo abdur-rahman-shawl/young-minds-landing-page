@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, integer, decimal, uniqueIndex, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, integer, decimal, uniqueIndex, pgEnum, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { users } from './users';
 import { sessions } from './sessions';
@@ -12,6 +12,7 @@ export const reviews = pgTable('reviews', {
   reviewerId: text('reviewer_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   revieweeId: text('reviewee_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   reviewerRole: reviewerRoleEnum('reviewer_role').notNull(),
+  status: text('status').default('submitted').notNull(),
   
   // This will store the final calculated weighted score
   finalScore: decimal('final_score', { precision: 3, scale: 2 }).notNull(),
@@ -33,7 +34,7 @@ export const reviewQuestions = pgTable('review_questions', {
     // The role this question is intended for (the person being reviewed)
     role: reviewerRoleEnum('role').notNull(), 
     weight: decimal('weight', { precision: 4, scale: 2 }).notNull(), // e.g., 0.25 for 25%
-    isActive: text('is_active').default('true').notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
     // To maintain the order of questions in the UI
     displayOrder: integer('display_order').notNull().default(0),
 });

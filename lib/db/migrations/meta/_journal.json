@@ -199,6 +199,48 @@
       "breakpoints": true
     },
     {
+      "idx": 37,
+      "version": "7",
+      "when": 1769500000000,
+      "tag": "0037_add_booking_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1769600000000,
+      "tag": "0039_add_content_item_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1769700000000,
+      "tag": "0040_add_course_review_helpful_votes",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1769800000000,
+      "tag": "0041_add_course_ownership_platform_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1769900000000,
+      "tag": "0042_add_mentor_search_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1770000000000,
+      "tag": "0043_add_mentor_is_expert",
+      "breakpoints": true
+    },
+    {
       "idx": 44,
       "version": "7",
       "when": 1772625600000,
@@ -217,6 +259,62 @@
       "version": "7",
       "when": 1772625720000,
       "tag": "0046_add_cancelled_mentor_ids",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1772625780000,
+      "tag": "0038_add_subscription_usage_event_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1772625840000,
+      "tag": "0047_backfill_mentor_content_workflow_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1772625900000,
+      "tag": "0048_add_access_policy_configs",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1772625960000,
+      "tag": "0049_harden_access_policy_configs",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1772626020000,
+      "tag": "0050_add_access_policy_no_client_access_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1772626080000,
+      "tag": "0051_aspiring_stark_industries",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1772626140000,
+      "tag": "0053_add_mentor_content_soft_delete_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1777200018691,
+      "tag": "0054_famous_kylun",
       "breakpoints": true
     }
   ]

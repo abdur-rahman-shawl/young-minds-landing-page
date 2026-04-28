@@ -54,6 +54,7 @@ export const mentors = pgTable('mentors', {
   resumeUrl: text('resume_url'), // URL to uploaded resume
 
   // Verification and status
+  isVerified: boolean('is_verified').default(false),
   verificationStatus: verificationStatusEnum('verification_status').default('YET_TO_APPLY').notNull(),
   verificationNotes: text('verification_notes'), // Admin notes for rejected/reverification requests
   isAvailable: boolean('is_available').default(true),
