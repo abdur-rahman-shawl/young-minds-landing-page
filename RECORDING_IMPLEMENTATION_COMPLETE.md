@@ -1,5 +1,8 @@
 # ✅ LiveKit Recording System - Implementation Complete
 
+> Legacy note: this document describes the retired self-hosted Oracle VM recording path.
+> The active LiveKit Cloud rollout is documented in [docs/livekit-cloud-setup.md](docs/livekit-cloud-setup.md).
+
 **Date:** October 19, 2025
 **Status:** 95% Complete - Ready for Testing
 **Remaining:** Webhook URL setup for production + End-to-end testing
