@@ -60,8 +60,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const sessionUserId = guard.session?.user.id;
+    if (!sessionUserId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     // Generate unique filename and path
-    const fileName = generateFileName(file.name, guard.session.user.id);
+    const fileName = generateFileName(file.name, sessionUserId);
     const storagePath = `mentors/content/${type}/${fileName}`;
     
     try {

@@ -201,6 +201,7 @@ export async function getSessionPolicies(input: GetSessionPoliciesInput) {
     freeCancellationHours,
     partialRefundPercentage,
     lateCancellationRefundPercentage,
+    defaultSessionPrice,
   ] = await Promise.all([
     getPolicyValue(
       DEFAULT_SESSION_POLICIES.CANCELLATION_CUTOFF_HOURS.key,
@@ -238,6 +239,10 @@ export async function getSessionPolicies(input: GetSessionPoliciesInput) {
       DEFAULT_SESSION_POLICIES.LATE_CANCELLATION_REFUND_PERCENTAGE.key,
       DEFAULT_SESSION_POLICIES.LATE_CANCELLATION_REFUND_PERCENTAGE.value
     ),
+    getPolicyValue(
+      DEFAULT_SESSION_POLICIES.DEFAULT_SESSION_PRICE.key,
+      DEFAULT_SESSION_POLICIES.DEFAULT_SESSION_PRICE.value
+    ),
   ]);
 
   if (parsed.role === 'mentor') {
@@ -251,6 +256,7 @@ export async function getSessionPolicies(input: GetSessionPoliciesInput) {
         lateCancellationRefundPercentage,
         10
       ),
+      defaultSessionPrice: parseInt(defaultSessionPrice, 10),
     };
   }
 
@@ -265,6 +271,7 @@ export async function getSessionPolicies(input: GetSessionPoliciesInput) {
         lateCancellationRefundPercentage,
         10
       ),
+      defaultSessionPrice: parseInt(defaultSessionPrice, 10),
     };
   }
 
@@ -285,6 +292,7 @@ export async function getSessionPolicies(input: GetSessionPoliciesInput) {
       lateCancellationRefundPercentage,
       10
     ),
+    defaultSessionPrice: parseInt(defaultSessionPrice, 10),
   };
 }
 

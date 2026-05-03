@@ -2,7 +2,20 @@ import { z } from 'zod';
 
 const MAX_RESUME_SIZE = 5 * 1024 * 1024; // 5MB
 
-export const mentorApplicationSchema = z.object({
+function validateOtherIndustry(
+  data: { industry: string; otherIndustry?: string },
+  ctx: z.RefinementCtx
+) {
+  if (data.industry === 'Other' && (!data.otherIndustry || data.otherIndustry.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Please specify your industry',
+      path: ['otherIndustry'],
+    });
+  }
+}
+
+export const mentorApplicationBaseSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().email('Invalid email address'),
   phone: z.string().regex(/^\+\d{1,4}-\d{6,15}$/, 'Invalid phone number format. Expected +countrycode-number'),
@@ -29,12 +42,11 @@ export const mentorApplicationSchema = z.object({
     .refine(file => !file || file.size <= MAX_RESUME_SIZE, `Resume must be less than 5MB`)
     .optional(),
   termsAccepted: z.boolean().refine(value => value, 'You must accept the terms and conditions'),
-}).superRefine((data, ctx) => {
-  if (data.industry === 'Other' && (!data.otherIndustry || data.otherIndustry.trim() === '')) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Please specify your industry',
-      path: ['otherIndustry'],
-    });
-  }
 });
+
+export const mentorApplicationSchema = mentorApplicationBaseSchema.superRefine(validateOtherIndustry);
+export const mentorReverificationSchema = mentorApplicationBaseSchema
+  .extend({
+    profilePicture: mentorApplicationBaseSchema.shape.profilePicture.optional(),
+  })
+  .superRefine(validateOtherIndustry);

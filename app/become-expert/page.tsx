@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
 import { FcGoogle } from "react-icons/fc"
 import { ArrowLeft, UserCheck, User } from "lucide-react"
-import { mentorApplicationSchema } from "@/lib/validations/mentor"
+import { mentorApplicationSchema, mentorReverificationSchema } from "@/lib/validations/mentor"
 import { logConsentEvents } from "@/lib/consent-client"
 import { z } from "zod"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -424,9 +424,7 @@ export default function BecomeExpertPage() {
       const submittedCity = selectedCity?.name || mentorFormData.cityId;
 
       const schema = isReverificationFlow
-        ? mentorApplicationSchema.extend({
-            profilePicture: mentorApplicationSchema.shape.profilePicture.optional(),
-          })
+        ? mentorReverificationSchema
         : mentorApplicationSchema;
 
       const validatedData = schema.parse({

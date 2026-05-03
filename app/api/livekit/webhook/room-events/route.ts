@@ -10,16 +10,18 @@
  * Primary Purpose: Trigger auto-recording when room starts
  *
  * Security:
- * - Webhook signature validation (TODO: when LiveKit adds support)
+ * - Webhook signature validation via LiveKit WebhookReceiver
  * - Server-side only
  * - Non-blocking (doesn't fail if recording fails)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
-import { db } from '@/lib/db';
-import { livekitRecordings } from '@/lib/db/schema';
 import { extractSessionIdFromRoomName } from '@/lib/livekit/config';
+import {
+  normalizeEgressInfo,
+  syncRecordingFromEgressEvent,
+  type SupportedEgressEvent,
+} from '@/lib/livekit/egress-event-sync';
 import { startRecording, stopRecording } from '@/lib/livekit/recording-manager';
 import {
   LivekitWebhookAuthError,
@@ -64,48 +66,6 @@ interface RoomEventWebhook {
   };
 }
 
-type EgressEventType = 'egress_started' | 'egress_updated' | 'egress_ended';
-
-interface LiveKitFileResult {
-  filename?: string;
-  size?: number;
-  duration?: string | number;
-  start_time?: string | number;
-  end_time?: string | number;
-  location?: string;
-  [key: string]: unknown;
-}
-
-interface LiveKitEgressInfo {
-  egressId: string;
-  roomId?: string;
-  roomName?: string;
-  status: string;
-  startedAt?: string | number;
-  updatedAt?: string | number;
-  endedAt?: string | number;
-  error?: string;
-  roomComposite?: {
-    roomName?: string;
-    layout?: string;
-    file?: {
-      filepath?: string;
-    };
-    preset?: string;
-    [key: string]: unknown;
-  };
-  file?: {
-    filename?: string;
-    startedAt?: string | number;
-    endedAt?: string | number;
-    size?: number;
-    duration?: string | number;
-    [key: string]: unknown;
-  };
-  fileResults?: LiveKitFileResult[];
-  [key: string]: unknown;
-}
-
 // ============================================================================
 // WEBHOOK HANDLER
 // ============================================================================
@@ -139,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (eventType.startsWith('egress')) {
-      const egressInfo = payload?.egressInfo as LiveKitEgressInfo | undefined;
+      const egressInfo = normalizeEgressInfo(payload);
 
       console.log(`📋 Egress event: ${eventType}`, {
         egressId: egressInfo?.egressId,
@@ -147,12 +107,15 @@ export async function POST(request: NextRequest) {
         roomName: egressInfo?.roomName,
       });
 
-      if (!egressInfo || !egressInfo.egressId) {
+      if (!egressInfo) {
         console.error('❌ Invalid egress webhook payload:', payload);
         return NextResponse.json({ success: false, message: 'Missing egress info' }, { status: 200 });
       }
 
-      await handleEgressEvent(eventType as EgressEventType, egressInfo);
+      await syncRecordingFromEgressEvent(
+        eventType as SupportedEgressEvent,
+        egressInfo
+      );
       return NextResponse.json({ success: true, message: 'Egress event processed' });
     }
 
@@ -323,120 +286,4 @@ async function handleParticipantJoined(room: RoomEventWebhook['room']) {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
-}
-
-// ============================================================================
-// EGRESS EVENT HANDLING
-// ============================================================================
-
-async function handleEgressEvent(event: EgressEventType, egressInfo: LiveKitEgressInfo) {
-  try {
-    const recording = await db.query.livekitRecordings.findFirst({
-      where: eq(livekitRecordings.recordingSid, egressInfo.egressId),
-    });
-
-    if (!recording) {
-      console.warn(`⚠️  Received egress event for unknown recording: ${egressInfo.egressId}`);
-      return;
-    }
-
-    const status = mapEgressStatus(egressInfo.status, event);
-    const completedAt = parseLiveKitTimestamp(egressInfo.endedAt ?? egressInfo.updatedAt);
-    const startedAt = parseLiveKitTimestamp(egressInfo.startedAt);
-
-    const fileInfo = egressInfo.file ?? {};
-    const firstResult = Array.isArray(egressInfo.fileResults) && egressInfo.fileResults.length > 0
-      ? egressInfo.fileResults[0]
-      : undefined;
-
-    const duration = parseDurationSeconds(firstResult?.duration ?? fileInfo.duration);
-    const fileSize = coerceNumber(firstResult?.size ?? fileInfo.size);
-
-    const metadata = {
-      ...(typeof recording.metadata === 'object' && recording.metadata !== null ? recording.metadata : {}),
-      egressInfo,
-    };
-
-    await db
-      .update(livekitRecordings)
-      .set({
-        status,
-        durationSeconds: duration ?? recording.durationSeconds,
-        fileSizeBytes: fileSize ?? recording.fileSizeBytes,
-        startedAt: startedAt ?? recording.startedAt,
-        completedAt: completedAt ?? (status === 'completed' ? new Date() : recording.completedAt),
-        errorMessage: status === 'failed' ? egressInfo.error ?? recording.errorMessage : recording.errorMessage,
-        metadata,
-        updatedAt: new Date(),
-      })
-      .where(eq(livekitRecordings.id, recording.id));
-
-    console.log(`✅ Recording ${recording.id} updated from egress webhook`, {
-      status,
-      egressId: egressInfo.egressId,
-    });
-  } catch (error) {
-    console.error('❌ Failed processing egress webhook:', {
-      event,
-      egressId: egressInfo.egressId,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-}
-
-function mapEgressStatus(status: string, event: EgressEventType): 'in_progress' | 'completed' | 'failed' {
-  const normalized = status?.toUpperCase();
-
-  if (normalized === 'EGRESS_ACTIVE' || event === 'egress_started') {
-    return 'in_progress';
-  }
-
-  if (normalized === 'EGRESS_COMPLETE' || normalized === 'EGRESS_COMPLETED' || event === 'egress_ended') {
-    return 'completed';
-  }
-
-  if (normalized === 'EGRESS_FAILED' || normalized === 'EGRESS_ABORTED') {
-    return 'failed';
-  }
-
-  // Default to in-progress if status is unknown
-  return 'in_progress';
-}
-
-function parseLiveKitTimestamp(value?: string | number): Date | null {
-  const numericValue = coerceNumber(value);
-  if (!numericValue) {
-    return null;
-  }
-
-  // LiveKit timestamps are nanoseconds since epoch
-  const milliseconds = Math.floor(numericValue / 1_000_000);
-  if (!Number.isFinite(milliseconds) || milliseconds <= 0) {
-    return null;
-  }
-
-  return new Date(milliseconds);
-}
-
-function parseDurationSeconds(value?: string | number): number | null {
-  const numericValue = coerceNumber(value);
-  if (!numericValue) {
-    return null;
-  }
-
-  // Duration is reported in nanoseconds
-  return Math.max(0, Math.round(numericValue / 1_000_000_000));
-}
-
-function coerceNumber(value?: string | number): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-
-  if (typeof value === 'string') {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  return null;
 }

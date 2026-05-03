@@ -168,6 +168,11 @@ export function Courses() {
     trpcClient,
   ]);
 
+  useEffect(() => {
+    if (!accessChecked || !hasCourseAccess) return;
+    void fetchCourses();
+  }, [accessChecked, hasCourseAccess, fetchCourses]);
+
   if (courseId) {
     return (
       <div className="space-y-4">
@@ -182,10 +187,6 @@ export function Courses() {
     );
   }
 
-  useEffect(() => {
-    if (!accessChecked || !hasCourseAccess) return;
-    void fetchCourses();
-  }, [accessChecked, hasCourseAccess, fetchCourses]);
 
   const clearFilters = () => {
     setSearchQuery('');

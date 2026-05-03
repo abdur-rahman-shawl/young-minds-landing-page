@@ -1,7 +1,5 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import type { Postgres } from 'postgres';
-import type { DrizzleClient } from 'drizzle-orm';
 import * as schema from './schema';
 
 // Ensure this only runs on server-side
@@ -11,8 +9,8 @@ if (typeof window !== 'undefined') {
 
 declare global {
   var __youngMindsDb: {
-    db: DrizzleClient;
-    client: Postgres;
+    db: ReturnType<typeof drizzle>;
+    client: ReturnType<typeof postgres>;
   } | undefined;
 }
 

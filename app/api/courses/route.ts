@@ -89,14 +89,16 @@ export async function GET(request: NextRequest) {
 
     // Search filter
     if (search) {
-      conditions.push(
-        or(
-          like(mentorContent.title, `%${search}%`),
-          like(mentorContent.description, `%${search}%`),
-          like(courses.tags, `%${search}%`),
-          like(courses.platformTags, `%${search}%`)
-        )
+      const searchCondition = or(
+        like(mentorContent.title, `%${search}%`),
+        like(mentorContent.description, `%${search}%`),
+        like(courses.tags, `%${search}%`),
+        like(courses.platformTags, `%${search}%`)
       );
+
+      if (searchCondition) {
+        conditions.push(searchCondition);
+      }
     }
 
     // Category filter
@@ -119,10 +121,14 @@ export async function GET(request: NextRequest) {
 
     // Mentor filter
     if (mentorId) {
-      conditions.push(and(
+      const mentorCondition = and(
         eq(courses.ownerType, 'MENTOR'),
         eq(mentorContent.mentorId, mentorId)
-      ));
+      );
+
+      if (mentorCondition) {
+        conditions.push(mentorCondition);
+      }
     }
 
     // Apply all conditions
@@ -144,9 +150,10 @@ export async function GET(request: NextRequest) {
 
     // Execute query
     const rawCoursesData = await query;
+    type CourseRow = (typeof rawCoursesData)[number];
     
     // Process the data to parse JSON fields
-    const coursesData = rawCoursesData.map(course => ({
+    const coursesData = rawCoursesData.map((course: CourseRow) => ({
       ...course,
       mentor: {
         ...course.mentor,

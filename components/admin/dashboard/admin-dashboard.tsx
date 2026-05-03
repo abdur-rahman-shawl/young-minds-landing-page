@@ -50,9 +50,10 @@ export function AdminDashboard() {
   } = useAdminOverviewQuery();
   const { data: mentors = [] } = useAdminMentorsQuery();
   const updateMentorMutation = useAdminUpdateMentorMutation();
+  type MentorItem = (typeof mentors)[number];
 
   const updateStatus = async (mentorId: string, status: string) => {
-    const existingMentor = mentors.find((mentor) => mentor.id === mentorId);
+    const existingMentor = mentors.find((mentor: MentorItem) => mentor.id === mentorId);
     if (!existingMentor) {
       return;
     }
@@ -238,7 +239,7 @@ export function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {mentors.map((m) => (
+                      {mentors.map((m: MentorItem) => (
                         <tr key={m.id} className="border-b hover:bg-gray-50">
                           <td className="py-2">{m.name}</td>
                           <td>{m.email}</td>
@@ -256,7 +257,7 @@ export function AdminDashboard() {
                               </SelectTrigger>
                               <SelectContent>
                                 {["YET_TO_APPLY", "IN_PROGRESS", "VERIFIED", "REJECTED", "REVERIFICATION", "UPDATED_PROFILE"].map(
-                                  (status) => (
+                                  (status: string) => (
                                     <SelectItem key={status} value={status}>
                                       {status}
                                     </SelectItem>

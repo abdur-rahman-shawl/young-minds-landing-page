@@ -1,4 +1,4 @@
-CREATE TABLE "course_review_helpful_votes" (
+CREATE TABLE IF NOT EXISTS "course_review_helpful_votes" (
   "review_id" uuid NOT NULL REFERENCES "public"."course_reviews"("id") ON DELETE cascade,
   "user_id" text NOT NULL REFERENCES "public"."users"("id") ON DELETE cascade,
   "created_at" timestamp NOT NULL DEFAULT now(),

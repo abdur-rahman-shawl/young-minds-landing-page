@@ -116,6 +116,13 @@ export const DEFAULT_SESSION_POLICIES = {
         type: 'integer',
         description: 'Maximum rounds of counter-proposals allowed per reschedule request',
     },
+    // Default session price in INR
+    DEFAULT_SESSION_PRICE: {
+        key: 'default_session_price',
+        value: '2000',
+        type: 'integer',
+        description: 'Default session price in INR',
+    },
 } as const;
 
 // Cancellation reason categories for MENTEES

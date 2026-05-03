@@ -27,6 +27,7 @@ interface ComboboxProps {
   searchPlaceholder?: string;
   emptyMessage?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 export function Combobox({
@@ -37,16 +38,18 @@ export function Combobox({
   searchPlaceholder = "Search options...",
   emptyMessage = "No option found.",
   className,
+  disabled = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(nextOpen) => !disabled && setOpen(nextOpen)}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          disabled={disabled}
           className={cn("w-full justify-between", className)}
         >
           <span className="block truncate">
@@ -59,7 +62,7 @@ export function Combobox({
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
         <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput placeholder={searchPlaceholder} disabled={disabled} />
           <CommandList>
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup>

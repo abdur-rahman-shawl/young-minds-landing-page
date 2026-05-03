@@ -7,9 +7,9 @@
  * Fail-loud: Missing required variables throw errors immediately.
  *
  * Environment Variables Required:
- * - LIVEKIT_API_KEY: API key from livekit.yaml
- * - LIVEKIT_API_SECRET: API secret from livekit.yaml
- * - LIVEKIT_WS_URL: WebSocket URL to LiveKit server
+ * - LIVEKIT_API_KEY: API key from LiveKit Cloud or self-hosted deployment
+ * - LIVEKIT_API_SECRET: API secret from LiveKit Cloud or self-hosted deployment
+ * - LIVEKIT_WS_URL: LiveKit server host URL (accepts http(s):// or ws(s)://)
  * - NEXT_PUBLIC_LIVEKIT_WS_URL: Public WebSocket URL for client
  */
 
@@ -84,7 +84,25 @@ export function getServerWsUrl(): string {
   if (typeof window !== 'undefined') {
     throw new Error('getServerWsUrl() can only be called on the server');
   }
-  return process.env.LIVEKIT_WS_URL!;
+
+  const rawUrl = process.env.LIVEKIT_WS_URL;
+  if (!rawUrl) {
+    throw new Error('CRITICAL: LIVEKIT_WS_URL is not defined.');
+  }
+
+  const trimmed = rawUrl.trim();
+
+  if (/^wss?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/^ws/i, 'http');
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  throw new Error(
+    'CRITICAL: LIVEKIT_WS_URL must start with http://, https://, ws://, or wss://.'
+  );
 }
 
 // ============================================================================
@@ -96,7 +114,12 @@ export const livekitConfig = {
   server: {
     apiKey: process.env.LIVEKIT_API_KEY!,
     apiSecret: process.env.LIVEKIT_API_SECRET!,
-    wsUrl: process.env.LIVEKIT_WS_URL!,
+    get wsUrl(): string {
+      return getServerWsUrl();
+    },
+    get hostUrl(): string {
+      return getServerWsUrl();
+    },
   },
 
   // Client configuration (publicly accessible)

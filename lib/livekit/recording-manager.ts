@@ -17,13 +17,22 @@
  * - Fail-loud error handling
  */
 
+import { EgressClient, EncodingOptionsPreset } from 'livekit-server-sdk';
 import { db } from '@/lib/db';
-import { livekitRooms, livekitRecordings, livekitEvents, sessions } from '@/lib/db/schema';
+import {
+  livekitRooms,
+  livekitRecordings,
+  livekitEvents,
+  sessions,
+} from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { resolveRecordingPlaybackAccess } from '@/lib/recordings/authorization';
 import { getStorageProvider } from './storage/storage-factory';
 import { livekitConfig } from './config';
-import jwt from 'jsonwebtoken';
+import {
+  createCloudRecordingFileOutput,
+  isCloudRecordingEnabled,
+} from './cloud-recording-output';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -34,15 +43,14 @@ interface RecordingConfig {
   resolution?: string;
   fps?: number;
   bitrate?: number;
+  audioOnly?: boolean;
 }
 
 interface EgressResponse {
-  egress_id: string;
-  room_name: string;
-  status: string;
+  egressId: string;
+  roomName: string;
+  status: string | number;
 }
-
-const RECORDING_TEMP_DISABLED = true;
 
 const STALE_RECORDING_RETRY_THRESHOLD_MS = 5 * 60 * 1000;
 
@@ -62,8 +70,10 @@ const STALE_RECORDING_RETRY_THRESHOLD_MS = 5 * 60 * 1000;
  */
 export async function startRecording(sessionId: string) {
   try {
-    if (RECORDING_TEMP_DISABLED) {
-      console.log(`⏸️  Recording temporarily disabled. Skipping start for session ${sessionId}`);
+    if (!isCloudRecordingEnabled()) {
+      console.log(
+        `⏸️  LiveKit recording is globally disabled. Skipping start for session ${sessionId}`
+      );
       return null;
     }
 
@@ -144,61 +154,42 @@ export async function startRecording(sessionId: string) {
     }
 
     // ======================================================================
-    // CALL LIVEKIT EGRESS API TO START RECORDING
+    // CALL LIVEKIT CLOUD EGRESS API TO START RECORDING
     // ======================================================================
-    const egressUrl = livekitConfig.server.wsUrl.replace('ws://', 'http://').replace('wss://', 'https://');
-    const egressToken = generateEgressToken();
-
-    console.log(`📡 Calling Egress API at ${egressUrl}`);
-
-    // Force the lightest composite preset to minimize CPU usage on the egress node
-    const resolution = (recordingConfig.resolution || '1280x720').toLowerCase();
-    const preset = 'H264_432P_30';
-    const audioOnly = true;
+    const audioOnly =
+      Boolean(recordingConfig.audioOnly) || session.meetingType === 'audio';
     const fileType = audioOnly ? 'ogg' : 'mp4';
-    const storageExtension = audioOnly ? 'ogg' : 'mp4';
+    const storagePath = buildRecordingStoragePath(sessionId, fileType);
+    const output = createCloudRecordingFileOutput(storagePath);
+    const encodingPreset = audioOnly
+      ? undefined
+      : resolveEncodingPreset(recordingConfig);
 
-    const response = await fetch(`${egressUrl}/twirp/livekit.Egress/StartRoomCompositeEgress`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${egressToken}`,
-      },
-      body: JSON.stringify({
-        room_name: room.roomName,
-        layout: 'grid', // All participants in grid layout
-        audio_only: audioOnly,
-        video_only: false,
-        file: {
-          filepath: `/tmp/egress/sessions/${sessionId}/{time}.${storageExtension}`,
-        },
-        preset,
-      }),
-    });
+    console.log(
+      `📡 Starting LiveKit Cloud egress for room ${room.roomName} -> ${storagePath}`
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    const egressClient = getEgressClient();
+    const egressInfo = (await egressClient.startRoomCompositeEgress(
+      room.roomName,
+      output,
+      {
+        layout: 'grid',
+        audioOnly,
+        videoOnly: false,
+        encodingOptions: encodingPreset,
+      }
+    )) as EgressResponse;
+
+    if (!egressInfo.egressId) {
       throw new Error(
-        `Egress API error (HTTP ${response.status}): ${errorText}\n` +
-        `Make sure Egress service is running on Oracle VM.`
+        'LiveKit Egress API returned success but no egressId in response'
       );
     }
 
-    const egressInfo: EgressResponse = await response.json();
-
-    if (!egressInfo.egress_id) {
-      throw new Error('Egress API returned success but no egress_id in response');
-    }
-
-    // ======================================================================
-    // CREATE RECORDING RECORD IN DATABASE
-    // ======================================================================
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    const storagePath = `sessions/${sessionId}/${timestamp}.${storageExtension}`;
-
     const [recording] = await db.insert(livekitRecordings).values({
       roomId: room.id,
-      recordingSid: egressInfo.egress_id,
+      recordingSid: egressInfo.egressId,
       recordingType: 'composite',
       fileType,
       storageProvider: process.env.STORAGE_PROVIDER || 'supabase',
@@ -208,6 +199,8 @@ export async function startRecording(sessionId: string) {
       metadata: {
         egressInfo,
         config: recordingConfig,
+        outputPath: storagePath,
+        provider: 'livekit-cloud',
       },
     }).returning();
 
@@ -219,11 +212,12 @@ export async function startRecording(sessionId: string) {
       eventType: 'recording_started',
       eventData: {
         recordingId: recording.id,
-        egressId: egressInfo.egress_id,
+        egressId: egressInfo.egressId,
         sessionId,
         roomName: room.roomName,
-        resolution,
-        preset,
+        audioOnly,
+        encodingPreset: encodingPreset ?? null,
+        storagePath,
       },
       source: 'api',
       severity: 'info',
@@ -282,24 +276,8 @@ export async function stopRecording(sessionId: string): Promise<void> {
     // ======================================================================
     // CALL EGRESS API TO STOP RECORDING
     // ======================================================================
-    const egressUrl = livekitConfig.server.wsUrl.replace('ws://', 'http://').replace('wss://', 'https://');
-    const egressToken = generateEgressToken();
-
-    const response = await fetch(`${egressUrl}/twirp/livekit.Egress/StopEgress`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${egressToken}`,
-      },
-      body: JSON.stringify({
-        egress_id: recording.recordingSid,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Egress API error (HTTP ${response.status}): ${errorText}`);
-    }
+    const egressClient = getEgressClient();
+    await egressClient.stopEgress(recording.recordingSid);
 
     console.log(`✅ Recording stop requested: ${recording.recordingSid}`);
     console.log(`⏳ Waiting for webhook to complete upload and processing...`);
@@ -417,40 +395,55 @@ export async function getPlaybackUrl(recordingId: string, userId: string): Promi
 // HELPER FUNCTIONS
 // ============================================================================
 
-/**
- * Generate JWT token for Egress API authentication
- *
- * Uses LiveKit API key and secret to create a valid JWT token.
- *
- * @returns JWT token for Egress API
- */
-function generateEgressToken(): string {
-  const apiKey = livekitConfig.server.apiKey;
-  const apiSecret = livekitConfig.server.apiSecret;
+function getEgressClient(): EgressClient {
+  return new EgressClient(
+    livekitConfig.server.hostUrl,
+    livekitConfig.server.apiKey,
+    livekitConfig.server.apiSecret
+  );
+}
 
-  if (!apiKey || !apiSecret) {
-    throw new Error(
-      'CRITICAL: LIVEKIT_API_KEY or LIVEKIT_API_SECRET not configured. ' +
-      'Cannot generate Egress token without credentials.'
-    );
+function buildRecordingStoragePath(
+  sessionId: string,
+  fileType: 'mp4' | 'ogg'
+): string {
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[:.]/g, '-')
+    .replace(/Z$/, '');
+
+  return `sessions/${sessionId}/${timestamp}.${fileType}`;
+}
+
+function resolveEncodingPreset(
+  recordingConfig: RecordingConfig
+): EncodingOptionsPreset {
+  const resolution = (recordingConfig.resolution || '1280x720').toLowerCase();
+  const fps = recordingConfig.fps ?? 30;
+  const isPortrait = resolution === '720x1280' || resolution === '1080x1920';
+  const is1080p =
+    resolution === '1920x1080' || resolution === '1080x1920';
+  const is60fps = fps >= 60;
+
+  if (isPortrait && is1080p) {
+    return is60fps
+      ? EncodingOptionsPreset.PORTRAIT_H264_1080P_60
+      : EncodingOptionsPreset.PORTRAIT_H264_1080P_30;
   }
 
-  const payload = {
-    iss: apiKey,
-    sub: apiKey,
-    nbf: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiration
-    video: {
-      roomRecord: true,     // CRITICAL: Required for Egress recording operations
-      roomCreate: true,     // Allow room creation
-      roomJoin: true,       // Egress joins as participant to record
-      roomAdmin: true,      // Admin permissions for room control
-      canPublish: true,     // Publish composite stream
-      canSubscribe: true,   // Subscribe to participant tracks to record them
-    },
-  };
+  if (isPortrait) {
+    return is60fps
+      ? EncodingOptionsPreset.PORTRAIT_H264_720P_60
+      : EncodingOptionsPreset.PORTRAIT_H264_720P_30;
+  }
 
-  const token = jwt.sign(payload, apiSecret, { algorithm: 'HS256' });
+  if (is1080p) {
+    return is60fps
+      ? EncodingOptionsPreset.H264_1080P_60
+      : EncodingOptionsPreset.H264_1080P_30;
+  }
 
-  return token;
+  return is60fps
+    ? EncodingOptionsPreset.H264_720P_60
+    : EncodingOptionsPreset.H264_720P_30;
 }

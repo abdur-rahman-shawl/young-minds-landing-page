@@ -1,4 +1,4 @@
-CREATE TABLE "content_item_reviews" (
+CREATE TABLE IF NOT EXISTS "content_item_reviews" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "course_id" uuid NOT NULL REFERENCES "public"."courses"("id") ON DELETE cascade,
   "content_item_id" uuid NOT NULL REFERENCES "public"."section_content_items"("id") ON DELETE cascade,

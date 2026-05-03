@@ -1,6 +1,7 @@
 import { db } from './lib/db/index';
 import { users, mentors, mentees, userRoles, sessions, messages, mentoringRelationships } from './lib/db/schema';
-import { eq } from 'drizzle-orm';
+
+type UserRow = typeof users.$inferSelect;
 
 async function clearUsers() {
   try {
@@ -15,7 +16,7 @@ async function clearUsers() {
     }
 
     console.log('📋 Current users in database:');
-    allUsers.forEach((user, index) => {
+    allUsers.forEach((user: UserRow, index: number) => {
       console.log(`   ${index + 1}. ${user.name} (${user.email}) - ID: ${user.id}`);
     });
 

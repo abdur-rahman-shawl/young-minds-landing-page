@@ -1,5 +1,8 @@
 # Current LiveKit Implementation
 
+> Historical snapshot: this document captures the verified self-hosted Oracle VM + `ngrok` implementation that existed before the LiveKit Cloud migration.
+> For the active rollout path, use [docs/livekit-cloud-setup.md](docs/livekit-cloud-setup.md).
+
 Last verified: 2026-03-31 UTC
 
 ## Purpose
