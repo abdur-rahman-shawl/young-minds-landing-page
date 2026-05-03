@@ -5,6 +5,7 @@ export const FEATURE_KEYS = {
     MESSAGE_REQUESTS_DAILY: 'message_requests_daily',
     AI_HELPER_CHAT_ACCESS: 'ai_helper_chat_access',
     AI_HELPER_MESSAGES_LIMIT: 'ai_helper_messages_limit',
+    AI_CHAT_MAX_USER_MESSAGES: 'ai_chat_max_user_messages',
     FREE_COURSES_LIMIT: 'free_courses_limit',
     SESSION_RECORDINGS_ACCESS: 'session_recordings_access',
     // Mentor & mentee feature gates

@@ -3,10 +3,7 @@ import { streamObject, type CoreMessage } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { enforceFeature, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
-
-const MAX_USER_MESSAGES = 10;
-const MAX_HISTORY_TOKENS_APPROX = 2500; // chars / 4 ≈ tokens
+import { enforceFeature, getFeaturePlanLimit, isSubscriptionPolicyError } from '@/lib/subscriptions/policy-runtime';
 
 const DEFLECTION_MESSAGES = [
   "You've shared so much with me — I think I have everything I need to find your perfect mentor match! Let me pull up some great profiles for you. 🚀",
@@ -85,11 +82,13 @@ export async function POST(req: NextRequest) {
 
   const { history = [], userMessage = "" } = await req.json();
 
-  const userMessageCount = history.filter((m: any) => m.type === 'user').length;
-  const totalChars = history.reduce((sum: number, m: any) => sum + (m.content?.length ?? 0), 0) + (userMessage?.length ?? 0);
-  const approxTokens = Math.ceil(totalChars / 4);
+  const sessionLimit = await getFeaturePlanLimit({
+    action: 'ai.chat.max_user_messages',
+    userId: session.user.id,
+  });
+  const sessionUserMessageCount = history.filter((m: any) => m.type === 'user').length;
 
-  if (userMessageCount >= MAX_USER_MESSAGES || approxTokens >= MAX_HISTORY_TOKENS_APPROX) {
+  if (sessionLimit !== null && sessionUserMessageCount >= sessionLimit) {
     const deflection = DEFLECTION_MESSAGES[Math.floor(Math.random() * DEFLECTION_MESSAGES.length)];
     return NextResponse.json({
       text: deflection,
@@ -138,6 +137,5 @@ export async function POST(req: NextRequest) {
     }),
   });
 
-  // Return a stream that the client can process.
   return result.toTextStreamResponse();
 }
