@@ -1,13 +1,16 @@
 import { desc, eq } from 'drizzle-orm';
 
 import type { TRPCContext } from '@/lib/trpc/context';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import {
   contactSubmissions,
   mentors,
   mentorsProfileAudit,
   mentees,
+  roles,
   sessionPolicies,
+  userRoles,
   users,
   type NotificationType,
 } from '@/lib/db/schema';
@@ -25,6 +28,10 @@ import {
   logAdminSessionAction,
 } from '@/lib/db/admin-session-audit';
 import {
+  buildAdminCreatedMentorProfileValues,
+  splitAdminCreatedMentorName,
+} from '@/lib/admin/user-provisioning';
+import {
   buildMentorAdminUpdatePlan,
   generateAdminMentorCouponCode,
 } from '@/lib/admin/mentor-actions';
@@ -36,11 +43,13 @@ import {
   groupAdminPolicies,
 } from '@/lib/admin/policies';
 import {
+  adminCreateMentorUserInputSchema,
   adminGetMentorAuditInputSchema,
   adminSendMentorCouponInputSchema,
   adminUpdateEnquiryInputSchema,
   adminUpdateMentorInputSchema,
   adminUpdatePoliciesInputSchema,
+  type AdminCreateMentorUserInput,
   type AdminSendMentorCouponInput,
   type AdminUpdateEnquiryInput,
   type AdminUpdateMentorInput,
@@ -108,6 +117,26 @@ const menteeSelectFields = {
   preferredMeetingFrequency: mentees.preferredMeetingFrequency,
   createdAt: mentees.createdAt,
   updatedAt: mentees.updatedAt,
+};
+
+const adminUserSelectFields = {
+  id: users.id,
+  email: users.email,
+  emailVerified: users.emailVerified,
+  name: users.name,
+  firstName: users.firstName,
+  lastName: users.lastName,
+  phone: users.phone,
+  isActive: users.isActive,
+  isBlocked: users.isBlocked,
+  createdAt: users.createdAt,
+  updatedAt: users.updatedAt,
+  roleName: roles.name,
+  roleDisplayName: roles.displayName,
+  mentorId: mentors.id,
+  mentorVerificationStatus: mentors.verificationStatus,
+  mentorCreationSource: mentors.creationSource,
+  mentorCreatedByAdminId: mentors.createdByAdminId,
 };
 
 function getAdminDb(context?: Pick<TRPCContext, 'db'>) {
@@ -289,6 +318,201 @@ export async function listAdminMentors(context: AdminServiceContext) {
   await getAdminActor(context);
   const rows = await fetchMentorRows(context);
   return Promise.all(rows.map((row) => formatMentorRecord(row)));
+}
+
+export async function listAdminUsers(context: AdminServiceContext) {
+  await getAdminActor(context);
+  const database = getAdminDb(context);
+  const rows = await database
+    .select(adminUserSelectFields)
+    .from(users)
+    .leftJoin(userRoles, eq(users.id, userRoles.userId))
+    .leftJoin(roles, eq(userRoles.roleId, roles.id))
+    .leftJoin(mentors, eq(users.id, mentors.userId))
+    .orderBy(desc(users.createdAt));
+
+  const usersById = new Map<
+    string,
+    {
+      id: string;
+      email: string;
+      emailVerified: boolean | null;
+      name: string | null;
+      firstName: string | null;
+      lastName: string | null;
+      phone: string | null;
+      isActive: boolean | null;
+      isBlocked: boolean | null;
+      createdAt: string | null;
+      updatedAt: string | null;
+      roles: Array<{ name: string; displayName: string | null }>;
+      mentor: {
+        id: string;
+        verificationStatus: typeof mentors.verificationStatus.enumValues[number];
+        creationSource: typeof mentors.creationSource.enumValues[number];
+        createdByAdminId: string | null;
+      } | null;
+    }
+  >();
+
+  for (const row of rows) {
+    const existing = usersById.get(row.id);
+    const role =
+      row.roleName && row.roleDisplayName
+        ? {
+            name: row.roleName,
+            displayName: row.roleDisplayName,
+          }
+        : null;
+    const mentor =
+      row.mentorId &&
+      row.mentorVerificationStatus &&
+      row.mentorCreationSource
+        ? {
+            id: row.mentorId,
+            verificationStatus: row.mentorVerificationStatus,
+            creationSource: row.mentorCreationSource,
+            createdByAdminId: row.mentorCreatedByAdminId,
+          }
+        : null;
+
+    if (existing) {
+      if (
+        role &&
+        !existing.roles.some((existingRole) => existingRole.name === role.name)
+      ) {
+        existing.roles.push(role);
+      }
+      continue;
+    }
+
+    usersById.set(row.id, {
+      id: row.id,
+      email: row.email,
+      emailVerified: row.emailVerified,
+      name: row.name,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      phone: row.phone,
+      isActive: row.isActive,
+      isBlocked: row.isBlocked,
+      createdAt: row.createdAt ? row.createdAt.toISOString() : null,
+      updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+      roles: role ? [role] : [],
+      mentor,
+    });
+  }
+
+  return Array.from(usersById.values());
+}
+
+export async function createAdminMentorUser(
+  context: AdminServiceContext,
+  input: AdminCreateMentorUserInput
+) {
+  const actor = await getAdminActor(context);
+  const parsed = adminCreateMentorUserInputSchema.parse(input);
+  const database = getAdminDb(context);
+
+  const [existingUser] = await database
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, parsed.email))
+    .limit(1);
+
+  assertAdminService(!existingUser, 409, 'A user with this email already exists');
+
+  let createdUserId: string | null = null;
+
+  try {
+    const signUpResult = await auth.api.signUpEmail({
+      body: {
+        name: parsed.fullName,
+        email: parsed.email,
+        password: parsed.initialPassword,
+      },
+    });
+    createdUserId = signUpResult.user.id;
+
+    const { firstName, lastName } = splitAdminCreatedMentorName(
+      parsed.fullName
+    );
+
+    await database.transaction(async (transaction) => {
+      const [mentorRole] = await transaction
+        .select({ id: roles.id })
+        .from(roles)
+        .where(eq(roles.name, 'mentor'))
+        .limit(1);
+
+      assertAdminService(mentorRole, 500, 'Mentor role is not configured');
+
+      await transaction
+        .update(users)
+        .set({
+          emailVerified: true,
+          firstName,
+          lastName,
+          phone: parsed.phone ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, createdUserId!));
+
+      await transaction
+        .insert(userRoles)
+        .values({
+          userId: createdUserId!,
+          roleId: mentorRole.id,
+          assignedBy: actor.id,
+        })
+        .onConflictDoNothing();
+
+      await transaction.insert(mentors).values(
+        buildAdminCreatedMentorProfileValues({
+          userId: createdUserId!,
+          adminId: actor.id,
+          input: {
+            fullName: parsed.fullName,
+            email: parsed.email,
+            phone: parsed.phone,
+            title: parsed.title,
+            company: parsed.company,
+            industry: parsed.industry,
+            expertise: parsed.expertise,
+          },
+        })
+      );
+    });
+
+    await logAdminAction({
+      adminId: actor.id,
+      action: 'MENTOR_USER_CREATED',
+      targetId: createdUserId,
+      targetType: 'mentor',
+      details: {
+        email: parsed.email,
+        creationSource: 'ADMIN_CREATED',
+      },
+    });
+
+    return {
+      userId: createdUserId,
+      users: await listAdminUsers(context),
+    };
+  } catch (error) {
+    if (createdUserId) {
+      await database.delete(users).where(eq(users.id, createdUserId));
+    }
+
+    if (error instanceof AdminServiceError) {
+      throw error;
+    }
+
+    throw new AdminServiceError(
+      500,
+      error instanceof Error ? error.message : 'Failed to create mentor user'
+    );
+  }
 }
 
 export async function updateAdminMentor(

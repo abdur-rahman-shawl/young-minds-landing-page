@@ -10,12 +10,14 @@ import {
   adminUpsertAccessPolicyDraftInputSchema,
 } from '@/lib/access-policy/admin-schemas';
 import {
+  createAdminMentorUser,
   getAdminMentorAudit,
   getAdminOverview,
   getAdminPolicies,
   listAdminEnquiries,
   listAdminMentees,
   listAdminMentors,
+  listAdminUsers,
   resetAdminPolicies,
   sendAdminMentorCoupon,
   updateAdminEnquiry,
@@ -23,6 +25,7 @@ import {
   updateAdminPolicies,
 } from '@/lib/admin/server/service';
 import {
+  adminCreateMentorUserInputSchema,
   adminGetMentorAuditInputSchema,
   adminSendMentorCouponInputSchema,
   adminUpdateEnquiryInputSchema,
@@ -46,6 +49,22 @@ export const adminRouter = createTRPCRouter({
       throwAsTRPCError(error, 'Failed to fetch mentors');
     }
   }),
+  listUsers: adminProcedure.query(async ({ ctx }) => {
+    try {
+      return await listAdminUsers(ctx as never);
+    } catch (error) {
+      throwAsTRPCError(error, 'Failed to fetch users');
+    }
+  }),
+  createMentorUser: adminProcedure
+    .input(adminCreateMentorUserInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await createAdminMentorUser(ctx as never, input);
+      } catch (error) {
+        throwAsTRPCError(error, 'Failed to create mentor user');
+      }
+    }),
   updateMentor: adminProcedure
     .input(adminUpdateMentorInputSchema)
     .mutation(async ({ ctx, input }) => {
