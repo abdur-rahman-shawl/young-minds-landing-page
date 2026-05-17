@@ -62,23 +62,29 @@ export const adminCreateMentorUserInputSchema = z.object({
   phone: z
     .string()
     .trim()
-    .max(40, 'Phone number must be 40 characters or fewer')
-    .optional(),
+    .regex(
+      /^\+\d{1,4}-\d{6,15}$/,
+      'Invalid phone number format. Expected +countrycode-number'
+    ),
   title: z
     .string()
     .trim()
-    .max(160, 'Title must be 160 characters or fewer')
-    .optional(),
+    .min(1, 'Job title is required')
+    .max(160, 'Title must be 160 characters or fewer'),
   company: z
     .string()
     .trim()
-    .max(160, 'Company must be 160 characters or fewer')
-    .optional(),
+    .min(1, 'Company is required')
+    .max(160, 'Company must be 160 characters or fewer'),
   industry: z
     .string()
     .trim()
-    .max(160, 'Industry must be 160 characters or fewer')
-    .optional(),
+    .min(1, 'Industry is required')
+    .max(160, 'Industry must be 160 characters or fewer'),
+  experience: z
+    .number()
+    .int('Experience must be a whole number')
+    .min(2, 'Minimum 2 years of experience is required'),
   expertise: z
     .array(
       z
@@ -87,8 +93,23 @@ export const adminCreateMentorUserInputSchema = z.object({
         .min(1, 'Expertise items cannot be empty')
         .max(120, 'Expertise items must be 120 characters or fewer')
     )
-    .max(20, 'You can add up to 20 expertise items')
-    .optional(),
+    .min(5, 'Please list at least 5 areas of expertise')
+    .max(20, 'You can add up to 20 expertise items'),
+  about: z.string().trim().optional(),
+  linkedinUrl: z
+    .string()
+    .trim()
+    .url('Invalid URL')
+    .regex(
+      /^(https?:\/\/)?(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/,
+      'Invalid LinkedIn profile URL'
+    ),
+  country: z.string().trim().min(1, 'Country is required'),
+  state: z.string().trim().min(1, 'State is required'),
+  city: z.string().trim().min(1, 'City is required'),
+  availability: z.enum(['Weekly', 'BiWeekly', 'Monthly', 'AsNeeded']),
+  profileImageUrl: z.string().trim().min(1).optional(),
+  resumeUrl: z.string().trim().min(1).optional(),
 });
 
 export type AdminMentorStatus = z.infer<typeof adminMentorStatusSchema>;

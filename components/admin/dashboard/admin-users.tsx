@@ -1,16 +1,28 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import {
   Loader2,
   Search,
   ShieldCheck,
+  User,
   UserPlus,
   Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,8 +40,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -38,9 +58,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
 import { PasswordInput } from '@/components/auth/password-input';
+import { countryPhoneCodes } from '@/lib/country-phone-codes';
+import { isAdminMentorCreateFormDirty } from '@/lib/admin/user-form-state';
+import { useTRPCClient } from '@/lib/trpc/react';
 import {
-  type AdminCreateMentorUserInput,
   type AdminUserItem,
   useAdminCreateMentorUserMutation,
   useAdminUsersQuery,
@@ -48,15 +71,39 @@ import {
 
 type UserFilter = 'all' | 'mentors' | 'admin-created';
 
+const INDUSTRY_OPTIONS = [
+  ['ITSoftware', 'IT & Software'],
+  ['Marketing', 'Marketing & Advertising'],
+  ['Finance', 'Finance & Banking'],
+  ['Education', 'Education'],
+  ['Healthcare', 'Healthcare'],
+  ['Entrepreneurship', 'Entrepreneurship & Startup'],
+  ['Design', 'Design (UI/UX, Graphic)'],
+  ['Sales', 'Sales'],
+  ['HR', 'Human Resources'],
+  ['Other', 'Other'],
+] as const;
+
 const EMPTY_FORM = {
   fullName: '',
   email: '',
   initialPassword: '',
+  phoneCountryCode: '',
   phone: '',
+  countryId: '',
+  stateId: '',
+  cityId: '',
   title: '',
   company: '',
   industry: '',
+  otherIndustry: '',
+  experience: '',
   expertise: '',
+  about: '',
+  linkedinUrl: '',
+  availability: '',
+  profilePicture: null as File | null,
+  resume: null as File | null,
 };
 
 function getRoleLabel(user: AdminUserItem) {
@@ -72,10 +119,25 @@ function formatRelativeDate(value: string | null) {
 }
 
 export function AdminUsers() {
+  const trpcClient = useTRPCClient();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<UserFilter>('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [profilePicturePreview, setProfilePicturePreview] = useState<
+    string | null
+  >(null);
+  const [countries, setCountries] = useState<
+    Array<{ id: number; name: string }>
+  >([]);
+  const [states, setStates] = useState<Array<{ id: number; name: string }>>([]);
+  const [cities, setCities] = useState<Array<{ id: number; name: string }>>([]);
+  const [locationsLoading, setLocationsLoading] = useState({
+    countries: false,
+    states: false,
+    cities: false,
+  });
   const {
     data: users = [],
     isLoading,
@@ -83,6 +145,114 @@ export function AdminUsers() {
     refetch,
   } = useAdminUsersQuery();
   const createMentorMutation = useAdminCreateMentorUserMutation();
+  const phoneCodeOptions = useMemo(
+    () =>
+      countryPhoneCodes.map((country) => ({
+        value: country.code,
+        label: `+${country.code} (${country.name})`,
+      })),
+    []
+  );
+  const countryOptions = countries.map((country) => ({
+    value: country.id.toString(),
+    label: country.name,
+  }));
+  const stateOptions = states.map((state) => ({
+    value: state.id.toString(),
+    label: state.name,
+  }));
+  const cityOptions = cities.map((city) => ({
+    value: city.id.toString(),
+    label: city.name,
+  }));
+  const defaultCountryId =
+    countries.find((country) => country.name === 'India')?.id.toString() ?? '';
+  const isCreateFormDirty = isAdminMentorCreateFormDirty(
+    form,
+    defaultCountryId
+  );
+
+  useEffect(() => {
+    const fetchCountries = async () => {
+      setLocationsLoading((current) => ({ ...current, countries: true }));
+
+      try {
+        const data = await trpcClient.public.listCountries.query();
+        setCountries(data);
+
+        const india = data.find(
+          (country: { id: number; name: string }) => country.name === 'India'
+        );
+        if (india) {
+          setForm((current) =>
+            current.countryId
+              ? current
+              : { ...current, countryId: india.id.toString() }
+          );
+        }
+      } catch (locationError) {
+        console.error('Failed to fetch countries', locationError);
+      } finally {
+        setLocationsLoading((current) => ({ ...current, countries: false }));
+      }
+    };
+
+    void fetchCountries();
+  }, [trpcClient]);
+
+  useEffect(() => {
+    if (!form.countryId) {
+      setStates([]);
+      setCities([]);
+      return;
+    }
+
+    const fetchStates = async () => {
+      setLocationsLoading((current) => ({ ...current, states: true }));
+      setStates([]);
+      setCities([]);
+      setForm((current) => ({ ...current, stateId: '', cityId: '' }));
+
+      try {
+        const data = await trpcClient.public.listStates.query({
+          countryId: Number(form.countryId),
+        });
+        setStates(data);
+      } catch (locationError) {
+        console.error('Failed to fetch states', locationError);
+      } finally {
+        setLocationsLoading((current) => ({ ...current, states: false }));
+      }
+    };
+
+    void fetchStates();
+  }, [form.countryId, trpcClient]);
+
+  useEffect(() => {
+    if (!form.stateId) {
+      setCities([]);
+      return;
+    }
+
+    const fetchCities = async () => {
+      setLocationsLoading((current) => ({ ...current, cities: true }));
+      setCities([]);
+      setForm((current) => ({ ...current, cityId: '' }));
+
+      try {
+        const data = await trpcClient.public.listCities.query({
+          stateId: Number(form.stateId),
+        });
+        setCities(data);
+      } catch (locationError) {
+        console.error('Failed to fetch cities', locationError);
+      } finally {
+        setLocationsLoading((current) => ({ ...current, cities: false }));
+      }
+    };
+
+    void fetchCities();
+  }, [form.stateId, trpcClient]);
 
   const stats = useMemo(() => {
     const mentors = users.filter((user) => user.mentor);
@@ -135,7 +305,10 @@ export function AdminUsers() {
     });
   }, [filter, search, users]);
 
-  const updateForm = (key: keyof typeof EMPTY_FORM, value: string) => {
+  const updateForm = <Key extends keyof typeof EMPTY_FORM>(
+    key: Key,
+    value: (typeof EMPTY_FORM)[Key]
+  ) => {
     setForm((current) => ({
       ...current,
       [key]: value,
@@ -143,31 +316,77 @@ export function AdminUsers() {
   };
 
   const resetForm = () => {
-    setForm(EMPTY_FORM);
+    setForm({
+      ...EMPTY_FORM,
+      countryId: defaultCountryId,
+    });
+    setProfilePicturePreview(null);
+  };
+
+  const closeCreateDialogWithoutPrompt = () => {
+    setShowDiscardDialog(false);
+    setShowCreateDialog(false);
+    resetForm();
+  };
+
+  const requestCloseCreateDialog = () => {
+    if (createMentorMutation.isPending) {
+      return;
+    }
+
+    if (isCreateFormDirty) {
+      setShowDiscardDialog(true);
+      return;
+    }
+
+    closeCreateDialogWithoutPrompt();
   };
 
   const handleCreateMentor = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const payload: AdminCreateMentorUserInput = {
-      fullName: form.fullName,
-      email: form.email,
-      initialPassword: form.initialPassword,
-      phone: form.phone.trim() || undefined,
-      title: form.title.trim() || undefined,
-      company: form.company.trim() || undefined,
-      industry: form.industry.trim() || undefined,
-      expertise: form.expertise
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean),
-    };
+    const selectedCountry = countries.find(
+      (country) => country.id.toString() === form.countryId
+    );
+    const selectedState = states.find(
+      (state) => state.id.toString() === form.stateId
+    );
+    const selectedCity = cities.find(
+      (city) => city.id.toString() === form.cityId
+    );
+
+    if (!form.profilePicture) {
+      toast.error('Profile picture is required');
+      return;
+    }
+
+    const payload = new FormData();
+    payload.append('fullName', form.fullName);
+    payload.append('email', form.email);
+    payload.append('initialPassword', form.initialPassword);
+    payload.append('phoneCountryCode', form.phoneCountryCode);
+    payload.append('phone', form.phone);
+    payload.append('country', selectedCountry?.name ?? '');
+    payload.append('state', selectedState?.name ?? '');
+    payload.append('city', selectedCity?.name ?? '');
+    payload.append('title', form.title);
+    payload.append('company', form.company);
+    payload.append('industry', form.industry);
+    payload.append('otherIndustry', form.otherIndustry);
+    payload.append('experience', form.experience);
+    payload.append('expertise', form.expertise);
+    payload.append('about', form.about);
+    payload.append('linkedinUrl', form.linkedinUrl);
+    payload.append('availability', form.availability);
+    payload.append('profilePicture', form.profilePicture);
+    if (form.resume) {
+      payload.append('resume', form.resume);
+    }
 
     try {
       await createMentorMutation.mutateAsync(payload);
       toast.success('Mentor user created successfully');
-      setShowCreateDialog(false);
-      resetForm();
+      closeCreateDialogWithoutPrompt();
     } catch (creationError) {
       toast.error(
         creationError instanceof Error
@@ -381,13 +600,35 @@ export function AdminUsers() {
       <Dialog
         open={showCreateDialog}
         onOpenChange={(open) => {
-          setShowCreateDialog(open);
-          if (!open && !createMentorMutation.isPending) {
-            resetForm();
+          if (open) {
+            setShowCreateDialog(true);
+            return;
           }
+
+          requestCloseCreateDialog();
         }}
       >
-        <DialogContent className='max-w-2xl'>
+        <DialogContent
+          className='max-h-[90vh] max-w-4xl overflow-y-auto'
+          onInteractOutside={(event) => {
+            if (createMentorMutation.isPending || isCreateFormDirty) {
+              event.preventDefault();
+            }
+
+            if (!createMentorMutation.isPending && isCreateFormDirty) {
+              setShowDiscardDialog(true);
+            }
+          }}
+          onEscapeKeyDown={(event) => {
+            if (createMentorMutation.isPending || isCreateFormDirty) {
+              event.preventDefault();
+            }
+
+            if (!createMentorMutation.isPending && isCreateFormDirty) {
+              setShowDiscardDialog(true);
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Add mentor user</DialogTitle>
             <DialogDescription>
@@ -396,10 +637,58 @@ export function AdminUsers() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateMentor} className='space-y-5'>
+          <form onSubmit={handleCreateMentor} className='space-y-6'>
+            <div className='flex flex-col items-center gap-3'>
+              <Label htmlFor='profilePicture'>
+                Profile picture <span className='text-red-500'>*</span>
+              </Label>
+              <label htmlFor='profilePicture' className='cursor-pointer'>
+                <Avatar className='h-24 w-24'>
+                  <AvatarImage
+                    src={profilePicturePreview || undefined}
+                    alt='Profile picture preview'
+                  />
+                  <AvatarFallback>
+                    <User className='h-10 w-10' />
+                  </AvatarFallback>
+                </Avatar>
+              </label>
+              <input
+                id='profilePicture'
+                type='file'
+                accept='image/*'
+                className='hidden'
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  updateForm('profilePicture', file);
+
+                  if (!file) {
+                    setProfilePicturePreview(null);
+                    return;
+                  }
+
+                  const reader = new FileReader();
+                  reader.onloadend = () =>
+                    setProfilePicturePreview(reader.result as string);
+                  reader.readAsDataURL(file);
+                }}
+              />
+              <Button
+                type='button'
+                variant='ghost'
+                onClick={() =>
+                  document.getElementById('profilePicture')?.click()
+                }
+              >
+                Upload picture
+              </Button>
+            </div>
+
             <div className='grid gap-4 md:grid-cols-2'>
               <div className='space-y-2'>
-                <Label htmlFor='fullName'>Full name</Label>
+                <Label htmlFor='fullName'>
+                  Full name <span className='text-red-500'>*</span>
+                </Label>
                 <Input
                   id='fullName'
                   value={form.fullName}
@@ -410,7 +699,9 @@ export function AdminUsers() {
                 />
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='email'>Email</Label>
+                <Label htmlFor='email'>
+                  Email <span className='text-red-500'>*</span>
+                </Label>
                 <Input
                   id='email'
                   type='email'
@@ -420,7 +711,9 @@ export function AdminUsers() {
                 />
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='initialPassword'>Initial password</Label>
+                <Label htmlFor='initialPassword'>
+                  Initial password <span className='text-red-500'>*</span>
+                </Label>
                 <PasswordInput
                   id='initialPassword'
                   value={form.initialPassword}
@@ -430,52 +723,241 @@ export function AdminUsers() {
                   required
                 />
               </div>
-              <div className='space-y-2'>
-                <Label htmlFor='phone'>Phone</Label>
+              <div className='space-y-2 md:col-span-2'>
+                <Label htmlFor='phone'>
+                  Phone number <span className='text-red-500'>*</span>
+                </Label>
+                <div className='grid gap-2 md:grid-cols-[220px_1fr]'>
+                  <Combobox
+                    options={phoneCodeOptions}
+                    value={form.phoneCountryCode}
+                    onValueChange={(value) =>
+                      updateForm('phoneCountryCode', value)
+                    }
+                    placeholder='Select code'
+                    searchPlaceholder='Search codes...'
+                    className='w-full'
+                  />
+                  <Input
+                    id='phone'
+                    type='tel'
+                    value={form.phone}
+                    onChange={(event) =>
+                      updateForm('phone', event.target.value)
+                    }
+                    required
+                  />
+                </div>
+              </div>
+              <div className='space-y-2 md:col-span-2'>
+                <Label htmlFor='linkedinUrl'>
+                  LinkedIn profile URL <span className='text-red-500'>*</span>
+                </Label>
                 <Input
-                  id='phone'
-                  value={form.phone}
-                  onChange={(event) => updateForm('phone', event.target.value)}
+                  id='linkedinUrl'
+                  value={form.linkedinUrl}
+                  onChange={(event) =>
+                    updateForm('linkedinUrl', event.target.value)
+                  }
+                  placeholder='https://www.linkedin.com/in/your-profile'
+                  required
+                />
+              </div>
+            </div>
+
+            <div className='grid gap-4 md:grid-cols-3'>
+              <div className='space-y-2'>
+                <Label htmlFor='country'>
+                  Country <span className='text-red-500'>*</span>
+                </Label>
+                <Combobox
+                  options={countryOptions}
+                  value={form.countryId}
+                  onValueChange={(value) => updateForm('countryId', value)}
+                  placeholder={
+                    locationsLoading.countries ? 'Loading...' : 'Select country'
+                  }
+                  searchPlaceholder='Search countries...'
+                  className='w-full'
+                  disabled={locationsLoading.countries}
                 />
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='title'>Title</Label>
+                <Label htmlFor='state'>
+                  State <span className='text-red-500'>*</span>
+                </Label>
+                <Combobox
+                  options={stateOptions}
+                  value={form.stateId}
+                  onValueChange={(value) => updateForm('stateId', value)}
+                  placeholder={
+                    locationsLoading.states ? 'Loading...' : 'Select state'
+                  }
+                  searchPlaceholder='Search states...'
+                  emptyMessage='No state found.'
+                  className='w-full'
+                  disabled={locationsLoading.states || states.length === 0}
+                />
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='city'>
+                  City <span className='text-red-500'>*</span>
+                </Label>
+                <Combobox
+                  options={cityOptions}
+                  value={form.cityId}
+                  onValueChange={(value) => updateForm('cityId', value)}
+                  placeholder={
+                    locationsLoading.cities ? 'Loading...' : 'Select city'
+                  }
+                  searchPlaceholder='Search cities...'
+                  emptyMessage='No city found.'
+                  className='w-full'
+                  disabled={locationsLoading.cities || cities.length === 0}
+                />
+              </div>
+            </div>
+
+            <div className='grid gap-4 md:grid-cols-2'>
+              <div className='space-y-2'>
+                <Label htmlFor='title'>
+                  Current job title <span className='text-red-500'>*</span>
+                </Label>
                 <Input
                   id='title'
                   value={form.title}
                   onChange={(event) => updateForm('title', event.target.value)}
+                  required
                 />
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='company'>Company</Label>
+                <Label htmlFor='company'>
+                  Current company / organization{' '}
+                  <span className='text-red-500'>*</span>
+                </Label>
                 <Input
                   id='company'
                   value={form.company}
                   onChange={(event) =>
                     updateForm('company', event.target.value)
                   }
+                  required
                 />
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='industry'>Industry</Label>
-                <Input
-                  id='industry'
+                <Label htmlFor='industry'>
+                  Primary industry <span className='text-red-500'>*</span>
+                </Label>
+                <Select
                   value={form.industry}
-                  onChange={(event) =>
-                    updateForm('industry', event.target.value)
-                  }
-                />
+                  onValueChange={(value) => updateForm('industry', value)}
+                >
+                  <SelectTrigger id='industry'>
+                    <SelectValue placeholder='Select industry' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INDUSTRY_OPTIONS.map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.industry === 'Other' && (
+                  <Input
+                    id='otherIndustry'
+                    value={form.otherIndustry}
+                    onChange={(event) =>
+                      updateForm('otherIndustry', event.target.value)
+                    }
+                    placeholder='Specify industry'
+                    required
+                  />
+                )}
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='expertise'>Expertise</Label>
+                <Label htmlFor='experience'>
+                  Years of professional experience{' '}
+                  <span className='text-red-500'>*</span>
+                </Label>
                 <Input
-                  id='expertise'
-                  value={form.expertise}
+                  id='experience'
+                  type='number'
+                  min='2'
+                  value={form.experience}
                   onChange={(event) =>
-                    updateForm('expertise', event.target.value)
+                    updateForm('experience', event.target.value)
                   }
-                  placeholder='AI, Leadership, Product'
+                  required
                 />
+              </div>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='expertise'>
+                Areas of expertise <span className='text-red-500'>*</span>
+              </Label>
+              <Textarea
+                id='expertise'
+                value={form.expertise}
+                onChange={(event) =>
+                  updateForm('expertise', event.target.value)
+                }
+                placeholder='List at least 5 skills, separated by commas'
+                maxLength={500}
+                required
+              />
+              <p className='text-xs text-muted-foreground'>
+                Minimum 5 skills, comma-separated.
+              </p>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='about'>About</Label>
+              <Textarea
+                id='about'
+                value={form.about}
+                onChange={(event) => updateForm('about', event.target.value)}
+                rows={4}
+              />
+            </div>
+
+            <div className='grid gap-4 md:grid-cols-2'>
+              <div className='space-y-2'>
+                <Label htmlFor='availability'>
+                  Preferred mentorship availability{' '}
+                  <span className='text-red-500'>*</span>
+                </Label>
+                <Select
+                  value={form.availability}
+                  onValueChange={(value) =>
+                    updateForm('availability', value)
+                  }
+                >
+                  <SelectTrigger id='availability'>
+                    <SelectValue placeholder='Select availability' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='Weekly'>Weekly</SelectItem>
+                    <SelectItem value='BiWeekly'>Bi-weekly</SelectItem>
+                    <SelectItem value='Monthly'>Monthly</SelectItem>
+                    <SelectItem value='AsNeeded'>As needed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='resume'>Resume (optional)</Label>
+                <Input
+                  id='resume'
+                  type='file'
+                  accept='.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                  onChange={(event) =>
+                    updateForm('resume', event.target.files?.[0] ?? null)
+                  }
+                />
+                <p className='text-xs text-muted-foreground'>
+                  PDF, DOC, or DOCX up to 5MB.
+                </p>
               </div>
             </div>
 
@@ -489,7 +971,7 @@ export function AdminUsers() {
               <Button
                 type='button'
                 variant='outline'
-                onClick={() => setShowCreateDialog(false)}
+                onClick={requestCloseCreateDialog}
                 disabled={createMentorMutation.isPending}
               >
                 Cancel
@@ -504,6 +986,27 @@ export function AdminUsers() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard mentor details?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved information in this form. If you discard it,
+              the entered mentor details and selected files will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continue editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={closeCreateDialogWithoutPrompt}
+              className='bg-red-600 text-white hover:bg-red-700'
+            >
+              Discard changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

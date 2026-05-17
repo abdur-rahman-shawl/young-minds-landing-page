@@ -15,7 +15,12 @@ import {
   type NotificationType,
 } from '@/lib/db/schema';
 import { getUserWithRoles } from '@/lib/db/user-helpers';
-import { resolveStorageUrl } from '@/lib/storage';
+import {
+  deleteStorageValues,
+  resolveStorageUrl,
+  uploadProfilePicture,
+  uploadResume,
+} from '@/lib/storage';
 import {
   sendMentorApplicationApprovedEmail,
   sendMentorApplicationRejectedEmail,
@@ -408,7 +413,11 @@ export async function listAdminUsers(context: AdminServiceContext) {
 
 export async function createAdminMentorUser(
   context: AdminServiceContext,
-  input: AdminCreateMentorUserInput
+  input: AdminCreateMentorUserInput,
+  files?: {
+    profilePicture?: File | null;
+    resume?: File | null;
+  }
 ) {
   const actor = await getAdminActor(context);
   const parsed = adminCreateMentorUserInputSchema.parse(input);
@@ -423,6 +432,7 @@ export async function createAdminMentorUser(
   assertAdminService(!existingUser, 409, 'A user with this email already exists');
 
   let createdUserId: string | null = null;
+  const uploadedStorageValues: string[] = [];
 
   try {
     const signUpResult = await auth.api.signUpEmail({
@@ -433,6 +443,30 @@ export async function createAdminMentorUser(
       },
     });
     createdUserId = signUpResult.user.id;
+
+    let profileImageUrl = parsed.profileImageUrl ?? null;
+    let resumeUrl = parsed.resumeUrl ?? null;
+
+    if (files?.profilePicture instanceof File && files.profilePicture.size > 0) {
+      const uploadResult = await uploadProfilePicture(
+        files.profilePicture,
+        createdUserId
+      );
+      profileImageUrl = uploadResult.path;
+      uploadedStorageValues.push(uploadResult.path);
+    }
+
+    assertAdminService(
+      profileImageUrl,
+      400,
+      'Profile picture is required'
+    );
+
+    if (files?.resume instanceof File && files.resume.size > 0) {
+      const uploadResult = await uploadResume(files.resume, createdUserId);
+      resumeUrl = uploadResult.path;
+      uploadedStorageValues.push(uploadResult.path);
+    }
 
     const { firstName, lastName } = splitAdminCreatedMentorName(
       parsed.fullName
@@ -453,7 +487,7 @@ export async function createAdminMentorUser(
           emailVerified: true,
           firstName,
           lastName,
-          phone: parsed.phone ?? null,
+          phone: parsed.phone,
           updatedAt: new Date(),
         })
         .where(eq(users.id, createdUserId!));
@@ -479,6 +513,15 @@ export async function createAdminMentorUser(
             company: parsed.company,
             industry: parsed.industry,
             expertise: parsed.expertise,
+            experience: parsed.experience,
+            about: parsed.about,
+            linkedinUrl: parsed.linkedinUrl,
+            country: parsed.country,
+            state: parsed.state,
+            city: parsed.city,
+            availability: parsed.availability,
+            profileImageUrl,
+            resumeUrl: resumeUrl ?? undefined,
           },
         })
       );
@@ -500,6 +543,8 @@ export async function createAdminMentorUser(
       users: await listAdminUsers(context),
     };
   } catch (error) {
+    await deleteStorageValues(uploadedStorageValues);
+
     if (createdUserId) {
       await database.delete(users).where(eq(users.id, createdUserId));
     }

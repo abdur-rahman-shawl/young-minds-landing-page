@@ -153,12 +153,22 @@ export function useAdminUpdateMentorMutation() {
 }
 
 export function useAdminCreateMentorUserMutation() {
-  const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: AdminCreateMentorUserInput) =>
-      trpcClient.admin.createMentorUser.mutate(input),
+    mutationFn: async (input: FormData) => {
+      const response = await fetch('/api/admin/mentors', {
+        method: 'POST',
+        body: input,
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? 'Failed to create mentor user');
+      }
+
+      return result;
+    },
     onSuccess: async () => {
       await invalidateAdminQueries(queryClient);
     },
