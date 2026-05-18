@@ -24,6 +24,32 @@ import { useMentorApplicationQuery, useSubmitMentorApplicationMutation } from "@
 import { useTRPCClient } from "@/lib/trpc/react"
 
 const INDUSTRY_OPTIONS = new Set(['ITSoftware','Marketing','Finance','Education','Healthcare','Entrepreneurship','Design','Sales','HR','Other']);
+const MAX_PROFILE_PICTURE_SIZE = 5 * 1024 * 1024;
+const PROFILE_PICTURE_ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+function formatFileSize(bytes: number) {
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
+function sanitizeNumericInput(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function validateProfilePicture(file: File | null) {
+  if (!file) {
+    return null;
+  }
+
+  if (file.size > MAX_PROFILE_PICTURE_SIZE) {
+    return `Profile picture must be less than 5MB. Selected file is ${formatFileSize(file.size)}.`;
+  }
+
+  if (!PROFILE_PICTURE_ALLOWED_TYPES.has(file.type)) {
+    return 'Profile picture must be a JPG, PNG, or WebP image.';
+  }
+
+  return null;
+}
 
 function parseExpertiseValue(value?: string | null) {
   if (!value) return '';
@@ -56,6 +82,7 @@ export default function BecomeExpertPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<z.ZodError | null>(null)
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null)
+  const [profilePictureError, setProfilePictureError] = useState<string | null>(null)
   const [showOtherIndustryInput, setShowOtherIndustryInput] = useState(false);
   
   const [countries, setCountries] = useState<{ id: number; name: string }[]>([])
@@ -226,6 +253,17 @@ export default function BecomeExpertPage() {
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
+    const validationError = validateProfilePicture(file);
+
+    if (validationError) {
+      e.currentTarget.value = '';
+      setProfilePictureError(validationError);
+      setMentorFormData(prev => ({ ...prev, profilePicture: null }));
+      setProfilePicturePreview(null);
+      return;
+    }
+
+    setProfilePictureError(null);
     setMentorFormData(prev => ({ ...prev, profilePicture: file }));
     if (file) {
       const reader = new FileReader();
@@ -407,6 +445,7 @@ export default function BecomeExpertPage() {
     e.preventDefault()
     setIsLoading(true)
     setErrors(null)
+    setProfilePictureError(null)
 
     try {
       if (!session?.user?.id) {
@@ -426,6 +465,13 @@ export default function BecomeExpertPage() {
       const schema = isReverificationFlow
         ? mentorReverificationSchema
         : mentorApplicationSchema;
+      const profilePictureValidationError = validateProfilePicture(mentorFormData.profilePicture);
+
+      if (profilePictureValidationError) {
+        setProfilePictureError(profilePictureValidationError);
+        setIsLoading(false);
+        return;
+      }
 
       const validatedData = schema.parse({
         ...mentorFormData,
@@ -537,7 +583,7 @@ export default function BecomeExpertPage() {
                   <input
                     id="profilePicture"
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                     onChange={handleProfilePictureChange}
                     required
                     className="hidden"
@@ -545,6 +591,8 @@ export default function BecomeExpertPage() {
                   <Button type="button" onClick={() => document.getElementById('profilePicture')?.click()} variant="ghost">
                     Upload Picture
                   </Button>
+                  <span className="text-xs text-muted-foreground">JPG, PNG, or WebP. Max 5MB.</span>
+                  {profilePictureError && <p className="text-sm text-red-500 text-center">{profilePictureError}</p>}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -637,8 +685,11 @@ export default function BecomeExpertPage() {
                     <Input
                       id="phone"
                       type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={15}
                       value={mentorFormData.phone}
-                      onChange={e => setMentorFormData(prev => ({ ...prev, phone: e.target.value }))}
+                      onChange={e => setMentorFormData(prev => ({ ...prev, phone: sanitizeNumericInput(e.target.value) }))}
                       placeholder="Enter your phone number"
                       required
                     />
