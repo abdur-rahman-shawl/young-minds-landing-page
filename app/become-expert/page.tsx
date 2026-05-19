@@ -347,6 +347,11 @@ export default function BecomeExpertPage() {
   const { signIn } = useAuth()
   const submitMentorApplicationMutation = useSubmitMentorApplicationMutation()
   const mentorApplicationQuery = useMentorApplicationQuery(Boolean(session?.user && showMentorForm))
+  const getFieldError = (field: string) =>
+    errors?.errors.find(error => error.path[0] === field)?.message
+  const validationMessages = Array.from(
+    new Set(errors?.errors.map(error => error.message) ?? [])
+  )
 
   useEffect(() => {
     if (session?.user && !showMentorForm) {
@@ -523,6 +528,11 @@ export default function BecomeExpertPage() {
     } catch (error) {
       if (error instanceof z.ZodError) {
         setErrors(error)
+        window.requestAnimationFrame(() => {
+          document
+            .getElementById('mentor-form-errors')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        })
       } else {
         alert(
           error instanceof Error
@@ -570,6 +580,21 @@ export default function BecomeExpertPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleMentorFormSubmit} className="space-y-6" encType="multipart/form-data">
+                {validationMessages.length > 0 && (
+                  <div
+                    id="mentor-form-errors"
+                    className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+                    role="alert"
+                  >
+                    <p className="font-medium">Please fix the highlighted fields before submitting.</p>
+                    <ul className="mt-2 list-disc space-y-1 pl-5">
+                      {validationMessages.map(message => (
+                        <li key={message}>{message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="flex flex-col items-center space-y-2">
                   <Label htmlFor="profilePicture">Profile Picture <span className="text-red-500">*</span></Label>
                   <label htmlFor="profilePicture" className="cursor-pointer">
@@ -592,7 +617,11 @@ export default function BecomeExpertPage() {
                     Upload Picture
                   </Button>
                   <span className="text-xs text-muted-foreground">JPG, PNG, or WebP. Max 5MB.</span>
-                  {profilePictureError && <p className="text-sm text-red-500 text-center">{profilePictureError}</p>}
+                  {(profilePictureError || getFieldError('profilePicture')) && (
+                    <p className="text-sm text-red-500 text-center">
+                      {profilePictureError || getFieldError('profilePicture')}
+                    </p>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -604,6 +633,7 @@ export default function BecomeExpertPage() {
                       placeholder="Your Name"
                       required
                     />
+                    {getFieldError('fullName') && <p className="text-sm text-red-500 mt-1">{getFieldError('fullName')}</p>}
                   </div>
                   <div>
                     <Label htmlFor="email">Email Address <span className="text-red-500">*</span></Label>
@@ -667,6 +697,7 @@ export default function BecomeExpertPage() {
                         </p>
                       </div>
                     )}
+                    {getFieldError('email') && <p className="text-sm text-red-500 mt-1">{getFieldError('email')}</p>}
                     {isEmailVerified && <p className="text-sm text-green-500 dark:text-green-400 mt-1">Email verified successfully.</p>}
                   </div>
                 </div>
@@ -694,7 +725,7 @@ export default function BecomeExpertPage() {
                       required
                     />
                   </div>
-                  {errors?.errors.find(e => e.path[0] === 'phone') && <p className="text-sm text-red-500 mt-1">{errors.errors.find(e => e.path[0] === 'phone')?.message}</p>}
+                  {getFieldError('phone') && <p className="text-sm text-red-500 mt-1">{getFieldError('phone')}</p>}
                 </div>
                 <div>
                   <Label htmlFor="linkedinUrl">LinkedIn Profile URL <span className="text-red-500">*</span></Label>
@@ -706,6 +737,7 @@ export default function BecomeExpertPage() {
                     placeholder="https://linkedin.com/in/yourprofile"
                     required
                   />
+                  {getFieldError('linkedinUrl') && <p className="text-sm text-red-500 mt-1">{getFieldError('linkedinUrl')}</p>}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
@@ -718,6 +750,7 @@ export default function BecomeExpertPage() {
                       searchPlaceholder="Search countries..."
                       className="w-full"
                     />
+                    {getFieldError('country') && <p className="text-sm text-red-500 mt-1">{getFieldError('country')}</p>}
                   </div>
                   <div>
                     <Label htmlFor="state">State <span className="text-red-500">*</span></Label>
@@ -731,6 +764,7 @@ export default function BecomeExpertPage() {
                       emptyMessage="No state found."
                       disabled={locationsLoading.states || states.length === 0}
                     />
+                    {getFieldError('state') && <p className="text-sm text-red-500 mt-1">{getFieldError('state')}</p>}
                   </div>
                   <div>
                     <Label htmlFor="city">City <span className="text-red-500">*</span></Label>
@@ -744,6 +778,7 @@ export default function BecomeExpertPage() {
                       emptyMessage="No city found."
                       disabled={locationsLoading.cities || cities.length === 0}
                     />
+                    {getFieldError('city') && <p className="text-sm text-red-500 mt-1">{getFieldError('city')}</p>}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -756,6 +791,7 @@ export default function BecomeExpertPage() {
                       placeholder="e.g., Senior Software Engineer"
                       required
                     />
+                    {getFieldError('title') && <p className="text-sm text-red-500 mt-1">{getFieldError('title')}</p>}
                   </div>
                   <div>
                     <Label htmlFor="company">Current Company/Organization <span className="text-red-500">*</span></Label>
@@ -766,6 +802,7 @@ export default function BecomeExpertPage() {
                       placeholder="Your Company Name"
                       required
                     />
+                    {getFieldError('company') && <p className="text-sm text-red-500 mt-1">{getFieldError('company')}</p>}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -795,6 +832,7 @@ export default function BecomeExpertPage() {
                         <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                     </Select>
+                    {getFieldError('industry') && <p className="text-sm text-red-500 mt-1">{getFieldError('industry')}</p>}
                     {showOtherIndustryInput && (
                       <Input
                         id="otherIndustry"
@@ -806,6 +844,7 @@ export default function BecomeExpertPage() {
                         required
                       />
                     )}
+                    {getFieldError('otherIndustry') && <p className="text-sm text-red-500 mt-1">{getFieldError('otherIndustry')}</p>}
                   </div>
                   <div>
                     <Label htmlFor="experience">Years of Professional Experience <span className="text-red-500">*</span></Label>
@@ -819,6 +858,7 @@ export default function BecomeExpertPage() {
                       required
                     />
                     <span className="ml-2 text-xs text-muted-foreground">Minimum 2 years of experience required to be a mentor.</span>
+                    {getFieldError('experience') && <p className="text-sm text-red-500 mt-1">{getFieldError('experience')}</p>}
                   </div>
                 </div>
                 <div>
@@ -835,6 +875,7 @@ export default function BecomeExpertPage() {
                     <span>Minimum 5 skills, comma-separated.</span>
                     <span>{mentorFormData.expertise.length} / 500</span>
                   </div>
+                  {getFieldError('expertise') && <p className="text-sm text-red-500 mt-1">{getFieldError('expertise')}</p>}
                 </div>
                 <div>
                   <Label htmlFor="about">About You</Label>
@@ -845,7 +886,7 @@ export default function BecomeExpertPage() {
                     placeholder="Tell us a bit about yourself, your journey, and what you're passionate about."
                     rows={4}
                   />
-                  {errors?.errors.find(e => e.path[0] === 'about') && <p className="text-sm text-red-500 mt-1">{errors.errors.find(e => e.path[0] === 'about')?.message}</p>}
+                  {getFieldError('about') && <p className="text-sm text-red-500 mt-1">{getFieldError('about')}</p>}
                 </div>
 
                 <div>
@@ -865,6 +906,7 @@ export default function BecomeExpertPage() {
                       <SelectItem value="AsNeeded">As needed (flexible)</SelectItem>
                     </SelectContent>
                   </Select>
+                  {getFieldError('availability') && <p className="text-sm text-red-500 mt-1">{getFieldError('availability')}</p>}
                 </div>
                 <div>
                   <Label htmlFor="resume">Resume (Optional)</Label>
@@ -875,6 +917,7 @@ export default function BecomeExpertPage() {
                     onChange={e => setMentorFormData(prev => ({ ...prev, resume: e.target.files?.[0] || null }))}
                   />
                   <span className="text-xs text-muted-foreground">Upload your resume in PDF, DOC, or DOCX format (max 5MB)</span>
+                  {getFieldError('resume') && <p className="text-sm text-red-500 mt-1">{getFieldError('resume')}</p>}
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -885,6 +928,7 @@ export default function BecomeExpertPage() {
                   />
                   <Label htmlFor="termsAccepted" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">I agree to the <span className="underline cursor-pointer">Terms and Conditions</span> (placeholder)</Label>
                 </div>
+                {getFieldError('termsAccepted') && <p className="text-sm text-red-500 -mt-4">{getFieldError('termsAccepted')}</p>}
                 <Button
                   type="submit"
                   disabled={isLoading || !isEmailVerified}
