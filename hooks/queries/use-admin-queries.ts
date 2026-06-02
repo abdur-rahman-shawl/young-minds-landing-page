@@ -14,6 +14,10 @@ export type AdminMentorAudit = RouterOutputs['admin']['getMentorAudit'];
 export type AdminUpdateMentorInput = RouterInputs['admin']['updateMentor'];
 export type AdminCreateMentorUserInput =
   RouterInputs['admin']['createMentorUser'];
+export type AdminCreateAdminUserInput =
+  RouterInputs['admin']['createAdminUser'];
+export type AdminPromoteAdminUserInput =
+  RouterInputs['admin']['promoteAdminUser'];
 export type AdminAccessPolicyConfig =
   RouterOutputs['admin']['getAccessPolicyConfig'];
 export type AdminAccessPolicyDraftInput =
@@ -169,6 +173,32 @@ export function useAdminCreateMentorUserMutation() {
 
       return result;
     },
+    onSuccess: async () => {
+      await invalidateAdminQueries(queryClient);
+    },
+  });
+}
+
+export function useAdminCreateAdminUserMutation() {
+  const trpcClient = useTRPCClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: AdminCreateAdminUserInput) =>
+      trpcClient.admin.createAdminUser.mutate(input),
+    onSuccess: async () => {
+      await invalidateAdminQueries(queryClient);
+    },
+  });
+}
+
+export function useAdminPromoteAdminUserMutation() {
+  const trpcClient = useTRPCClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: AdminPromoteAdminUserInput) =>
+      trpcClient.admin.promoteAdminUser.mutate(input),
     onSuccess: async () => {
       await invalidateAdminQueries(queryClient);
     },

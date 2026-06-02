@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { adminCreateMentorUserInputSchema } from '@/lib/admin/server/schemas';
+import {
+  adminCreateAdminUserInputSchema,
+  adminCreateMentorUserInputSchema,
+  adminPromoteAdminUserInputSchema,
+} from '@/lib/admin/server/schemas';
 
 const VALID_INPUT = {
   fullName: 'Ada Lovelace',
@@ -70,6 +74,72 @@ describe('adminCreateMentorUserInputSchema', () => {
       expect(result.error.flatten().fieldErrors.expertise).toContain(
         'Please list at least 5 areas of expertise'
       );
+    }
+  });
+});
+
+describe('adminCreateAdminUserInputSchema', () => {
+  it('accepts a normal admin account payload and normalizes email', () => {
+    expect(
+      adminCreateAdminUserInputSchema.parse({
+        fullName: 'Grace Hopper',
+        email: 'Grace@Example.COM',
+        initialPassword: 'admin123',
+        adminLevel: 'normal',
+      })
+    ).toEqual({
+      fullName: 'Grace Hopper',
+      email: 'grace@example.com',
+      initialPassword: 'admin123',
+      adminLevel: 'normal',
+    });
+  });
+
+  it('accepts super admin as an explicit admin level', () => {
+    expect(
+      adminCreateAdminUserInputSchema.parse({
+        fullName: 'Katherine Johnson',
+        email: 'katherine@example.com',
+        initialPassword: 'admin123',
+        adminLevel: 'super',
+      }).adminLevel
+    ).toBe('super');
+  });
+
+  it('rejects unknown admin levels', () => {
+    const result = adminCreateAdminUserInputSchema.safeParse({
+      fullName: 'Grace Hopper',
+      email: 'grace@example.com',
+      initialPassword: 'admin123',
+      adminLevel: 'owner',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.flatten().fieldErrors.adminLevel).toBeDefined();
+    }
+  });
+});
+
+describe('adminPromoteAdminUserInputSchema', () => {
+  it('accepts a target user identifier', () => {
+    expect(
+      adminPromoteAdminUserInputSchema.parse({
+        userId: 'admin-user-123',
+      })
+    ).toEqual({
+      userId: 'admin-user-123',
+    });
+  });
+
+  it('rejects an empty target user identifier', () => {
+    const result = adminPromoteAdminUserInputSchema.safeParse({
+      userId: '',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.flatten().fieldErrors.userId).toBeDefined();
     }
   });
 });

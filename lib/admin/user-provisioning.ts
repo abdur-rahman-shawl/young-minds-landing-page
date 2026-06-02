@@ -8,6 +8,10 @@ interface BuildAdminCreatedMentorProfileValuesInput {
 }
 
 export function splitAdminCreatedMentorName(fullName: string) {
+  return splitAdminCreatedUserName(fullName);
+}
+
+export function splitAdminCreatedUserName(fullName: string) {
   const [firstName, ...remainingNameParts] = fullName.trim().split(/\s+/);
 
   return {

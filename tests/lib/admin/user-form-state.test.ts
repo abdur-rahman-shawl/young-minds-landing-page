@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { isAdminMentorCreateFormDirty } from '@/lib/admin/user-form-state';
+import {
+  isAdminMentorCreateFormDirty,
+  isAdminUserCreateFormDirty,
+} from '@/lib/admin/user-form-state';
 
 const EMPTY_FORM = {
   fullName: '',
@@ -50,6 +53,37 @@ describe('isAdminMentorCreateFormDirty', () => {
         },
         '101'
       )
+    ).toBe(true);
+  });
+});
+
+const EMPTY_ADMIN_FORM = {
+  fullName: '',
+  email: '',
+  initialPassword: '',
+  adminLevel: 'normal' as const,
+};
+
+describe('isAdminUserCreateFormDirty', () => {
+  it('treats the default normal-admin form as pristine', () => {
+    expect(isAdminUserCreateFormDirty(EMPTY_ADMIN_FORM)).toBe(false);
+  });
+
+  it('detects typed account details as dirty', () => {
+    expect(
+      isAdminUserCreateFormDirty({
+        ...EMPTY_ADMIN_FORM,
+        email: 'admin@example.com',
+      })
+    ).toBe(true);
+  });
+
+  it('detects admin-level changes as dirty', () => {
+    expect(
+      isAdminUserCreateFormDirty({
+        ...EMPTY_ADMIN_FORM,
+        adminLevel: 'super',
+      })
     ).toBe(true);
   });
 });

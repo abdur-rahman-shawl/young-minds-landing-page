@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 
 import type { TRPCContext } from '@/lib/trpc/context';
 import { auth } from '@/lib/auth';
@@ -35,6 +35,7 @@ import {
 import {
   buildAdminCreatedMentorProfileValues,
   splitAdminCreatedMentorName,
+  splitAdminCreatedUserName,
 } from '@/lib/admin/user-provisioning';
 import {
   buildMentorAdminUpdatePlan,
@@ -49,12 +50,16 @@ import {
 } from '@/lib/admin/policies';
 import {
   adminCreateMentorUserInputSchema,
+  adminCreateAdminUserInputSchema,
   adminGetMentorAuditInputSchema,
+  adminPromoteAdminUserInputSchema,
   adminSendMentorCouponInputSchema,
   adminUpdateEnquiryInputSchema,
   adminUpdateMentorInputSchema,
   adminUpdatePoliciesInputSchema,
   type AdminCreateMentorUserInput,
+  type AdminCreateAdminUserInput,
+  type AdminPromoteAdminUserInput,
   type AdminSendMentorCouponInput,
   type AdminUpdateEnquiryInput,
   type AdminUpdateMentorInput,
@@ -138,6 +143,7 @@ const adminUserSelectFields = {
   updatedAt: users.updatedAt,
   roleName: roles.name,
   roleDisplayName: roles.displayName,
+  adminLevel: userRoles.adminLevel,
   mentorId: mentors.id,
   mentorVerificationStatus: mentors.verificationStatus,
   mentorCreationSource: mentors.creationSource,
@@ -158,6 +164,18 @@ async function getAdminActor(context: AdminServiceContext): Promise<CurrentUser>
   assertAdminService(isAdmin, 403, 'Admin access required');
 
   return resolvedUser;
+}
+
+function getAdminActorLevel(actor: CurrentUser) {
+  return actor.roles.find((role) => role.name === 'admin')?.adminLevel ?? null;
+}
+
+function assertSuperAdminActor(actor: CurrentUser) {
+  assertAdminService(
+    getAdminActorLevel(actor) === 'super',
+    403,
+    'Super admin access required'
+  );
 }
 
 function parseJsonList(value: string | null | undefined): string[] {
@@ -350,7 +368,11 @@ export async function listAdminUsers(context: AdminServiceContext) {
       isBlocked: boolean | null;
       createdAt: string | null;
       updatedAt: string | null;
-      roles: Array<{ name: string; displayName: string | null }>;
+      roles: Array<{
+        name: string;
+        displayName: string | null;
+        adminLevel: 'normal' | 'super' | null;
+      }>;
       mentor: {
         id: string;
         verificationStatus: typeof mentors.verificationStatus.enumValues[number];
@@ -367,6 +389,8 @@ export async function listAdminUsers(context: AdminServiceContext) {
         ? {
             name: row.roleName,
             displayName: row.roleDisplayName,
+            adminLevel:
+              row.roleName === 'admin' ? row.adminLevel ?? 'normal' : null,
           }
         : null;
     const mentor =
@@ -409,6 +433,160 @@ export async function listAdminUsers(context: AdminServiceContext) {
   }
 
   return Array.from(usersById.values());
+}
+
+export async function createAdminUser(
+  context: AdminServiceContext,
+  input: AdminCreateAdminUserInput
+) {
+  const actor = await getAdminActor(context);
+  const parsed = adminCreateAdminUserInputSchema.parse(input);
+  const database = getAdminDb(context);
+
+  const [existingUser] = await database
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, parsed.email))
+    .limit(1);
+
+  assertAdminService(!existingUser, 409, 'A user with this email already exists');
+
+  let createdUserId: string | null = null;
+
+  try {
+    const signUpResult = await auth.api.signUpEmail({
+      body: {
+        name: parsed.fullName,
+        email: parsed.email,
+        password: parsed.initialPassword,
+      },
+    });
+    createdUserId = signUpResult.user.id;
+
+    const { firstName, lastName } = splitAdminCreatedUserName(parsed.fullName);
+
+    await database.transaction(async (transaction) => {
+      const [adminRole] = await transaction
+        .select({ id: roles.id })
+        .from(roles)
+        .where(eq(roles.name, 'admin'))
+        .limit(1);
+
+      assertAdminService(adminRole, 500, 'Admin role is not configured');
+
+      await transaction
+        .update(users)
+        .set({
+          emailVerified: true,
+          firstName,
+          lastName,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, createdUserId!));
+
+      await transaction
+        .insert(userRoles)
+        .values({
+          userId: createdUserId!,
+          roleId: adminRole.id,
+          assignedBy: actor.id,
+          adminLevel: parsed.adminLevel,
+        })
+        .onConflictDoNothing();
+    });
+
+    await logAdminAction({
+      adminId: actor.id,
+      action: 'ADMIN_USER_CREATED',
+      targetId: createdUserId,
+      targetType: 'admin',
+      details: {
+        email: parsed.email,
+        adminLevel: parsed.adminLevel,
+      },
+    });
+
+    return {
+      userId: createdUserId,
+      users: await listAdminUsers(context),
+    };
+  } catch (error) {
+    if (createdUserId) {
+      await database.delete(users).where(eq(users.id, createdUserId));
+    }
+
+    if (error instanceof AdminServiceError) {
+      throw error;
+    }
+
+    throw new AdminServiceError(
+      500,
+      error instanceof Error ? error.message : 'Failed to create admin user'
+    );
+  }
+}
+
+export async function promoteAdminUserToSuper(
+  context: AdminServiceContext,
+  input: AdminPromoteAdminUserInput
+) {
+  const actor = await getAdminActor(context);
+  assertSuperAdminActor(actor);
+
+  const parsed = adminPromoteAdminUserInputSchema.parse(input);
+  const database = getAdminDb(context);
+
+  const [targetAdminRole] = await database
+    .select({
+      userId: userRoles.userId,
+      roleId: userRoles.roleId,
+      adminLevel: userRoles.adminLevel,
+      email: users.email,
+      name: users.name,
+    })
+    .from(userRoles)
+    .innerJoin(roles, eq(userRoles.roleId, roles.id))
+    .innerJoin(users, eq(userRoles.userId, users.id))
+    .where(and(eq(userRoles.userId, parsed.userId), eq(roles.name, 'admin')))
+    .limit(1);
+
+  assertAdminService(targetAdminRole, 404, 'Admin user not found');
+  assertAdminService(
+    targetAdminRole.adminLevel !== 'super',
+    400,
+    'Admin user is already a super admin'
+  );
+
+  await database
+    .update(userRoles)
+    .set({
+      adminLevel: 'super',
+    })
+    .where(
+      and(
+        eq(userRoles.userId, targetAdminRole.userId),
+        eq(userRoles.roleId, targetAdminRole.roleId)
+      )
+    );
+
+  await logAdminAction({
+    adminId: actor.id,
+    action: 'ADMIN_USER_PROMOTED_TO_SUPER',
+    targetId: targetAdminRole.userId,
+    targetType: 'admin',
+    details: {
+      email: targetAdminRole.email,
+      previousAdminLevel: targetAdminRole.adminLevel ?? 'normal',
+      adminLevel: 'super',
+    },
+  });
+
+  return {
+    userId: targetAdminRole.userId,
+    previousAdminLevel: targetAdminRole.adminLevel ?? 'normal',
+    adminLevel: 'super' as const,
+    users: await listAdminUsers(context),
+  };
 }
 
 export async function createAdminMentorUser(

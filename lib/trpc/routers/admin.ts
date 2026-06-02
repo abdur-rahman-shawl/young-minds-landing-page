@@ -11,6 +11,7 @@ import {
 } from '@/lib/access-policy/admin-schemas';
 import {
   createAdminMentorUser,
+  createAdminUser,
   getAdminMentorAudit,
   getAdminOverview,
   getAdminPolicies,
@@ -18,6 +19,7 @@ import {
   listAdminMentees,
   listAdminMentors,
   listAdminUsers,
+  promoteAdminUserToSuper,
   resetAdminPolicies,
   sendAdminMentorCoupon,
   updateAdminEnquiry,
@@ -26,7 +28,9 @@ import {
 } from '@/lib/admin/server/service';
 import {
   adminCreateMentorUserInputSchema,
+  adminCreateAdminUserInputSchema,
   adminGetMentorAuditInputSchema,
+  adminPromoteAdminUserInputSchema,
   adminSendMentorCouponInputSchema,
   adminUpdateEnquiryInputSchema,
   adminUpdateMentorInputSchema,
@@ -63,6 +67,24 @@ export const adminRouter = createTRPCRouter({
         return await createAdminMentorUser(ctx as never, input);
       } catch (error) {
         throwAsTRPCError(error, 'Failed to create mentor user');
+      }
+    }),
+  createAdminUser: adminProcedure
+    .input(adminCreateAdminUserInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await createAdminUser(ctx as never, input);
+      } catch (error) {
+        throwAsTRPCError(error, 'Failed to create admin user');
+      }
+    }),
+  promoteAdminUser: adminProcedure
+    .input(adminPromoteAdminUserInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await promoteAdminUserToSuper(ctx as never, input);
+      } catch (error) {
+        throwAsTRPCError(error, 'Failed to promote admin user');
       }
     }),
   updateMentor: adminProcedure

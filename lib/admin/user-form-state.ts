@@ -20,6 +20,13 @@ export interface AdminMentorCreateFormState {
   resume: File | null;
 }
 
+export interface AdminUserCreateFormState {
+  fullName: string;
+  email: string;
+  initialPassword: string;
+  adminLevel: 'normal' | 'super';
+}
+
 export function isAdminMentorCreateFormDirty(
   form: AdminMentorCreateFormState,
   defaultCountryId: string
@@ -44,5 +51,14 @@ export function isAdminMentorCreateFormDirty(
     form.availability !== '' ||
     form.profilePicture !== null ||
     form.resume !== null
+  );
+}
+
+export function isAdminUserCreateFormDirty(form: AdminUserCreateFormState) {
+  return (
+    form.fullName !== '' ||
+    form.email !== '' ||
+    form.initialPassword !== '' ||
+    form.adminLevel !== 'normal'
   );
 }

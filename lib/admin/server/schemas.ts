@@ -112,6 +112,27 @@ export const adminCreateMentorUserInputSchema = z.object({
   resumeUrl: z.string().trim().min(1).optional(),
 });
 
+export const adminLevelSchema = z.enum(['normal', 'super']);
+
+export const adminCreateAdminUserInputSchema = z.object({
+  fullName: z
+    .string()
+    .trim()
+    .min(2, 'Full name must be at least 2 characters')
+    .max(160, 'Full name must be 160 characters or fewer'),
+  email: z
+    .string()
+    .trim()
+    .email('Invalid email address')
+    .transform((value) => value.toLowerCase()),
+  initialPassword: passwordValidation,
+  adminLevel: adminLevelSchema.default('normal'),
+});
+
+export const adminPromoteAdminUserInputSchema = z.object({
+  userId: z.string().trim().min(1, 'User identifier is required'),
+});
+
 export type AdminMentorStatus = z.infer<typeof adminMentorStatusSchema>;
 export type AdminUpdateMentorInput = z.infer<
   typeof adminUpdateMentorInputSchema
@@ -130,4 +151,11 @@ export type AdminUpdatePoliciesInput = z.infer<
 >;
 export type AdminCreateMentorUserInput = z.infer<
   typeof adminCreateMentorUserInputSchema
+>;
+export type AdminLevel = z.infer<typeof adminLevelSchema>;
+export type AdminCreateAdminUserInput = z.infer<
+  typeof adminCreateAdminUserInputSchema
+>;
+export type AdminPromoteAdminUserInput = z.infer<
+  typeof adminPromoteAdminUserInputSchema
 >;
